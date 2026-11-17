@@ -1,5 +1,17 @@
 # Owner's ccdeck work — continuation context
 
+## Local single Done group — 2026-11-16
+
+Owner requested one Done section instead of separate new/seen sections.
+Local branch `fix/v4-single-done-group`, based on next/v4 `49d95fb8`, runs
+from `~/.cache/ccdeck-wt/v4-single-done-group` on port 4317 through the
+installed desktop wrapper. New results retain their priority and seen state;
+the list combines their header, count and fold, with an accessible dot on
+unseen rows. No changes have been pushed or merged. Relevant tests (86),
+typecheck and build passed. Isolated browser fixtures verified combined
+counts and clearing the dot after selection, Rider Black/Light and 390/320px.
+The temporary Vite preview was stopped; keep one owner-facing v4 backend.
+
 Updated: 2026-10-29. This is a handoff, not a claim that processes or remote
 branches still have the same state. Verify them at the start of a new session.
 
@@ -173,7 +185,7 @@ clamping and cleanup must agree. Intentional floor walks, falls and climbing
 remain part of the animation; distinguish these from accidental floating beyond
 the map's ledge. The regression test is `fm-ledge-bounds.test.ts`.
 
-The bottom Auto-fit / Resume chip and temporary Layout re-arranged / Undo notice
+The bottom Fit all button (while auto-fit is off) and temporary Layout re-arranged / Undo notice
 share a horizontal `.canvas-notices` row. Keep them side by side at narrow widths,
 with readable controls, and use the whole row for character obstacle detection.
 
@@ -357,3 +369,162 @@ typecheck and production build. Browser smoke checks on port 4329 confirmed
 the merged v3.40.2 UI has the simplified Monitor and individual Configuration
 switches. The only merge conflict was the switch-count regression test:
 development removed the Music switch, so the combined source contains 17.
+
+## Local v4 UI and terminal investigation — 2026-11-10
+
+The owner requested the v4 preview and compact account/usage UI. The local
+runtime worktree is `v4-runtime-20261110`, branch
+`feature/v4-compact-account-cards`, based on `next/v4` at `843eb0768`.
+It serves rebuilt `dist/web` on `http://127.0.0.1:4317/`; recheck the serving
+process before restarting it. The desktop wrapper points to that worktree.
+The package still reports 3.82.2; this preview is not a published v4 release.
+
+Local UI commits through `364f690b0` compact account cards and disclosed
+details, restore quota colors, simplify the Other accounts header, move
+video help to header icons, and put the version at the bottom right.
+`657277ae6` makes Check again use target lookup for a known live external
+session before offering Reopen, and explains uncertain terminal identity.
+The focused terminal/i18n suite passed 145 tests, with typecheck and build
+passing. An isolated browser tab confirmed the displayed refusal copy.
+No existing personal session was stopped or resumed during verification.
+
+An active terminal in another app cannot be transferred by this change.
+The installed terminal engine has not been replaced; do not claim this
+preview resolves every unsupported external-session case. No new changes
+from this work have been pushed, merged, tagged or published.
+
+## Session controls and local shell — 2026-11-17
+
+Branch `fix/v4-session-chrome` includes `next/v4` through `7324d79e`.
+It keeps the owner’s one Done heading when integrating the upstream inbox
+ordering; unread finished results still carry their marker.
+It restores one Done group, follows native Codex titles without requiring a
+rollout append, and makes UI renames update provider metadata before saving
+the local display override. Clearing removes only the local override.
+Codex renaming requires its existing local server; a refusal is reported
+instead of silently saving a local-only name. Claude uses the documented
+custom-title transcript operation, without typing into the active prompt.
+An already-running Claude terminal may retain its old in-memory caption until
+it rereads the session; persisted provider metadata is updated.
+
+Terminal hints use the global bottom row when available and retain one local
+row on phone layouts. Unrequested wheel-to-arrow translation on alternate
+screens is blocked; alternate screens themselves have no local scrollback.
+Native normal-buffer output retains the terminal's existing scrollback.
+Scrollbars retain their drag target with a thinner painted thumb. Workspace
+uses one divider stroke between the navigator and terminal.
+
+Codex account selection is the default for new sessions; it is not proof that
+an open native session has changed account. During a live change the panel
+keeps polling and identifies the account still in use. Long-running tools can
+delay the existing controlled handoff. Never bypass that guard to make the UI
+claim an account change succeeded.
+
+The local macOS shell was rebuilt from the same V4 source because the installed
+older shell had neither the New session folder-picker bridge nor its IPC
+handler. The app signature was verified with the same signing identity; the
+provider engine package was not modified. Actual native folder selection is
+not fully tested in automation (macOS Accessibility is disabled).
+
+Verification: Node 22 typecheck and production build; focused title, rename,
+account polling/handoff, terminal controls, rail and status-bar tests. Browser
+checks used an isolated context with real xterm/React components at desktop,
+390 and 320 px: one hint row, contextual typing hint and phone fallback.
+Trusted Electron wheel events moved normal-buffer scrollback and produced no
+input in the alternate screen. Temporary browser fixtures were removed.
+Recheck current process IDs before replacing a runtime.
+
+
+### Shared sidebar, session setup and native file drops
+
+Sessions and Accounts now use the same persisted width and the same column
+resize handle. The title has a full first row; provider, model and age sit
+below it. The New session dialog uses project rows, agent choices and a
+closed Session options disclosure with native model/permission selects.
+Its placement follows content changes so expanded options and the primary
+action remain reachable at narrow widths.
+
+The terminal no longer reserves a second footer when its contextual hints
+are in the global status bar. Initial palette colors accompany recovery
+requests so native agents can draw their composer and warning colors
+correctly from startup.
+
+The desktop preload resolves only native File objects explicitly dropped
+by the reader. The terminal pastes bounded, quoted absolute paths once,
+without reading file contents, uploading files or submitting the command.
+A browser without a native path bridge explains that limitation.
+
+Verification on Node 22: 37 relevant test files / 1,050 tests, typecheck and
+production build passed after integrating the latest upstream inbox changes.
+The signed macOS wrapper was rebuilt; its signature was verified. In its
+actual Electron renderer a disposable two-file drop (spaces and apostrophe
+in filenames) produced one correctly quoted paste with no input submission.
+Pointer dragging resized both sidebar panels and switching retained the
+width. Real terminal geometry left only 2–9px below the last cell row, and
+the desktop had one global status bar with no local duplicate. Earlier
+isolated visual checks covered desktop, 390/320px and light/dark palettes.
+The native folder bridge is present, but selecting a folder through the
+system dialog is not fully automated. External foreground-session transfer
+remains a separate engine capability; this UI validation does not prove it.
+
+
+### Codex prompt bands after a theme change — 2026-11-17
+
+The native Codex TUI caches its startup background and emits explicit RGB
+fills for its composer and submitted prompts. Changing the deck palette
+updates the terminal defaults but leaves those fills dark on light paper.
+A disposable native 0.169.0 session reproduced the unchanged RGB band after
+the tmux background changed.
+
+Codex display output now maps dark/pale near-neutral RGB bands to the
+existing theme-owned indexed band. This also lets already rendered messages
+follow later theme changes. DIM is suppressed only while such a band is
+active, restoring the requested intensity afterwards, because xterm halves
+its contrast floor for dim text. Foreground colors, chromatic backgrounds
+and other providers pass through. Stream boundaries, Unicode and OSC/DCS
+strings are preserved, with bounded escape buffering and fresh state on a
+reseed. Wire acknowledgements count original bytes, not adapted display
+bytes. No provider restart or input is needed.
+
+Regression checks exercise real controller seed/output paths, original-byte
+acknowledgements and switching back to Claude. An isolated browser replayed
+actual native output through xterm and changed light/dark themes without
+rewriting the output; both the prompt and composer remained readable. This
+is a display correction, not a change to provider authentication or handoff.
+
+
+### Terminal surface polish and shared divider — 2026-11-17
+
+The sidebar divider disappeared in split Workspace: the column border had
+been disabled on the assumption that the stage supplied it, while split
+stages also disable their own left border. The column now owns that single
+stroke; the adjacent stage suppresses its border only while that column is
+present on desktop. The phone drawer keeps its existing edge behavior.
+
+The Codex band uses the quieter existing 7.5% control wash instead of the
+stronger 13% band. This reduces the slab effect in light and dark palettes
+while retaining readable prompt text and the pane header's focus indication.
+References were Herdr's shipped terminal palette and Ghostty's documented
+background/padding configuration; native terminal geometry is preserved.
+
+### Live Board and main-conversation terminals — 2026-11-17
+
+Board pause is withdrawn at the owner's request. The menu, command palette,
+keyboard sheet and status hints offer no pause action, and Space has no
+Board-wide binding. The production event gate rejects legacy pause requests,
+so updates continue immediately. Native Space on cards, buttons and terminal
+input keeps its existing behavior. Other tools' pause controls are unrelated.
+
+Native terminals resolve Codex child threads through their parent chain to
+its main conversation, using the same ancestry rule as canvas grouping.
+Claude subagents continue to use their shared main session. Opening beside
+or dropping a child reuses the parent's pane; the stage display also resolves
+saved child IDs. Graph identities and tool attribution are retained.
+
+Branch `fix/v4-session-chrome` integrates `next/v4` through `5b6e8ebe`.
+Regressions reproduced child-ID terminal targets and an extra split before
+these fixes. Node 22 validation passed 75 files / 2,056 tests, typecheck and
+production build. Real-browser synthetic graph checks covered both providers,
+nested children, pane reuse, uninterrupted events and the pause-free menu;
+light/dark and 390/320px checks passed. This does not claim to add external
+foreground terminal attachment support to the installed engine.

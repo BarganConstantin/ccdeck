@@ -119,7 +119,9 @@ describe("the modal itself", () => {
       .toMatch(/if \(force && !selfPressAccepted\(busyRef\.current\)\) return;/);
   });
 
-  it("swaps the reload artwork for a busy label", () => {
-    expect(src).toMatch(/loading \? "…" : <RefreshGlyph \/>/);
+  // V4 (Refresh, while reading): the arrow stays and turns, so the label swap is gone.
+  it("keeps the reload arrow while it reads", () => {
+    expect(src).not.toMatch(/loading \? "…"/);
+    expect(src).toMatch(/><RefreshGlyph \/><\/button>/);
   });
 });

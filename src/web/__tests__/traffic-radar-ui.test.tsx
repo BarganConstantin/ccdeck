@@ -54,7 +54,7 @@ describe("Telemetry Radar evidence and navigation", () => {
     expect(hook).toContain('document.visibilityState !== "hidden"');
     expect(hook).toContain("controller?.abort()"); expect(hook).not.toContain("setInterval");
     const dialogs = readFileSync(new URL("../components/DeckDialogs.tsx", import.meta.url), "utf8");
-    expect(dialogs).toContain("{trafficRadarOpen && <Suspense");
+    expect(dialogs).toContain("<DialogPresence when={trafficRadarOpen}>{() => <Suspense");
   });
 });
 

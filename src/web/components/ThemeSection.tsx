@@ -27,7 +27,7 @@ import { themeName } from "../settings-names";
 function ThemePreview({ theme }: { theme: Theme }) {
   return (
     <span className="appearance-preview" data-swatch={theme}>
-      <svg viewBox="0 0 112 56" aria-hidden focusable="false">
+      <svg viewBox="0 0 112 56" preserveAspectRatio="xMidYMid slice" aria-hidden focusable="false">
         <rect className="tp-canvas" width="112" height="56" />
         <rect className="tp-surface" width="112" height="7" />
         <rect className="tp-rule" y="7" width="112" height="1" />

@@ -11,6 +11,11 @@
 // why it renders its OWN feedback dialog — the app's dialogs went down with the
 // tree — and why the reload is a full `location.reload()` and not a state reset.
 //
+// With a ccdeck account connected, its report can go as the account, as every
+// other door's does. The account is read when the error is caught: what
+// publishes it (AccountBridge) is in the tree that went down, and takes the
+// account with it as it unmounts.
+//
 // The error is never swallowed: it is logged, and forwarded to the deck's own
 // server the same way a caught page error is (report-errors.ts / reports.mjs),
 // which sends it on only while reports are on. What the dialog opens FILLED IN
@@ -21,6 +26,9 @@ import { isEscapeKey, modalStack } from "../modal-dismiss";
 import { forwardCaughtError, scrubReport } from "../report-errors";
 import { showTabIcon } from "../use-tab-ambient";
 import FeedbackDialog from "./FeedbackDialog";
+import { UnreachableGlyph } from "./action-glyphs";
+import { DialogPresence } from "./Dialog";
+import { readFeedbackAccount, type FeedbackAccount } from "../feedback-unread";
 import { t } from "../i18n";
 
 /** How much of the component path to seed: enough to place the crash, not a
@@ -53,13 +61,15 @@ interface State {
   componentStack: string | null;
   /** Whether the Send-report dialog is open over the fallback. */
   reportOpen: boolean;
+  /** The ccdeck account as it was when the error was caught, if any. */
+  account?: FeedbackAccount | null;
 }
 
 export default class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null, componentStack: null, reportOpen: false };
 
   static getDerivedStateFromError(error: Error): Partial<State> {
-    return { error };
+    return { error, account: readFeedbackAccount() };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
@@ -96,7 +106,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   render(): ReactNode {
-    const { error, componentStack, reportOpen } = this.state;
+    const { error, componentStack, reportOpen, account = null } = this.state;
     if (!error) return this.props.children;
     return (
       <div className="error-fallback">
@@ -104,6 +114,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             it, since everything inside an alert is read out, assertively,
             whenever any of it changes. */}
         <div className="error-fallback-card" role="alert">
+          <span className="error-fallback-icon" aria-hidden><UnreachableGlyph /></span>
           <p className="error-fallback-title">{t("shell.error.title")}</p>
           <p className="error-fallback-note">{t("shell.error.note")}</p>
           <div className="error-fallback-actions">
@@ -120,13 +131,14 @@ export default class ErrorBoundary extends Component<Props, State> {
             </button>
           </div>
         </div>
-        {reportOpen && (
+        <DialogPresence when={reportOpen}>{() => (
           <FeedbackDialog
             initialKind="bug"
             initialBody={crashReportBody(error.message, componentStack)}
+            account={account}
             onClose={() => this.setState({ reportOpen: false })}
           />
-        )}
+        )}</DialogPresence>
       </div>
     );
   }

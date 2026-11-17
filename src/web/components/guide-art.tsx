@@ -50,7 +50,7 @@ function Account({ x, y, email, state, tone, bars }: {
   return (
     <>
       <circle cx={x + 3} cy={y - 4} r={3} className={FILL[tone]} />
-      <text x={x + 12} y={y} className="ga-t ga-mono">{email}</text>
+      <text x={x + 12} y={y} className="ga-t">{email}</text>
       <text x={x + 12} y={y + 16} className={`ga-s ${FILL[tone]}`}>{state}</text>
       {bars?.map((pct, i) => (
         <g key={i}>
@@ -244,7 +244,7 @@ function InspectArt() {
 
       <Screen x={200} y={22} w={226} h={160} />
       <text x={214} y={46} className="ga-t ga-strong">tests</text>
-      <text x={412} y={46} className="ga-s" textAnchor="end">Sonnet 5 · 38s</text>
+      <text x={412} y={46} className="ga-s" textAnchor="end">{t("shell.art.modelSec")}</text>
       <line x1={200} y1={56} x2={426} y2={56} className="ga-line" />
       <text x={214} y={76} className="ga-cap">{t("shell.art.prompt")}</text>
       <text x={214} y={92} className="ga-t">{t("shell.art.promptText")}</text>
@@ -253,7 +253,7 @@ function InspectArt() {
       <Chip x={266} y={122} label="Edit" />
       <Chip x={318} y={122} label="Bash" live />
       <text x={214} y={164} className="ga-cap">{t("shell.art.tokensCap")}</text>
-      <text x={214} y={178} className="ga-s ga-mono">{t("shell.art.inOut")}</text>
+      <text x={214} y={178} className="ga-s">{t("shell.art.inOut")}</text>
     </Board>
   );
 }
@@ -286,10 +286,10 @@ function MachineArt() {
       <text x={240} y={100} className="ga-big">66 °C</text>
       <text x={240} y={118} className="ga-s ga-ok">{t("shell.art.fullSpeed")}</text>
       <text x={240} y={142} className="ga-cap">{t("shell.art.busiestCap")}</text>
-      <text x={240} y={160} className="ga-s ga-mono">node · claude</text>
-      <text x={412} y={160} className="ga-s ga-mono" textAnchor="end">38%</text>
-      <text x={240} y={176} className="ga-s ga-mono">esbuild</text>
-      <text x={412} y={176} className="ga-s ga-mono" textAnchor="end">21%</text>
+      <text x={240} y={160} className="ga-s">node · claude</text>
+      <text x={412} y={160} className="ga-s" textAnchor="end">38%</text>
+      <text x={240} y={176} className="ga-s">esbuild</text>
+      <text x={412} y={176} className="ga-s" textAnchor="end">21%</text>
     </Board>
   );
 }
@@ -443,9 +443,9 @@ function LanShareArt() {
       <line x1={90} y1={54} x2={350} y2={54} className="ga-line" />
       <text x={106} y={76} className="ga-cap">{t("shell.art.shareCap")}</text>
       <Check x={106} y={88} on />
-      <text x={126} y={98} className="ga-t ga-mono">work@team.dev</text>
+      <text x={126} y={98} className="ga-t">work@team.dev</text>
       <Check x={106} y={112} />
-      <text x={126} y={122} className="ga-s ga-mono">personal@me.dev</text>
+      <text x={126} y={122} className="ga-s">personal@me.dev</text>
       <text x={106} y={150} className="ga-cap">{t("shell.art.pairingCap")}</text>
       <text x={106} y={168} className="ga-s">{t("shell.art.sayYes")}</text>
       <Switch x={304} y={157} on />

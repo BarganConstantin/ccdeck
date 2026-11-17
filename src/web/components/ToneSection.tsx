@@ -13,6 +13,7 @@ import { customIdOf, customOptionValue } from "../tone-option";
 import { t as tNow, useT } from "../i18n";
 import VolumeRow from "./VolumeRow";
 import { SettingsGroup } from "./SettingsParts";
+import SelectShell from "./SelectShell";
 
 /** What each tone is called where a user is choosing between the two. Not
  *  "done" and "needs-input" — those are event names. */
@@ -111,28 +112,30 @@ export default function ToneSection({
             reader that already knows how to announce a list of options.
             Three of them, so the alternative — a radio group — would cost
             three tab stops per tone and six rows of markup to be worse. */}
-        <select
-          id={figureId}
-          className="sm-select"
-          value={customId ? customOptionValue(customId) : tone.figure}
-          onChange={e => {
-            const value = e.target.value;
-            const chosen = customIdOf(value);
-            if (chosen !== null) onCustomSelected(chime, chosen);
-            else { onBuiltInSelected(chime); onFigure(chime, value); }
-          }}
-        >
-          {FIGURE_SETS[chime].map(f => (
-            <option key={f.id} value={f.id}>{f.label}</option>
-          ))}
-          {customAssets.length > 0 && (
-            <optgroup label={t("settings.sounds.customGroup")}>
-              {customAssets.map(asset => (
-                <option key={asset.id} value={customOptionValue(asset.id)}>{asset.name}</option>
-              ))}
-            </optgroup>
-          )}
-        </select>
+        <SelectShell>
+          <select
+            id={figureId}
+            className="sm-select"
+            value={customId ? customOptionValue(customId) : tone.figure}
+            onChange={e => {
+              const value = e.target.value;
+              const chosen = customIdOf(value);
+              if (chosen !== null) onCustomSelected(chime, chosen);
+              else { onBuiltInSelected(chime); onFigure(chime, value); }
+            }}
+          >
+            {FIGURE_SETS[chime].map(f => (
+              <option key={f.id} value={f.id}>{f.label}</option>
+            ))}
+            {customAssets.length > 0 && (
+              <optgroup label={t("settings.sounds.customGroup")}>
+                {customAssets.map(asset => (
+                  <option key={asset.id} value={customOptionValue(asset.id)}>{asset.name}</option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </SelectShell>
       </div>
 
     </SettingsGroup>

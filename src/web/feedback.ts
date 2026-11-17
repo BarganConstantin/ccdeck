@@ -18,11 +18,18 @@ export type Kind = "bug" | "idea" | "other";
 
 /** How a caller seeds the dialog — the error boundary opens it as a filled-in
  *  bug, the account popover as the issue it explains. Absent fields keep the
- *  empty defaults, so an unseeded open is exactly what it always was. */
+ *  empty defaults, so an unseeded open is exactly what it always was.
+ *  `initialTab` is the one door that opens on Your conversations: the topbar's
+ *  Feedback pressed while it shows the dot. It is not part of a seed, so it
+ *  never picks a draft. */
 export interface FeedbackPrefill {
   initialKind?: Kind;
   initialBody?: string;
+  initialTab?: FeedbackTab;
 }
+
+/** The connected dialog's two tabs (components/FeedbackTabs.tsx). */
+export type FeedbackTab = "write" | "conversations";
 
 /** Everything the form says that depends on the kind chosen. */
 export interface KindCopy {
@@ -104,7 +111,7 @@ function clipTitle(text: string): string {
   return `${cut.replace(/[\uD800-\uDBFF]$/, "").replace(/[\s,;:.\-–—]+$/, "")}…`;
 }
 
-export interface FeedbackDraft { kind: Kind; body: string; contact: string }
+export interface FeedbackDraft { kind: Kind; body: string; contact: string; anonymous?: boolean }
 export interface FeedbackFields { kind: Kind; title: string; body: string; contact?: string }
 
 /** What the page posts, from what was typed: the title worked out, both texts
@@ -164,6 +171,73 @@ export const contactHint = (): string => t("shell.feedback.contactHint");
  *  issue says, and never with the contact or the images. */
 export const whereItGoes = (): readonly string[] => [t("shell.feedback.where1"), t("shell.feedback.where2")];
 
+// ── sent as the ccdeck account ───────────────────────────────────────────────
+//
+// With a ccdeck account connected, what is written goes as the account and
+// starts a conversation the people who make ccdeck answer — in the dialog's
+// second tab, on app.ccdeck.dev, and by email while the API mails replies
+// (the summary's `mail`; false when it sends no mail, and then no word here
+// promises one). The anonymous path stays exactly as above, one tick away:
+// Send without my account.
+
+// The words are keys, read with `t` where they are drawn.
+export const ACCOUNT_DIALOG_TITLE_MSG = "shell.feedback.accountTitle";
+export const WRITE_TAB_MSG = "shell.feedback.tabWrite";
+export const CONVERSATIONS_TAB_MSG = "shell.feedback.tabConversations";
+export const SEND_WITHOUT_ACCOUNT_MSG = "shell.feedback.sendWithout";
+
+/** Who it goes as, under the message, and where the replies come: the
+ *  address once the deck has said; by email only while `mail`. */
+export function accountSentAs(email: string | null, mail = true): string {
+  if (email) return t(mail ? "shell.feedback.sentAsMail" : "shell.feedback.sentAsNoMail", { email });
+  return t(mail ? "shell.feedback.sentAsAccountMail" : "shell.feedback.sentAsAccountNoMail");
+}
+
+/** WHERE_IT_GOES for a send as the account: no contact to keep off an issue,
+ *  and the account's email never put on one. */
+export const WHERE_IT_GOES_ACCOUNT_MSGS = ["shell.feedback.whereAccount1", "shell.feedback.whereAccount2"] as const;
+
+/** WHERE_IT_GOES_ACCOUNT_MSGS while replies are not mailed. */
+export const WHERE_IT_GOES_ACCOUNT_NO_MAIL_MSGS = ["shell.feedback.whereAccount1NoMail", "shell.feedback.whereAccount2"] as const;
+
+export const whereItGoesAccount = (mail = true): readonly string[] =>
+  (mail ? WHERE_IT_GOES_ACCOUNT_MSGS : WHERE_IT_GOES_ACCOUNT_NO_MAIL_MSGS).map(key => t(key));
+
+/** The thanks once a conversation has started. */
+export const SENT_LINE_ACCOUNT_MSG = "shell.feedback.sentAccount";
+/** SENT_LINE_ACCOUNT_MSG while replies are not mailed. */
+export const SENT_LINE_ACCOUNT_NO_MAIL_MSG = "shell.feedback.sentAccountNoMail";
+
+/** The account's conversations could not be reached; the anonymous path is
+ *  still there, and nothing typed was lost. */
+export const ACCOUNT_UNAVAILABLE_MSG = "shell.feedback.accountUnavailable";
+
+/** `HH:mm` in the reader's own clock. */
+export function clockTime(at: Date, timeZone?: string): string {
+  return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone }).format(at);
+}
+
+/** A daily limit reached: which, how many, and when it opens again. */
+export function limitLine(kind: "conversations" | "replies", limit: number, at: Date, timeZone?: string): string {
+  return t(kind === "conversations" ? "shell.feedback.limitConversations" : "shell.feedback.limitReplies", { limit, time: clockTime(at, timeZone) });
+}
+
+/** What a refusal from the account's routes (ccdeck-account-routes.mjs) means
+ *  for somebody starting a conversation. The image and size refusals read as
+ *  they do anonymously; a limit says when to come back. */
+export function accountFailure(
+  status: number,
+  answer: { reason?: unknown; errors?: unknown; limit?: unknown; retryAfterSec?: unknown } | null | undefined,
+  now = Date.now(),
+): string {
+  const reason = answer?.reason;
+  if (reason === "too_many" && Number.isInteger(answer?.limit) && Number.isInteger(answer?.retryAfterSec)) {
+    return limitLine("conversations", answer!.limit as number, new Date(now + (answer!.retryAfterSec as number) * 1000));
+  }
+  if (reason === "invalid" || reason === "too_large") return feedbackFailure(status, reason, answer?.errors);
+  return t(ACCOUNT_UNAVAILABLE_MSG);
+}
+
 // ── the keyboard ─────────────────────────────────────────────────────────────
 
 /** The keystroke fields a shortcut is read from. Structural, so a test can pass
@@ -213,7 +287,9 @@ export type Outcome =
   | { state: "failed"; message: string };
 
 /** What the dialog shows, and says, once a report has arrived. */
-export const sentLine = (): string => t("shell.feedback.sent");
+/** The thanks for how it went: as the account (by email only while `mail`), or as before. */
+export const sentLine = (asAccount = false, mail = true): string =>
+  (asAccount ? t(mail ? SENT_LINE_ACCOUNT_MSG : SENT_LINE_ACCOUNT_NO_MAIL_MSG) : t("shell.feedback.sent"));
 
 /** The deck's own sentence about an image it refused, in the language on show;
  *  anything else (the API's own words) as it came. The two sentences about a
@@ -248,9 +324,9 @@ export function feedbackFailure(status: number, reason: unknown, errors?: unknow
 
 /** What the dialog's live region says for each outcome. The region is drawn from
  *  the first render, so the change is what a screen reader hears. */
-export function outcomeAnnouncement(outcome: Outcome["state"]): string {
+export function outcomeAnnouncement(outcome: Outcome["state"], asAccount = false, mail = true): string {
   if (outcome === "sending") return t("shell.feedback.sending");
-  if (outcome === "sent") return sentLine();
+  if (outcome === "sent") return sentLine(asAccount, mail);
   return "";
 }
 
@@ -258,4 +334,4 @@ export function outcomeAnnouncement(outcome: Outcome["state"]): string {
  *  fade out takes. Long enough to read four words and see the mark drawn
  *  (340ms); the exit is faster than anything that arrived. */
 export const SENT_HOLD_MS = 1400;
-export const SENT_EXIT_MS = 160;
+export const SENT_EXIT_MS = 150; // = --dur-exit (V4's motion rules: a toast or dialog leaves on Exit)

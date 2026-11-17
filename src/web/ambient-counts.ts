@@ -22,6 +22,7 @@
 // with no DOM: the counting has to be testable without rendering a React tree,
 // which is precisely the property whose absence let the drift happen.
 import type { AgentNodeData, WaitingBlock } from "./types";
+import { sessionListName } from "./session-display";
 
 /**
  * Is this block worth raising an alarm about?
@@ -53,6 +54,9 @@ export function isAlarming(waiting: WaitingBlock | null | undefined): boolean {
 export interface BlockedSession {
   id: string;
   label: string;
+  /** What the top bar's waiting queue calls it: the rail row's name
+   *  (sessionListName). Absent, the queue says `label`. */
+  name?: string;
   waiting: WaitingBlock;
 }
 
@@ -75,7 +79,7 @@ export function blockedSessions(agents: Iterable<AgentNodeData>): BlockedSession
   const blocked: BlockedSession[] = [];
   for (const a of agents) {
     if (a.kind === "root" && isAlarming(a.waiting)) {
-      blocked.push({ id: a.id, label: a.label, waiting: a.waiting! });
+      blocked.push({ id: a.id, label: a.label, name: sessionListName(a) ?? a.label, waiting: a.waiting! });
     }
   }
   return blocked.sort((x, y) => x.waiting.since - y.waiting.since);
@@ -93,6 +97,20 @@ export function nextWaiting(waiting: BlockedSession[], lastId: string | null): B
   if (waiting.length === 0) return null;
   const at = waiting.findIndex(s => s.id === lastId);
   return waiting[(at + 1) % waiting.length];
+}
+
+/**
+ * The blocked session Shift+N goes to: `nextWaiting` the other way round.
+ *
+ * The one before `lastId`, wrapping, so N and Shift+N walk one queue and meet
+ * where they left off. With nothing visited yet (or the one visited last no
+ * longer blocked) it is the LAST in the order, the newest block: stepping back
+ * from the start wraps to the end, as it does everywhere else on the board.
+ */
+export function prevWaiting(waiting: BlockedSession[], lastId: string | null): BlockedSession | null {
+  if (waiting.length === 0) return null;
+  const at = waiting.findIndex(s => s.id === lastId);
+  return waiting[at < 0 ? waiting.length - 1 : (at - 1 + waiting.length) % waiting.length];
 }
 
 /**

@@ -3,6 +3,7 @@ import type { GraphState } from "./graph-state";
 import { applyUsageObserved, stampSessionFacts } from "./transcript-events";
 import { applyTurnEnd } from "./session-lifecycle";
 import { shortPreview } from "./tool-calls";
+import { injectedPrompt } from "./injected-prompt";
 import type { HookPayload } from "./types";
 
 export function recoverSession(state: GraphState, p: HookPayload, now: number): void {
@@ -32,7 +33,7 @@ export function recoverSession(state: GraphState, p: HookPayload, now: number): 
   if (!existing && Number.isFinite(p.turn_started_at) && p.turn_started_at <= now) root.startedAt = p.turn_started_at;
   if (typeof p.prompt === "string" && p.prompt) {
     if (root.prompts.at(-1)?.text !== p.prompt) root.prompts.push({ at: now, text: p.prompt });
-    if (!root.firstPrompt) root.firstPrompt = shortPreview(p.prompt, 120);
+    if (!root.firstPrompt && !injectedPrompt(p.prompt)) root.firstPrompt = shortPreview(p.prompt, 120);
   }
   stampSessionFacts(state, p, id);
   applyUsageObserved(state, p, id);

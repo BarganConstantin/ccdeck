@@ -9,7 +9,7 @@ describe("action icons do not depend on a platform's symbol-font fallback", () =
   it("keeps refresh and external-link artwork sized and hidden from accessible names", () => {
     for (const Icon of [RefreshGlyph, ExternalLinkGlyph]) {
       const html = renderToStaticMarkup(createElement(Icon));
-      expect(html).toContain('width="13" height="13"');
+      expect(html).toMatch(/width="1[24]" height="1[24]"/);
       expect(html).toContain('aria-hidden="true"');
       expect(html).toContain('stroke="currentColor"');
       expect(html).not.toMatch(/[↻↗]/);

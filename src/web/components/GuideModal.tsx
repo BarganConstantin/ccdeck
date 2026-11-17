@@ -16,6 +16,7 @@
 // and Escape still close it from any step, and the arrow keys move either way.
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { Dialog, DialogClose } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { focusDropped } from "../panel-press";
 import { useT } from "../i18n";
@@ -80,17 +81,16 @@ export default function GuideModal({ title, steps, finish, aside, onClose }: {
   // Portalled because LanSyncSection opens this guide from inside the accounts
   // panel, and a modal is not the panel's to lay out — see AddAccountDialog.
   return createPortal(
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal guide" onClick={e => e.stopPropagation()}
-        onKeyDown={onKey} role="dialog" aria-modal="true" aria-labelledby="guide-title">
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="guide" onKeyDown={onKey} labelledBy="guide-title">
         <header className="modal-head">
           <div className="modal-title">
             <span id="guide-title" className="modal-tool-name">{title}</span>
-            <span className="modal-tool-id">{at + 1} / {steps.length}</span>
           </div>
           <div className="modal-actions">
-            <button type="button" className="glyph-btn" onClick={onClose}
-              aria-label={t("shell.closeEsc")} title={t("shell.closeEsc")}>×</button>
+            {/* V4's step counter: 12 tabular in --muted, at the header's right,
+                left of the ×. */}
+            <span className="guide-count">{at + 1} / {steps.length}</span>
+            <DialogClose onClick={onClose} label={t("shell.closeEsc")} />
           </div>
         </header>
 
@@ -104,30 +104,36 @@ export default function GuideModal({ title, steps, finish, aside, onClose }: {
               every step, so a reader stepping through it never has the
               buttons move under their pointer. */}
           <p className="guide-tip">{step.tip ?? ""}</p>
-          <div className="guide-foot">
-            <div className="guide-dots">
-              {steps.map((_, i) => (
-                <button key={i} type="button" className="glyph-btn guide-dot"
-                  aria-label={t("shell.guide.step", { n: i + 1, total: steps.length })}
-                  aria-current={i === at ? "step" : undefined}
-                  onClick={() => go(i)} />
-              ))}
-            </div>
-            {last && aside && (
-              <button type="button" className="ap-lan-word guide-aside" onClick={aside.act}>
-                {aside.label}
-              </button>
-            )}
-            {at > 0 && (
-              <button type="button" className="btn" onClick={() => go(at - 1)}>{t("shell.back")}</button>
-            )}
-            <button ref={nextRef} type="button" className="btn primary" onClick={next}>
-              {last ? (finish?.label ?? t("shell.done")) : t("shell.next")}
-            </button>
-          </div>
         </section>
-      </div>
-    </div>,
+
+        <footer className="modal-foot guide-foot">
+          <div className="guide-dots">
+            {steps.map((_, i) => (
+              <button key={i} type="button" className="glyph-btn guide-dot"
+                aria-label={t("shell.guide.step", { n: i + 1, total: steps.length })}
+                aria-current={i === at ? "step" : undefined}
+                onClick={() => go(i)} />
+            ))}
+          </div>
+          {last && aside && (
+            <button type="button" className="ap-lan-word guide-aside" onClick={aside.act}>
+              {aside.label}
+            </button>
+          )}
+          {/* Skip ends the tour exactly as finishing it or Esc does: through
+              onClose, which is what stores that it was seen. Not on the last
+              step, where the primary button is the way out. */}
+          {!last && (
+            <button type="button" className="btn guide-skip" onClick={onClose}>{t("shell.skip")}</button>
+          )}
+          {at > 0 && (
+            <button type="button" className="btn" onClick={() => go(at - 1)}>{t("shell.back")}</button>
+          )}
+          <button ref={nextRef} type="button" className="btn primary" onClick={next}>
+            {last ? (finish?.label ?? t("shell.done")) : t("shell.next")}
+          </button>
+        </footer>
+    </Dialog>,
     document.body,
   );
 }

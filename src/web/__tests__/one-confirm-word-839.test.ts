@@ -38,7 +38,7 @@ describe("one arm-then-confirm word for the in-panel destructive acts (#839)", (
   it("keeps the dialog for Clear alone", () => {
     const dialogs = readdirSync(components)
       .filter(f => f.endsWith(".tsx"))
-      .filter(f => /btn danger/.test(read(f)) && /role="dialog"/.test(read(f)));
+      .filter(f => /btn danger/.test(read(f)) && /<Dialog\b/.test(read(f)));
     expect(dialogs).toContain("ClearConfirm.tsx");
     // Neither in-panel act opens one.
     expect(accountsSurface()).not.toMatch(/Confirm(Remove)?Dialog/);

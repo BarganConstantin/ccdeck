@@ -7,16 +7,18 @@
 // provider chips already use.
 import { FILMS, FILM_SUBJECT, type Film } from "../film-links";
 import { useT } from "../i18n";
+import { KitIcon } from "./kit-icons";
 
 export default function FilmLink({ film, action = false }: { film: Film; action?: boolean }) {
   const t = useT();
   const { href } = FILMS[film];
   const subject = t(FILM_SUBJECT[film]);
   return (
-    <a className={action ? "film-link film-action" : "film-link"} href={href} target="_blank" rel="noopener noreferrer"
-      title={t("shell.film.title", { subject })}>
-      {action ? <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" /></svg><span>{t("shell.film.watchVideo")}</span><span className="film-duration">{t("shell.film.duration")}</span></> : t("shell.film.watch")}
-      <span className="vis-hidden">{t("shell.film.hidden", { subject })}</span>
+    <a className={action ? "film-link film-action" : "film-link film-icon"} href={href} target="_blank" rel="noopener noreferrer"
+      title={t("shell.film.title", { subject })}
+      aria-label={action ? undefined : t("shell.film.title", { subject })}>
+      {action ? <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" /></svg><span>{t("shell.film.watchVideo")}</span><span className="film-duration">{t("shell.film.duration")}</span></> : <KitIcon name="play" />}
+      {action && <span className="vis-hidden">{t("shell.film.hidden", { subject })}</span>}
     </a>
   );
 }

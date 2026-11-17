@@ -6,6 +6,8 @@ import { createPortal } from 'react-dom';
 import { copyText } from '../copy-text';
 import { useT, type TFunction } from '../i18n';
 import type { CodexProfile } from '../codex-accounts';
+import Checkbox from './Checkbox';
+import { Dialog, DialogClose } from './Dialog';
 import { useModalDismiss, useScrimDismiss } from './use-modal-dismiss';
 
 interface Answer { ok: boolean; blob?: string; reason?: string }
@@ -74,11 +76,10 @@ export default function CodexShareDialog({ initial, returnFocusTo, profiles, onC
   }
 
   return createPortal(
-    <div className="modal-backdrop" {...scrim} role="presentation">
-      <div ref={dialogRef} className="modal sa-modal" role="dialog" aria-modal="true" aria-labelledby="codex-transfer-title" onClick={event => event.stopPropagation()}>
+    <Dialog scrim={scrim} dialogRef={dialogRef} className="sa-modal" labelledBy="codex-transfer-title">
         <header className="modal-head">
           <div className="modal-title"><h3 id="codex-transfer-title">{t('codex.share.title')}</h3></div>
-          <div className="modal-actions"><button type="button" className="glyph-btn" onClick={onClose} aria-label={t('codex.add.close')}>×</button></div>
+          <div className="modal-actions"><DialogClose onClick={onClose} label={t('codex.add.close')} /></div>
         </header>
         <section className="modal-body sa-body">
           <p className="sa-count">{t('codex.share.warning')}</p>
@@ -87,7 +88,7 @@ export default function CodexShareDialog({ initial, returnFocusTo, profiles, onC
             <p className="sa-note">{t('codex.share.choose')}</p>
             <ul className="sa-list sa-pick">
               {profiles.map(profile => <li key={profile.id}>
-                <label className="sa-row"><input type="checkbox" checked={ids.includes(profile.id)} aria-disabled={busy || undefined}
+                <label className="sa-row"><Checkbox checked={ids.includes(profile.id)} aria-disabled={busy || undefined}
                   onChange={() => { if (pending.current) return; setError(''); setNeedsProtection(false); setPicked(current => current.includes(profile.id) ? current.filter(id => id !== profile.id) : [...current, profile.id]); }} />
                   <span className="sa-who">{profile.label}</span>
                 </label>
@@ -115,7 +116,6 @@ export default function CodexShareDialog({ initial, returnFocusTo, profiles, onC
               </button>}
           </div>
         </section>
-      </div>
-    </div>, document.body,
+    </Dialog>, document.body,
   );
 }

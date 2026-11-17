@@ -38,14 +38,21 @@ const decl = (body: string, prop: string) =>
 /** Whether the rest of the sheet draws `sel` as a rule of its own. */
 const drawn = (sel: string) => new RegExp(`(?:^|[},])\\s*${sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*[{,]`).test(outside);
 
+// CHANGED ON PURPOSE (V4 top-10 #5): '.react-flow__controls-button[aria-pressed="true"]'
+// (the canvas's Pause while paused) → off the list, because Pause is a row of the
+// canvas bar's ⋯ menu now and the bar draws no paused state; the top bar's paused
+// pill says it in words, which a Contrast theme keeps.
+const PAUSED = '.react-flow__controls-button[aria-pressed="true"]';
 const FILLED = [
   '.uh-range-btn[aria-pressed="true"]',
-  '.react-flow__controls-button[aria-pressed="true"]',
   '.aa-tab.on',
 ];
 
 describe("a pressed or chosen control under a Contrast theme (#1786)", () => {
   it("fills a pressed chip, a paused canvas and the open tab with the highlight", () => {
+    // A paused canvas has no pressed control left to fill, in either half.
+    expect(drawn(PAUSED), `${PAUSED} is back in the sheet`).toBe(false);
+    expect(forcedBody(PAUSED), `${PAUSED} is back in the Contrast block`).toBe("");
     for (const sel of FILLED) {
       expect(drawn(sel), `${sel} is the sheet's own state`).toBe(true);
       const body = forcedBody(sel);
@@ -58,6 +65,20 @@ describe("a pressed or chosen control under a Contrast theme (#1786)", () => {
     }
   });
 
+  // CHANGED ON PURPOSE (V4's Figma): the history dialog's range chips are pills with the accent wash, so
+  // under a Contrast theme the chosen one is a Highlight fill (pressed and under the pointer), and Tool
+  // activity's chosen period, on a thumb the theme drops, gets an inside ring in the highlight.
+  it("fills the history dialog's chosen range, and rings Tool activity's chosen period", () => {
+    const seg = '.uh-toolbar .uh-range-btn[aria-pressed="true"]';
+    expect(drawn(seg), seg).toBe(true);
+    expect(decl(forcedBody(seg), "forced-color-adjust"), seg).toBe("none");
+    expect(decl(forcedBody(seg), "background"), seg).toBe("Highlight");
+    expect(decl(forcedBody(seg), "color"), seg).toBe("HighlightText");
+    expect(decl(forcedBody(seg + ":hover"), "background")).toBe("Highlight");
+    expect(drawn(".ta-period-btn[aria-pressed=true]")).toBe(true);
+    expect(decl(forcedBody(".ta-period-btn[aria-pressed=true]"), "outline")).toBe("2px solid Highlight");
+  });
+
   it("keeps that fill under the pointer, where the control's own hover outranks the state", () => {
     for (const sel of FILLED) {
       const hover = `${sel}:hover`;
@@ -68,41 +89,30 @@ describe("a pressed or chosen control under a Contrast theme (#1786)", () => {
     }
   });
 
-  it("marks the usage panel's chosen period with the highlight under its word", () => {
-    const mark = '.up-period .uh-range-btn[aria-pressed="true"]::after';
-    expect(drawn(mark)).toBe(true);
-    expect(decl(forcedBody(mark), "forced-color-adjust")).toBe("none");
-    expect(decl(forcedBody(mark), "background")).toBe("Highlight");
-    // The segment is the same chip, and it has no fill in any theme: the
-    // pressed chip's highlight is taken back off it, word and hover included,
-    // so the mark is the one thing that says which period is shown.
+  // CHANGED ON PURPOSE (V4's Figma): the chosen period is a pill with an accent wash and stroke
+  // (no mark under the word any more), so under a Contrast theme it is a Highlight fill with
+  // HighlightText, in the pressed state and under the pointer.
+  it("fills the usage panel's chosen period with the highlight, word included", () => {
     for (const seg of ['.up-period .uh-range-btn[aria-pressed="true"]', '.up-period .uh-range-btn[aria-pressed="true"]:hover']) {
-      expect(decl(forcedBody(seg), "forced-color-adjust"), seg).toBe("auto");
-      expect(decl(forcedBody(seg), "background"), seg).toBe("transparent");
+      if (!seg.endsWith(":hover")) expect(drawn(seg), seg).toBe(true);
+      expect(decl(forcedBody(seg), "forced-color-adjust"), seg).toBe("none");
+      expect(decl(forcedBody(seg), "background"), seg).toBe("Highlight");
+      expect(decl(forcedBody(seg), "color"), seg).toBe("HighlightText");
     }
   });
 
-  it("gives the selected session a heavier edge in the highlight, and the row its size", () => {
+  it("gives the selected session a ring in the highlight, inside the row so the row keeps its size", () => {
+    // V4's rail row has no border, and its selection is a fill the theme drops;
+    // the ring is an outline drawn inside the row's box (negative offset), so
+    // it grows nothing and moves no word. (It was a heavier border edge worked
+    // out of the row's padding when the row had one.)
     const row = ".session-list .sl-row";
-    const selected = `${row}.selected`;
     const outsideRules = parse(outside);
     const outsideBody = (sel: string) => outsideRules.filter(r => r.sels.includes(sel)).map(r => r.body).join("\n");
-    const px = (v: string | undefined) => Number(/^([\d.]+)px$/.exec(v ?? "")?.[1]);
+    expect(decl(outsideBody(row), "border")).toBe("0");
 
-    const edge = px(decl(outsideBody(".session-list .sl-rows"), "--sl-card-edge"));
-    const padTop = px(decl(outsideBody(row), "padding")?.split(/\s+/)[0]);
-    expect(decl(outsideBody(row), "border-width")).toBe("var(--sl-card-edge)");
-
-    const body = forcedBody(selected);
-    expect(decl(body, "border-color")).toBe("Highlight");
-    const heavier = px(decl(body, "--sl-card-edge"));
-    expect(heavier).toBeGreaterThanOrEqual(2 * edge);
-    // The edge is a term in the row's side padding, so the words stay where
-    // they are; what it adds above and below comes out of the padding. The
-    // padding is worked out from the edge, so it is evaluated with it.
-    const padBlock = decl(body, "padding-block")!.replace(/var\(--sl-card-edge\)/g, `${heavier}px`);
-    expect(padBlock).toMatch(/^calc\([\d.px\s()+-]+\)$/);
-    const evaluated = Number(new Function(`return ${padBlock.replace(/^calc/, "").replace(/px/g, "")};`)());
-    expect(evaluated + heavier).toBe(padTop + edge);
+    const body = forcedBody(`${row}.selected`);
+    expect(decl(body, "outline")).toBe("2px solid Highlight");
+    expect(decl(body, "outline-offset")).toBe("-2px");
   });
 });

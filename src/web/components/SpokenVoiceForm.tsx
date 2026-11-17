@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import type { CustomSoundsProps } from "./CustomSoundsSection";
 import { useT } from "../i18n";
+import SelectShell from "./SelectShell";
 
 interface SpokenVoiceFormProps {
   /** The library is at its ceiling: the form stays shut and adds nothing. */
@@ -81,10 +82,12 @@ export default function SpokenVoiceForm({ full, fullProps, runCustom, onCreateVo
         </label>
         <label>
           <span>{t("settings.sounds.voice.voice")}</span>
-          <select className="sm-select" value={voiceURI} onChange={e => setVoiceURI(e.target.value)}>
-            <option value="">{t("settings.sounds.voice.default")}</option>
-            {voices.map(voice => <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name}</option>)}
-          </select>
+          <SelectShell>
+            <select className="sm-select" value={voiceURI} onChange={e => setVoiceURI(e.target.value)}>
+              <option value="">{t("settings.sounds.voice.default")}</option>
+              {voices.map(voice => <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name}</option>)}
+            </select>
+          </SelectShell>
         </label>
         <div className="sm-voice-pair">
           <label><span>{t("settings.sounds.voice.rate")}</span><input className="ap-manage-input" type="number" min="0.5" max="2" step="0.1" value={voiceRate} onChange={e => setVoiceRate(e.target.value)} /></label>

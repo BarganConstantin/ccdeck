@@ -18,7 +18,8 @@ describe("an Edit reads as a change (#816)", () => {
   const view = toolView("Edit", EDIT_INPUT, EDIT_RESPONSE);
 
   it("names the file and shows before and after with real newlines and no escapes", () => {
-    expect(view.input[0]).toEqual({ label: "file", text: "/repo/src/a.ts", inline: true });
+    // CHANGED ON PURPOSE: the file block says it is a path, which the dialog cuts in the middle (PathText).
+    expect(view.input[0]).toEqual({ label: "file", text: "/repo/src/a.ts", inline: true, path: true });
     const change = view.input[1];
     expect(change.label).toBe("change");
     expect(change.lines).toEqual([
@@ -58,14 +59,14 @@ describe("an Edit reads as a change (#816)", () => {
 describe("the other calls the deck sees most (#816)", () => {
   it("a Write is the file and its text; creating one says so", () => {
     const v = toolView("Write", { file_path: "/f.md", content: "# Title\n\nBody" }, { type: "create", filePath: "/f.md", content: "# Title\n\nBody", structuredPatch: [] });
-    expect(v.input).toEqual([{ label: "file", text: "/f.md", inline: true }, { label: "content", text: "# Title\n\nBody" }]);
+    expect(v.input).toEqual([{ label: "file", text: "/f.md", inline: true, path: true }, { label: "content", text: "# Title\n\nBody" }]);
     expect(v.response).toEqual([{ label: "result", text: "created the file", inline: true }]);
   });
 
   it("a Read is the file, the range asked for, and the text that came back", () => {
     const v = toolView("Read", { file_path: "/f.ts", offset: 10, limit: 50 },
       { type: "text", file: { filePath: "/f.ts", content: "line ten\nline eleven", numLines: 50, startLine: 10, totalLines: 200 } });
-    expect(v.input).toEqual([{ label: "file", text: "/f.ts", inline: true }, { label: "lines", text: "10–59", inline: true }]);
+    expect(v.input).toEqual([{ label: "file", text: "/f.ts", inline: true, path: true }, { label: "lines", text: "10–59", inline: true }]);
     expect(v.response).toEqual([{ label: "lines", text: "10–59 of 200", inline: true }, { label: "content", text: "line ten\nline eleven" }]);
   });
 

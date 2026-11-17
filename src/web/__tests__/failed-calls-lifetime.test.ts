@@ -64,11 +64,13 @@ describe("a failure counts for the agent's whole life, on every surface", () => 
     }
   });
 
+  // CHANGED ON PURPOSE (V4's Agent / Card): the foot no longer prints "3 err";
+  // the card says the lifetime count where its tool icons are hovered.
   it("is on the card", () => {
     const html = renderToStaticMarkup(createElement(ReactFlowProvider, null,
       createElement(AgentNode as any, { id: root.id, data: root as AgentNodeData, selected: false })));
-    expect(html).toContain("<b>3</b> err");
-    expect(html).toContain('title="3 tool calls returned an error"');
+    expect(html).toMatch(/<span class="foot-tools" title="[^"]*\n210 tools, 3 failed"/);
+    expect(html).not.toContain("<b>3</b> err");
   });
 
   it("is in the card's spoken name", () => {
@@ -76,7 +78,7 @@ describe("a failure counts for the agent's whole life, on every surface", () => 
   });
 
   it("is on the small face", () => {
-    expect(faceSignal({ ...root, waiting: null }, undefined, words)).toMatchObject({ tone: "err", short: "3 failed" });
+    expect(faceSignal({ ...root, waiting: null }, undefined, words)).toMatchObject({ tone: "warn", short: "3 failed" });
   });
 
   it("is in the branch summary", () => {

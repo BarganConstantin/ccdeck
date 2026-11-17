@@ -137,13 +137,13 @@ export type RestartGate = {
   canRestart: boolean;
   /** Whether the notice is actually ON SCREEN — not merely present (#804).
    *
-   *  The `auto when idle` switch renders inside the banner and nowhere else, so
-   *  arming this behaviour while the banner is dismissed puts the deck in a
-   *  state that restarts the server, unasked, with no control anywhere in the
-   *  app to stop it. Gating on the same condition the switch renders under
-   *  makes those two things one: the behaviour is armed exactly when its switch
-   *  is in front of the user. Pressing the banner's `×` is then a legible
-   *  "not now", and the version chip brings both back together. */
+   *  The countdown is said in the banner and nowhere else, so arming this
+   *  behaviour while the banner is dismissed puts the deck in a state that
+   *  restarts the server, unasked, with nothing on screen saying so. Gating on
+   *  the banner being up makes those two things one: the behaviour is armed
+   *  exactly when its sentence is in front of the user. Pressing the banner's
+   *  `×` is then a legible "not now", and the version chip brings both back
+   *  together. The preference itself is in Settings › Updates. */
   noticeOpen: boolean;
   /** Any agent currently running. */
   busy: boolean;
@@ -181,12 +181,12 @@ export type RestartStep = {
  * How long is left before the deck restarts itself, or null when nothing is
  * counting.
  *
- * The clock was invisible for four releases. It ran here, the switch beside it
- * said `auto when idle`, and a reader could not tell whether the deck was two
+ * The clock was invisible for four releases. It ran here, the banner said
+ * `auto when idle`, and a reader could not tell whether the deck was two
  * seconds or twenty-nine from killing its own process — so the only way to stop
  * it was to have already decided to. A countdown IS the cancel affordance: a
- * user who can see nineteen seconds has time to reach the switch, and one who
- * cannot see anything has only the outcome.
+ * user who can see nineteen seconds has time to reach the banner's `×`, and one
+ * who cannot see anything has only the outcome.
  *
  * Same gate as the step below, deliberately, and shared rather than copied.
  * Two spellings of "is the clock running" is how a banner ends up counting down
@@ -203,31 +203,13 @@ export function autoRestartRemainingMs(g: RestartGate): number | null {
 }
 
 /**
- * The countdown as a reader says it.
- *
- * Seconds under a minute, because "auto in 18s" is how a person reads eighteen
- * seconds and `0:18` is how a stopwatch does. Minutes above it, zero-padded,
- * for the same reason clocks are.
+ * The countdown as the banner says it, in its sentence: "Restarting by itself
+ * in 18 s." (V4's Figma). Whole seconds rounded UP, so the sentence never shows
+ * a second the deck has already spent — `0 s` on screen while nothing has
+ * happened yet reads as a hang — and never below zero.
  */
-export function countdownLabel(ms: number): string {
-  const s = Math.max(0, Math.ceil(ms / 1000));
-  if (s < 60) return `${s}s`;
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}
-
-/**
- * What the auto-restart switch says.
- *
- * The state used to be carried by colour alone — `--muted` to `--warn` on the
- * label and on a 6px dot — which is 1.4.1 on the one control in this deck that
- * arms a process kill, and the two greys measured under AA in one theme each.
- * So the word carries it: `off` is a word, `when idle` and `in 18s` are not,
- * and the dot went back to being reinforcement.
- */
-export function autoRestartLabel(enabled: boolean, remainingMs: number | null): string {
-  if (!enabled) return t("shell.banner.autoOff");
-  if (remainingMs == null) return t("shell.banner.autoIdle");
-  return t("shell.banner.autoIn", { time: countdownLabel(remainingMs) });
+export function restartCountdown(remainingMs: number): string {
+  return t("shell.banner.restartingIn", { seconds: Math.max(0, Math.ceil(remainingMs / 1000)) });
 }
 
 /** How many agents are running right now. Structural over the agent map's
@@ -252,13 +234,15 @@ export function activeCount(agents: Iterable<{ state?: string }>): number {
  * word: `Restart anyway` is a sentence the user can refuse by not pressing it,
  * and it costs no second click when the machine is quiet.
  */
-export function restartSafety(active: number, paused = false): { label: string; clause: string } {
+export function restartSafety(active: number, paused = false): { label: string; clause: string; risky: boolean } {
   // A paused canvas holds every event for the resume, so its count is the one
   // from the moment of the pause and a turn started since is not in it (#1764).
   // Zero is then not an answer, and the button does not give it as one.
-  if (active <= 0 && paused) return { label: t("shell.banner.restartAnyway"), clause: t("shell.banner.clausePaused") };
-  if (active <= 0) return { label: t("shell.banner.restartNow"), clause: t("shell.banner.clauseIdle") };
-  return { label: t("shell.banner.restartAnyway"), clause: t("shell.banner.clauseAgents", { count: active }) };
+  // `risky` is what the banner's Waiting tone says (V4's Figma): only where an
+  // agent would lose something, or where the page cannot tell.
+  if (active <= 0 && paused) return { label: t("shell.banner.restartAnyway"), clause: t("shell.banner.clausePaused"), risky: true };
+  if (active <= 0) return { label: t("shell.banner.restartNow"), clause: t("shell.banner.clauseIdle"), risky: false };
+  return { label: t("shell.banner.restartAnyway"), clause: t("shell.banner.clauseAgents", { count: active }), risky: true };
 }
 
 /**

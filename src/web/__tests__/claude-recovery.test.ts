@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { rmTempDir } from "./rm-temp-dir";
 import { applyEvent, initialState } from "../reducer";
 // @ts-expect-error server module
-import { createClaudeRecovery, claudeProcessStarts } from "../../server/claude-recovery.mjs";
+import { createClaudeRecovery, claudeProcessStarts, claudeRecoveryPrompt } from "../../server/claude-recovery.mjs";
 // @ts-expect-error server module
 import { ccProjectSlug } from "../../server/claude-dir.mjs";
 
@@ -106,4 +106,14 @@ it("captures the startup preference and reconciles verified idle and exited proc
   applyEvent(state, { seq: 2, receivedAt: Date.now(), source: "hook", payload: captured.find(e => e.session_id === "idle-test") });
   expect(state.agents.get("idle-test")!.state).toBe("done");
   recovery.stop(); optedOut.stop();
+});
+
+it("restores the last prompt a person typed, not a background task's notice after it", async () => {
+  const path = join(transcriptDir, "notice.jsonl");
+  const notice = "<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n<summary>Background command \"Watch CI\" completed (exit code 0)</summary>\n</task-notification>";
+  writeFileSync(path, [
+    { type: "user", message: { content: "Add a retention job to the API" } },
+    { type: "user", message: { content: notice } },
+  ].map(r => JSON.stringify(r) + "\n").join(""));
+  expect((await claudeRecoveryPrompt(path)).prompt).toBe("Add a retention job to the API");
 });

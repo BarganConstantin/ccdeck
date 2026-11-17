@@ -349,11 +349,17 @@ describe("the change page", () => {
     expect(html).toMatch(/<a class="ig-open" href="https:\/\/gitlab\.example\.com\/[^"]*" target="_blank" rel="noreferrer noopener">Open in GitLab<svg/);
     expect(words).toContain("Add the login page");
     expect(words).not.toContain("Draft: Add");
-    expect(words).toContain("Draft");
-    expect(words).toMatch(/Alice Doe requested to merge feature\/login .*into main/);
+    // The state is a chip in the bar, after the reference and its copy button.
+    expect(html).toMatch(/<span class="ig-ref">[\s\S]*?<span class="fd-state" data-tone="idle">Draft<\/span><\/span>/);
+    // GitLab's line in GitHub's words, the branches in GitLab's order.
+    expect(words).toMatch(/Alice Doe wants to merge feature\/login .*into main/);
+    expect(words).not.toContain("requested to merge");
     // The pipeline line reads its id from the ci address and links inside the panel.
     expect(words).toContain("failed Pipeline #901");
-    expect(words).toMatch(/Overview 3 Commits 4 Pipelines 2 Changes 7/);
+    // The sections by name alone, between the head and the facts, and the
+    // facts in V4's order: Reviewers, Assignee(s), Labels, Milestone.
+    // ("BO" and "AD" are the faces' initials, which the text includes.)
+    expect(words).toMatch(/Pipeline #901 › Overview Commits Pipelines Changes Reviewers BO bob approved Assignee AD Alice Doe Labels priority high Milestone v2/);
     expect(words).toContain("Unresolved threads 1");
     expect(words).toContain("Resolved threads 1");
     expect(words).toContain("General comments 1");
@@ -373,11 +379,18 @@ describe("the change page", () => {
     const open = text(page(createElement(ChangeDetailPage, { selection: sel }), { kind: "github" }));
     expect(open).toMatch(/Alice Doe wants to merge 4 commits into main from feature\/login/);
     expect(open).not.toContain("requested to merge");
-    expect(open).toMatch(/Conversation 3 Commits 4 Checks 2 Files changed 7/);
+    expect(open).toMatch(/Conversation Commits Checks Files changed/);
+    // GitHub names the field Assignees whatever it holds.
+    expect(open).toContain("Assignees AD Alice Doe");
     keep("change", { repo: "acme/web", number: 12 }, { ...gh, state: "merged", mergedAt: Date.now() - 60_000 });
-    const merged = text(page(createElement(ChangeDetailPage, { selection: sel }), { kind: "github" }));
-    // "AD" is the face's initials, which the text of the page includes.
-    expect(merged).toMatch(/Merged AD Alice Doe · 4 commits merged into main from feature\/login/);
+    const mergedHtml = page(createElement(ChangeDetailPage, { selection: sel }), { kind: "github" });
+    const merged = text(mergedHtml);
+    // CHANGED ON PURPOSE (V4's Figma): Merged is the chip in the bar now, no
+    // longer a badge at the head of the byline. "AD" is the face's initials,
+    // which the text of the page includes.
+    expect(mergedHtml).toContain('<span class="fd-state" data-tone="ok">Merged</span>');
+    expect(merged).toMatch(/Merged Open in GitHub/);
+    expect(merged).toMatch(/AD Alice Doe · 4 commits merged into main from feature\/login/);
     expect(merged).not.toContain("wants to merge");
   });
 
@@ -458,7 +471,7 @@ describe("the branch page", () => {
 });
 
 describe("the issue page", () => {
-  it("keeps the comments behind a button until they are asked for", () => {
+  it("says who opened it on one line, names the description, and lists the comments", () => {
     const issue: IssueDetail = {
       kind: "gitlab", key: "acme/web#7", number: 7, repo: "acme/web", title: "Login fails on Safari", titleHtml: null,
       state: "closed", stateReason: null, webUrl: "https://gitlab.example.com/acme/web/-/issues/7", author: bob, assignees: [alice],
@@ -468,12 +481,17 @@ describe("the issue page", () => {
     };
     keep("issue", { repo: "acme/web", number: 7 }, issue);
     const words = text(page(createElement(IssueDetailPage, { selection: { type: "issue", repo: "acme/web", number: 7 } })));
+    const html = page(createElement(IssueDetailPage, { selection: { type: "issue", repo: "acme/web", number: 7 } }));
     expect(words).toContain("Login fails on Safari");
-    expect(words).toContain("Closed");
-    expect(words).toContain("No description.");
+    expect(html).toContain('<span class="fd-state" data-tone="idle">Closed</span>');
+    expect(words).toMatch(/Opened by bob · 1d ago · 3 comments · closed /);
+    expect(words).toContain("Assignee AD Alice Doe Labels bug Milestone None");
+    expect(words).toContain("Description No description.");
     expect(words).toContain("1 of 2 done");
     expect(words).toContain("Reproduce it");
-    expect(words).toContain("Show 3 comments");
-    expect(words).not.toContain("Loading comments");
+    // CHANGED ON PURPOSE (V4's Figma): the comments are listed, read with the
+    // page, rather than folded behind "Show 3 comments".
+    expect(words).not.toContain("Show 3 comments");
+    expect(words).toContain("Loading comments");
   });
 });

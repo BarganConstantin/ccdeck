@@ -33,7 +33,10 @@ describe("the Codex hint while the deck waits", () => {
     expect(h).not.toContain("unreachable");
   });
 
-  it("still sends a real failure to ↻", () => {
-    expect(hint("http_500")).toContain("ChatGPT API unreachable — click ↻ to retry.");
+  // CHANGED ON PURPOSE (owner, 2026-11-11): a real failure is still said, and
+  // the retry is the panel's one Refresh, so the sentence no longer asks for ↻.
+  it("still says a real failure, without asking for a press", () => {
+    expect(hint("http_500")).toContain("ChatGPT API unreachable.");
+    expect(hint("http_500")).not.toContain("↻");
   });
 });

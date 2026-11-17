@@ -9,17 +9,19 @@ import { operationDescription, operationName } from '../operation-glossary';
 import ToolAuditDrawer from './ToolAuditDrawer';
 import ToolAuditInspector from './ToolAuditInspector';
 import ToolAuditSplitter from './ToolAuditSplitter';
+import SegmentGroup from './SegmentGroup';
 import ToolTimeSplit from './ToolTimeSplit';
 import SkillActivity, { type ReportStatus } from './SkillActivity';
 import type { SessionLinks } from './SkillInspector';
 import { readDetailsWidth, writeDetailsWidth } from '../tool-audit-layout';
 import { useMediaQuery } from '../use-media-query';
+import { Dialog } from './Dialog';
 import { useModalDismiss, useScrimDismiss } from './use-modal-dismiss';
 
 const FIRST_ROWS = 12;
 const providers: { id: AuditProvider; label: string }[] = [{ id: 'all', label: translate('insights.audit.agents.all') }, { id: 'claude', label: 'Claude' }, { id: 'codex', label: 'Codex' }];
 const agentLabel = (id: AuditProvider) => id === 'all' ? translate('insights.audit.agents.all') : id === 'claude' ? 'Claude' : 'Codex';
-/** The two views, each opened by a door of its own on the right stripe (rail-items.tsx). */
+/** The two views, each opened by a door of its own on the Panel bar (rail-items.tsx). */
 export type ToolActivityView = 'tools' | 'skills';
 type View = ToolActivityView;
 /** Each view's title, and the stripe door that opens it — where focus goes back to. */
@@ -81,7 +83,9 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
     onClose();
     requestAnimationFrame(() => {
       const original = opener;
-      const fallback = Array.from(document.querySelectorAll<HTMLElement>(`[data-rail-item="${viewDoor[door]}"], [data-rail-item="more"]`)).find(element => element.checkVisibility());
+      // Its door, or the More whose menu holds it (the right stripe's, or the
+      // dock's): never the left stripe's More, which a bare "more" finds first.
+      const fallback = Array.from(document.querySelectorAll<HTMLElement>(`[data-rail-item="${viewDoor[door]}"], [data-more-holds~="${viewDoor[door]}"]`)).find(element => element.checkVisibility());
       // Safari does not focus a button on click, so the opener can be <body>, which restores nothing.
       (original && original !== document.body && original.isConnected && original.checkVisibility() ? original : fallback)?.focus({ preventScroll: true });
     });
@@ -165,18 +169,21 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
   const summary = data && summaryParts(data, provider, period);
   const reading = view === 'skills' ? skillStatus.loading : loading;
   const shown = view === 'skills' ? (skillStatus.hasData ? skillStatus.capturedAt : null) : data?.capturedAt ?? null;
+  // The period is the header's own control (V4's Tool activity draws it beside the ×);
+  // the agent choice stays with the filters in the body.
+  const periodControl = <SegmentGroup className="ta-period" role="group" aria-label={t('insights.audit.period')}>{Object.keys(periodLabels).map(days => <button key={days} type="button" className="ta-period-btn" aria-pressed={period === days} onClick={() => setPeriod(days)}>{periodLabel(days)}</button>)}</SegmentGroup>;
   const filters = <div className="ta-filters">
-    <div className="uh-range" role="group" aria-label={t('insights.audit.period')}>{Object.keys(periodLabels).map(days => <button key={days} type="button" className="uh-range-btn" aria-pressed={period === days} onClick={() => setPeriod(days)}>{periodLabel(days)}</button>)}</div>
     <div className="uh-range" role="group" aria-label={t('insights.audit.agent')}>{providers.map(item => <button key={item.id} type="button" className="uh-range-btn" aria-pressed={provider === item.id} onClick={() => setProvider(item.id)}>{agentLabel(item.id)}</button>)}</div>
   </div>;
 
-  return createPortal(<div className="modal-backdrop" role="presentation" {...scrimPress}>
-    <div className="modal ta-report" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tool-audit-title" data-view={view}>
+  return createPortal(
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="ta-report" labelledBy="tool-audit-title" data-view={view}>
       <header className="modal-head ta-report-header">
         <h2 id="tool-audit-title">{viewTitle(view)}</h2>
         <div className="ta-actions">
           <span className="ta-freshness" role="status">{reading ? shown !== null ? t('insights.audit.updating') : t('insights.audit.reading') : shown !== null ? t('insights.audit.updated', { time: new Date(shown).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' }) }) : ''}</span>
           <button type="button" className="glyph-btn" aria-label={view === 'skills' ? t('insights.audit.refresh.skills') : t('insights.audit.refresh.tools')} title={t('insights.audit.refresh')} data-loading={reading || undefined} aria-busy={view === 'skills' ? skillStatus.loading || skillStatus.detailLoading : loading || detailLoading} onClick={doRefresh}><RefreshGlyph /></button>
+          {periodControl}
           <button type="button" ref={closeRef} className="glyph-btn" onClick={closeReport} aria-label={view === 'skills' ? t('insights.audit.close.skills') : t('insights.audit.close.tools')} title={t('insights.audit.closeEsc')}>×</button>
         </div>
       </header>
@@ -218,12 +225,13 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
                 <label className="ta-search"><SearchGlyph /><input type="search" aria-label={t('insights.audit.find')} placeholder={t('insights.audit.find')} value={search} onChange={event => setSearch(event.target.value)} /></label>
               </div>
               <div className="uh-range ta-sorts" role="group" aria-label={t('insights.audit.sortBy')}>{toolSorts.map(item => <button key={item.id} type="button" className="uh-range-btn" aria-pressed={sort === item.id} onClick={() => setSort(item.id)}>{toolSortLabel(item.id)}</button>)}</div>
-              <div className="ta-list-head" aria-hidden="true" data-sort={sort}><span>{t('insights.audit.col.name')}</span><span data-col="calls">{t('insights.audit.col.calls')}</span><span data-col="time">{t('insights.audit.col.time')}</span><span data-col="slowest">{t('insights.audit.col.usually')}</span><span data-col="failed">{t('insights.audit.col.failed')}</span></div>
+              <div className="ta-list-head" aria-hidden="true" data-sort={sort}><span>{t('insights.audit.col.name')}</span><span data-col="share" /><span data-col="calls">{t('insights.audit.col.calls')}</span><span data-col="time">{t('insights.audit.col.time')}</span><span data-col="slowest">{t('insights.audit.col.usually')}</span><span data-col="failed">{t('insights.audit.col.failed')}</span></div>
               <ul className="ta-list" data-sort={sort}>{visible.map(row => {
                 const value = toolSortValue(row, sort);
                 const description = operationDescription(row.operation);
                 return <li key={row.operation}><button type="button" className="ta-row" data-operation={row.operation} data-selected={selected === row.operation || undefined} aria-expanded={selected === row.operation} aria-controls={selected === row.operation ? 'tool-operation-inspector' : undefined} aria-label={rowLabel(row)} onClick={select(row.operation)}>
-                  <span className="ta-row-name"><span className="ta-op">{operationName(row.operation)}</span>{description && <span className="ta-desc">{description}</span>}<span className="ta-bar" aria-hidden="true" style={{ "--ta-share": top && value ? Math.max(0.015, value / top) : 0 } as CSSProperties} /></span>
+                  <span className="ta-row-name"><span className="ta-op">{operationName(row.operation)}</span>{description && <span className="ta-desc">{description}</span>}</span>
+                  <span className="ta-track" aria-hidden="true"><span className="ta-bar" style={{ "--ta-share": top && value ? Math.max(0.015, value / top) : 0 } as CSSProperties} /></span>
                   <span className="ta-cell" data-col="calls">{row.calls.toLocaleString(currentLanguage())}<span className="ta-unit"> {t('insights.audit.unit.calls', { count: row.calls })}</span></span>
                   <span className="ta-cell" data-col="time">{auditDuration(row.totalMs)}<span className="ta-unit"> {t('insights.audit.unit.total')}</span></span>
                   <span className="ta-cell" data-col="slowest"><span className="ta-unit">{t('insights.audit.unit.usually')} </span>{auditDuration(row.medianMs)}</span>
@@ -255,6 +263,5 @@ export default function ToolAuditModal({ view: door = 'tools', onClose, sessionL
         </ToolAuditDrawer>}
       </div>}
       </div>
-    </div>
-  </div>, document.body);
+    </Dialog>, document.body);
 }

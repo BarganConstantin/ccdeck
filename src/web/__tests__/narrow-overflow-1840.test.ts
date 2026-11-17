@@ -76,6 +76,10 @@ function matches(sel: string, subject: "app" | "detail", left: Left, detail: boo
 function px(v: string): number {
   const s = v.trim();
   if (s === "0") return 0;
+  // The detail column reads --inspector-w since V4's Inspector; this suite's
+  // layouts are the Default density's, where tokens.css declares it as 360px
+  // (v4-inspector.test.ts pins the track to the token).
+  if (s === "var(--inspector-w)") return DETAIL;
   const m = /^(-?[\d.]+)px$/.exec(s);
   if (!m) throw new Error(`unread length: ${v}`);
   return +m[1];
@@ -85,7 +89,9 @@ interface Track { min: number; max: number; flex: boolean }
 
 /** Each track's floor and ceiling, the way grid sizing reads them. */
 function tracks(template: string, left: Left, width: number): Track[] {
-  const list = splitTop(template.replace(/\s+(?![^(]*\))/g, ","));
+  // The token is resolved first: the band's `minmax(0, var(--inspector-w))`
+  // nests a call inside a call, which the whitespace split below cannot see past.
+  const list = splitTop(template.replace(/var\(--inspector-w\)/g, `${DETAIL}px`).replace(/\s+(?![^(]*\))/g, ","));
   return list.map(t => {
     const mm = /^minmax\((.*)\)$/.exec(t);
     if (mm) {
@@ -153,7 +159,7 @@ describe("no sideways scroll at any width from 320px up (#1840)", () => {
 
   it("leaves the desktop row alone from 648px up", () => {
     for (const width of [648, 900, 1280]) {
-      expect(row("accounts", true, width).template).toBe("auto 1fr 360px");
+      expect(row("accounts", true, width).template).toBe("auto 1fr var(--inspector-w)");
       expect(row("accounts", false, width).template).toBe("auto 1fr");
       expect(row("none", false, width).template).toBe("1fr");
     }

@@ -94,7 +94,9 @@ const catalog: Catalog = {
   "radio.clearFilters": "필터 지우기",
   "radio.clearSearch": "검색 지우기",
   // Results summary
+  "radio.summary.streams.one": "작업 공간 스트림 {count}개",
   "radio.summary.streams.other": "작업 공간 스트림 {count}개",
+  "radio.summary.stations.one": "라디오 방송국 {count}개",
   "radio.summary.stations.other": "라디오 방송국 {count}개",
   "radio.summary.none": "일치하는 결과 없음",
   // Map
@@ -197,6 +199,7 @@ const catalog: Catalog = {
   "radio.rec.denied": "마이크 접근이 거부되었거나 사용할 수 없습니다.",
   "radio.rec.failed": "녹음에 실패했습니다. 다시 시도하세요.",
   "radio.rec.format": "이 브라우저는 지원되는 오디오 형식으로 녹음할 수 없습니다.",
+  "radio.directory.source": "Radio Browser",
 };
 
 export default catalog;

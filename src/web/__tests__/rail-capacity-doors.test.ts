@@ -1,11 +1,11 @@
-// Account capacity and Reset calendar on the left stripe.
+// Account capacity and Reset calendar, from the left stripe's More.
 //
 // Both were only behind the gauge in the accounts panel's header, and the
 // calendar a tab further inside its dialog; users said they could not find
-// them. The stripe now carries a door to each, between Accounts and Session
-// list, and each opens its own view, titled for itself, without touching the
-// left column. The gauge and the tabs are gone. On a phone the dock keeps its
-// five slots and the two are the first rows under More.
+// them. The left stripe's More now leads with a door to each, and each opens
+// its own view, titled for itself, without touching the left column. The
+// gauge and the tabs are gone. On a phone the dock keeps its five slots and
+// the two are the first rows under More.
 //
 // These pin the order, the press, the view each door opens on, and the order
 // the rows come in when there is no panel to take it from.
@@ -40,21 +40,28 @@ function rails({ claude = true, openCapacity = noop as (view: string) => void } 
 
 const ids = (items: { id: string }[]) => items.map(i => i.id);
 
-describe("the left stripe's two doors into Account capacity", () => {
-  it("stand between Accounts and Session list, in the owner's order", () => {
+describe("the Panel bar's two doors into Account capacity", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #4): the two reports were the left stripe's
+  // second run → the first run of the left stripe's More, because they are
+  // read now and then and the stripe keeps the everyday doors.
+  it("lead the left stripe's More, after Sessions and Accounts on the stripe", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the one bar is two stripes; Sessions,
+    // Accounts and the two reports are the left stripe's first runs.
     const groups = rails().leftStripe;
-    expect(groups.map(ids)).toEqual([["accounts", "account-capacity", "reset-calendar"], ["session-list"]]);
-    // One run about the accounts, named for a screen reader (with both CLIs one
-    // Accounts button covers Claude and Codex, so Codex has no button beside
-    // it); Session list stands alone.
-    expect(groups[0].map(i => i.group)).toEqual(["Accounts", "Accounts", "Accounts"]);
-    expect(groups[1][0].group).toBeUndefined();
+    // V4's left stripe: Sessions and Accounts; its More, the two reports first.
+    expect(groups.map(ids)).toEqual([["session-list", "accounts"]]);
+    const more = rails().leftMore;
+    expect(ids(more[0])).toEqual(["account-capacity", "reset-calendar"]);
+    // The reports are one run about the accounts, still named (with both CLIs
+    // one Accounts button covers Claude and Codex, so Codex has no button
+    // beside it).
+    expect(more[0].map(i => i.group)).toEqual(["Claude accounts", "Claude accounts"]);
     expect(ids(rails().leftStripe.flat())).not.toContain("codex-accounts");
   });
 
   it("leave a machine without Claude Code Codex's own button and not the Claude-only doors", () => {
     const r = rails({ claude: false });
-    expect(r.leftStripe.map(ids)).toEqual([["codex-accounts"], ["session-list"]]);
+    expect(r.leftStripe[0].map(i => i.id)).toEqual(["session-list", "codex-accounts"]);
     expect(ids(r.left)).toEqual(["codex-accounts", "session-list"]);
     expect(r.codexDoor).toEqual([]);
     expect(r.capacity).toEqual([]);
@@ -120,14 +127,15 @@ describe("the rows come in the panel's order with no panel to take it from", () 
   });
   const keys = (...rows: Account[]) => rows.map(laneKey);
 
-  it("puts the live account first, then the others in the stored order", () => {
-    const [a1, a2, a3] = [acct(1, false, 20), acct(2, true, 50), acct(3, false, 90)];
-    expect(panelOrder([a1, a2, a3], "7d:full", 0)).toEqual(keys(a2, a3, a1));
-    expect(panelOrder([a1, a2, a3], "slot", 0)).toEqual(keys(a2, a1, a3));
+  // CHANGED ON PURPOSE (internal #94): the panel has one order now, usable
+  // first, so the report takes that order rather than a stored choice.
+  it("puts the live account first, then the others usable first", () => {
+    const [a1, a2, a3, a4] = [acct(1, false, 100), acct(2, true, 50), acct(3, false, 90), acct(4, false, 10)];
+    expect(panelOrder([a1, a2, a3, a4], 0)).toEqual(keys(a2, a3, a4, a1));
   });
 
   it("keeps the roster's own order while nobody is live", () => {
-    const [a3, a1] = [acct(3, false, 90), acct(1, false, 20)];
-    expect(panelOrder([a3, a1], "7d:empty", 0)).toEqual(keys(a3, a1));
+    const [a3, a1] = [acct(3, false, 100), acct(1, false, 20)];
+    expect(panelOrder([a3, a1], 0)).toEqual(keys(a3, a1));
   });
 });

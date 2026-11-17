@@ -1,0 +1,123 @@
+name: tmux
+
+# ccdeck's own tmux, for the terminal panel on machines that have none — see
+# scripts/tmux/build.sh for why it exists and what goes into it.
+#
+#   build    — every push that touches the recipe or this file, on any branch,
+#              so a change to either is compiled on all four targets before it
+#              is trusted; and every tmux-* tag.
+#   release  — tmux-* tags only (tmux-3.8-1, …). Publishes the four archives
+#              and a SHA256SUMS as a PRERELEASE that is never Latest: every
+#              installed desktop app updates from releases/latest, and a tmux
+#              build must never be what that link points at. The deck does not
+#              trust this page either — it checks each download against the
+#              hash written in src/server/tmux-download.mjs.
+#
+# The tag must not look like v*.*.*, which is publish.yml's: a tmux tag must
+# never publish the npm package.
+on:
+  push:
+    branches: ['**']
+    tags: ['tmux-*']
+    paths:
+      - 'scripts/tmux/**'
+      - '.github/workflows/tmux.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tmux-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: linux (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # In a container run by hand rather than `container:`, because a job
+      # container's steps run the runner's own Node for JavaScript actions,
+      # and Alpine's musl cannot run it on arm64.
+      - name: Build in Alpine (static, musl)
+        run: docker run --rm -v "$PWD:/src" -w /src alpine:3.22 sh scripts/tmux/build.sh out
+
+      - name: Upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: tmux-linux-${{ matrix.arch }}
+          path: out/
+          if-no-files-found: error
+
+  macos:
+    name: darwin (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build
+        run: |
+          command -v pkg-config >/dev/null || brew install pkgconf
+          TMUX_ARCH=${{ matrix.arch }} sh scripts/tmux/build.sh out
+
+      - name: Upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: tmux-darwin-${{ matrix.arch }}
+          path: out/
+          if-no-files-found: error
+
+  release:
+    needs: [linux, macos]
+    if: ${{ startsWith(github.ref, 'refs/tags/tmux-') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Collect the builds
+        uses: actions/download-artifact@v8
+        with:
+          pattern: tmux-*
+          merge-multiple: true
+          path: release
+
+      - name: Create the prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd release
+          cat ./*.tar.gz.sha256 > SHA256SUMS
+          cat SHA256SUMS
+          cat > notes.md <<'NOTES'
+          tmux built by ccdeck for its terminal panel, used only on machines where no tmux 3.2 or newer is installed. Not a ccdeck release.
+
+          Each archive holds `tmux`, a README and the licences of everything compiled into it. Recipe: [`scripts/tmux/build.sh`](https://github.com/BarganConstantin/ccdeck/blob/development/scripts/tmux/build.sh). The deck verifies every download against the SHA-256 in its own source, not against this page.
+          NOTES
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+                 --prerelease --latest=false --verify-tag \
+                 --title "$GITHUB_REF_NAME (tmux for ccdeck's terminal panel)" --notes-file notes.md
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber ./*.tar.gz SHA256SUMS

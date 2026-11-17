@@ -114,10 +114,13 @@ export function jobLine(job: BackgroundJob): NoteLine | null {
 type NoteBearing = Pick<AgentNodeData,
   "kind" | "sessionId" | "state" | "closedAt" | "startedAt" | "prompts" | "recap" | "activity" | "job" | "provider" | "stopFailure">;
 
-/** The session's newest prompt, or null when the deck has seen none. */
+/** The session's newest prompt a person typed, or null when the deck has seen
+ *  none. A background task's notice is not one (injected-prompt.ts): a turn it
+ *  starts says what the prompt before it asked, never "background task
+ *  finished". */
 function newestPrompt(a: NoteBearing): PromptEntry | null {
   let newest: PromptEntry | null = null;
-  for (const p of a.prompts) if (!newest || p.at > newest.at) newest = p;
+  for (const p of a.prompts) if (!injectedPrompt(p.text) && (!newest || p.at > newest.at)) newest = p;
   return newest;
 }
 

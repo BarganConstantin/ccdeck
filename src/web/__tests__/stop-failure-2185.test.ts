@@ -287,9 +287,12 @@ describe("where the stop is said", () => {
     expect(drawnState(a)).toBe("err");
     const html = card(a);
     expect(html).toContain('class="agent-node state-err"');
-    expect(html).toContain('class="state-pill state-err"');
+    // The pill became V4's state line (a mark and a sentence-case word); the
+    // pin is the same: the failure is what the card says, and not "Done".
+    expect(html).toContain('class="state-line" data-tone="err"');
+    expect(html).toContain('<span class="state-word">Failed</span>');
     expect(html).toContain('class="state-mark" data-kind="err"');
-    expect(html).not.toContain("state-pill state-done");
+    expect(html).not.toContain('data-tone="done"');
   });
 
   it("nowhere once the session goes on", () => {

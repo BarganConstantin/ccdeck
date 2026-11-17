@@ -34,7 +34,7 @@ export interface TraySnapshot {
   waiting: number;
   /** Sessions with an agent still working. */
   running: number;
-  /** The tab title the page would wear, `(2) ccdeck` or `ccdeck`. */
+  /** The tab title the page would wear, `(2) waiting · ccdeck` or `ccdeck`. */
   title: string;
   /** Longest-blocked first, as the chip lists them. */
   blocked: TrayBlocked[];

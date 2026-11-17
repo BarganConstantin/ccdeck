@@ -56,9 +56,10 @@ export function anyUnpriced(
 }
 
 /**
- * What the header's ↻ is called, which is also what it says on hover: named
- * after the quota sections actually below it, per provider, so it can never
- * promise a section the panel is not rendering. The panel does not draw the
+ * What the foot's Refresh is called, which is also what it says on hover: named
+ * after the quota sections actually above it, per provider, so it can never
+ * promise a section the panel is not rendering, and the period's usage it
+ * reads again with them — the panel's one retry. The panel does not draw the
  * button at all when neither CLI is watched, so the last answer is only ever
  * read on a Claude-only deck.
  */

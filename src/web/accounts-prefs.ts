@@ -1,15 +1,17 @@
 // What the accounts panel remembers between reloads about the accounts behind
-// its fold (#1579): the order they are listed in, and which of them are open.
+// its fold (#1579): which of them are open.
 //
-// Both used to live in the panel's state and so lasted exactly as long as the
-// panel did: close it, or reload, and the list was back in slot order with
-// every row shut. The fold ITSELF still shuts every time the panel opens — see
+// It used to live in the panel's state and so lasted exactly as long as the
+// panel did: close it, or reload, and every row was shut. The ORDER is no
+// longer a choice to remember — the list stands in availability order
+// (internal #94, other-accounts-order.ts) — so the order once stored under
+// `agent-dag.otherAccountsOrder` is simply not read any more. The fold ITSELF still shuts every time the panel opens — see
 // `restOpen` in AccountsPanel.tsx for why a fold that remembered being open
 // would never fold again — so what is kept is how the rows behind it look,
 // not whether they are shown.
 //
 // Per browser, in localStorage, like the usage panel's period and the other
-// view choices this deck keeps: how a list is ordered on this screen is a
+// view choices this deck keeps: which rows are open on this screen is a
 // preference about this screen.
 //
 // Read through storage.ts, for the reason usage-prefs.ts gives: these run in
@@ -17,25 +19,13 @@
 // that blocks site data. And validated rather than cast — the stored string is
 // whatever was in the store.
 import { readStored, writeStored } from "./storage";
-import { NONE_OPEN, SLOT_ORDER, type Openness } from "./other-accounts-order";
+import { NONE_OPEN, type Openness } from "./other-accounts-order";
 
-const ORDER_KEY = "agent-dag.otherAccountsOrder";
 const OPEN_KEY = "agent-dag.otherAccountsOpen";
 
-/** The stored order, or slot order. Checked against the choices the roster
- *  offers once the roster is here — see validOrder. `scope` keeps a second
- *  column's choices (Codex's) apart from this one's. */
-export function loadOrder(scope = ""): string {
-  const stored = readStored(ORDER_KEY + scope);
-  return typeof stored === "string" && stored.length > 0 && stored.length <= 64 ? stored : SLOT_ORDER;
-}
-
-export function saveOrder(order: string, scope = ""): void {
-  writeStored(ORDER_KEY + scope, order);
-}
-
 /** Which rows are open, or none: anything that does not parse as an
- *  Openness is a store written by something else. */
+ *  Openness is a store written by something else. `scope` keeps a second
+ *  column's rows (Codex's) apart from this one's. */
 export function loadOpenness(scope = ""): Openness {
   const raw = readStored(OPEN_KEY + scope);
   if (!raw) return NONE_OPEN;

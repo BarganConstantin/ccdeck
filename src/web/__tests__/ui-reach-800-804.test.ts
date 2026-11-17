@@ -20,7 +20,13 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { emptyScope } from "../scope";
 import { autoRestartStep } from "../restart";
-import { browserChannel, NOTIFY_NOTE, NOTIFY_VETO_NOTE } from "../notify-reach";
+import { ACCOUNT_NOTIFY_NOTE_MSG, ACCOUNT_NOTIFY_VETO_NOTE_MSG, browserChannel, NOTIFY_NOTE_MSG, NOTIFY_VETO_NOTE_MSG } from "../notify-reach";
+import { en } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): the notes are keys now; the
+// words are read through the English catalog.
+const NOTIFY_NOTE = en[NOTIFY_NOTE_MSG];
+const NOTIFY_VETO_NOTE = en[NOTIFY_VETO_NOTE_MSG];
 import { clientText } from "./client-source";
 import { browserWatchSurface } from "./browser-watch-surface";
 import { soundMenuSurface } from "./sound-menu-surface";
@@ -66,7 +72,9 @@ describe("#800 — the session list", () => {
     expect(app).toContain("onPress: toggleSessionList");
     expect(app).toContain("onClick={() => item.onPress()}");
     expect(left(false).get("session-list"), "no Session list on the left stripe").toBeTruthy();
-    expect(attr(left(false).get("session-list")!, "aria-label")).toBe("Session list");
+    // CHANGED ON PURPOSE (stripe words critique): the stripe shows "Sessions"
+    // on a new profile, and the door is named by the word it shows (WCAG 2.5.3).
+    expect(attr(left(false).get("session-list")!, "aria-label")).toBe("Sessions");
     const chrome = items();
     const dock = buttons(draw(createElement(EdgeDock, { items: [...chrome.left, ...chrome.right[0], chrome.utilities[0]], more: [...chrome.right[1], chrome.utilities[1]] })));
     expect(dock.get("session-list"), "no Sessions in the phone's dock").toBeTruthy();
@@ -141,8 +149,15 @@ describe("#801 — what the Notifications switch is saying", () => {
     // Two identically-shaped switches whose difference lives nowhere on screen
     // is the reason this note exists: they fire on the same moments, and the
     // difference is WHEN — sound while a tab is open, this once none is.
-    expect(NOTIFY_NOTE).toBe("With no deck tab open, get a notification wherever a sound would have played.");
-    expect(notifications).toContain('{notifyVetoed ? t("settings.notify.veto") : notifyNote(inApp, t)}');
+    // CHANGED ON PURPOSE (V4's Notifications page): the row's name says when,
+    // and the note under it what keeps happening then.
+    expect(en["settings.notify.closedName"]).toBe("While the deck is closed");
+    expect(NOTIFY_NOTE).toBe("Keeps notifying from the background.");
+    // A launch-time veto no longer takes the note's place: the note stays, and
+    // the veto is said under it with the info icon, read with it by the switch.
+    expect(notifications).toContain("note={notifyNote(inApp, t)}");
+    expect(notifications).toContain('{notifyVetoed && <SettingsInfo id="sm-notify-veto">{t(NOTIFY_VETO_NOTE_MSG)}</SettingsInfo>}');
+    expect(notifications).toContain('aria-describedby={notifyVetoed ? "sm-notify-note sm-notify-veto" : "sm-notify-note"}');
   });
 
   it("finishes the job on the press, rather than reporting that it did not", () => {
@@ -269,6 +284,12 @@ describe("#801 — what the Notifications switch is saying", () => {
     expect(notifications).toContain("const showChannel = notifyOn && !notifyVetoed && !inApp;");
     expect(notifications).toContain("{showChannel && (");
     expect(NOTIFY_VETO_NOTE).toContain("saved for the next start");
+    // CHANGED ON PURPOSE (the UI in every language): the sentences are keys now;
+    // the English they carry is pinned here word for word.
+    // CHANGED ON PURPOSE (V4's held-off line): its words.
+    expect(NOTIFY_VETO_NOTE).toBe("Held off for this run: the deck was started with alerts off. Your choice is saved for the next start.");
+    expect(en[ACCOUNT_NOTIFY_NOTE_MSG]).toBe("For the Claude and Codex accounts you're on, whether or not the deck is open.");
+    expect(en[ACCOUNT_NOTIFY_VETO_NOTE_MSG]).toBe("Held off for this run too.");
     // The switch still moves under a veto, because the preference is still the
     // user's to record for the next launch.
     expect(notifications).toContain("onClick={onToggleNotify}");
@@ -304,16 +325,24 @@ describe("#802 — the empty hero and the scope it was started with", () => {
     expect(hero).toContain('{scope.kind === "scoped" ? (');
   });
 
-  it("keeps the 'any folder' sentence for a deck that is not scoped", () => {
+  it("keeps the 'start it in a terminal' sentence for a deck that is not scoped", () => {
     // The other direction: on an unscoped deck the old copy is the true one and
     // must survive.
     expect(emptyScope("").kind).toBe("machine");
     expect(emptyScope(null).kind).toBe("unknown");
-    expect(hero).toContain('coded(t("board.hero.run"), ["claude", "codex"])');
+    // CHANGED ON PURPOSE (V4 top-10 #10): "Run claude or codex in any folder…
+    // a node appears here and grows as subagents fork" (board.hero.run) →
+    // "Start Claude Code or Codex in a terminal and it appears here."
+    // (board.hero.startHint), because the hero is a title and one plain line
+    // that says what to do now. It is still the unscoped branch only.
+    expect(hero).toContain('<p>{t("board.hero.startHint")}</p>');
+    expect(hero).not.toContain('t("board.hero.run")');
   });
 
   it("is handed the workspace at the call site, which is what was missing", () => {
-    expect(app).toContain("<EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={openTour} reservedRight={railInsetRef.current} />");
+    // CHANGED ON PURPOSE (the owner's phone layout): the call is a function of the
+    // room it is given (the canvas's, or none inside the phone's Sessions panel).
+    expect(app).toContain("<EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={openTour} reservedRight={reservedRight} />");
     expect(hero).toContain("function agentNoneCopy(providers: Providers, workspace: string | null, t: TFunction) {");
   });
 });

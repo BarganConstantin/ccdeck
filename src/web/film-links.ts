@@ -8,12 +8,13 @@ import type { MessageKey } from "./i18n";
 
 const SITE = "https://ccdeck.dev/guides";
 
-/** Which film, the page it plays on, and what it is about in a sentence's words. */
+/** Which film and the page it plays on; what it is about in a sentence's words
+ *  is FILM_SUBJECT's key. */
 export const FILMS = {
-  localNetwork: { href: `${SITE}/local-network/#film`, subject: "Local network" },
-  claudeAccounts: { href: `${SITE}/claude-accounts/#film`, subject: "Claude accounts" },
-  usage: { href: `${SITE}/cost-and-quota/#film`, subject: "cost and quota" },
-  tour: { href: `${SITE}/first-run/#film`, subject: "first run" },
+  localNetwork: { href: `${SITE}/local-network/#film` },
+  claudeAccounts: { href: `${SITE}/claude-accounts/#film` },
+  usage: { href: `${SITE}/cost-and-quota/#film` },
+  tour: { href: `${SITE}/first-run/#film` },
 } as const;
 
 export type Film = keyof typeof FILMS;

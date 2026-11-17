@@ -19,8 +19,8 @@ import { fileURLToPath } from "node:url";
 import { renderToStaticMarkup } from "react-dom/server";
 import SettingsModal, { type SettingsModalProps } from "../components/SettingsModal";
 import AboutSection, {
-  FEEDBACK_NOTE, LICENCE, LICENCE_NOTE, pageBehind, pageBehindNote, SOURCE_URL, SPONSOR_NOTE, SPONSOR_URL, updateOffer,
-  WHATS_NEW_NOTE, type AboutProps,
+  LICENCE, LICENCE_NOTE, pageBehind, pageBehindNote, SOURCE_URL, SPONSOR_NOTE, SPONSOR_URL, updateOffer,
+  type AboutProps,
 } from "../components/AboutSection";
 import UpdatesSection, {
   APP_UPDATES_NOTE, AUTO_UPDATE_CHECKS_OFF_NOTE, AUTO_UPDATE_LABEL, AUTO_UPDATE_NO_RESTART_NOTE, AUTO_UPDATE_NOTE, updatesShape,
@@ -30,14 +30,19 @@ import ElsewhereSection, {
 } from "../components/ElsewhereSection";
 import { TOUR_WHY } from "../components/ReleaseActions";
 import { doorOut, SETTINGS_SECTIONS, type SettingsDoors, type SettingsSection } from "../settings";
-import { readyButtonCopy, RESTART_TO_UPDATE, updateRestartFailureText } from "../desktop-update";
+import { readyButtonCopy, RESTART_TO_UPDATE_MSG, updateRestartFailureText } from "../desktop-update";
 import { IDLE_BEFORE_RESTART_MS } from "../restart";
-import { CHECKS_OFF } from "../update-check";
+import { CHECKS_OFF_MSG } from "../update-check";
 import type { VersionInfo } from "../use-version-check";
 import { DEFAULT_PREFS } from "../sound";
 import { ACCOUNT_NOTIFY_DEFAULTS } from "../use-os-notifications";
 import { AWAY_QUIET_MS } from "../../server/auto-update.mjs";
 import shellEn from "../i18n/areas/shell/en";
+
+// CHANGED ON PURPOSE (the UI in every language): these are keys now, read here
+// through the English catalog.
+const RESTART_TO_UPDATE = shellEn[RESTART_TO_UPDATE_MSG];
+const CHECKS_OFF = shellEn[CHECKS_OFF_MSG];
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const flat = (text: string) => text.replace(/\s+/g, " ");
@@ -201,11 +206,13 @@ describe("Settings › About says which ccdeck this is", () => {
     expect(upgrade).toContain("Update available");
     expect(upgrade).toContain("ccdeck v3.42.0 is out — you are on v3.41.0.");
     // The banner's own first sentences.
+    // CHANGED ON PURPOSE (V4's Figma): the banner's are sentences with full
+    // stops now; the About note above keeps its own catalog's words.
     const banner = flat(read("../components/VersionBanner.tsx"));
     expect(banner).toContain('t("shell.banner.installedStale"');
-    expect(shellEn["shell.banner.installedStale"]).toBe("v{to} is installed — this deck still runs v{from}.");
+    expect(shellEn["shell.banner.installedStale"]).toBe("v{to} is installed. This deck still runs v{from}.");
     expect(banner).toContain('t("shell.banner.isOut"');
-    expect(shellEn["shell.banner.isOut"]).toBe("{product} v{to} is out — you are on v{from}.");
+    expect(shellEn["shell.banner.isOut"]).toBe("{product} v{to} is out. You are on v{from}.");
 
     const d = doors();
     const update = buttons(AboutSection(aboutProps({ notice: { kind: "upgrade", from: "3.41.0", to: "3.42.0" }, doors: d })))
@@ -237,8 +244,20 @@ describe("Settings › About says which ccdeck this is", () => {
       expect(el.props["aria-haspopup"]).toBe("dialog");
     }
     const html = drawAbout();
-    for (const said of [WHATS_NEW_NOTE, TOUR_WHY, FEEDBACK_NOTE, "Take the tour", "Send feedback", "What&#x27;s new"]) {
+    for (const said of ["Take the tour", "Send feedback", "What&#x27;s new"]) {
       expect(html, said).toContain(said);
+    }
+    // CHANGED ON PURPOSE (V4 top-10 #10): a muted line under each of the three
+    // names ("What changed in each release, newest first.", the tour's "Eight
+    // pictures of what the deck shows.", "Tell the people who make ccdeck what
+    // works and what does not.") → none, because each said its name again in
+    // more words.
+    for (const id of ["whats-new", "tour", "feedback"]) {
+      const row = html.slice(html.indexOf(`data-setting="${id}"`));
+      expect(row.slice(0, row.indexOf("</div>")), id).not.toContain("settings-row-note");
+    }
+    for (const gone of ["What changed in each release, newest first.", TOUR_WHY, "Tell the people who make ccdeck what works and what does not."]) {
+      expect(html, gone).not.toContain(gone);
     }
   });
 
@@ -292,6 +311,8 @@ describe("a door out of Settings closes it before it opens what it names", () =>
 
 // ── General › Updates ────────────────────────────────────────────────────────
 
+// CHANGED ON PURPOSE (V4's Figma): the banner has no switch any more; this is
+// the one place the preference is drawn, and the banner says its countdown.
 describe("Settings › General › Updates is the update banner's switch", () => {
   it("is drawn in General, under the board, with the state the banner reads", () => {
     const on = drawSettings({ section: "general" });
@@ -315,7 +336,8 @@ describe("Settings › General › Updates is the update banner's switch", () =>
     const app = flat(read("../App.tsx"));
     expect(app).toMatch(/<DeckDialogs[^>]*restart=\{restart\}/);
     expect(app).toMatch(/<DeckBanner restart=\{restart\}/);
-    expect(read("../components/DeckBanner.tsx")).toMatch(/toggleAutoRestart/);
+    expect(read("../components/DeckBanner.tsx")).not.toMatch(/toggleAutoRestart/);
+    expect(read("../components/VersionBanner.tsx")).not.toMatch(/role="switch"/);
     // One preference: prefs.json's autoUpdate, which the toggle writes.
     expect(read("../use-auto-restart.ts")).toMatch(/body: JSON\.stringify\(\{ autoUpdate: next \}\)/);
   });
@@ -409,10 +431,14 @@ describe("Settings › General › Elsewhere on the deck", () => {
     expect(html).not.toMatch(/<label[^>]*data-setting="(?:accounts|local-network|browser-watch)"/);
   });
 
-  it("draws each panel's key beside its door only while single keys answer", () => {
+  it("names each panel's key on its door only while single keys answer, with no key cap", () => {
+    // CHANGED ON PURPOSE (V4's Settings row): the door is the accent text link
+    // and the row draws no key cap beside it. The key is still said to a
+    // screen reader on the link, and still only while single keys answer.
     const on = draw(true, true);
-    expect(on).toMatch(/<kbd class="settings-key" aria-hidden="true" title="Press A[^"]*">A<\/kbd><button[^>]*aria-keyshortcuts="A"/);
-    expect(on).toMatch(/<kbd class="settings-key" aria-hidden="true" title="Press B[^"]*">B<\/kbd><button[^>]*aria-keyshortcuts="B"/);
+    expect(on).not.toContain('class="settings-key"');
+    expect(on).toMatch(/<button type="button" class="settings-link" id="settings-accounts-open"[^>]*aria-keyshortcuts="A"/);
+    expect(on).toMatch(/<button type="button" class="settings-link" id="settings-browser-watch-open"[^>]*aria-keyshortcuts="B"/);
     const off = draw(true, false);
     expect(off).not.toContain('class="settings-key"');
     expect(off).not.toContain("aria-keyshortcuts");
@@ -422,11 +448,17 @@ describe("Settings › General › Elsewhere on the deck", () => {
 
   it("opens the accounts panel without ever shutting it, and Local network once the panel can draw it", () => {
     const column = flat(read("../use-left-column.ts"));
-    expect(column).toContain("const openAccountsPanel = useCallback(() => { accountsEvictedRef.current = false; setAccountsPanelOpen(open => { if (!open) setSessionListOpen(false); return true; }); }, []);");
+    // CHANGED ON PURPOSE (the owner's phone layout): on a phone the panel is a
+    // sheet over the list and does not take its place.
+    expect(column).toContain("const openAccountsPanel = useCallback(() => { accountsEvictedRef.current = false; setAccountsPanelOpen(open => { if (!open && !loadsOnPhone()) setSessionListOpen(false); return true; }); }, []);");
     const app = flat(read("../App.tsx"));
     // Both sides of the panel draw Local network (#2472), so the door no
     // longer moves the panel to Claude's side: the side that is up answers it.
-    expect(app).toContain("const openLocalNetwork = useCallback(() => { openAccountsPanel(); setLanWanted(true); }, [openAccountsPanel]);");
+    // CHANGED ON PURPOSE (one side column between 641 and 839): the panel the
+    // door opens is the column opened last, so it is drawn over a right column
+    // in that band; the open is still openAccountsPanel, which never shuts it.
+    expect(app).toContain('const raiseAccounts = useCallback(() => { raiseSide("left"); openAccountsPanel(); }, [raiseSide, openAccountsPanel]);');
+    expect(app).toContain("const openLocalNetwork = useCallback(() => { raiseAccounts(); setLanWanted(true); }, [raiseAccounts]);");
     expect(app).toContain("useEffect(() => { if (!accountsPanelOpen) setLanWanted(false); }, [accountsPanelOpen]);");
     expect(app).toContain("lanWanted={lanWanted} onLanShown={lanShown}");
     const panel = flat(read("../components/AccountsPanel.tsx"));
@@ -435,9 +467,11 @@ describe("Settings › General › Elsewhere on the deck", () => {
     expect(codex).toContain('if (!lanWanted || !lanReady || !shown) return; setView("lan"); onLanShown?.();');
   });
 
-  it("says General holds more than the board now, in one line", () => {
+  it("says General holds sessions and updates, in one line", () => {
+    // CHANGED ON PURPOSE (V4's page note): it names how sessions come back,
+    // and updates; the board's own row is one of the Sessions rows now.
     const general = SETTINGS_SECTIONS.find(s => s.id === "general")!;
-    expect(general.note).toMatch(/board/);
+    expect(general.note).toMatch(/sessions/);
     expect(general.note).toMatch(/updates/);
     expect(general.note.split(". ").length).toBe(1);
   });
@@ -447,8 +481,11 @@ describe("Settings › General › Elsewhere on the deck", () => {
 
 describe("the new copy keeps the deck's voice", () => {
   it("has no exclamation, no minimising word, no capital C, and no claim about telemetry", () => {
+    // CHANGED ON PURPOSE (V4 top-10 #10): WHATS_NEW_NOTE and FEEDBACK_NOTE →
+    // gone from the list, because the About rows no longer draw a line under
+    // those names and the two constants went with them.
     const copy = [
-      WHATS_NEW_NOTE, FEEDBACK_NOTE, LICENCE_NOTE, pageBehindNote("3.40.0"), AUTO_UPDATE_LABEL, AUTO_UPDATE_NOTE,
+      LICENCE_NOTE, pageBehindNote("3.40.0"), AUTO_UPDATE_LABEL, AUTO_UPDATE_NOTE,
       AUTO_UPDATE_CHECKS_OFF_NOTE, AUTO_UPDATE_NO_RESTART_NOTE, APP_UPDATES_NOTE, ACCOUNTS_ROW, ACCOUNTS_ROW_NOTE,
       LAN_ROW, LAN_ROW_NOTE, WATCH_ROW, WATCH_ROW_NOTE, SETTINGS_SECTIONS.find(s => s.id === "general")!.note,
     ];

@@ -252,11 +252,11 @@ describe("each panel is held for as long as its exit animation runs", () => {
     return values[0];
   };
 
-  /** The animation of every rule that styles a panel's `.leaving` state,
-   *  reduced motion's included. Each has to be timed by the same property. */
+  /** The transition of every rule that styles a panel's `.leaving` state,
+   *  reduced motion's included. Each has to be timed by the same properties. */
   const leaving = (selector: string) =>
     [...css.matchAll(new RegExp(`${selector.replace(/[.]/g, "\\.")}\\.leaving\\b[^{]*\\{([^}]*)\\}`, "g"))]
-      .map(m => /animation:\s*([^;]+)/.exec(m[1])?.[1] ?? "");
+      .map(m => /transition:\s*([^;]+)/.exec(m[1])?.[1] ?? "");
 
   it("holds both left panels for --side-exit, the length of the column's close", () => {
     // The two left panels leave by transitions inside the left column since
@@ -264,21 +264,46 @@ describe("each panel is held for as long as its exit animation runs", () => {
     // what has to last exactly --side-exit is the close — the column's width
     // going to nothing and the panel sliding out with its edge. A switch is
     // shorter than that (a 120ms fade), so the hold covers it too.
-    expect(held("accountsPanelOpen")).toBe(cssMs("--side-exit"));
-    expect(held("sessionListOpen")).toBe(cssMs("--side-exit"));
+    // CHANGED ON PURPOSE (one side column between 641 and 839): each held by
+    // its panel open on screen, which a folded left column is not, so a fold
+    // leaves the way a close does.
+    expect(held("accountsOnScreen")).toBe(cssMs("--side-exit"));
+    expect(held("listOnScreen")).toBe(cssMs("--side-exit"));
     const closing = [...css.matchAll(/\.left-column\.closing\b[^{]*\{([^}]*)\}/g)].map(m => m[1]).join(" ");
     expect(closing).toMatch(/transition-duration:\s*var\(--side-exit\)/);
     expect(closing).toMatch(/transform var\(--side-exit\)/);
   });
 
-  it("holds the usage and machine panels for --rail-exit", () => {
+  it("holds the usage and machine panels for the length of their fade out", () => {
+    // CHANGED ON PURPOSE (V4's motion spec): the rail panels leave by a
+    // transition, no longer by the rail-out animation timed by --rail-exit, so
+    // a reopen during the close turns around from the opacity on screen. The
+    // fade is --dur-fast, or --dur-xfade under reduced motion, and the hold
+    // in App.tsx is those two lengths.
     // The machine panel renders as .sysdetail, and shares the usage panel's rule.
     for (const selector of [".usage-panel", ".sysdetail"]) {
       const rules = leaving(selector);
       expect(rules.length, selector).toBeGreaterThan(0);
-      for (const animation of rules) expect(animation, selector).toContain("var(--rail-exit)");
+      // EVERY rule that styles the leaving state is timed by one of the two tokens.
+      // CHANGED ON PURPOSE (the owner's phone layout): at 640 and under the two are
+      // sheets that leave back down the bottom edge, on --dur-stage-out (200ms),
+      // or crossfade over --dur-base (200ms) under reduced motion (phone-sheet.css);
+      // App.tsx holds them for that long there (sheetCloseMs, sheetFadeMs).
+      for (const r of rules) expect(r, selector).toMatch(/^(?:opacity var\(--(?:dur-fast|dur-xfade|dur-base)\)|transform var\(--dur-stage-out\)) var\(--ease(-stage)?\)$/);
+      expect(rules.some(r => r.includes("var(--dur-fast)")), selector).toBe(true);
+      expect(rules.some(r => r.includes("var(--dur-xfade)")), selector).toBe(true);
     }
-    expect(held("usagePanelOpen")).toBe(cssMs("--rail-exit"));
-    expect(held("machinePanelOpen")).toBe(cssMs("--rail-exit"));
+    expect(css).not.toContain("--rail-exit");
+    // The hold is those tokens, read: --dur-fast, or --dur-xfade under reduced motion.
+    // CHANGED ON PURPOSE (the owner's phone layout): on a phone the two panels are
+    // sheets that go back down the bottom edge in 200ms (a crossfade of the same
+    // length under reduced motion), so the hold is the sheet's, not --dur-fast.
+    // CHANGED ON PURPOSE (the phone layout): the sheet's times are read from the
+    // tokens (sheetCloseMs, sheetFadeMs), not restated as constants.
+    expect(app).toMatch(/const railExitMs = useMemo\(\s*\(\) => phone \? \(reducedMotion \? sheetFadeMs\(\) : sheetCloseMs\(\)\) : tokenMs\(reducedMotion \? "--dur-xfade" : "--dur-fast"\),\s*\[reducedMotion, phone\]\);/);
+    // CHANGED ON PURPOSE (one side column between 641 and 839): a folded right
+    // column takes both out the way a close does.
+    expect(app).toMatch(/usePanelPresence\(usagePanelOpen && !sideFold\.right, railExitMs\)/);
+    expect(app).toMatch(/usePanelPresence\(machinePanelOpen && !sideFold\.right, railExitMs\)/);
   });
 });

@@ -30,8 +30,13 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import {
-  HELD_LABEL_CAP, heldEvents, heldShort, outageSentence, PAUSE_LABEL, pauseTitle, statusPill,
+  HELD_LABEL_CAP, heldEvents, heldShort, outageSentence, PAUSE_LABEL_MSG, pauseLabel, pauseTitle, statusPill,
 } from "../status-pill";
+import { en } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): the name is a key now, read
+// here through the English catalog.
+const PAUSE_LABEL = en[PAUSE_LABEL_MSG];
 import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
@@ -163,8 +168,17 @@ const transitioned = (value: string | null): string[] =>
 // across every count, and the paused tone's cost charged to the paused tone —
 // and both survive the extra glyph unchanged. The assertions below are on the
 // invariant, not on the pixels.
+//
+// CHANGED ON PURPOSE (V4's Figma): the pill now hugs the label it shows —
+// "paused · 3" is drawn 84 wide — so the hidden copy and the grid cell it
+// shared with the label are gone. The neighbourhood that made the ghost worth
+// its 30-odd pixels went too: the counts stand BEFORE the pill now, and only
+// the incident and notify chips can follow it. What still holds is pinned below: the
+// figures are tabular, so a count moves the pill only when it gains a digit,
+// nothing eases the box, and nothing in it asks to be pressed. statusPill
+// still names each tone's widest label, the cases above.
 
-const PILL = ".topbar .status .pill .pill-box";
+const LABEL = ".topbar .status .pill .pill-label";
 
 describe("the status pill stopped resizing itself (#504)", () => {
   it("caps the held count in the label and nowhere else", () => {
@@ -240,34 +254,16 @@ describe("the status pill stopped resizing itself (#504)", () => {
       .toEqual([`${HELD_LABEL_CAP}+`, "full"]);
   });
 
-  it("draws the ghost and the live label in one grid cell, so the box measures the worst case", () => {
-    // A `min-width` in pixels was the other option and is the one this sheet
-    // would normally reach for. It cannot work here: the number would be
-    // measured in whatever face rendered it and then applied to Segoe UI on
-    // Windows and to whatever fontconfig picks on Linux, and a wider face
-    // simply overruns it. A hidden copy of the string measures itself.
-    expect(decl(PILL, "display")).toBe("inline-grid");
-    const area = decl(PILL, "grid-template-areas")!;
-    const cell = /"([\w-]+)"/.exec(area)![1];
-    for (const child of [".topbar .status .pill .pill-widest", ".topbar .status .pill .pill-label"]) {
-      expect(declIn(bodyOf(child), "grid-area"), child).toBe(cell);
-      expect(declIn(bodyOf(child), "white-space"), child).toBe("nowrap");
-    }
-    expect(decl(".topbar .status .pill .pill-widest", "visibility")).toBe("hidden");
-    expect(decl(PILL, "font-variant-numeric")).toBe("tabular-nums");
-    // Anchored to the dot at the left rather than centred, which is where the
-    // button differed: the slack at zero held has to open where the count will
-    // appear, or the word itself shifts when the first event lands.
-    expect(decl(PILL, "justify-items")).toBe("start");
-  });
-
-  it("renders that ghost from the pill the app is already reading, not a second copy", () => {
-    expect(app).toContain('<span className="pill-widest" aria-hidden>{pill.widest}</span>');
+  it("hugs the label it shows, with no hidden widest copy beside it", () => {
     expect(app).toContain('<span className="pill-label">{pill.label}</span>');
-    // aria-hidden as well as visibility:hidden. Either alone keeps the ghost
-    // out of what is announced; both is what makes it true of a reader that
-    // walks the markup and of one that walks the render.
-    expect(app).toMatch(/className="pill-widest" aria-hidden/);
+    expect(app).not.toMatch(/pill-widest|pill-box|pill\.widest/);
+    expect(RULES.filter(r => /pill-widest|pill-box/.test(r.selector)).map(r => r.selector)).toEqual([]);
+    expect(decl(LABEL, "white-space")).toBe("nowrap");
+    // Tabular figures: `paused · 3` → `paused · 4` keeps its width, and only a
+    // new digit widens the pill.
+    expect(decl(LABEL, "font-variant-numeric")).toBe("tabular-nums");
+    expect(declIn(bodyOf(LABEL), "min-width"),
+      "a pixel min-width would size the pill for a label it is not showing").toBeNull();
   });
 
   it("does not animate the box, because animating a box means animating layout", () => {
@@ -277,23 +273,19 @@ describe("the status pill stopped resizing itself (#504)", () => {
     // still a reflow. The same reasoning is what moved `.sd-core-fill` off
     // `height` two describes down.
     const layout = ["width", "min-width", "max-width", "height", "all"];
-    for (const sel of [PILL, ".topbar .status .pill .pill-widest",
-                       ".topbar .status .pill .pill-label", ".topbar .status .pill"]) {
+    for (const sel of [LABEL, ".topbar .status .pill"]) {
       const eased = transitioned(declIn(bodyOf(sel), "transition"));
       expect(eased.filter(p => layout.includes(p)), `${sel} eases a layout property`).toEqual([]);
     }
-    expect(declIn(bodyOf(PILL), "min-width"),
-      "a pixel min-width is the fix this control deliberately did not take").toBeNull();
   });
 
   it("adds no press obligation, because the pill is not a control at all", () => {
     // The pill is an unfocusable span with a title, which is the whole reason
     // #510 moved its one irreplaceable sentence into the connection banner. It
-    // has no cursor, and neither do the two spans inside it — canvas-motion's
+    // has no cursor, and neither does the label inside it — canvas-motion's
     // press sweep is keyed on `cursor: pointer`, so a stray one here would owe
     // five obligations for a thing nobody can press.
-    for (const sel of [PILL, ".topbar .status .pill .pill-widest",
-                       ".topbar .status .pill .pill-label", ".topbar .status .pill"]) {
+    for (const sel of [LABEL, ".topbar .status .pill"]) {
       expect(declIn(bodyOf(sel), "cursor"), sel).toBeNull();
     }
   });
@@ -302,13 +294,11 @@ describe("the status pill stopped resizing itself (#504)", () => {
 // ── the control that left the bar ───────────────────────────────────────────
 
 describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied last)", () => {
-  /** The `<ControlButton>` whose aria-label is the pause control's. */
-  const CONTROL = (() => {
-    const at = app.indexOf("aria-label={pauseLabel(t)}");
-    expect(at, "no control carries pauseLabel").toBeGreaterThan(-1);
-    const open = app.lastIndexOf("<ControlButton", at);
-    return app.slice(open, app.indexOf("</ControlButton>", at));
-  })();
+  // CHANGED ON PURPOSE (#2591): the control that paused the canvas (the bar's
+  // button, then the Space row of the canvas bar's ⋯ menu, V4 top-10 #5) →
+  // none at all, because the owner withdrew Board pause: the Board always
+  // follows its event stream. The cases below that read that row now read
+  // that it is gone; the ones about the bar and the sheet are unchanged.
 
   it("is gone from the topbar, markup and stylesheet together", () => {
     // Both halves, because either one left behind is a defect of its own: a
@@ -332,26 +322,35 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // Feedback, with Search (⌘K) ahead of both since quick open (2026-10-24).
     // Pause is in none of them, and no run is left holding nothing.
     expect(app).not.toMatch(/className="action-run/);
-    expect(app).toMatch(/<div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\} \/><\/div>/);
+    // CHANGED ON PURPOSE (V4): Feedback left Search's run for a cell of its
+    // own in the bar's corner, drawn by a UtilityRun of its own.
+    expect(app).toMatch(/<div className="actions"><UtilityRun items=\{\[rails\.search\]\} \/><\/div>/);
+    expect(app).toMatch(/<div className="tb-corner"><UtilityRun items=\{\[rails\.corner\]\} \/><\/div>/);
     expect(app).toMatch(/utilities: \[settings, feedback\]/);
     expect(app).toMatch(/ariaLabel: t\("board\.rail\.settings"\)/);
-    expect(app).toMatch(/<EdgeRail side="right" label=\{t\("shell\.rail\.right"\)\} groups=\{rails\.right\} \/>/);
+    // CHANGED ON PURPOSE (V4's Figma): two stripes, each its own toolbar; Radio
+    // and Settings at the left one's foot, the right one with none.
+    // CHANGED ON PURPOSE (V4 top-10 #4): each stripe also takes its More, the
+    // left one's foot More and Settings, the right one's More alone, because
+    // the occasional doors moved behind them.
+    expect(app).toMatch(/<EdgeRail side="left" label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.leftStripe\} more=\{rails\.leftMore\} foot=\{rails\.leftFoot\} \/>/);
+    expect(app).toMatch(/<EdgeRail side="right" label=\{t\("shell\.rail\.right"\)\} groups=\{rails\.rightStripe\} more=\{rails\.rightMore\} \/>/);
     expect(app).toMatch(/ariaLabel: t\("board\.rail\.usage"\)/);
     expect(app).not.toMatch(/Sound settings/);
     expect(app, "Pause came back as a chrome control").not.toMatch(/id: "pause"|ariaLabel: "Pause/);
   });
 
   it("is drawn the way the four glyphs beside it are drawn", () => {
-    // The stack is a grammar: a 24-unit grid, strokes in currentColor at weight
-    // 2, rendered at 14px. A glyph a weight or a box away from its neighbours
-    // reads as a control from somewhere else.
-    expect(CONTROL).toMatch(/<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>/);
-    expect(CONTROL).toMatch(/stroke="currentColor"/);
-    expect(CONTROL).toMatch(/strokeWidth="2"/);
-    expect(CONTROL).toMatch(/fill="none"/);
-    // And a name, because a glyph has none. The four around it each gained one
-    // for the same reason when they moved.
-    expect(CONTROL).toMatch(/aria-label=\{pauseLabel\(t\)\}/);
+    // CHANGED ON PURPOSE (#2591): a row of words in the ⋯ menu (V4 top-10 #5)
+    // → no row, because Board pause is withdrawn. The menu's other rows are
+    // still drawn by the one MenuRow, and none of them pauses or resumes.
+    expect(app).not.toContain('keyCap="Space"');
+    expect(app).not.toMatch(/board\.quick\.action\.(?:pause|resume)/);
+    expect(app).toMatch(/<button type="button" role="menuitem" className="ap-menu-item" onClick=\{onPick\}/);
+    expect(app).toMatch(/<MenuRow label=\{t\("board\.controls\.arrangeLabel"\)\} keyCap="R"/);
+    // No tooltip counts a hold anywhere in the menu: the top bar's paused pill
+    // (statusPill, below) is the one place that reads it, as it already was.
+    expect(app).not.toMatch(/pauseTitle/);
     // `dropped` joined `held` in #547: the hold is bounded now, and a tooltip
     // that named the count without saying the queue had overflowed would be
     // describing a backlog that will be applied whole when it will not.
@@ -361,9 +360,13 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // and the ref around it is gone; what the tooltip has to say is unchanged.
     // `singleKeys` joined them with Settings › General's switch: Space is named
     // in the tooltip only while Space pauses (WCAG 2.1.4).
-    expect(CONTROL).toMatch(
-      /title=\{pauseTitle\(\{ paused, held: pauseGate\.size, dropped: pauseGate\.dropped, singleKeys \}, t\)\}/,
-    );
+    // CHANGED ON PURPOSE (V4 top-10 #5): the bar's button read that tooltip from
+    // pauseTitle → the top bar's paused pill is the one place it is read, with the
+    // held and dropped counts and the switch, because the menu row has no tooltip.
+    expect(app).toMatch(/held: pauseGate\.size, dropped: pauseGate\.dropped, singleKeys,/);
+    // The row's key is the switch's too: no Space cap or aria-keyshortcuts with
+    // the single keys off (MenuRow).
+    expect(app).toContain("const key = singleKeys ? keyCap : undefined;");
   });
 
   it("reports which of its two states it is in, which its four neighbours need not", () => {
@@ -372,36 +375,37 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // Pause is a setting that stays on. aria-pressed is this deck's word for
     // that — the sound switch has carried it since #370 — and not
     // aria-expanded, which would promise a region that appears.
-    expect(CONTROL).toMatch(/aria-pressed=\{paused\}/);
-    expect(CONTROL).not.toMatch(/aria-expanded|aria-haspopup/);
-    // The name does not flip with it. "Resume the canvas, pressed" is two
-    // halves contradicting each other; the state belongs in the attribute.
+    // CHANGED ON PURPOSE (V4 top-10 #5): a toggle button with aria-pressed and a
+    // name that never flipped → a menu row whose words say what a press does now
+    // (Pause the stream, Resume the stream), because a menuitem carries no
+    // pressed state, and the brief asks the row's label to follow the state.
+    // CHANGED ON PURPOSE (#2591): that row is gone with Board pause, so no
+    // control anywhere claims a paused state for the canvas.
+    expect(app).not.toMatch(/aria-pressed=\{paused/);
+    expect(en["board.quick.action.pause"]).toBe("Pause the stream");
+    expect(en["board.quick.action.resume"]).toBe("Resume the stream");
+    // The bar's old name stays what it was, for whatever still reads it.
     expect(PAUSE_LABEL).toBe("Pause the canvas");
-    expect(CONTROL).not.toMatch(/Resume/);
+    expect(pauseLabel()).toBe(PAUSE_LABEL);
   });
 
   it("draws that state in amber, as a tint and a glyph rather than a block", () => {
-    // Amber rather than the accent because amber is what a frozen canvas is
-    // drawn in everywhere else on this deck. It was a solid --warn fill with
-    // the glyph inverted, the loudest thing on the canvas; the canvas chrome
-    // went quiet, and the state is carried by the glyph leaving the resting
-    // --muted for --warn, on a tint of the same amber.
-    const on = '.react-flow__controls-button[aria-pressed="true"]';
-    expect(decl(on, "background")).toBe("color-mix(in srgb, var(--warn) 16%, transparent)");
-    expect(decl(on, "color")).toBe("var(--warn)");
+    // CHANGED ON PURPOSE (V4 top-10 #5): a pressed Pause drew --warn on a 16% amber
+    // tint on the bar → the bar draws no paused state at all, because Pause is a
+    // menu row now and ⋯ shows no special state for it (the brief); the top bar's
+    // paused pill is what says the canvas is frozen.
+    expect(css).not.toMatch(/\.react-flow__controls-button\[aria-pressed="true"\]/);
     expect(decl(".react-flow__controls-button", "color")).toBe("var(--muted)");
     expect(decl(".react-flow__controls-button", "background")).toBe("transparent");
-    // Keyed on the attribute, so the pixels and the tree cannot disagree.
     expect(css).not.toMatch(/\.react-flow__controls-button\.paused/);
+    expect(app).not.toMatch(/canvas-more[^\n]*paused/);
   });
 
   it("answers the pointer while pressed, which the tint alone would not", () => {
-    // The unpressed hover brings up the control fill and the pressed state has
-    // its own background, so a pressed Pause answers with a deeper tint of the
-    // same amber. The stack no longer clips (a focus ring has to show), so
-    // nothing here has to be drawn inset.
-    const hover = bodyOf('.react-flow__controls-button[aria-pressed="true"]:hover');
-    expect(declIn(hover, "background")).toBe("color-mix(in srgb, var(--warn) 24%, transparent)");
+    // CHANGED ON PURPOSE (V4 top-10 #5): the pressed hover's 24% amber → gone with
+    // the pressed state; the row answers the pointer as every menu row does.
+    expect(css).not.toMatch(/\.react-flow__controls-button\[aria-pressed="true"\]:hover/);
+    expect(decl(".ap-menu-item:hover:not(:disabled)", "background")).toBe("var(--selected)");
     expect(decl(".react-flow__controls", "overflow")).toBeNull();
   });
 
@@ -410,25 +414,21 @@ describe("Pause is a canvas verb and lives on the canvas (#527's rule, applied l
     // canvas-motion.test.ts enumerates for a pressable name. What would create
     // them is `cursor: pointer` in this sheet, which is what that sweep is
     // keyed on.
-    for (const sel of ['.react-flow__controls-button[aria-pressed="true"]',
-                       '.react-flow__controls-button[aria-pressed="true"]:hover',
-                       ".react-flow__controls-button"]) {
+    // CHANGED ON PURPOSE (V4 top-10 #5): the two pressed selectors left with the
+    // pressed state → the bar's button and ⋯, which wears the same class.
+    for (const sel of [".react-flow__controls-button", ".react-flow__controls-button.canvas-more"]) {
       expect(declIn(bodyOf(sel), "cursor"), sel).toBeNull();
     }
   });
 
-  it("leaves Space exactly where it was", () => {
-    // The key is how this feature is actually used and nothing about it moved:
-    // the same handler, the same gate, the same row in the shortcuts sheet.
-    // A held Space pauses once (held-shortcut-repeat.test.ts); its repeats are
-    // still cancelled.
-    expect(app).toMatch(/if \(e\.key === " "\) \{ e\.preventDefault\(\); if \(!e\.repeat\) togglePause\(\); \}/);
-    // The row, read from the table the sheet renders. It used to be read from
-    // the detail rail's shorter copy of it; that rail is gone, and the copy was
-    // never the thing this case was about.
-    expect(KEY_HELP.flatMap(g => g.rows).find(r => r.cap === "Space")!.action)
-      .toMatch(/pause or resume/);
-    expect(CONTROL).toMatch(/onClick=\{togglePause\}/);
+  it("takes Space off the Board: no handler, no row in the sheet, no menu row", () => {
+    // CHANGED ON PURPOSE (#2591): Space paused the canvas, from the deck's
+    // handler, the shortcuts sheet and the ⋯ menu → Space pauses nothing,
+    // because the owner withdrew Board pause. Space still presses a focused
+    // card or button and still reaches a terminal; only the Board verb left.
+    expect(app).not.toMatch(/e\.key === " "/);
+    expect(KEY_HELP.flatMap(g => g.rows).find(r => r.cap === "Space")).toBeUndefined();
+    expect(app).not.toMatch(/pick\(togglePause\)|onClick=\{togglePause\}/);
   });
 });
 
@@ -444,21 +444,23 @@ describe("the machine panel's core fills are composited, not laid out (#505)", (
     expect(eased).not.toContain("height");
   });
 
-  it("scales a full-height column, which is the only way flex-end stays in place", () => {
-    // The half that makes this more than a find-and-replace. The track is
-    // `align-items: flex-end` with `overflow: hidden`, so a scaleY is the same
-    // picture as a height only if the box being scaled fills the track to begin
-    // with — `height: 100%` is what makes the alignment a no-op — and only if
-    // the origin is where flex-end used to put the fill.
+  it("scales a full-size column from its foot, so the picture is the same as a height", () => {
+    // CHANGED ON PURPOSE (the owner prefers main's columns): each core is a
+    // column filled from the bottom again, as main draws it. A scaleY is the
+    // same picture as a height only if the box being scaled fills the track to
+    // begin with, and only if the origin is the track's foot.
     expect(decl(FILL, "height")).toBe("100%");
+    expect(decl(FILL, "width")).toBe("100%");
     expect(decl(FILL, "transform-origin")).toBe("bottom");
-    expect(decl(".sd-core", "align-items")).toBe("flex-end");
-    expect(decl(".sd-core", "overflow")).toBe("hidden");
   });
 
-  it("is written as a transform by the component too, with the 2% floor intact", () => {
-    expect(systemMeter).toMatch(/className="sd-core-fill" style=\{\{ transform: `scaleY\(\$\{Math\.max\(2, v\) \/ 100\}\)` \}\}/);
-    expect(systemMeter).not.toMatch(/sd-core-fill[\s\S]{0,120}height:/);
+  it("is a transform of the reading, with the 2px floor kept by the sheet", () => {
+    // CHANGED ON PURPOSE: the component writes the reading as a number and the
+    // sheet turns it into the scale, so the floor can be 2px of whichever
+    // column height the core count gives (28, or 18 in rows of 32).
+    expect(systemMeter).toMatch(/className="sd-core-fill" style=\{\{ "--load": v \/ 100 \} as React\.CSSProperties\}/);
+    expect(systemMeter).not.toMatch(/sd-core-fill[\s\S]{0,120}(?:height|width):/);
+    expect(decl(FILL, "transform")).toBe("scaleY(clamp(var(--core-floor), var(--load, 0), 1))");
   });
 
   it("now agrees with the sibling it was supposed to have been converted with", () => {
@@ -522,7 +524,10 @@ describe("the outage explanation reaches something other than a pointer (#510)",
   it("renders inside the banner that already announces, and only there", () => {
     expect(app).toMatch(/<div className="conn-banner" role="alert">/);
     expect(app).toMatch(/const outage = outageSentence\(\{ connected: live, paused \}\);/);
-    expect(app).toMatch(/\{outage && <span className="conn-sub">\{outage\}<\/span>\}/);
+    // CHANGED ON PURPOSE (V4's Figma): the banner's message is one run of
+    // sentences, so the outage sentence follows "Lost connection." in it
+    // rather than in a span of its own.
+    expect(app).toContain('return outage ? sentences(t("shell.banner.lostShort"), outage) : t("shell.banner.lost", { product: PRODUCT });');
   });
 
   it("earns that choice — the banner has no dismiss control, which the pill was kept for", () => {
@@ -577,7 +582,10 @@ describe("the outage explanation reaches something other than a pointer (#510)",
     expect(pauseTitle({ paused: true, held: 0 })).toContain("(Space)");
     expect(pauseTitle({ paused: true, held: 7 })).toContain("(Space)");
     expect(PAUSE_LABEL.trim()).not.toBe("");
-    expect(KEY_HELP.flatMap(g => g.rows).some(r => r.cap === "Space")).toBe(true);
+    // CHANGED ON PURPOSE (#2591): the key was in the shortcuts sheet → it is
+    // not, because the owner withdrew Board pause and the deck can no longer
+    // reach a paused-but-connected state that would need explaining.
+    expect(KEY_HELP.flatMap(g => g.rows).some(r => r.cap === "Space")).toBe(false);
   });
 
   it("draws the added sentence in a colour that is measured rather than assumed", () => {
@@ -586,7 +594,10 @@ describe("the outage explanation reaches something other than a pointer (#510)",
     // split `.ver-banner` argues for at `.ver-sub`. Measured on the banner's
     // wash at both ends of its gradient: 11.54:1 / 13.99:1 dark and
     // 13.25:1 / 16.72:1 light.
-    expect(decl(".conn-banner .conn-sub", "color")).toBe("var(--text)");
-    expect(decl(".conn-banner .conn-sub", "font-weight")).toBe("400");
+    // CHANGED ON PURPOSE (V4's Figma): the sentence is in the banner's one run,
+    // so it is drawn in the banner's own --text at 400 and has no rule of its own.
+    expect(decl(".conn-banner", "color")).toBe("var(--text)");
+    expect(decl(".conn-banner", "font-weight")).toBe("400");
+    expect(css).not.toContain(".conn-sub");
   });
 });

@@ -23,6 +23,7 @@ import { useEffect, useRef, useState } from "react";
 import { CONFIRM_LAYER } from "../modal-dismiss";
 import { clearCopy, readClearPlan, type ClearPlan } from "../clear-confirm";
 import { useT } from "../i18n";
+import { Dialog, DialogClose } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 interface Props {
@@ -57,41 +58,37 @@ export default function ClearConfirm({ agentCount, onConfirm, onCancel }: Props)
   const { goes, stays, final, confirm } = clearCopy(agentCount, plan, t);
 
   return (
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div
-        ref={dialogRef}
-        className="modal clear-confirm"
-        onClick={e => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="clear-confirm-title"
-      >
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="clear-confirm" labelledBy="clear-confirm-title">
         <header className="modal-head">
           <div className="modal-title">
-            <span className="status-dot err" aria-hidden />
             <span id="clear-confirm-title" className="modal-tool-name">{t("board.clear.title")}</span>
           </div>
           <div className="modal-actions">
-            <button type="button" className="glyph-btn" onClick={onCancel} aria-label={t("board.clear.cancelEsc")} title={t("board.clear.cancelEsc")}>×</button>
+            <DialogClose onClick={onCancel} label={t("board.clear.cancelEsc")} />
           </div>
         </header>
 
-        <section className="modal-body">
-          {/* What goes and what stays, one fact to a line (#843), rather than
-              one sentence the reader has to parse while deciding. */}
+        <section className="modal-body cc-body">
+          {/* What goes and what stays, one fact to a line (#843), in V4's two
+              columns rather than one sentence the reader has to parse while
+              deciding. */}
           <dl className="cc-plan">
-            <dt>{t("board.clear.goes")}</dt>
-            <dd>{goes.map(line => <span key={line}>{line}</span>)}</dd>
-            <dt>{t("board.clear.stays")}</dt>
-            <dd>{stays.length > 0 ? stays.map(line => <span key={line}>{line}</span>) : <span>{t("board.clear.nothing")}</span>}</dd>
+            <div className="cc-col">
+              <dt>{t("board.clear.goes")}</dt>
+              <dd>{goes.map(line => <span key={line}>{line}</span>)}</dd>
+            </div>
+            <div className="cc-col">
+              <dt>{t("board.clear.stays")}</dt>
+              <dd>{stays.length > 0 ? stays.map(line => <span key={line}>{line}</span>) : <span className="cc-none">{t("board.clear.nothing")}</span>}</dd>
+            </div>
           </dl>
           {final && <p className="cc-final">{final}</p>}
-          <div className="cc-actions">
-            <button type="button" ref={cancelRef} className="btn" onClick={onCancel}>{t("board.clear.cancel")}</button>
-            <button type="button" className="btn danger" onClick={onConfirm}>{confirm}</button>
-          </div>
         </section>
-      </div>
-    </div>
+
+        <footer className="modal-foot">
+          <button type="button" ref={cancelRef} className="btn" onClick={onCancel}>{t("board.clear.cancel")}</button>
+          <button type="button" className="btn danger" onClick={onConfirm}>{confirm}</button>
+        </footer>
+    </Dialog>
   );
 }

@@ -35,7 +35,11 @@ describe("node data holds still between events (#873)", () => {
 
   it("reuses a card's data until the board's revision moves", () => {
     expect(flow).toMatch(/entry\.revision !== state\.revision/);
-    expect(flow).toMatch(/const dataFor = nodeDataFor\(state, onOpenContext\);/);
+    // CHANGED ON PURPOSE (V4 critique round 3, look-alike cards): the cards
+    // drawn are handed in too, to decide which read the same; the copies are
+    // still kept until the revision, or that answer, moves.
+    expect(flow).toMatch(/const dataFor = nodeDataFor\(state, onOpenContext, visibleIds\);/);
+    expect(flow).toMatch(/if \(twinKey !== entry\.twinKey\) \{/);
   });
 
   it("does not rebuild the session handles on the clock either", () => {
@@ -53,8 +57,10 @@ describe("a card renders on its agent, and only its clocks on time (#873)", () =
     expect(node).not.toMatch(/data\.now/);
   });
 
-  it("gives the three leaves that print time a beat of their own", () => {
-    for (const leaf of ["function Elapsed", "function WaitingRow", "function ToolRateSpark"]) {
+  // CHANGED ON PURPOSE (V4's Figma, Agent / Card): the activity chart left the
+  // card (the foot says tool kinds in icons), so two leaves print time now.
+  it("gives the two leaves that print time a beat of their own", () => {
+    for (const leaf of ["function Elapsed", "function WaitingRow"]) {
       const at = node.indexOf(leaf);
       expect(at, `${leaf} is gone`).toBeGreaterThan(-1);
       expect(node.slice(at, at + 400), leaf).toMatch(/const now = useNow\(1000\);/);

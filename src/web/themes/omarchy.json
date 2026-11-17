@@ -8,9 +8,6 @@
   "extends": "dark",
   "tokens": {
     "node-grad": "var(--panel)",
-    "topbar-grad": "var(--panel)",
-    "session-accent-l": "74%",
-    "session-edge-idle-l": "65%",
     "bg": "#1a1b26",
     "bg-soft": "#1e2030",
     "panel": "#24283b",
@@ -29,7 +26,6 @@
     "inflight": "#bb9af7",
     "chrome-bg": "#24283b",
     "chrome-edge": "#414868",
-    "conn-wash": "#f7768e18",
     "burst-live-wash": "#bb9af712",
     "hero-core": "#7aa2f7",
     "grid-line": "#292e42",

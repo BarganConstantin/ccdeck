@@ -153,23 +153,40 @@ function atWindowWidth(sheet: string): string {
  *  open and close animate. The number is still declared exactly once and still
  *  belongs in the table below; it is simply read from where it now lives. */
 function accountsPanelWidth(): number {
-  const m = /\.accounts-panel\s*\{[^}]*?\bwidth:\s*(\d+)px/.exec(css.replace(/\/\*[\s\S]*?\*\//g, ""));
-  expect(m, ".accounts-panel declares its own width").toBeTruthy();
+  // CHANGED ON PURPOSE (V4's Figma): the panel draws at the rail's --rail-w
+  // (264 at Compact), the Default density's 288 being what this suite's
+  // layouts are written at.
+  const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  expect(/\.accounts-panel\s*\{[^}]*?\bwidth:\s*calc\(var\(--rail-w\)/.test(text), ".accounts-panel declares its own width").toBe(true);
+  const m = /--rail-w:\s*(\d+)px/.exec(text);
+  expect(m, "--rail-w declares the Default width").toBeTruthy();
   return Number(m![1]);
 }
 
 /** The session list's width, declared on the list since 2026-10-08, when its
  *  track went `auto` with Accounts' (styles/left-column.css). */
 function sessionListWidth(): number {
-  const m = /\.session-list\s*\{[^}]*?\bwidth:\s*(\d+)px/.exec(css.replace(/\/\*[\s\S]*?\*\//g, ""));
-  expect(m, ".session-list declares its own width").toBeTruthy();
+  // V4's rail draws at the density's --rail-w; this suite's layouts are the
+  // Default density's, where the token is the 288 tokens.css declares first.
+  const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  expect(/\.session-list\s*\{[^}]*?\bwidth:\s*calc\(var\(--rail-w\)/.test(text), ".session-list declares its own width").toBe(true);
+  const m = /--rail-w:\s*(\d+)px/.exec(text);
+  expect(m, "--rail-w declares the Default width").toBeTruthy();
+  return Number(m![1]);
+}
+
+/** The detail column's width, the Default density's: the grid track reads
+ *  --inspector-w since V4's Inspector, as the rail reads --rail-w. */
+function inspectorWidth(): number {
+  const m = /--inspector-w:\s*(\d+)px/.exec(css.replace(/\/\*[\s\S]*?\*\//g, ""));
+  expect(m, "--inspector-w declares the Default width").toBeTruthy();
   return Number(m![1]);
 }
 
 /** The panel pixels each layout a template stands for gives away. */
 function panelPixels(columns: string): number[] {
   const fixed = columns.split(/\s+/)
-    .map(t => /^(\d+(?:\.\d+)?)px$/.exec(t))
+    .map(t => t === "var(--inspector-w)" ? [t, String(inspectorWidth())] : /^(\d+(?:\.\d+)?)px$/.exec(t))
     .reduce((sum, px) => sum + (px ? Number(px[1]) : 0), 0);
   // An `auto` first track is the left column, as wide as whichever panel is
   // in it — one rule for two layouts since 2026-10-08. Counting zero for it
@@ -218,9 +235,9 @@ const LAYOUTS: Layout[] = [
   { name: "detail only", columns: "1fr 360px", panels: 360 },
   { name: "sessions + detail", columns: "288px 1fr 360px", panels: 648 },
   { name: "accounts + detail", columns: "288px 1fr 360px", panels: 648 },
-  { name: "neither panel", columns: "1fr", panels: 0 },
+  { name: "neither panel (the deck's first run)", columns: "1fr", panels: 0 },
   { name: "sessions only", columns: "288px 1fr", panels: 288 },
-  { name: "accounts only (the deck's first run)", columns: "288px 1fr", panels: 288 },
+  { name: "accounts only", columns: "288px 1fr", panels: 288 },
 ];
 
 const paneFor = (l: Layout): PaneSize => ({ width: WINDOW_W - EDGES_W - l.panels, height: WINDOW_H - TOPBAR_H });
@@ -258,20 +275,22 @@ describe("the six layouts are still the six the stylesheet declares", () => {
     // inset by the edge stripes on both sides.
     expect(css).toMatch(/\.app\s*\{[^}]*grid-template-rows:\s*var\(--topbar-h\) auto 1fr;/);
     expect(TOPBAR_H).toBe(44);
+    // CHANGED ON PURPOSE (V4's Figma): two stripes again, the grid inset by both.
     expect(css).toMatch(/\.app\s*\{\s*padding-inline:\s*var\(--edge-w\);\s*\}/);
     expect(EDGES_W).toBe(80);
     expect(css).toMatch(/\.canvas-wrap\s*\{[^}]*grid-row:\s*3;/);
-    expect(css).toMatch(/\.conn-banner\s*\{[^}]*grid-row:\s*2;/);
-    expect(css).toMatch(/\.ver-banner\s*\{[^}]*grid-row:\s*2;/);
+    // CHANGED ON PURPOSE (V4's motion rules): every banner is drawn in one
+    // holder, the strip, whose height eases in and out; the holder is row 2.
+    expect(css).toMatch(/\.app > \.banner-strip\s*\{[^}]*grid-row:\s*2;/);
   });
 
-  it("opens with the accounts panel and without the detail panel", () => {
-    // Which is `288px 1fr` — a pane 72px wider than the guess believed, on
-    // every deck that has never had its panels touched.
+  it("opens with neither the accounts panel nor the detail panel", () => {
+    // CHANGED ON PURPOSE (owner, 2026-11-11): a first run opens no panel, which
+    // is `1fr` — it used to open Accounts, `288px 1fr`.
     // The accounts panel's default moved with the left column, and the detail
     // panel's below with the right-hand panels, to use-right-panels.ts, which
     // App.tsx calls.
-    expect(clientText()).toMatch(/ACCOUNTS_PANEL_OPEN_KEY\);\s*return stored === null \? true : stored === "1";/);
+    expect(clientText()).toMatch(/return readStored\(ACCOUNTS_PANEL_OPEN_KEY\) === "1";/);
     // Open only on a stored "1": nothing stored, and a store that refuses, both
     // read as null through readStored, and null is closed.
     const rightCode = readFileSync(fileURLToPath(new URL("../use-right-panels.ts", import.meta.url)), "utf8")
@@ -279,7 +298,12 @@ describe("the six layouts are still the six the stylesheet declares", () => {
       .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
     expect(rightCode).toMatch(/function loadDetailOpen\(\): boolean \{\s*return readStored\(DETAIL_OPEN_KEY\) === "1";\s*\}/);
     expect(rightCode).toMatch(/useState<boolean>\(loadDetailOpen\)/);
-    expect(appCode).toMatch(/\bdetailOpen\b[^}]*\}\s*= useRightPanels\(leftColumnWidth\(leftPanel\)\);/);
+    // CHANGED ON PURPOSE: App also says whether this load lands in Workspace,
+    // where Usage and This machine share a side column (side-column.ts).
+    // CHANGED ON PURPOSE (internal #103): the left column's width is the
+    // Sessions list's own when the list is open (rail-width.ts), so the right
+    // panels are fitted beside that width.
+    expect(appCode).toMatch(/\bdetailOpen\b[^}]*\}\s*= useRightPanels\(leftColumnWidth\(leftPanel, railWidth, listWidth\), readView\(\) === "workspace"\);/);
   });
 });
 
@@ -302,7 +326,7 @@ describe("a graph past the pane's right edge is recovered in every layout", () =
     // read as visible and the failsafe stayed asleep — and since the edge
     // stripes, 60px of them in the layout the guess was written for as well.
     const tooWide = LAYOUTS.filter(l => paneFor(l).width < GUESS.width);
-    expect(tooWide.map(l => l.name)).toEqual(["detail only", "sessions + detail", "accounts + detail", "sessions only", "accounts only (the deck's first run)"]);
+    expect(tooWide.map(l => l.name)).toEqual(["detail only", "sessions + detail", "accounts + detail", "sessions only", "accounts only"]);
     for (const layout of tooWide) {
       const pane = paneFor(layout);
       const boxes = [cardAtScreen(pane.width + Math.min(20, (GUESS.width - pane.width) / 2), 100)];
@@ -343,7 +367,7 @@ describe("a card on the canvas is never mistaken for a drifted one", () => {
     // happened to sit in that strip was a fit the user did not ask for.
     const tooNarrow = LAYOUTS.filter(l => paneFor(l).width > GUESS.width);
     expect(tooNarrow.map(l => l.name)).toEqual([
-      "neither panel",
+      "neither panel (the deck's first run)",
     ]);
     for (const layout of tooNarrow) {
       const pane = paneFor(layout);

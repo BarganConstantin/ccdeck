@@ -26,7 +26,12 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { KEY_HELP, KEY_HELP_NOTE, documentedKeys } from "../key-help";
+import { KEY_HELP, KEY_HELP_NOTE_MSG, documentedKeys } from "../key-help";
+import { en } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): the note is a key now; the
+// words are read through the English catalog.
+const KEY_HELP_NOTE = en[KEY_HELP_NOTE_MSG];
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel: string) => readFileSync(join(web, rel), "utf8");
@@ -58,7 +63,7 @@ const BOUND = [...HANDLER.matchAll(/e\.key === "((?:[^"\\]|\\.)*)"/g)].map(m => 
 /** The keys that have one spelling rather than two. Every letter is bound as
  *  both cases, because a Caps-locked keyboard sends the upper one for the same
  *  press; Space, `?` and Escape have no other case to bind. */
-const SINGLE_CASE = [" ", "?", "escape", "delete", ","];
+const SINGLE_CASE = [ "?", "escape", "delete", ","];
 
 const lower = (s: string) => s.toLowerCase();
 
@@ -67,7 +72,7 @@ describe("every key the deck binds is written down where a user can find it", ()
     expect(BOUND.length).toBeGreaterThan(20);
     // One from each shape: the wordless one, the punctuation one, a letter, and
     // the one that is spelled out.
-    for (const key of [" ", "?", "m", "Escape"]) expect(BOUND, key).toContain(key);
+    for (const key of ["?", "m", "Escape"]) expect(BOUND, key).toContain(key);
   });
 
   it("documents every literal the handler answers", () => {
@@ -85,8 +90,10 @@ describe("every key the deck binds is written down where a user can find it", ()
       // since Remove from board left the topbar for the detail panel. The
       // comma since Settings: Cmd+, or Ctrl+, opens it, the one chord the deck
       // claims. I since #2178: Jira, once a connection exists (J and K were
-      // already the canvas's next and previous agent).
-      .toEqual([" ", ",", "?", "a", "b", "c", "d", "delete", "escape", "f", "h", "i", "j", "k", "l", "m", "r", "s", "t", "u", "v", "w", "z"]);
+      // already the canvas's next and previous agent). N and P since 4.0's
+      // status bar: the next/previous waiting session (one queue with W) and
+      // the card's peek.
+      .toEqual([",", "?", "a", "b", "c", "d", "delete", "escape", "f", "h", "i", "j", "k", "l", "m", "n", "p", "r", "s", "t", "u", "v", "w", "z"]);
   });
 
   it("binds each of them exactly once, which is what makes M and ? free", () => {
@@ -150,10 +157,11 @@ describe("the short list that used to sit in the detail rail", () => {
     // the table, and the gear's chord is the table's "," row.
     expect([...app.matchAll(/<kbd className="hint-key">/g)]).toHaveLength(1);
     const named = [...app.matchAll(/key: \{ cap: "([A-Z])", aria: "\1", single: true \}/g)].map(m => m[1]);
-    // A twice: the Accounts door's, and the Codex accounts door's on a deck
-    // with Codex alone, where that door stands in its place. Never both on
-    // one deck (rail-items.tsx).
-    expect(named.sort()).toEqual(["A", "A", "B", "H", "L", "S", "U"]);
+    // CHANGED ON PURPOSE (V4's Figma): D, the Inspector's door on the right stripe,
+    // names its key too, one the sheet already lists. A twice: the Accounts
+    // door's, and the Codex accounts door's on a deck with Codex alone, where
+    // that door stands in its place. Never both on one deck (rail-items.tsx).
+    expect(named.sort()).toEqual(["A", "A", "B", "D", "H", "L", "S", "U"]);
     const documented = documentedKeys();
     for (const k of named) expect(documented, k).toContain(k.toLowerCase());
     expect(app).toMatch(/key: \{ cap: settingsCap, aria: "Control\+, Meta\+,", single: false \}/);
@@ -164,7 +172,8 @@ describe("the short list that used to sit in the detail rail", () => {
     // The rail's rows, verbatim from the version that carried them. None of
     // them may have left the deck along with the panel that listed them —
     // removing a duplicate is not the same as removing the thing duplicated.
-    const RAIL_CAPS = ["?", "drag", "tab", "enter", "space", "J", "K",
+    // Board pause and its Space shortcut have been withdrawn.
+    const RAIL_CAPS = ["?", "drag", "tab", "enter", "J", "K",
                        "R", "F", "L", "H", "U", "C", "T", "Esc"];
     const caps = new Set(KEY_HELP.flatMap(g => g.rows.map(r => lower(r.cap))));
     expect(RAIL_CAPS.filter(c => !caps.has(lower(c)))).toEqual([]);
@@ -176,7 +185,7 @@ describe("the way in", () => {
     expect(app).toMatch(/if \(e\.key === "\?"\) setKeyHelpOpen\(o => !o\);/);
     // Over several lines since it gained a third door, Settings at General
     // for the single-key switch; the flag and the close are the same.
-    expect(app).toMatch(/\{keyHelpOpen && \(\s*<KeyboardHelp\s+onClose=\{\(\) => setKeyHelpOpen\(false\)\}/);
+    expect(app).toMatch(/<DialogPresence when=\{keyHelpOpen\}>\{\(\) => \(\s*<KeyboardHelp\s+onClose=\{\(\) => setKeyHelpOpen\(false\)\}/);
     // The sheet is mounted in components/DeckDialogs.tsx, which App.tsx hands the dialogs' state.
     expect(read("App.tsx")).toMatch(/<DeckDialogs\b[^>]*\bdialogs=\{dialogs\}/);
   });
@@ -191,8 +200,15 @@ describe("the way in", () => {
     // The tooltip names `?` while `?` opens the sheet; with Settings › General's
     // single-key switch off it is the button alone that does, and it says why
     // `?` is quiet (WCAG 2.1.4).
-    expect(app).toContain('title={singleKeys ? withKey(t("board.controls.keys"), "?", true) : t("board.controls.keysOff")}');
-    expect(app).toMatch(/aria-label=\{t\("board\.controls\.keysLabel"\)\}/);
+    // CHANGED ON PURPOSE (V4 top-10 #5): a keyboard button on the canvas bar, named by
+    // keysLabel with that tooltip → the "Keyboard shortcuts" row of the bar's ⋯ menu,
+    // with ? at its end while ? works and the reason in its words while it does not,
+    // and the status bar's "? Keys" once every key it names is learned, which wears
+    // the button's name and tooltip; because the bar keeps only the view's controls.
+    expect(app).toContain('<MenuRow label={singleKeys ? t("board.controls.keys") : t("board.controls.keysOff")} keyCap="?"');
+    const bar = read("components/StatusBar.tsx");
+    expect(bar).toContain('title={singleKeys ? withKey(t("board.controls.keys"), "?", true) : t("board.controls.keysOff")}');
+    expect(bar).toMatch(/aria-label=\{t\("board\.controls\.keysLabel"\)\}/);
     expect(app).not.toMatch(/className="btn icon-btn"[\s\S]{0,200}Keyboard shortcuts/);
   });
 
@@ -202,9 +218,13 @@ describe("the way in", () => {
     // Escape, the focus trap and the hand-back.
     expect(sheet).toMatch(/const dialogRef = useModalDismiss\(onClose\);/);
     expect(sheet).toMatch(/const scrimPress = useScrimDismiss\(onClose\);/);
-    expect(sheet).toMatch(/<div className="modal-backdrop" \{\.\.\.scrimPress\} role="presentation">/);
-    expect(sheet).toMatch(/className="modal key-help"/);
-    expect(sheet).toMatch(/aria-modal="true"/);
+    // The generic markup is Dialog.tsx's; the sheet's own file uses it.
+    const shell = read("components/Dialog.tsx");
+    expect(shell).toMatch(/className=\{className \? `modal-backdrop \$\{className\}` : "modal-backdrop"\}/);
+    expect(shell).toMatch(/role="presentation"/);
+    expect(shell).toMatch(/aria-modal="true"/);
+    expect(shell).toMatch(/role="dialog"/);
+    expect(sheet).toMatch(/<Dialog\s+scrim=\{scrimPress\}\s+dialogRef=\{dialogRef\}\s+className="key-help"\s+labelledBy="key-help-title"/);
   });
 
   it("says what to do when a key does nothing, under the keys (#852)", () => {
@@ -212,6 +232,7 @@ describe("the way in", () => {
     // keyboard-focused control, or the sheet itself, owns the keys. It used to
     // open on a paragraph about focus internals; #852 cut it to the one thing to
     // do and moved it under the reference the reader opened the sheet for.
+    expect(KEY_HELP_NOTE_MSG).toBe("settings.key.note");
     expect(KEY_HELP_NOTE).toMatch(/Esc/);
     expect(KEY_HELP_NOTE.split(/\s+/).length).toBeLessThanOrEqual(10);
     expect(sheet.indexOf('t("settings.key.note")')).toBeGreaterThan(sheet.indexOf('className="shortcuts"'));
@@ -261,7 +282,9 @@ describe("the sound switch, which had a control and no key", () => {
     // The half of #711 that had to survive the redesign: a keyboard user must
     // still be able to shut the deck up without opening anything. M is that,
     // and the sheet is where it is promised.
-    const settings = KEY_HELP.find(g => g.title === "Settings")!.rows;
+    // CHANGED ON PURPOSE (V4's Figma): Settings' keys sit in the Deck group, and the
+    // mouse rows in Canvas.
+    const settings = KEY_HELP.find(g => g.title === "Deck")!.rows;
     const row = settings.find(r => /^m$/i.test(r.cap));
     expect(row!.action).toMatch(/sound on or off/);
     // V, beside it, opens Settings at Sounds: the switch, and each tone's
@@ -273,7 +296,7 @@ describe("the sound switch, which had a control and no key", () => {
     // where M toggled, and the Mouse group wrote the divergence down — went
     // with the speaker (2026-10-07). No row describes a control the bar does
     // not draw.
-    const mouse = KEY_HELP.find(g => g.title === "Mouse")!;
+    const mouse = KEY_HELP.find(g => g.title === "Canvas")!;
     expect(mouse.rows.some(r => /speaker/i.test(r.action))).toBe(false);
   });
 

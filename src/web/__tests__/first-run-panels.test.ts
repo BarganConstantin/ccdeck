@@ -1,29 +1,26 @@
 // What a deck shows somebody who has never opened it.
 //
-// Three panels answer the questions a first run has — which accounts are
-// there, what this machine is doing, what it is costing — and a person who has
-// not met the deck cannot ask for a panel they do not know exists. Two of the
-// three already opened on a first run; the machine panel did not, on an
-// argument about REOPENING that the null check already prevents.
+// CHANGED ON PURPOSE (owner, 2026-11-11): a first run opens no panel. Accounts,
+// Usage and the machine panel used to open on a fresh profile, and on a machine
+// with nothing set up yet each opened on what was missing — "claude-swap isn't
+// installed" on the left, "Quota unavailable" on the right — two failures
+// before the first session. Each waits for its door now.
 //
-// The distinction the three now share is the whole of it: absent means "nobody
-// has said", and that gets the panel. `"0"` means somebody closed it, and that
-// is an answer on record which no later run overturns.
+// The distinction the three share is unchanged in kind: `"1"` means somebody
+// opened it and keeps it open, `"0"` means somebody closed it, and absent is
+// nobody having said — which now reads as shut. A profile from before this
+// change that never stored one of the three still has it open: boot pins it
+// (storage.ts's settlePanelDefaults, run in storage.test.ts).
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { clientText } from "./client-source";
 
-/** Comments stripped, so a rule cannot be satisfied by a paragraph that
- *  describes it. */
 // The machine and usage panels are decided in use-right-panels.ts and the
-// accounts panel in use-left-column.ts, both lifted out of App.tsx. The rule is
-// about the client, so it reads the client — comment-stripped, as this file
-// always read it. All matches are positive.
+// accounts panel in use-left-column.ts. The rule is about the client, so it
+// reads the client, comment-stripped. All matches are positive.
 const app = clientText();
 
 /** The one decision, spelled the one way, for each key that carries it. */
-const OPENS_ON_FIRST_RUN = /const stored = (?:window\.localStorage\.getItem|readStored)\(KEY\);\s*return stored === null \? true : stored === "1";/;
+const SHUT_ON_FIRST_RUN = /return readStored\(KEY\) === "1";/;
 
 const PANELS = [
   ["the machine panel", "MACHINE_PANEL_OPEN_KEY"],
@@ -31,21 +28,14 @@ const PANELS = [
   ["accounts", "ACCOUNTS_PANEL_OPEN_KEY"],
 ] as const;
 
-describe("a first run opens the panels that answer its questions", () => {
-  it.each(PANELS)("opens %s when nobody has said otherwise", (_name, key) => {
-    const rule = new RegExp(OPENS_ON_FIRST_RUN.source.replace("KEY", key));
-    expect(app).toMatch(rule);
+describe("a first run opens no panel", () => {
+  it.each(PANELS)("keeps %s shut when nobody has said otherwise", (_name, key) => {
+    expect(app).toMatch(new RegExp(SHUT_ON_FIRST_RUN.source.replace("KEY", key)));
+    expect(app).not.toMatch(new RegExp(`readStored\\(${key}\\);\\s*return stored === null \\? true`));
   });
-
-  // The argument the machine panel's old default rested on is kept by the rule
-  // above, not by a rule of its own: a panel that came back after being closed
-  // would be occupying the rail on behalf of a decision nobody made, and the
-  // `stored === "1"` half is what reads that decision back.
 
   it("writes the answer down, so it survives a reload", () => {
     for (const [name, key] of PANELS) {
-      // localStorage.setItem where a panel's state lived in App.tsx, storage.ts's
-      // writeStored in the hooks it moved out to: the same write either way.
       expect(app, name).toMatch(new RegExp(`(?:setItem|writeStored)\\(${key}, [^)]*\\? "1" : "0"\\)`));
     }
   });

@@ -26,3 +26,9 @@ export function layoutSignature(
   ids.sort();
   return `${ids.join("|")}#sv${sizeVersion}.${domSizeVersion}`;
 }
+
+/** Whether a signature has an agent in it: an empty board's is only its two
+ *  size counters. */
+export function signatureHasAgents(sig: string): boolean {
+  return sig !== "" && !sig.startsWith("#sv");
+}

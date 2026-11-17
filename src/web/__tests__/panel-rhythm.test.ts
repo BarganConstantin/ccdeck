@@ -108,10 +108,10 @@ const decl = (selector: string, prop: string) => declIn(bodyOf(selector), prop);
 // ── lengths, through the tokens ─────────────────────────────────────────────
 
 /** Every custom property a rule in this file's scope can see. The geometry
- *  block is a bare `:root`, and the session list's two local numbers are
- *  declared on `.sl-rows` and inherited by the row inside it. */
+ *  block is a bare `:root`. (The session list's two local numbers, the card
+ *  gutter and edge, left with the rail's rows: V4's row has no border.) */
 const TOKENS: Record<string, string> = {};
-for (const source of [":root", ".session-list .sl-rows"]) {
+for (const source of [":root"]) {
   for (const [, name, value] of bodyOf(source).matchAll(/(--[\w-]+)\s*:\s*([^;]+)/g)) {
     TOKENS[name] = value.trim();
   }
@@ -198,22 +198,19 @@ describe("the distance a panel prints its content at", () => {
    *  usage panel's five were already right and are here as the standard the
    *  other two are being held to, not because they changed. */
   const EDGES: Array<[string, "padding" | "margin"]> = [
-    [".ap-header", "padding"],
+    // CHANGED ON PURPOSE (V4's Figma): the accounts header left this list with
+    // the rail's — it is Figma's pane header (12 left, 4 right beside its
+    // buttons), held to the rows below it by section 2, not to the panel inset.
     [".ap-empty", "padding"],
     [".ap-foot", "padding"],
     [".ap-lan", "padding"],
     [".ap-failure", "margin"],
-    [".session-list .sl-header", "padding"],
-    [".up-header", "padding"],
-    // The period strip prints its edge as a margin rather than a padding, and
-    // nothing held it to the token until the strip went full width — up to
-    // then it was centred and intrinsic, so its inset was whatever was left
-    // over. It is a panel edge now like any other.
-    [".uh-range.up-period", "margin"],
-    [".up-total", "padding"],
-    [".up-tokens-row", "padding"],
-    [".up-section", "padding"],
-    [".usage-panel .cost-bar", "margin"],
+    // The session list's header left this list with V4's rail: its header is
+    // Figma's Rail / Header (12 left, 6 right), held to the rows below it by
+    // the session list's own case in section 2, not to the panel inset.
+    // CHANGED ON PURPOSE (V4's Figma): the Usage panel left this list. Its header is 12 in and
+    // 4 out and its body pads 12 (v4-usage-panel-look.test.ts), so its content edge is the
+    // body's 12, not --panel-inset's 14.
   ];
 
   it("is the same distance on both sides of every panel", () => {
@@ -229,10 +226,12 @@ describe("the distance a panel prints its content at", () => {
     // The row is inset from the column so the tone it takes under the pointer
     // keeps a margin, and pads the rest — the way a session row reaches its
     // inset through the gutter, the edge and the padding.
-    const inset = px(TOKENS["--panel-inset"]);
+    // CHANGED ON PURPOSE (V4's Figma): the row's content edge is 12 on both
+    // sides (the list's 4 and the row's 8), the same 12 the pane header
+    // starts on, where it was the 14 of the panel inset.
     const [listL, listR] = horizontal(".ap-list", "padding");
     const [rowL, rowR] = horizontal(".ap-account", "padding");
-    expect([listL + rowL, listR + rowR]).toEqual([inset, inset]);
+    expect([listL + rowL, listR + rowR]).toEqual([12, 12]);
     expect(listL).toBeGreaterThan(0);
   });
 
@@ -241,8 +240,10 @@ describe("the distance a panel prints its content at", () => {
     // two as numbers — `px("var(--panel-inset)")` is NaN there — so they hold
     // their 14 in the source. This is the assertion that stops the pair from
     // drifting apart in either direction.
-    expect(decl(".up-section", "padding")).toBe("0 14px");
-    expect(horizontal(".usage-panel .cost-bar", "margin")).toEqual([14, 14]);
+    // CHANGED ON PURPOSE (V4's Figma): the Usage panel's inset is its body's 12 and its bar has
+    // no margin, so the pair that had to stay literal is gone; the token is still 14.
+    expect(decl(".up-section", "padding")).toBe("0");
+    expect(horizontal(".usage-panel .cost-bar", "margin")).toEqual([0, 0]);
     expect(px(TOKENS["--panel-inset"])).toBe(14);
   });
 
@@ -267,76 +268,48 @@ describe("a panel header against the rows it heads", () => {
     // declaration, and the odd one out was the right, 2px inside every row.
     const [listL, listR] = horizontal(".ap-list", "padding");
     const [rowL, rowR] = horizontal(".ap-account", "padding");
-    expect(horizontal(".ap-header", "padding")).toEqual([listL + rowL, listR + rowR]);
-    expect(horizontal(".ap-header", "padding")).toEqual(horizontal(".ap-foot", "padding"));
+    // CHANGED ON PURPOSE (V4's Figma): the header's title starts where the rows'
+    // content does; its right side ends in buttons, 4px from the edge, and is
+    // not held to the rows (as the session list's is not).
+    expect(horizontal(".ap-header", "padding")[0]).toEqual(listL + rowL);
+    expect(listR + rowR).toBe(12);
+    void listR;
   });
 
-  it("starts and ends where they do, in the session list", () => {
-    // The row reaches its inset through three boxes, so the comparison has to
-    // add them up the way the browser does.
-    const gutter = px(TOKENS["--sl-card-gutter"]);
-    const edge = px(TOKENS["--sl-card-edge"]);
-    const [padLeft, padRight] = horizontal(".session-list .sl-row", "padding");
-    expect(gutter + edge + padLeft).toEqual(horizontal(".session-list .sl-header", "padding")[0]);
-    expect(gutter + edge + padRight).toEqual(horizontal(".session-list .sl-header", "padding")[1]);
+  it("starts where they do, in the session list", () => {
+    // V4's rail: the header's title starts on the column the rows' glyphs start
+    // on. The row reaches it through two boxes, the list's padding and its own,
+    // so the comparison adds them the way the browser does. The right side is
+    // not held: the header ends in a button, 6px from the edge (Rail / Header).
+    const [listLeft] = horizontal(".session-list .sl-rows", "padding");
+    const [padLeft] = horizontal(".session-list .sl-row", "padding");
+    expect(listLeft + padLeft).toEqual(horizontal(".session-list .sl-header", "padding")[0]);
   });
 
-  it("measures the row's border, because the row's border is inside its box", () => {
-    // `box-sizing: border-box` is what makes the sum above the whole story, and
-    // it is declared once for the sheet. Without it the row's padding box would
-    // start a further 1px in and every number here would be off by one.
+  it("draws the row without a border, so its padding is the whole of its inset", () => {
+    // The old row had a transparent 1px edge that was a term in its padding.
+    // V4's has none: the selection is a fill, and the padding is Figma's 4 and 8.
+    expect(decl(".session-list .sl-row", "border")).toBe("0");
+    expect(decl(".session-list .sl-row", "padding")).toBe("4px 8px");
     expect(bodyOf("*")).toMatch(/box-sizing\s*:\s*border-box/);
-    expect(decl(".session-list .sl-row", "border-width")).toBe("var(--sl-card-edge)");
-    // And it is still a border rather than an outline, which would sit outside
-    // the box and drop out of the sum entirely.
-    expect(decl(".session-list .sl-row", "border-style")).toBe("solid");
-  });
-
-  it("leaves the last term of the row's inset to be worked out, not chosen", () => {
-    // The point of the calc: the gutter is a design number, the border is the
-    // row's own, and the padding is whatever lands the label on the panel's
-    // inset. Written as a third literal it went to 10px and nothing said so.
-    const padding = splitTop(decl(".session-list .sl-row", "padding")!);
-    expect(padding).toHaveLength(2);
-    expect(padding[1]).toMatch(/^calc\(/);
-    for (const token of ["--panel-inset", "--sl-card-gutter", "--sl-card-edge"]) {
-      expect(padding[1], token).toContain(`var(${token})`);
-    }
-  });
-
-  it("puts the card round the text rather than the text inside the card", () => {
-    // The gutter has to be smaller than the inset — that is what "the card
-    // outdents past the column its text sits on" means — and larger than zero,
-    // or the selected row's accent border would sit on the panel's own edge.
-    const gutter = px(TOKENS["--sl-card-gutter"]);
-    expect(gutter).toBeGreaterThan(0);
-    expect(gutter).toBeLessThan(px(TOKENS["--panel-inset"]));
   });
 });
 
 // ── 3. the scroll container, which is where a scrollbar takes its room ──────
 
 describe("the session list on a platform that draws a real scrollbar", () => {
-  it("scrolls as a whole, so its header and its rows share one content box", () => {
-    // A classic scrollbar takes its width out of the content box of whichever
-    // element scrolls. With the header outside the scroller and the rows inside
-    // it, Windows and Linux would have put every row's right inset ~10px deeper
-    // than the header's — the sheet asks for `scrollbar-width: thin` — the
-    // moment the list overflowed. macOS overlays, so the defect is invisible
-    // here and this assertion is the only place it can be caught.
-    expect(decl(".session-list", "overflow-y")).toBe("auto");
-    expect(decl(".session-list", "overflow")).toBeNull();
-    expect(declIn(bodyOf(".session-list .sl-rows"), "overflow-y")).toBeNull();
-    expect(declIn(bodyOf(".session-list .sl-rows"), "overflow")).toBeNull();
-  });
-
-  it("keeps the header on screen the way the usage panel does", () => {
-    // The header holds the counts and the only way to close the sidebar, and
-    // the panel scrolling as a whole would otherwise take it away at row two
-    // hundred. Its own opaque background is what stops rows showing through.
-    expect(decl(".session-list .sl-header", "position")).toBe("sticky");
-    expect(decl(".session-list .sl-header", "top")).toBe("0");
-    expect(decl(".session-list .sl-header", "background")).toBe("var(--panel)");
+  it("scrolls in its list, with the header and the foot fixed around it", () => {
+    // V4's rail is a flex column of a header, the list and the removed cards'
+    // line (V4's Figma, Sessions), and the LIST is what scrolls. The panel
+    // clips instead of scrolling, so the header can never be taken off screen
+    // and needs no sticky positioning; a classic scrollbar takes its width
+    // from the list alone, which the header's right padding does not share
+    // (it ends in a button, not in text that lines up with the rows).
+    expect(decl(".session-list", "overflow")).toBe("hidden");
+    expect(decl(".session-list", "overflow-y")).toBeNull();
+    expect(declIn(bodyOf(".session-list .sl-rows"), "overflow-y")).toBe("auto");
+    expect(decl(".session-list .sl-header", "flex")).toBe("none");
+    expect(decl(".session-list .sl-header", "position")).toBeNull();
     expect(decl(".up-header", "position")).toBe("sticky");
   });
 
@@ -345,7 +318,7 @@ describe("the session list on a platform that draws a real scrollbar", () => {
     // as a scrollbar, which is the #369 defect. Measured flat at a
     // 2000-character session label, and these four rules are why.
     expect(decl(".session-list .sl-row", "min-width")).toBe("0");
-    expect(decl(".session-list .sl-row-body", "min-width")).toBe("0");
+    expect(decl(".session-list .sl-text", "min-width")).toBe("0");
     expect(decl(".session-list .sl-label", "overflow")).toBe("hidden");
     expect(decl(".session-list .sl-label", "text-overflow")).toBe("ellipsis");
   });
@@ -439,7 +412,10 @@ describe("the height of a button", () => {
    *  It is a compact verb at the end of a dense row of the map, under the 24px
    *  floor's own number, and is named here rather than excused by arithmetic
    *  that did not apply to it. */
-  const KNOWN_SECOND_HEIGHTS = new Set([".btn.nm-open", ".desktop-menu.btn", ".tr-body .btn"]);
+  // The terminal stage's keys bar is a one-line strip under the pane, like
+  // Radar's body: its few verbs sit at the strip's 26px, not a panel's 30.
+  // The hosts line (Review) is the same strip's verb, at the same height.
+  const KNOWN_SECOND_HEIGHTS = new Set([".btn.nm-open", ".desktop-menu.btn", ".tr-body .btn", ".ts-keys .btn", ".ts-hosts .btn"]);
 
   it("cannot be overridden into a second height by a rule further down", () => {
     // The height has to be unreachable, not merely stated. Any rule that sizes
@@ -496,7 +472,7 @@ describe("the 24px target floor", () => {
     expect(css).not.toContain(".detail-reopen {");
   });
 
-  it("covers the three topbar targets that were still under it (#509)", () => {
+  it("covers the topbar targets that were still under it (#509)", () => {
     // Measured in Chrome at 1470px, 1x DPR, both themes:
     //   .selected-ribbon .selected-close   18 × 18       a genuine failure
     //   .topbar .brand button.v            53.55 × 21.94 short by 2.06px
@@ -507,76 +483,34 @@ describe("the 24px target floor", () => {
     // re-litigated one control at a time.
     //
     // Two different mechanisms, because the two kinds of miss are different.
-    // The chip and the alarm may simply grow: `min-height`, which costs the
-    // version chip 2.06px and the waiting chip 0.06px and moves no width. More
-    // padding was the issue's proposal and is the wrong lever for 2px — a third
-    // pixel top and bottom lands the chip at 23.94 and still misses, a fourth
-    // overshoots to 25.94 — and the floor is the thing being asked for, so the
-    // floor is what the rule says.
-    expect(px(decl(".topbar .brand button.v", "min-height"))).toBeGreaterThanOrEqual(24);
-    expect(px(decl(".topbar .waiting-stat", "min-height"))).toBeGreaterThanOrEqual(24);
-    // Neither may buy it back by shrinking on the other axis, and neither may
-    // pin a height that would cap what min-height raises.
-    for (const sel of [".topbar .brand button.v", ".topbar .waiting-stat"]) {
-      expect(declIn(bodyOf(sel), "height"), `${sel} pins a height over its floor`).toBeNull();
+    // The chip and the alarm used to grow with `min-height`; V4 draws every
+    // chip on the bar exactly 24 tall, so each one declares `height: 24px`
+    // (border-box) and the floor is met by the box itself: a declared 24 is
+    // the floor, and nothing may cap it lower with a max-height.
+    expect(px(decl(".topbar button.v", "height"))).toBeGreaterThanOrEqual(24);
+    expect(px(decl(".topbar .count-pill", "height"))).toBeGreaterThanOrEqual(24);
+    for (const sel of [".topbar button.v", ".topbar .count-pill"]) {
+      expect(declIn(bodyOf(sel), "box-sizing"), `${sel} would add its border to the 24`).toBe("border-box");
       expect(declIn(bodyOf(sel), "max-height"), sel).toBeNull();
     }
 
-    // The ribbon's × cannot grow, because its 18px disc is a drawn thing and
-    // the ribbon's height is built out of it. So the box stays 18px and the
-    // TARGET is drawn around it as a pseudo-element reaching 3px on every side.
-    // `.sysmeter`'s padding/negative-margin pair — the technique #509 proposed —
-    // does not survive here: `background` is a shorthand, so the
-    // `background: var(--line)` in the hover rule resets `background-clip` and
-    // the disc paints at 24px instead of 18. Measured, not guessed: 407 painted
-    // pixels against 203. A pseudo-element has no such coupling.
-    expect(px(decl(".selected-ribbon .selected-close", "width"))).toBe(18);
-    expect(px(decl(".selected-ribbon .selected-close", "height"))).toBe(18);
-    expect(decl(".selected-ribbon .selected-close", "position")).toBe("relative");
-    // …and the 18px has to be a floor rather than a preference, or the target
-    // drawn around it is only 24px on a wide screen. A flex item defaults to
-    // `flex-shrink: 1` with `min-width: auto`, and the min-content of a single ×
-    // is 8.67px: swept across viewports with a worst-case ribbon, the close
-    // measured 17.72px at 1400, 14.28px at 1300 and 8.67px at 1200. #509 took
-    // its reading at 1470, where the control is intact, so this is a second
-    // defect underneath the one the issue reports.
-    expect(decl(".selected-ribbon .selected-close", "flex")).toBe("none");
-    const reach = bodyOf(".selected-ribbon .selected-close::after");
-    expect(declIn(reach, "content")).toBe('""');
-    expect(declIn(reach, "position")).toBe("absolute");
-    // 18 + 3 + 3 = 24 on both axes, and the same number on all four sides so
-    // the target stays centred on the glyph.
-    const inset = px(declIn(reach, "inset"));
-    expect(inset).toBeLessThanOrEqual(-3);
-    expect(18 + 2 * -inset).toBeGreaterThanOrEqual(24);
-    // …and it must not reach past the ribbon it sits in. The ribbon's own right
-    // padding plus its border is 7px, so 3px of reach leaves 4px inside the
-    // edge; anything from 7px up would put a hit area for "deselect" over the
-    // canvas behind, where a click means something else entirely.
-    const ribbonPad = px(decl(".selected-ribbon", "padding")?.split(/\s+/)[1]);
-    const ribbonBorder = px(decl(".selected-ribbon", "border")?.split(/\s+/)[0]);
-    expect(-inset, "the close's target reaches past the ribbon's own edge")
-      .toBeLessThan(ribbonPad + ribbonBorder);
-    // SC 2.5.8's spacing exception is unavailable to this one and it is worth
-    // saying why in the place that would otherwise be tempted by it: the × is
-    // inside the ribbon, and the ribbon is itself a button, so a 24px circle
-    // centred on the × intersects a target by construction.
-    expect(read("../components/SelectedRibbon.tsx")).toMatch(/className="selected-ribbon"/);
+    // The ribbon's × (18px, with a 24px target drawn around it) is gone with
+    // the ribbon (V4's Figma); its pins went with it.
   });
 
   it("already covered the context donut, which the report measured zoomed", () => {
-    // The report puts the donut at 19.6 × 19.6. Its box is 26 × 26 — the
-    // component's default, and AgentNode is the one caller and passes no size.
-    // 19.6 is 26 × 0.754: a rect() taken from a node measures the React Flow
-    // viewport transform as well as the element. Pinned at the size it is, so
-    // that shrinking the default has to be a decision rather than a slip.
+    // CHANGED ON PURPOSE (critique 3, one meaning per glyph): the ring left
+    // the head for the card's foot, where it sits at the foot's 14px icon size
+    // beside its percent. Shrinking it was the decision this pin asked for; the
+    // 24px on screen is the invisible box around it (v4-hit-targets.test.ts).
     const fallback = +/size = (\d+)/.exec(contextSrc)![1];
-    expect(fallback).toBeGreaterThanOrEqual(24);
+    expect(fallback).toBe(14);
     expect(contextSrc).toMatch(/<svg width=\{size\} height=\{size\}/);
     const call = /<ContextDonut[\s\S]*?\/>/.exec(agentNodeSrc)![0];
     expect(call).not.toMatch(/\bsize=/);
-    // The box takes its size from the SVG, so nothing in the sheet may shrink
-    // it back underneath the component.
+    expect(bodyOf(".ctx-donut::after")).toMatch(/width:\s*max\(100%, calc\(24px \/ var\(--zoom, 1\)\)\)/);
+    // The box takes its size from the SVG and the figure, so nothing in the
+    // sheet may shrink it back underneath the component.
     const donut = bodyOf(".ctx-donut");
     expect(declIn(donut, "width")).toBeNull();
     expect(declIn(donut, "height")).toBeNull();

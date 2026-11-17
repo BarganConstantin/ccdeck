@@ -261,7 +261,11 @@ describe("a model with no rate says so instead of vanishing", () => {
   it("shows the breakdown even when nothing in the deck could be priced at all", () => {
     // The two tables used to live inside `hasCost`, so an all-Codex deck on an
     // unpriced model got a two-number strip and no breakdown whatsoever.
-    expect(panel).toMatch(/\{totalTokenSum > 0 \? \(/);
+    // CHANGED ON PURPOSE (V4's Figma): the token gate follows the skeleton's own
+    // gate, `{showSkeleton ? null : totalTokenSum > 0 ? (`; the rule is the same.
+    // CHANGED ON PURPOSE (owner 2026-11-10): no board headline; chips from first paint; logs-unread sentence.
+    // The gate also waits for the logs (`|| !fromRange`): no board breakdown stands in.
+    expect(panel).toMatch(/\{showSkeleton \|\| !fromRange \? null : totalTokenSum > 0 \? \(/);
     expect(panel).toMatch(/\{hasCost && \(/);
     expect(panelSurface).not.toMatch(/\{hasCost \? \(/);
   });
@@ -274,7 +278,7 @@ describe("a model with no rate says so instead of vanishing", () => {
       const hit = new RegExp(`(?:^|;)\\s*${prop}\\s*:([^;]*)`).exec(body);
       return hit ? hit[1].trim() : null;
     };
-    for (const sel of [".up-unpriced", ".agent-node .meta .cost-unpriced"]) {
+    for (const sel of [".up-unpriced", ".agent-node .foot .cost-unpriced"]) {
       expect(declOf(sel, "color"), sel).toBe("var(--muted)");
       expect(declOf(sel, "font-style"), sel).toBe("italic");
     }

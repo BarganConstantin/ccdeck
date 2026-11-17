@@ -77,7 +77,7 @@ export async function runTui(flags, out, deps = {}) {
   const { CODEX_REFUSED, codexLiveSaid, codexSigninRunning } = await load("src/server/tui-codex.mjs");
   const { LAN_REFUSED } = await load("src/server/tui-network.mjs");
   const port = flags.port != null ? Number(flags.port) : null;
-  const src = deps.source ?? deckSource(port);
+  const base = deps.source ?? deckSource(port);
   const look = {
     tone: deps.tone ?? P, g: deps.g ?? G, unicode: deps.unicode ?? UNICODE, profile: deps.profile ?? PROFILE, links: deps.links ?? LINKS,
   };
@@ -86,7 +86,7 @@ export async function runTui(flags, out, deps = {}) {
 
   // The deck is looked for before the screen is taken, so a `--port` nobody
   // listens on is answered on the command line, the way the commands answer it.
-  let deck = await src.find();
+  let deck = await base.find();
   if (!deck && port != null) {
     return out.fail(EXIT.NO_DECK, "no_deck", `no deck is listening on ${port} ${G.dash} \`${COMMAND} status\` lists them`);
   }
@@ -99,6 +99,47 @@ export async function runTui(flags, out, deps = {}) {
 
   const set = (patch) => { state = { ...state, ...patch }; };
   const tell = (tone, text) => set({ notice: view.note(tone, text, clock()) });
+
+  /**
+   * The deck held here, looked up again (#100). A deck that restarts — an
+   * update, the banner's Restart, a CLI installed while it ran, a crash its
+   * supervisor brought back — is up again on the same port within a second,
+   * with a new token (request-gates.mjs makes one per start). Every reading
+   * this screen asked with the old one was refused 401 from then on, and none
+   * of the refusals looked like a deck gone, so the numbers stopped where they
+   * were until the screen was quit and opened again, which is a fresh look.
+   *
+   * One look at a time, shared by every reading refused at once. Answers the
+   * record to ask now, or null when there is none other than the one held.
+   */
+  let refinding = null;
+  const refind = () => (refinding ??= (async () => {
+    const held = deck;
+    const found = await base.find().catch(() => null);
+    if (deck !== held) return deck;
+    if (!found || !held || (found.port === held.port && found.token === held.token)) return null;
+    deck = found;
+    set({ deck: { port: found.port, version: found.version ?? null }, silent: [] });
+    return found;
+  })().finally(() => { refinding = null; }));
+
+  /** Whether an answer is the deck's token gate refusing the one asked with. */
+  const refused = (r) => r?.status === 401;
+
+  /**
+   * The source, its asks answered by the deck now running. A 401 is the token
+   * gate, which answers before a route runs, so the deck did nothing with the
+   * request and asking it again of the deck found again is safe — a POST too.
+   */
+  const src = {
+    ...base,
+    ask: async (d, opts) => {
+      const r = await base.ask(d, opts);
+      if (!refused(r) || !d) return r;
+      const now = d === deck ? await refind() : deck;
+      return now && now !== d && now.token !== d.token ? base.ask(now, opts) : r;
+    },
+  };
   const size = () => ({
     columns: Number.isInteger(output.columns) && output.columns > 0 ? output.columns : 80,
     rows: Number.isInteger(output.rows) && output.rows > 0 ? output.rows : 24,
@@ -143,14 +184,20 @@ export async function runTui(flags, out, deps = {}) {
     last.roster = 0;
   };
 
+  // What the last failed roster reading said, so the next good one can take
+  // its notice down: an error notice otherwise stays until a key, and stood
+  // beside "live" and fresh numbers long after the deck answered again.
+  let rosterSaid = null;
   const readRoster = once("roster", async (force = false) => {
     if (deck) {
       const r = await src.ask(deck, { path: force ? "/api/claude-accounts?refresh=1" : "/api/claude-accounts" });
       if (r.ok && r.body) {
         state = view.withRoster(state, r.body, r.body.ok ? null : [].concat(rosterTrouble(r.body)));
         set({ source: "deck", silent: [], readAt: clock() });
+        if (rosterSaid && state.notice?.text === rosterSaid) set({ notice: null });
+        rosterSaid = null;
       } else if (r.status === 0) lost();
-      else tell("err", deckTrouble(deck, r));
+      else tell("err", (rosterSaid = deckTrouble(deck, r)));
       return;
     }
     const silent = await src.silent();
@@ -303,7 +350,14 @@ export async function runTui(flags, out, deps = {}) {
     }
     set({ busy: { text: `switching to ${accountName(row)}`, since: clock() }, notice: null });
     render();
-    const result = deck ? await src.switchDeck(deck, row.num) : await src.switchHere(row.num);
+    let result = deck ? await src.switchDeck(deck, row.num) : await src.switchHere(row.num);
+    // Refused by the token gate: a deck that restarted since the last reading.
+    // The gate answers before the route, so nothing was switched; the deck
+    // found again is asked once more.
+    if (deck && result?.error === "unauthenticated") {
+      const now = await refind();
+      if (now) result = await src.switchDeck(now, row.num);
+    }
     set({ busy: null });
     if (!result.ok && result.reason === "deck_timeout") {
       tell("warn", `the deck has not finished switching to ${accountName(row)} ${g.dash} it may still land`);

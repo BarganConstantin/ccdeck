@@ -68,6 +68,8 @@ const percentile = (sorted, p) => sorted.length ? sorted[Math.max(0, Math.ceil(s
   let totalMs = null, observedSince = null, observedUntil = null;
   const providers = { claude: { calls: 0, measured: 0, failed: 0 }, codex: { calls: 0, measured: 0, failed: 0 } };
   for (const [id, call] of calls) {
+    // One session's turn needs none of the tool groupings below.
+    if (query.turnId) break;
     const start = call.start, end = call.end;
     if (!start) { if (!call.skill && !call.turn && !call['turn-end']) orphaned++; continue; }
     if (start.t < since || start.t > until || query.provider !== 'all' && start.provider !== query.provider) continue;
@@ -115,13 +117,45 @@ const percentile = (sorted, p) => sorted.length ? sorted[Math.max(0, Math.ceil(s
     }
     const sum = { turns: 0, open: 0, totalMs: 0, claudeMs: 0, machineMs: 0, youMs: 0 }, machine = new Map(), you = new Map(), replies = [], stops = {};
     const add = (map, operation, ms) => map.set(operation, (map.get(operation) ?? 0) + ms);
+    // A session's own turn (`turnId`) is cut by the same rules, alone and whatever its date.
+    const wanted = query.turnId; let wantedOpen = false;
+    // A turn that heard nothing for this long was interrupted (Claude Code closed, the
+    // machine slept): Bash's own longest timeout is 10 minutes and a reply streams events
+    // well inside that, so half an hour of silence is not a turn still working. It ends
+    // where its last event was, instead of counting the idle time as Claude's.
+    const IDLE = 30 * 60000;
     for (const [id, call] of calls) {
-      const begin = call.turn, end = call['turn-end'];
-      if (!begin || begin.t < since || begin.t > until) continue;
-      if (!end || !finite(begin.at) || !finite(end.at) || end.at <= begin.at || end.at - begin.at > DAY) { sum.open++; continue; }
-      const a = begin.at, b = end.at, spans = [];
-      sum.turns++; sum.totalMs += b - a;
-      if (end.stop !== 'done') stops[end.stop] = (stops[end.stop] ?? 0) + 1;
+      const begin = call.turn;
+      let end = call['turn-end'];
+      if (!begin || (wanted ? id !== wanted : begin.t < since || begin.t > until)) continue;
+      // The session's own turn: the last thing it heard, and whether Claude went back to
+      // work after a Stop (a Stop hook sent it on, so that Stop did not close the turn).
+      let last = finite(begin.at) ? begin.at : null;
+      if (wanted) {
+        for (const c of calls.values()) {
+          if (c.start?.turn !== id) continue;
+          if (end && finite(c.start.at) && finite(end.at) && c.start.at > end.at) end = undefined;
+          for (const edge of [c.start.at, c.end?.at]) if (finite(edge) && last !== null && edge > last) last = edge;
+        }
+        if (end && finite(end.at) && last !== null && end.at > last) last = end.at;
+      }
+      let ended = end && finite(begin.at) && finite(end.at) && end.at > begin.at && end.at - begin.at <= DAY;
+      let closeAt = ended ? end.at : null;
+      if (wanted && !ended && last !== null && last > begin.at && last - begin.at <= DAY && now - last > IDLE) { ended = true; closeAt = last; }
+      // That turn, while it is open, runs to now.
+      const inFlight = !!wanted && !ended && finite(begin.at) && now > begin.at && now - begin.at <= DAY;
+      if (!ended && !inFlight) { sum.open++; wantedOpen = true; continue; }
+      const a = begin.at, b = ended ? closeAt : now, spans = [];
+      sum.turns++; sum.totalMs += b - a; wantedOpen = !ended;
+      if (ended && end?.stop && closeAt === end.at && end.stop !== 'done') stops[end.stop] = (stops[end.stop] ?? 0) + 1;
+      // A call still running has no end yet: it is this machine's time up to now, unless it
+      // is a question, which is waiting for your answer and so is yours. (The journal holds
+      // no event for a permission prompt being answered; the panel moves that wait itself.)
+      if (inFlight) for (const open of calls.values()) {
+        const s = open.start;
+        if (s?.turn !== id || open.end || !finite(s.at) || holders.has(s.tool)) continue;
+        spans.push(questions.has(s.tool) ? [s.at, b, you, s.lead ?? s.operations] : [s.at, b, machine, s.lead ?? s.operations]);
+      }
       for (const { start: s, end: e } of byTurn.get(id) ?? []) {
         // A command's time is its lead's: npm test's, not the tail reading its output.
         const own = s.lead ?? s.operations;
@@ -148,6 +182,10 @@ const percentile = (sorted, p) => sorted.length ? sorted[Math.max(0, Math.ceil(s
       for (const [t, step, span] of edges) { spend(t); if (step > 0) live.add(span); else live.delete(span); }
       spend(b);
       if (reply) replies.push([replyFrom, reply]);
+    }
+    if (wanted) {
+      const found = sum.turns > 0 || wantedOpen;
+      return { ok: true, turn: found ? { open: wantedOpen, totalMs: sum.totalMs, claudeMs: sum.claudeMs, machineMs: sum.machineMs, youMs: sum.youMs } : null };
     }
     // Claude's replies by the reader's calendar day, so a slow afternoon shows as one.
     const dayOf = new Intl.DateTimeFormat('en-CA', { timeZone: query.timeZone ?? 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' });

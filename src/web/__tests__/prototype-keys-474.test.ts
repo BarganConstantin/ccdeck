@@ -232,8 +232,11 @@ describe("the version row's upgrade-block copy", () => {
     // The table and the lookup moved with the version banner, out of App.tsx;
     // the negative is asked of both.
     const banner = src("../components/VersionBanner.tsx");
-    expect(banner).toMatch(/ownRow\(UPGRADE_BLOCK_TEXT, version\.upgradeBlocked\)/);
-    expect(banner).not.toMatch(/UPGRADE_BLOCK_TEXT\[[^\]]+\]\s*\?\?/);
+    // CHANGED ON PURPOSE (V4's Figma): the banner says the reason as a sentence
+    // of its own, from the sentence table beside the clause one; the lookup is
+    // the same own-row one.
+    expect(banner).toMatch(/ownRow\(UPGRADE_BLOCK_SENTENCE, version\.upgradeBlocked\)/);
+    expect(banner).not.toMatch(/UPGRADE_BLOCK_(TEXT|SENTENCE)\[[^\]]+\]\s*\?\?/);
     expect(APP).not.toMatch(/UPGRADE_BLOCK_TEXT\[[^\]]+\]\s*\?\?/);
   });
 });

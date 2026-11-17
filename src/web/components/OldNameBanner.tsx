@@ -7,6 +7,9 @@
 import { PRODUCT } from "../brand";
 import type { OldNameNotice } from "../use-old-name-notice";
 import { useT } from "../i18n";
+import { sentences } from "../banner-sentences";
+import BannerMark from "./BannerMark";
+import { KitIcon } from "./kit-icons";
 import type { VersionInfo } from "../use-version-check";
 
 export default function OldNameBanner({ oldName, version, dismissOldName }: {
@@ -18,8 +21,7 @@ export default function OldNameBanner({ oldName, version, dismissOldName }: {
   const t = useT();
   return (
     <div className="ver-banner" role="status">
-      <span className="ver-dot" />
-      <strong>{t("shell.banner.oldName", { old: oldName, product: PRODUCT })}</strong>
+      <BannerMark glyph="info" tone="info" />
       {/* The half people do not expect, and the half this must not get
           wrong: a global install already put a ccdeck on the PATH — the
           same install ships all three commands — so there is nothing to
@@ -35,10 +37,11 @@ export default function OldNameBanner({ oldName, version, dismissOldName }: {
           too, at which point every npx user who opted out of installs got
           the global-install line (#363). The server sends the sentence the
           terminal prints, from the same function, and no string here can
-          drift from it. Rendered only when it is there: a missing field is
-          a server that could not say, and silence beats a guess. */}
-      {version?.renameFix ? <span className="ver-sub">{version.renameFix}</span> : null}
-      <button type="button" aria-label={t("shell.dismiss")} className="ver-close" onClick={dismissOldName}>×</button>
+          drift from it. Said only when it is there: a missing field is a
+          server that could not say, and silence beats a guess. One run with
+          the sentence before it, as V4 writes the row. */}
+      <strong>{sentences(t("shell.banner.oldName", { old: oldName, product: PRODUCT }), version?.renameFix)}</strong>
+      <button type="button" aria-label={t("shell.dismiss")} className="ver-close" onClick={dismissOldName}><KitIcon name="close" /></button>
     </div>
   );
 }

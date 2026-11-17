@@ -7,7 +7,7 @@
 // raises its closed-deck notifications, which reach this app over the tray
 // stream and are shown as ccdeck. Hiding instead would keep the page alive,
 // the deck would go on believing somebody was looking, and nothing would ever
-// be said (the choice made in #1160, decision 2).
+// be said (the choice made in #1160).
 //
 // The tray icon is the favicon of a closed tab: the same four states and the
 // same count, computed by the page's own reducer (src/web/tray-model.ts,
@@ -30,7 +30,7 @@ import { shouldOfferReadyUpdate } from "./update-notice.mjs";
 import { matchesReadyUpdate, restartReadyUpdate } from "./window-update.mjs";
 import { createNotificationAudioStore } from "./notification-audio-store.mjs";
 import { createDesktopState } from "./desktop-state.mjs";
-import { statusLine, statusWorthAsking, trayMenuItems } from "./tray-menu.mjs";
+import { statusWorthAsking, trayMenuItems, trayTooltip } from "./tray-menu.mjs";
 import { createMenuSwap } from "./tray-menu-swap.mjs";
 import { canRestartForTray, MISSES_BEFORE_RESTART, screenLockedNow, selfRestartHeld, trayCheck, trayMissesNext, trayOutcomeNext, watcherOnBusNow } from "./tray-presence.mjs";
 import { restartApp } from "./relaunch-linux.mjs";
@@ -180,7 +180,7 @@ function scheduleRedraw() {
     tray.setImage(trayImage(snapshot.icon));
     // macOS draws text beside a menu-bar icon; nowhere else can.
     if (process.platform === "darwin") tray.setTitle(snapshot.waiting > 0 ? ` ${snapshot.waiting}` : "");
-    tray.setToolTip(`${snapshot.title} — ${statusLine({ restarting, starting, deck, snapshot, startFailed })}`);
+    tray.setToolTip(trayTooltip({ restarting, starting, deck, snapshot, startFailed }));
     // Only when what it says has changed, and not while it is open: a new
     // menu closes the one somebody is reading (tray-menu-swap.mjs).
     menuSwap?.refresh();
@@ -622,6 +622,12 @@ function openWindow(steal = true, customChrome = true) {
     if (navigationFor(url, windowOrigin) !== "block") shell.openExternal(url);
     return { action: "deny" };
   });
+  // A reload or a navigation drops whatever the page had asked of the menu:
+  // a pane that had the keys when the page went cannot give them back.
+  const contents = win.webContents;
+  contents.on("did-start-navigation", (details) => {
+    if (details?.isMainFrame && !details.isSameDocument) contents.setIgnoreMenuShortcuts(false);
+  });
   win.webContents.on("will-navigate", (event, url) => {
     const where = navigationFor(url, windowOrigin);
     if (where === "stay") return;
@@ -746,6 +752,56 @@ function installWindowChromeIpc() {
   ipcMain.handle("ccdeck:window:menu", event => {
     if (!fromDeckPage(event) || event.senderFrame !== event.sender.mainFrame) return;
     Menu.getApplicationMenu()?.popup({ window: win, x: 10, y: TITLEBAR_HEIGHT });
+  });
+}
+
+/**
+ * The terminal pane's keys. On Windows and Linux the application menu binds
+ * Ctrl+R (reload), Ctrl+W, Ctrl+Q, and through Edit Ctrl+C, Ctrl+V, Ctrl+A and
+ * Ctrl+Z; a menu shortcut is taken before the page sees the key, so in the
+ * pane Ctrl+R reloaded the whole deck instead of reaching Claude Code's
+ * history search, and Ctrl+C copied instead of interrupting. While the pane
+ * has the keys the menu's shortcuts are ignored for this window
+ * (setIgnoreMenuShortcuts, which leaves the page's own keydown alone), and
+ * they come back the moment it gives them up, or the page goes. macOS menus
+ * use Cmd, which no terminal program reads, so there the menu keeps them.
+ */
+function installTerminalKeysIpc() {
+  ipcMain.handle("ccdeck:terminal:keys", (event, owned) => {
+    if (!fromDeckPage(event) || event.senderFrame !== event.sender.mainFrame) return;
+    if (process.platform === "darwin") return;
+    event.sender.setIgnoreMenuShortcuts(owned === true);
+  });
+}
+
+/**
+ * New session's "Choose another folder…" (internal #106): the system's own
+ * folder dialog, attached to the window. The page sends nothing — no path to
+ * start from, no title — and hears back one thing: the folder the person
+ * chose, or null when they closed the dialog. The person picks it; the page
+ * never names a folder for the app to read. One dialog at a time: a second
+ * press while one is open gets null instead of a second dialog. The deck
+ * still checks the folder before any agent starts in it.
+ */
+let choosingFolder = false;
+function installFolderPickerIpc() {
+  ipcMain.handle("ccdeck:folder:choose", async event => {
+    if (!fromDeckPage(event) || event.senderFrame !== event.sender.mainFrame) return null;
+    if (choosingFolder) return null;
+    choosingFolder = true;
+    try {
+      const parent = await windowOnScreen(ON_SCREEN_WAIT_MS);
+      asking += 1;
+      try {
+        const options = { title: "Choose a project folder", buttonLabel: "Choose", properties: ["openDirectory", "dontAddToRecent"] };
+        const out = await (parent ? dialog.showOpenDialog(parent, options) : dialog.showOpenDialog(options));
+        return out.canceled || !out.filePaths?.length ? null : String(out.filePaths[0]);
+      } finally {
+        asking -= 1;
+      }
+    } finally {
+      choosingFolder = false;
+    }
   });
 }
 
@@ -963,6 +1019,8 @@ app.whenReady().then(async () => {
   if (!primary) return;
   installNotificationAudioIpc();
   installWindowChromeIpc();
+  installTerminalKeysIpc();
+  installFolderPickerIpc();
   if (process.platform !== "darwin") {
     Menu.setApplicationMenu(Menu.buildFromTemplate([
       { label: "File", submenu: [{ role: "close" }, { role: "quit" }] },

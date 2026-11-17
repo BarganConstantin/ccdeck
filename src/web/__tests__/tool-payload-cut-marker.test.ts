@@ -51,7 +51,9 @@ describe("a payload field the hook cut for size", () => {
     const shown = dialog(tool);
     expect(shown).not.toContain("ccdeck_truncated");
     expect(shown).toContain(NOTE);
-    expect(shown).toContain("/w/big.log");
+    // CHANGED ON PURPOSE: the file is drawn by PathText, its folder and its name as two spans.
+    expect(renderToStaticMarkup(createElement(ToolModal, { tool, onClose: () => {} })))
+      .toContain('title="/w/big.log"><span class="path-head">/w</span><span class="path-tail">/big.log</span>');
   });
 
   it("is said where a Bash call's output was, rather than 'none'", () => {

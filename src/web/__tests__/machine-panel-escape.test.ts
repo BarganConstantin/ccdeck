@@ -224,7 +224,9 @@ describe("the panel's label and the panel's behaviour agree", () => {
     expect(attr(drawn(false), "aria-expanded"), "the button does not say whether the panel is open").toBe("false");
     expect(attr(drawn(true), "aria-expanded"), "the button does not say whether the panel is open").toBe("true");
     expect(app, "the panel is on screen with nothing mounting it")
-      .toMatch(/\{(?:machinePanelOpen|isMounted\(machinePhase\)) && \(\s*<MachinePanel usageOpen=\{usagePanelOpen\}[\s\S]{0,80}?onClose=\{\(\) => \{ panelReturn\.machine\(\); setMachinePanelOpen\(false\); \}\} \/>/);
+      // CHANGED ON PURPOSE (the phone layout): the panel's × is the sheet's one
+      // close on a phone (sheetClose), the plain close it wraps being the same.
+      .toMatch(/\{(?:machinePanelOpen|isMounted\(machinePhase\)) && \(\s*<MachinePanel usageOpen=\{usagePanelOpen\}[\s\S]{0,80}?onClose=\{sheetClose\("machine", \(\) => \{ panelReturn\.machine\(\); setMachinePanelOpen\(false\); \}\)\} \/>/);
   });
 });
 

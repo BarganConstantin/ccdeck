@@ -23,6 +23,8 @@ import { activeCount, autoRestartRemainingMs, autoRestartStep, restartEndedInFai
 import type { GraphState } from "./reducer";
 import type { VersionInfo, VersionNotice } from "./use-version-check";
 import { readStored, removeStored } from "./storage";
+import { leaveDeliberately } from "./leave-guard";
+import { refuseSave, setSettingsFailure } from "./settings-failure";
 
 const AUTO_RESTART_KEY = "agent-dag.autoRestart";
 // Per-tab, not per-browser: it guards one reload, not a preference.
@@ -60,19 +62,25 @@ export function useAutoRestart({ now, stateRef, version, notice, noticeOpen, upg
   // needs the same answer (auto-update.mjs). The initialiser above still reads
   // the old key so a switch turned off before the move renders off at once; the
   // prefs load further down carries it over and removes it. Optimistic like the
-  // notifications switch, and corrected by the server's answer.
+  // notifications switch, and corrected by the server's answer. A refused write
+  // slides the switch back, unless a later press has moved it since, and
+  // Settings says why under its page head (settings-failure.ts).
   const toggleAutoRestart = useCallback(() => {
     const next = !autoRestart;
     autoTouchedRef.current = true;
     removeStored(AUTO_RESTART_KEY);
     setAutoRestart(next);
+    const refused = (d: Parameters<typeof refuseSave>[0]) => { setAutoRestart(on => (on === next ? !next : on)); refuseSave(d); };
     fetch("/api/prefs", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ autoUpdate: next }),
-    }).then(r => (r.ok ? r.json() : null)).then(d => {
-      if (d?.ok) setAutoRestart(d.prefs?.autoUpdate !== false);
-    }).catch(() => {});
+    }).then(async r => {
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !d?.ok) return refused(d);
+      setSettingsFailure(null);
+      setAutoRestart(d.prefs?.autoUpdate !== false);
+    }).catch(() => refused(null));
   }, [autoRestart]);
   const [restarting, setRestarting] = useState(false);
   // "npx" gets its own word everywhere, because it is a download and not a
@@ -220,6 +228,9 @@ export function useAutoRestart({ now, stateRef, version, notice, noticeOpen, upg
     const step = restartLandingStep({ bundle: __APP_VERSION__, running, pending, lastTried });
     if (step === "reload") {
       try { window.sessionStorage.setItem(BUNDLE_RELOAD_KEY, running ?? ""); } catch { return; }
+      // Past the terminal's "Leave site?": this reload is the deck's, and the
+      // stage comes back on the other side of it.
+      leaveDeliberately();
       window.location.reload();
       return; // the marker stays put; the new bundle is the one that can show it
     }
@@ -231,6 +242,8 @@ export function useAutoRestart({ now, stateRef, version, notice, noticeOpen, upg
     const t = window.setTimeout(() => setRestartedTo(null), 6000);
     return () => window.clearTimeout(t);
   }, [version?.running]);
+  /** The "Restarted" row's ×: it goes now rather than at the end of its six seconds. */
+  const dismissRestarted = useCallback(() => setRestartedTo(null), []);
 
   // Didn't land. A failed `npx -y <spec>@latest` comes back on the OLD version
   // and the same port, so `running` never moves and the check above waits for a
@@ -268,6 +281,6 @@ export function useAutoRestart({ now, stateRef, version, notice, noticeOpen, upg
     }
   }, []);
 
-  return { autoRestart, toggleAutoRestart, restarting, restartMode, restartedTo, askRestart,
+  return { autoRestart, toggleAutoRestart, restarting, restartMode, restartedTo, dismissRestarted, askRestart,
            restartCopy, restartFuseMs, loadAutoRestartPrefs };
 }

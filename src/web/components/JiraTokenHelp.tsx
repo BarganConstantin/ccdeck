@@ -49,7 +49,7 @@ export default function JiraTokenHelp() {
         <>
           <p>
             {rich(t("integrations.token.cloud.intro"), {
-              link: <a href={CLOUD_TOKENS} target="_blank" rel="noreferrer noopener">id.atlassian.com → Security → API tokens</a>,
+              link: <a href={CLOUD_TOKENS} target="_blank" rel="noreferrer noopener">{t("integrations.token.cloud.path")}</a>,
               scoped: <em>{t("integrations.token.cloud.scoped")}</em>,
             })}
           </p>
@@ -62,9 +62,9 @@ export default function JiraTokenHelp() {
         <>
           <p>
             {rich(t("integrations.token.server.intro"), {
-              profile: <strong>Profile</strong>,
-              pats: <strong>Personal Access Tokens</strong>,
-              create: <strong>Create token</strong>,
+              profile: <strong>{t("integrations.token.server.profile")}</strong>,
+              pats: <strong>{t("integrations.token.server.pats")}</strong>,
+              create: <strong>{t("integrations.token.server.create")}</strong>,
               page: page ? rich(t("integrations.token.server.page"), {
                 link: <a href={page} target="_blank" rel="noreferrer noopener">{t("integrations.token.server.openOn", { host })}</a>,
               }) : "",

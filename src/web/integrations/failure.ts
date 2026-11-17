@@ -25,8 +25,25 @@ export interface FailureInfo {
   message?: string;
   /** What the provider itself said, when the deck passed it on. */
   detail?: string;
+  /** The provider's own HTTP status, when it answered one. */
+  status?: number;
   /** Seconds until a rate limit lifts, when the provider said. */
   retryAfter?: number;
+}
+
+// The reason words HTTP gives a status, so a note can say what the provider
+// answered ("401 Unauthorized") when it sent no words of its own.
+const REASONS: Record<number, string> = {
+  400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 404: "Not Found", 405: "Method Not Allowed",
+  408: "Request Timeout", 409: "Conflict", 410: "Gone", 413: "Payload Too Large", 422: "Unprocessable Entity",
+  429: "Too Many Requests", 500: "Internal Server Error", 501: "Not Implemented", 502: "Bad Gateway",
+  503: "Service Unavailable", 504: "Gateway Timeout",
+};
+
+/** "500 Internal Server Error" for an error status the provider answered; null otherwise. */
+export function statusLine(status: number | undefined): string | null {
+  if (status == null || !Number.isInteger(status) || status < 400 || status > 599) return null;
+  return REASONS[status] ? `${status} ${REASONS[status]}` : String(status);
 }
 
 export function failureAction(kind: IntegrationErrorKind): FailureAction {
@@ -95,18 +112,28 @@ export function failureWords(error: FailureInfo, provider: string, host = provid
     case "invalid":
       return { title: t("integrations.failure.invalid.title"), body: said };
     default:
-      return { title: t("integrations.failure.default.title", { provider }), body: said };
+      // When the provider answered with words or an error status, those go on
+      // the said line under one fixed sentence; the deck's own account of a
+      // failure that has neither stays the sentence.
+      return {
+        title: t("integrations.failure.default.title", { provider }),
+        body: error.detail?.trim() || statusLine(error.status) ? t("integrations.failure.default.body") : said || t("integrations.failure.default.body"),
+      };
   }
 }
 
 /** The provider's own words, shown quietly under the sentence when they add
- *  something to it. Never for a token failure, whose answer can echo what was sent. */
+ *  something to it, or the status it answered when it sent none. A token
+ *  failure gets the status alone: its answer can echo what was sent. */
 export function failureSaid(error: FailureInfo, body: string): string | null {
-  if (error.kind === "auth" || error.kind === "expired") return null;
+  if (error.kind === "auth" || error.kind === "expired") return statusLine(error.status);
   const detail = error.detail?.trim();
-  if (!detail || body.includes(detail)) return null;
-  return detail;
+  if (detail) return body.includes(detail) ? null : detail;
+  return OWN_SENTENCE.has(error.kind) ? null : statusLine(error.status);
 }
+
+// The kinds whose sentence already says what the status would.
+const OWN_SENTENCE = new Set<IntegrationErrorKind>(["permission", "unreachable", "tls", "rate-limit", "incompatible", "not-found", "network", "unavailable", "invalid"]);
 
 /** Seconds left before Try again may be pressed, from when the failure arrived. */
 export function retryWait(error: FailureInfo, arrivedAt: number, now = Date.now()): number {

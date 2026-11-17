@@ -37,6 +37,7 @@ import { copyText } from "../copy-text";
 import { useT, type TFunction } from "../i18n";
 import { celebrates, doneTitle } from "../signin-stages";
 import { tabStripMove } from "../tablist-keys";
+import { Dialog, DialogClose } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { prefersReducedMotion } from "../viewport-motion";
 
@@ -405,9 +406,7 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
   );
 
   return createPortal(
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal aa-modal" onClick={event => event.stopPropagation()} role="dialog" aria-modal="true"
-        aria-labelledby="aa-codex-title">
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="aa-modal" labelledBy="aa-codex-title">
         <header className="modal-head">
           <div className="modal-title">
             {/* Where the strip stands in the title's place, the title stays for
@@ -426,7 +425,7 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
             )}
           </div>
           <div className="modal-actions">
-            <button type="button" className="glyph-btn" onClick={close} aria-label={t("codex.add.close")} title={t("codex.add.close")}>×</button>
+            <DialogClose onClick={close} label={t("codex.add.close")} />
           </div>
         </header>
         {tabbed ? (
@@ -436,8 +435,7 @@ export default function AddCodexAccountDialog({ profile, onCreate, onCopyCommand
               : steps}
           </section>
         ) : <section className="modal-body aa-body">{steps}</section>}
-      </div>
-    </div>,
+    </Dialog>,
     document.body,
   );
 }

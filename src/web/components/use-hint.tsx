@@ -36,6 +36,7 @@ export type HintSide = "right" | "left" | "below" | "above";
 
 /** What a hint says. Null is a control whose hint would add nothing. */
 export interface HintSpec {
+  /** The control's name; empty where the word on the control already says it. */
   label: string;
   /** The key, as its keycap prints it, while it does something. */
   keys?: string;
@@ -63,12 +64,43 @@ export function skipsDelay(now: number, hiddenAt: number, anotherShown: boolean)
   return anotherShown || now - hiddenAt < SKIP_DELAY_WINDOW_MS;
 }
 
+/** The deck's other tooltips (the card's cost tip) take turns with the hints
+ *  above: whether the next one skips the wait, and the two moves that keep the
+ *  count. `claimHint` takes the turn (and takes the one on screen down), and
+ *  answers whether this one comes at once; `releaseHint` gives it back. */
+export function hintSkipsWait(): boolean {
+  return skipsDelay(performance.now(), lastHiddenAt, current !== null);
+}
+export function claimHint(hide: () => void): boolean {
+  const instant = hintSkipsWait();
+  if (current && current !== hide) current();
+  current = hide;
+  return instant;
+}
+export function releaseHint(hide: () => void): void {
+  if (current === hide) { current = null; lastHiddenAt = performance.now(); }
+}
+
 interface Shown {
   spec: HintSpec;
   box: DOMRect;
   /** The dialog a dialog-layer hint stays inside, across. */
   within: DOMRect | null;
   instant: boolean;
+}
+
+/** The box a hint is placed against: the control's, except for a door of a
+ *  stripe (V4's Figma), whose tooltip stands 8px off the STRIPE's edge facing
+ *  the canvas (right of the left stripe, left of the right one), centred on its
+ *  own door, so it never covers the door or the stripe. */
+function anchorOf(side: HintSide, el: HTMLElement): DOMRect {
+  const box = el.getBoundingClientRect();
+  const bar = side === "right" || side === "left" ? el.closest?.(".edge-rail") : null;
+  if (!bar) return box;
+  const edge = bar.getBoundingClientRect();
+  return side === "right"
+    ? new DOMRect(box.left, box.top, edge.right - box.left, box.height)
+    : new DOMRect(edge.left, box.top, box.right - edge.left, box.height);
 }
 
 /** Where the hint goes against its control, kept inside the window — and
@@ -116,11 +148,11 @@ export function useHint(side: HintSide, layer: HintLayer = "chrome") {
       if (current && current !== hide) current();
       current = hide;
       const within = layer === "dialog" ? el.closest('[role="dialog"]')?.getBoundingClientRect() ?? null : null;
-      setShown({ spec, box: el.getBoundingClientRect(), within, instant });
+      setShown({ spec, box: anchorOf(side, el), within, instant });
     };
     if (now || instant) reveal();
     else showTimer.current = window.setTimeout(reveal, FIRST_HINT_DELAY_MS);
-  }, [hide, layer]);
+  }, [hide, layer, side]);
 
   const leave = useCallback(() => {
     window.clearTimeout(showTimer.current);
@@ -185,10 +217,10 @@ export function useHint(side: HintSide, layer: HintLayer = "chrome") {
       onPointerEnter={() => window.clearTimeout(hideTimer.current)}
       onPointerLeave={hide}
     >
-      <span className="hint-head">
-        <span className="hint-label">{shown.spec.label}</span>
+      {(shown.spec.label || shown.spec.keys) && <span className="hint-head">
+        {shown.spec.label && <span className="hint-label">{shown.spec.label}</span>}
         {shown.spec.keys && <kbd className="hint-key">{shown.spec.keys}</kbd>}
-      </span>
+      </span>}
       {shown.spec.detail && <span className="hint-detail">{shown.spec.detail}</span>}
     </span>,
     document.body,

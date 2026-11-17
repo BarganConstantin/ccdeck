@@ -127,7 +127,7 @@ export const CONDITIONS = {
     //
     // Four sites now, and each raises the stakes: theme-first-paint's one case
     // reads the built page, tarball-install-smoke's eleven PACK that build and run
-    // what comes out, notices-bundle's four read the built chunks to decide
+    // what comes out, notices-bundle's five read the built chunks to decide
     // what THIRD_PARTY_NOTICES.md must attribute — an artifact question with a
     // licensing answer, which no amount of reading the sources can settle — and
     // guarded-reads' six ask the running server for those files. A leg
@@ -136,6 +136,19 @@ export const CONDITIONS = {
     // skip in the register.
     holdsOn: () => false,
     why: "publish.yml runs `npm run build` before the suite, so dist/web/index.html is always on disk in CI.",
+  },
+  "!hasTar": {
+    // A runtime probe, like the hard-link one: every runner image has a system
+    // tar — GNU tar on Ubuntu, bsdtar on macOS and in System32 on Windows 10
+    // and later — so it never skips in CI, and CI asserts that rather than
+    // trusting it. A machine without one skips the cases instead of failing
+    // on the missing tool.
+    holdsOn: () => false,
+    why: "Every runner has a system tar, which the desktop build's engine-packages script unpacks the npm tarball with.",
+  },
+  "!['darwin', 'linux'].includes(process.platform)": {
+    holdsOn: (platform) => !["darwin", "linux"].includes(platform),
+    why: "The optional local engine is verified and launched on macOS and Linux only; Windows' ownership and ACL checks are not written yet, and pro-engine-client.test.ts asserts its refusal there on every leg.",
   },
 };
 
@@ -234,6 +247,51 @@ export const GATES = [
   // including every assertion about what is kept and what refuses to write,
   // runs on all three legs.
   { file: "prefs-corrupt-1002.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
+  // The terminal socket relayed to the optional local engine, against a signed
+  // test double started as the engine. An engine installation is verified and
+  // launched on macOS and Linux only — Windows' ownership and ACL checks are
+  // not there yet — so neither block can start one on Windows. What a deck
+  // with no engine does is pro-engine-terminal-off, un-gated, on every leg.
+  { file: "pro-engine-terminal.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 27 },
+  // The optional engine's own boundary: install verification, the signed
+  // handshake and the request lifecycle, against the same test double. Written
+  // on the two platforms the installer accepts rather than on win32, so a
+  // fourth platform skips rather than failing an installation it never accepts.
+  // The step that brings the engine in from its npm package, on real files and
+  // symlinks, and the Windows rules against a mocked ACL reader, which write
+  // the same fixtures to disk: three blocks, on the same two platforms.
+  { file: "engine-package.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 3, cases: 26 },
+  // The install's tightening of the deck's own data folder before it checks
+  // an engine there: a folder made 0775 under a 0002 umask ends 0755, and a
+  // writable folder above it is left alone and makes the check fail. Both read
+  // and set POSIX mode bits on real folders, which Windows does not have.
+  { file: "engine-install.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
+  // The install cases that end in an installed engine — from the registry,
+  // from a file, the floor, the lock, a swap cut short, removing, the route
+  // that takes a file — run where the installer verifies an engine, on the
+  // same two platforms as engine-package. A Windows runner's temp folder never
+  // passes the ACL check. The rest of that file — status, download refusals,
+  // cancel, offline, wrong signer, the strict package reader, the routes'
+  // refusals — runs on all three legs.
+  { file: "engine-install.test.ts", gate: "it.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 8, cases: 8 },
+  { file: "pro-engine-client.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 1, cases: 21 },
+  // The panel's routes answered by the same signed double started as the
+  // engine, on a real deck, on the same two platforms. What a deck with no
+  // engine answers is pro-engine-routes-off, un-gated, on every leg.
+  { file: "pro-engine-routes.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 1, cases: 10 },
+  // The test-only Windows preview's client started against the same double,
+  // answering as a Windows engine under an `.exe` name: a script with a
+  // shebang, which macOS and Linux run and Windows cannot, as it is not a PE
+  // file. The gate, the preview's verifier and the package's exclusion of it
+  // are in the same file, un-gated, on every leg.
+  { file: "command-panel-windows-preview.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
+  // The relay's whole characters on a real tmux pane — punctuation cut by
+  // tmux, and a seed longer than xterm.js decodes in one piece — with the
+  // panel's own emulator. Windows has no tmux. On macOS and Linux CI installs
+  // one, and a case that finds none (or no @xterm/headless) fails rather
+  // than passing unchecked. The same rules with a stand-in for tmux are
+  // terminal-bridge-utf8's, un-gated, on every leg.
+  { file: "terminal-utf8-tmux.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
   { file: "settings-atomic-write.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   // The terminal's ccdeck followed through a real npm prefix: `<prefix>/bin/ccdeck`
   // is a symlink into lib/node_modules, and a file symlink on Windows needs
@@ -251,6 +309,11 @@ export const GATES = [
   // directory junction — a reparse point Windows creates without a privilege —
   // and it carries the assertion that would catch a revert on that leg.
   { file: "settings-symlink-target.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 7 },
+  // The conversation route's refusals of a symlinked file, a symlinked folder, a
+  // `..` through a link and a FIFO, and its read through a linked config folder:
+  // Windows cannot make a file symlink without a privilege and has no mkfifo. The
+  // route's other refusals, the path-in-the-id cases among them, run on all three legs.
+  { file: "session-transcript-route.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 6 },
   { file: "supervisor-exit.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 3 },
   { file: "uv-bootstrap-atomic.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
 
@@ -265,6 +328,12 @@ export const GATES = [
   { file: "hook-script-atomic.test.ts", gate: "it.skipIf", condition: "!hardLinksWork", sites: 1, cases: 1 },
   { file: "settings-atomic-write.test.ts", gate: "it.skipIf", condition: "!hardLinksWork", sites: 1, cases: 1 },
   { file: "uv-bootstrap-atomic.test.ts", gate: "it.skipIf", condition: "!hardLinksWork", sites: 1, cases: 1 },
+
+  // The desktop build's engine-packages script fetching the other Mac's engine
+  // package: a real npm-shaped tarball made here with `tar -czf`, handed over
+  // by a stand-in fetch and unpacked by the script with the system tar. Its
+  // refusals that never reach tar run beside it, un-gated.
+  { file: "desktop-engine-packaging.test.ts", gate: "describe.skipIf", condition: "!hasTar", sites: 1, cases: 3 },
 
   { file: "sound-hook-park.test.ts", gate: "it.skipIf", condition: "!readOnlyDirBlocksWrites", sites: 1, cases: 1 },
   // #1176: the swap script run against an installed app whose folder the
@@ -291,8 +360,10 @@ export const GATES = [
   // packages THIRD_PARTY_NOTICES.md must attribute. Same gate as its two
   // neighbours because the same build step satisfies it, and the same stakes —
   // without a build there is no artifact to derive the notices from, and the
-  // document would be checked against nothing at all.
-  { file: "notices-bundle.test.ts", gate: "describe.skipIf", condition: "!existsSync(dist)", sites: 1, cases: 4 },
+  // document would be checked against nothing at all. Five since the terminal
+  // panel's packages arrived: the fifth reads index.html for what every visit
+  // loads, and holds xterm out of it.
+  { file: "notices-bundle.test.ts", gate: "describe.skipIf", condition: "!existsSync(dist)", sites: 1, cases: 5 },
   // The whole tarball block. It packs what is on disk with `--ignore-scripts`,
   // so a leg that has not built has nothing honest to pack — and a tarball
   // without dist/web does not boot at all, which would make this a timeout
@@ -302,6 +373,10 @@ export const GATES = [
   // and the traversal spellings, asked of serveStatic through the socket. What
   // it serves is the build, so without one there is nothing to ask it about.
   { file: "guarded-reads.test.ts", gate: "describe.skipIf", condition: "!existsSync(dist)", sites: 1, cases: 6 },
+  // V4's Chat and Decision card: what index.html loads on every visit holds none
+  // of them (entry script, preloads, stylesheet), and the screens are chunks and
+  // async stylesheets of their own. An artifact question, so the same gate.
+  { file: "v4-screens-bundle.test.ts", gate: "describe.skipIf", condition: "!existsSync(dist)", sites: 1, cases: 3 },
 ];
 
 /**

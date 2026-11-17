@@ -33,9 +33,11 @@
 //     Codex plan as its category ("max-20x", "plus") and nothing else from the
 //     credentials it is read off, and how many Claude accounts and paired
 //     machines the deck holds, as capped counts (depth-facts.mjs), and which
-//     trackers have a saved connection when it is sent: "jira", "github",
-//     "gitlab" and nothing else, never an address, an account or a token
-//     (integrations/store.mjs; left out when that list cannot be read),
+//     trackers have a saved connection when it is sent, and how many of each:
+//     "jira", "github", "gitlab", each with a capped count, and nothing else,
+//     never an address, an account, a token, a connection's id or its name
+//     (integrations/store.mjs; when that list cannot be read, only that it
+//     could not be, as `integrationsUnread`),
 //   - an "uninstall" event when somebody runs `ccdeck --uninstall`, with the
 //     reason they picked from a short list if they picked one (bin/cli/leaving.js),
 //   - an "activated" event, once, when a new install's first session arrives:
@@ -129,7 +131,7 @@ import { isWsl } from "./open-url.mjs";
 import { osReleaseFields, osVersionOf } from "./os-version.mjs";
 import { UI_LANGUAGE_MAX, uiLanguageCode } from "./ui-language.mjs";
 import {
-  CLAUDE_PLANS, CODEX_PLANS, cappedCount, deckDepth, eventsBucket, installMarkFile, installVia, launchBucket,
+  CLAUDE_PLANS, CODEX_PLANS, COUNT_CAP, cappedCount, deckDepth, eventsBucket, installMarkFile, installVia, launchBucket,
   memoryBucket, updateVia,
 } from "./depth-facts.mjs";
 import { daysUsedBucket, normaliseRating, ratingDue, ratingStage, scoreOf } from "./rating.mjs";
@@ -169,6 +171,11 @@ const STACK_MAX = 4000;
 /** Why somebody uninstalled, when they said: the answers `ccdeck --uninstall`
  *  offers (bin/cli/leaving.js), and nothing else ever leaves as a reason. */
 export const UNINSTALL_REASONS = Object.freeze(["not-useful", "too-noisy", "broken", "other-tool", "privacy", "other"]);
+
+/** The trackers an "active" may name, in the order it names them — the three
+ *  the integrations store counts (its REPORTED_KINDS), kept here as well so the
+ *  reporter does not load the store to know what it may say. */
+const TRACKER_KINDS = Object.freeze(["jira", "github", "gitlab"]);
 
 const EMPTY_REPORT = Object.freeze({
   installId: "", lastVersion: "", lastActiveDay: "", forget: "", usage: null,
@@ -616,6 +623,10 @@ export function scrub(text, home = homedir(), root = PKG_ROOT) {
   // Never half a name: a home of /home/al is not the start of /home/alice.
   if (home && home.length > 1) out = out.replace(new RegExp(`${escapeRegExp(home)}(?![\\w.-])`, "g"), "~");
   return out
+    // The account's device token and device code (account-*.mjs), named by
+    // their prefixes so a short one is caught too, and first, so no pattern
+    // below can split one before it is recognised.
+    .replace(/\bccd[dc]_[A-Za-z0-9_-]{20,}/g, "<secret>")
     .replace(/\/(?:home|Users)\/[^/\s:'"]+/g, "~")
     .replace(/[A-Za-z]:\\(?:Users|Documents and Settings)\\[^\\\r\n:'"]+/gi, "~")
     .replace(new RegExp(PATH_PATTERN, "g"), hidePath)
@@ -671,6 +682,12 @@ export function scrub(text, home = homedir(), root = PKG_ROOT) {
  *   plans, accounts and paired machines the "active" carries (depth-facts.mjs),
  *   read only when one is about to go. Default: none — the deck's own reporter
  *   passes deckDepth, so no test reads a real credentials file.
+ * @param {(() => Promise<unknown>) | null} [deps.integrations] how many tracker
+ *   connections of each kind are saved, as integrations/store.mjs
+ *   connectionCounts answers (null: the list could not be read), read only when
+ *   an "active" is about to go. Default: none, and the "active" says nothing
+ *   about trackers — the deck's own reporter passes the store's, so no test
+ *   reads a real integrations.json.
  * @param {() => number} [deps.launchedIn] ms from this process starting to the
  *   deck listening, read once by start(), which runs as the deck starts listening.
  * @param {() => number} [deps.memory] the process's resident memory in bytes,
@@ -709,7 +726,7 @@ export function createReporter({
   setupKnown = () => whenSetupKnown(),
   reference = notedRef,
   depth = async () => ({}),
-  integrations = async () => null,
+  integrations = null,
   launchedIn = () => process.uptime() * 1000,
   memory = () => process.memoryUsage.rss(),
   npx = false,
@@ -905,18 +922,26 @@ export function createReporter({
     }
   }
 
-  /** A snapshot of which tracker providers have connections at report time.
-   * The provider owns the local read; only the three fixed provider tokens leave.
-   * null means unknown (store unavailable), [] means verified no connections. */
+  /** A snapshot of how many tracker connections of each kind are saved at
+   * report time. The provider owns the local read; only the three fixed
+   * provider names and a whole count for each, capped, leave — and the names
+   * alone again as `connectedIntegrations`, which older versions of the API
+   * read. An answer that is not a count for each of the three, or a provider
+   * that throws, is a list that could not be read, and says only that: a
+   * reading that cannot be trusted must not pass for "nothing connected". */
   async function connectedProviders() {
-    try {
-      const value = await integrations();
-      if (!Array.isArray(value)) return {};
-      const providers = ["jira", "github", "gitlab"].filter(k => value.includes(k));
-      return { connectedIntegrations: providers };
-    } catch {
-      return {};
+    if (!integrations) return {};
+    const unread = { integrationsUnread: true };
+    let value;
+    try { value = await integrations(); }
+    catch { return unread; }
+    if (!value || typeof value !== "object" || Array.isArray(value)) return unread;
+    const counts = {};
+    for (const kind of TRACKER_KINDS) {
+      if (!Number.isInteger(value[kind])) return unread;
+      counts[kind] = Math.min(Math.max(value[kind], 0), COUNT_CAP);
     }
+    return { connectedIntegrations: TRACKER_KINDS.filter(k => counts[k] > 0), integrationCounts: counts };
   }
 
   /** What the "active" says about the deck beyond its day: how long this run
@@ -1580,7 +1605,7 @@ export const reporter = createReporter({
   versions: () => cliVersionCache, probe: probeCliVersions, depth: deckDepth, npx: isNpxInstall(PKG_ROOT),
   integrations: async () => {
     const { integrationsStore } = await import("./integrations/store.mjs");
-    return integrationsStore.connectedKinds();
+    return integrationsStore.connectionCounts();
   },
   ratingKept: ratingFile(),
   installMark: installMarkFile(),

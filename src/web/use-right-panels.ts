@@ -21,12 +21,13 @@ const USAGE_PANEL_OPEN_KEY = "agent-dag.usagePanelOpen";
  *  survived the button changing: this key was written by a topbar meter that
  *  no longer exists, and a tab that had the panel open still finds it open. */
 const MACHINE_PANEL_OPEN_KEY = "agent-dag.systemPanelOpen";
-// First-run layout: Usage and Accounts open, everything else closed. Those two
-// answer "how much have I got left, and on which account" — the questions you
-// have before you have a graph worth looking at. The session list and detail
-// panel are for navigating work that already exists, so they stay shut until
-// asked for, and the canvas gets the width. A phone's load opens one sheet of
-// these at most, and stores nothing for the rest: phone-load.ts.
+// First-run layout: no panel open (owner, 2026-11-11). Accounts and Usage used
+// to open on a first run, and on a machine with nothing set up yet each opened
+// on what was missing — two failures before the first session. Every panel
+// waits for its door now, and the board gets the width. A profile an earlier
+// load wrote to keeps what it had: settlePanelDefaults (storage.ts) pins the
+// flags it never stored to the open they read as. A phone's load opens one
+// sheet of these at most, and stores nothing for the rest: phone-load.ts.
 //
 // All three panels read and write through storage.ts rather than
 // window.localStorage directly: the loaders run inside useState initialisers,
@@ -39,8 +40,7 @@ function saveDetailOpen(open: boolean): void {
   writeStored(DETAIL_OPEN_KEY, open ? "1" : "0");
 }
 function loadUsagePanelOpen(): boolean {
-  const stored = readStored(USAGE_PANEL_OPEN_KEY);
-  return stored === null ? true : stored === "1";
+  return readStored(USAGE_PANEL_OPEN_KEY) === "1";
 }
 function saveUsagePanelOpen(open: boolean): void {
   writeStored(USAGE_PANEL_OPEN_KEY, open ? "1" : "0");
@@ -48,23 +48,13 @@ function saveUsagePanelOpen(open: boolean): void {
 /**
  * Whether the machine panel was open when this tab was last looked at.
  *
- * OPEN ON A FIRST RUN, and never reopened after that — the same shape the
- * usage and accounts panels already use. This used to default to closed, on
- * the argument that "a machine readout that reopens itself on every refresh
- * would be occupying the rail on behalf of a decision nobody made". That
- * argument is about REOPENING, and the null check is exactly what prevents it:
- * a tab that has never expressed a preference gets the panel, and a tab that
- * has closed it once has expressed one and keeps it closed for good.
- *
- * The two cases were worth separating because they answer different people. A
- * first run is somebody who has not met the deck yet and cannot ask for a
- * panel they do not know is there; every run after that is somebody who has,
- * and whose answer is on record. Opening it starts the /api/system poll, which
- * stops with the panel and while the tab is hidden.
+ * Shut on a first run, like Usage and Accounts: its door is on the rail, and a
+ * panel nobody asked for is not opened on their behalf. Once opened or closed,
+ * that choice is kept. Opening it starts the /api/system poll, which stops
+ * with the panel and while the tab is hidden.
  */
 function loadMachinePanelOpen(): boolean {
-  const stored = readStored(MACHINE_PANEL_OPEN_KEY);
-  return stored === null ? true : stored === "1";
+  return readStored(MACHINE_PANEL_OPEN_KEY) === "1";
 }
 function saveMachinePanelOpen(open: boolean): void {
   writeStored(MACHINE_PANEL_OPEN_KEY, open ? "1" : "0");
@@ -72,22 +62,47 @@ function saveMachinePanelOpen(open: boolean): void {
 
 /** `leftColumnW` is the left column's width on this load (use-left-column.ts):
  *  whether the window has room for Usage and the machine panel side by side
- *  depends on it. */
-export function useRightPanels(leftColumnW = 0) {
+ *  depends on it. `inColumn` is a load that lands in Workspace, where the two
+ *  share one side column (side-column.ts) instead of standing side by side, so
+ *  the room rule is not theirs. */
+export function useRightPanels(leftColumnW = 0, inColumn = false) {
   /** Right detail panel visibility — persisted across refresh. */
   const [detailOpen, setDetailOpen] = useState<boolean>(loadDetailOpen);
-  useEffect(() => { saveDetailOpen(detailOpen); }, [detailOpen]);
+  /** Shut for now, not by the reader: Workspace's sheet width (1100 to 1319)
+   *  starts with the Inspector folded, and the Board's stored choice stays as it
+   *  was. Never written as a close; the reader's own open ends it. */
+  const detailHeldRef = useRef(false);
+  useEffect(() => {
+    if (detailOpen) detailHeldRef.current = false;
+    else if (detailHeldRef.current) return;
+    saveDetailOpen(detailOpen);
+  }, [detailOpen]);
   /** Usage panel visibility — persisted across refresh. */
-  const [usagePanelOpen, setUsagePanelOpen] = useState<boolean>(loadUsagePanelOpen);
-  useEffect(() => { saveUsagePanelOpen(usagePanelOpen); }, [usagePanelOpen]);
-  /** Shut for this load, not by the reader: a phone's load opens one sheet, and
-   *  Usage is it, and a desktop window too narrow for both panels beside the
-   *  board opens Usage alone (phone-load.ts). Never written as a close; the
-   *  reader's own open ends it. */
+  // A phone opens on Sessions with no panel open: Usage waits for its door, as
+  // a sheet over the list, and the stored flag is not touched by the wait.
+  const usageHeldRef = useRef(false);
+  const [usagePanelOpen, setUsagePanelOpen] = useState<boolean>(() => {
+    const wanted = loadUsagePanelOpen();
+    if (wanted && loadsOnPhone()) { usageHeldRef.current = true; return false; }
+    return wanted;
+  });
+  useEffect(() => {
+    if (usagePanelOpen) usageHeldRef.current = false;
+    else if (usageHeldRef.current) return;
+    saveUsagePanelOpen(usagePanelOpen);
+  }, [usagePanelOpen]);
+  /** Shut for this load, not by the reader: a phone's load opens no sheet, and
+   *  a desktop window too narrow for both panels beside the board opens Usage
+   *  alone (phone-load.ts). Never written as a close; the reader's own open
+   *  ends it. */
   const machineHeldRef = useRef(false);
   const [machinePanelOpen, setMachinePanelOpen] = useState<boolean>(() => {
     const wanted = loadMachinePanelOpen();
-    if (wanted && usagePanelOpen && (loadsOnPhone() || rightPanelsCrowd(leftColumnW))) {
+    if (wanted && loadsOnPhone()) {
+      machineHeldRef.current = true;
+      return false;
+    }
+    if (wanted && usagePanelOpen && !inColumn && rightPanelsCrowd(leftColumnW)) {
       machineHeldRef.current = true;
       return false;
     }
@@ -103,5 +118,15 @@ export function useRightPanels(leftColumnW = 0) {
   // reload it is on with nothing drawn. DetailAside says it, when it mounts.
   useFeatureUse("usage-panel", usagePanelOpen);
   useFeatureUse("machine-panel", machinePanelOpen);
-  return { detailOpen, setDetailOpen, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen };
+  /** A window narrowed to a phone's width with several panels open draws one
+   *  sheet; the others wait shut, in memory, by the same holds a phone's load
+   *  uses: the flag turns false and is not written, and the reader's own open
+   *  ends the hold. Widening does not reopen them (the hold only ends on an
+   *  open), and their stored flags are as they were. */
+  const hold = {
+    detail: () => { detailHeldRef.current = true; setDetailOpen(false); },
+    usage: () => { usageHeldRef.current = true; setUsagePanelOpen(false); },
+    machine: () => { machineHeldRef.current = true; setMachinePanelOpen(false); },
+  };
+  return { detailOpen, setDetailOpen, usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, hold };
 }

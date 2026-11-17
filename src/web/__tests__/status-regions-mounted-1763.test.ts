@@ -39,6 +39,7 @@ const readouts = (notifySaid: Said) => renderToStaticMarkup(createElement(Readou
   live: true,
   now: 1_790_550_000_000,
   incidents: [],
+  counts: { working: 0, done: 0 },
 } as unknown as ReadoutProps));
 
 /** Every role="status" element, as its opening tag and its text. */

@@ -52,10 +52,15 @@ describe("every switch is the one switch (#886)", () => {
     // prompt", an on/off filter over its activity list.
     // Twenty-three with Claude sessions' "Continue stopped background sessions"
     // (#2193), off until it is turned on.
-    // Twenty-two again since Settings › Radar's "Monitor automatically" went
+    // Twenty-two since Settings › Radar's "Monitor automatically" went
     // (2026-10-23): Radar monitors by itself, always.
     // Twenty-three with Settings › Claude Code, whose on/off rows are drawn by
     // one `role="switch"` from its short list of Claude Code settings.
+    // Twenty-four with the Command Panel's switch (TerminalSection.tsx), in
+    // Settings › Experimental.
+    // CHANGED ON PURPOSE (V4's Figma): twenty-three since the version banner's
+    // auto-restart switch went; the banner says its countdown in a sentence
+    // and the preference is Settings › General's "Update when idle".
     expect(switches, "the twenty-three switches in the source").toBe(23);
     expect(count(/className="switch(?: ap-auto-state)?"/g)).toBe(switches);
     expect(count(/<span className="switch-knob" \/>/g)).toBe(switches);
@@ -81,32 +86,39 @@ describe("every switch is the one switch (#886)", () => {
 describe("the one switch owns its states (#886)", () => {
   it("reads on from aria-checked", () => {
     expect(body('.switch[aria-checked="true"]')).toMatch(/background:\s*var\(--accent\)/);
-    expect(body('.switch[aria-checked="true"] .switch-knob')).toMatch(/translateX\(12px\)/);
+    expect(body('.switch[aria-checked="true"] .switch-knob')).toMatch(/translateX\(14px\)/);
   });
 
   it("answers hover, press, focus and disabled in one place", () => {
     // Hover is the pointer's feedback, drawn in the foreground like every
     // other control's; the accent stays for the on state and the focus ring.
     expect(body(".switch:hover:not(:disabled)")).toMatch(/border-color:\s*var\(--text\)/);
-    expect(body(".switch:active:not(:disabled)")).toMatch(/transform:\s*scale\(0\.97\)/);
-    expect(body(".switch:focus-visible")).toMatch(/outline:\s*2px solid var\(--accent\)/);
+    // V4: the press is the knob stretching to 18px, not the track scaling.
+    expect(body(".switch:active:not(:disabled):not(:focus-visible) .switch-knob")).toMatch(/width:\s*18px/);
+    expect(body(".switch:active:not(:disabled)")).toBe("");
+    // V4's Figma: the switch is a box and takes the one global ring (1.5px
+    // accent inside); it no longer restates it, so no rule of its own remains.
+    expect(body(".switch:focus-visible")).not.toMatch(/outline/);
     expect(body(".switch:disabled")).toMatch(/opacity:\s*var\(--dim-off\)/);
   });
 
   it("keeps the geometry the LAN dialog's spacing was argued from", () => {
     const track = body(".switch");
-    expect(track).toMatch(/width:\s*30px/);
+    // V4's switch: a 32x18 track and a 14px knob (the target stays 24px).
+    expect(track).toMatch(/width:\s*32px/);
     expect(track).toMatch(/height:\s*18px/);
     const knob = body(".switch-knob");
-    expect(knob).toMatch(/width:\s*12px/);
-    expect(knob).toMatch(/height:\s*12px/);
+    expect(knob).toMatch(/width:\s*14px/);
+    expect(knob).toMatch(/height:\s*14px/);
   });
 
-  it("lets the version banner's armed switch keep its warning, and nothing else differ", () => {
-    expect(body('.ver-banner .switch[aria-checked="true"]')).toMatch(/background:\s*var\(--warn\)/);
-    // The forced-colours block (#871) restates the banner's switch in system
-    // colours. That is the same switch answering a Contrast theme, not a second
-    // context drawing it differently, so its cascade is read separately.
+  // CHANGED ON PURPOSE (V4's Figma): the version banner's armed switch is gone
+  // with the switch, so no context draws a switch differently any more.
+  it("lets nothing draw a switch differently", () => {
+    expect(body('.ver-banner .switch[aria-checked="true"]')).toBe("");
+    // The forced-colours block (#871) restates the switch in system colours.
+    // That is the same switch answering a Contrast theme, not a second context
+    // drawing it differently, so its cascade is read separately.
     const open = "@media (forced-colors: active) {";
     const at = css.indexOf(open);
     let close = at;
@@ -120,6 +132,6 @@ describe("the one switch owns its states (#886)", () => {
     // Radar enlarges only the invisible mobile hit area; the track and knob
     // retain the shared geometry and states.
     expect(body('.tr-flag-action .switch::after')).toMatch(/width:\s*44px;\s*height:\s*44px/);
-    expect(overrides.sort()).toEqual(['.tr-flag-action .switch::after', '.ver-banner .switch[aria-checked="true"]']);
+    expect(overrides.sort()).toEqual(['.tr-flag-action .switch::after']);
   });
 });

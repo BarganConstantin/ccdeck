@@ -154,7 +154,7 @@ export function versionNoticeLabel(n: VersionNoticeCopy): string {
   // is promised only while it is not already there, because promising to show
   // something the reader can see is how a name stops being trusted.
   const does = n.open ? t("shell.chip.noticeShow") : t("shell.chip.noticeShowBanner");
-  return t("shell.chip.noticeLabel", { from: n.from, what, does });
+  return t("shell.chip.noticeLabel", { to: n.to, from: n.from, what, does });
 }
 
 // ── which update a dismissal was about (#1175) ──────────────────────────────
@@ -193,4 +193,14 @@ export function noticeKeyFor(notice: DismissableNotice | null): string {
  */
 export function noticeIsOpen(notice: DismissableNotice | null, dismissed: string): boolean {
   return notice != null && dismissed !== noticeKeyFor(notice);
+}
+
+/** WHEN THE BAR HAS A VERSION TO SAY (V4's Figma, Top bar: the version chip
+ *  only when needed). Only with something to act on: an update the desktop app
+ *  has downloaded, or a version the deck already found out of step with the one
+ *  on disk or on npm. A deck that is simply current draws nothing; its number
+ *  stays in About and Settings > Updates, which also hold the check and the
+ *  release notes the plain chip used to open. */
+export function versionChipNeeded(state: { readyAppUpdate: unknown; notice: unknown }): boolean {
+  return Boolean(state.readyAppUpdate) || Boolean(state.notice);
 }

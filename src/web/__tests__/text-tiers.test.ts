@@ -16,7 +16,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { sheetText } from "./sheet-source";
+import { mouseFlat, sheetText } from "./sheet-source";
 
 const SHEET = sheetText();
 
@@ -141,7 +141,8 @@ describe("the text ramp has three readable levels in both themes", () => {
 
 describe("what was migrated to the secondary tier", () => {
   /** The rules that read it, by selector, from the sheet itself. */
-  const users = [...SHEET.matchAll(/(^|\n)([^\n{}]+?)\{[^}]*?(?<![-\w])color:\s*var\(--text-secondary\)/g)]
+  // The mouse query's rules are read where they stand, not as a prelude that swallows the rule inside it.
+  const users = [...mouseFlat(SHEET).matchAll(/(^|\n)([^\n{}]+?)\{[^}]*?(?<![-\w])color:\s*var\(--text-secondary\)/g)]
     .map(m => m[2].trim());
 
   it("is prose a reader reads, not metadata they glance at", () => {
@@ -151,6 +152,7 @@ describe("what was migrated to the secondary tier", () => {
     // browsers are unwatched, why the first read is slow, and the reader's own
     // error text.
     expect(users.sort()).toEqual([
+      // CHANGED ON PURPOSE (V4's Figma): the Inspector and the Usage panel set their section labels, rows, prompts, pills and names in --text-secondary.
       // The Local network card while the section is off: the one sentence
       // that says what the section is for, read once before deciding to turn
       // it on. Prose, in a card whose other line is a verb in the accent.
@@ -159,15 +161,85 @@ describe("what was migrated to the secondary tier", () => {
       // and the heading carry the failure; the reason is prose, so it reads and does not
       // shout.
       ".aa-reason",
+      // CHANGED ON PURPOSE (V4's Figma): the accounts panel's secondary-ink
+      // words — the sign-in stages, the held-out name, the Auto-switch row's
+      // name and its popover's labels and chips, the fold's summary name and
+      // preview lines, and the bold in a panel state's sentence.
+      // And the selected row's text tiers and an aliased account's address in
+      // the open detail, for the same tier: the muted ink measures 3.95:1 on
+      // the selected bed in dark, and the address is read, not glanced at.
+      ".aa-steps li", ".ap-account.active :where(.ap-plan, .ap-lane-label, .ap-lane-reset, .ap-meta, .ap-age:not(.ap-stale), .ap-more)",
+      ".ap-account:has(.ap-held) .ap-alias", ".ap-auto-label", ".ap-auto-title", ".ap-chip",
+      ".ap-meta-email", ".ap-preview",
+      // CHANGED ON PURPOSE (V4's Figma): with no day picked, the Reset
+      // calendar's list names its window once, as a quieter label in this ink
+      // rather than a heading in --text. A label, not prose, kept in the list
+      // because the kit draws it so.
+      ".ap-reset-list-head h3.ap-reset-all-head",
+      ".ap-state-text b",
+      // CHANGED ON PURPOSE (V4's Figma): the account row as V4 draws it. The
+      // second figure and a figure on line 2, the reset after the plan, the
+      // open row's values, a state line about something that clears on its
+      // own, the selected row's other quiet parts; and the group's head —
+      // its chevron, count, expand-all, how many can be switched to — with
+      // "and N more" under the previews (the sort glyph went with the order
+      // menu, internal #94). The head's title moved
+      // up to --text, so it left this list.
+      ".ap-account.active :where(.ap-alias-domain, .ap-q-label, .ap-q-plan, .ap-marks, .ap-meta-key)",
+      ".ap-fig-2 .ap-q-pct", ".ap-issue-line", ".ap-lane-reset", ".ap-meta", ".ap-meta-value",
+      ".ap-preview-more", ".ap-q-pct", ".ap-q-reset", ".ap-rest-head > .ap-rest-all", ".ap-rest-ready",
+      ".ap-sum .ap-nav-chev", ".ap-sum-count", ".ap-tag",
+      // V4's Agent / Card sets its task line (the session's name or title, or a
+      // subagent's kind and folder) in this tier, and its foot — cost · time …
+      // and the sub-agent count — in the same ink as mono figures. The foot is
+      // metadata, so it joins the list against this test's own rule that the
+      // tier is prose; ON PURPOSE, because the kit draws the figures at
+      // --text-secondary and the dot between them at --muted, and the tier
+      // clears 4.5:1 on every node bed (above).
+      ".agent-node .foot",
+      ".agent-node .foot .spawn-badge",
+      ".agent-node .task-line",
+      ".agent-node .time",
+      // CHANGED ON PURPOSE (owner's critique, round 3): the face below 40% no
+      // longer names the card's project in this ink. It draws the start of its
+      // task in the task's own ink, as nearer faces do.
+      ".cat-chip",
+      ".cat-chip .cat-server",
+      ".detail .plan-item",
+      ".detail .plan-item[data-status=\"completed\"]",
+      ".detail .plan-item[data-status=\"in_progress\"]",
+      ".detail .plan-mark",
+      ".detail h3:not(.ctx-section-title)",
+      ".detail-hero .hero-state",
+      ".insp-none-title",
+      // The sentence behind the info mark beside an Inspector tab's title
+      // (Agents: who started whom, read from the transcript), read in its hint.
+      ".ap-peek.insp-hint",
+      // CHANGED ON PURPOSE (V4's Figma): an unselected Inspector tab's icon is
+      // drawn in the secondary ink, a step above its --muted label.
+      ".insp-tab .glyph",
+      ".prompt-text",
+      ".qb-label",
+      // CHANGED ON PURPOSE (V4's Figma): the command menu's group captions
+      // (Needs you, Sessions, Do) are set in V4's secondary ink.
+      ".qo-caption",
       // Explains missing prices and recorded cost provenance.
       ".uh-cost-note",
       ".ap-issue-hint",
       ".ap-lan-intro-text",
-      // The shared text field's placeholder, in dark only: an example, not a
-      // sentence, and --text-dim on white. The field's --ctl-fill is mixed from
-      // the foreground, and --muted and --text-dim on it are 4.05:1 in dark
-      // (#1789).
-      ".ap-manage-input::placeholder",
+      // CHANGED ON PURPOSE (V4's Figma): the Local network screens set their
+      // empty-state lead, the Add a deck heading and note, the pairing
+      // request's note and fingerprint line, the field labels, a deck's facts
+      // and the quiet Unpair in V4's secondary ink.
+      ".ap-lan-nothing",
+      ".lan-add .lan-h",
+      ".lan-add .lan-h + .lan-note",
+      ".lan-ask-note, .lan-ask-fp",
+      ".lan-field-label",
+      ".lan-peer .lan-fact dd",
+      ".lan-peer-foot .btn.danger:not(.armed)",
+      // (V4's field: the shared text field's placeholder left this tier for
+      // --muted, which is 4.91:1+ on its --bg-soft fill.)
       // The Projects report's Copy and Show buttons: a control's words, kept
       // here by their bed rather than their role, as the door's line below
       // is. The --sm-fill that raises them takes --muted to 4.25:1 in dark
@@ -183,6 +255,9 @@ describe("what was migrated to the secondary tier", () => {
       // nobody types, so it wears the placeholder's ink beside it, and for the
       // same reason — --muted on --ctl-fill is 4.05:1 in dark.
       ".ap-threshold-unit",
+      // CHANGED ON PURPOSE (V4's Figma): a theme card's name is set in --text-secondary, and in
+      // --text once chosen. The provider line in Integrations left this tier: V4 sets it in --muted.
+      ".appearance-theme",
       ".bw-access dd",
       ".bw-empty-note",
       ".bw-key dd",
@@ -200,21 +275,47 @@ describe("what was migrated to the secondary tier", () => {
       ".bw-row-detail",
       ".bw-settings-note",
       // The same recap, whole, in the detail panel.
-      // The canvas filter chips at rest, the one exception that is a label and
-      // not a sentence: a bar of categories that are all showing sits a tier
-      // under the foreground so the canvas stays the loudest thing, and the
-      // pointer lifts a chip to --text. Its floors are held in quiet-signals.
-      ".cat-filter",
+      // The canvas's tool filter, the one exception that is a label and not a
+      // sentence: its "Tools" button sits a tier under the foreground so the
+      // canvas stays the loudest thing, and the pointer lifts it to --text.
+      // CHANGED ON PURPOSE: the legend's items (`.cat-filter`) are gone; the
+      // one button stands at every width. A hidden category's row in its menu
+      // lifts to this tier under the pointer, off the --selected bed's floor.
+      // CHANGED ON PURPOSE (V4 top-10 #5): ".cat-filter-tools" → gone, because the
+      // "Tools" button is gone: the rows are a group of the canvas bar's ⋯ menu.
+      ".cat-tools-item.off:hover",
+      // CHANGED ON PURPOSE (V4's Figma): a companion tile's name is set in this tier, like a theme's.
+      ".character-choice",
+      // CHANGED ON PURPOSE (V4's Figma): V4's secondary-ink lines: the
+      // re-arrange strip's status words, the drag trash's first line, the recap
+      // note's body and the cost tooltip's model line.
+      // CHANGED ON PURPOSE (V4 top-10 #3): ".autofit-chip" was one of them → the
+      // chip is gone, because recenter on the control bar did the same thing.
+      // CHANGED ON PURPOSE (V4's Figma): the rating ask's score labels and its "Not now" are set in --text-secondary.
+      ".rating-banner .rating-pick",
+      ".rating-banner .rating-later",
+      ".rearrange-undo",
+      ".drag-trash-zone",
+      ".drag-trash-text",
+      ".recap-note-text",
+      ".cost-tip-title",
+      // CHANGED ON PURPOSE (V4 Inspector, V4's Figma): the Context body's section
+      // captions, "Cumulative usage · whole session" and the two after it: titles a
+      // reader reads to know which numbers follow, no longer 11px uppercase --muted.
+      ".ctx-section-title",
       ".detail-recap",
       // The trash zone's hint while a card is over it, "The session list (L)
       // brings it back": the one sentence that says the removal can be
       // undone, on the zone's red tint, where --muted is 3.42:1 in dark
       // (#1788).
       ".drag-trash-zone.over .drag-trash-hint",
-      // The crash pane's one sentence: that reloading usually clears it and a
-      // report tells the makers what broke (#1853). Prose the reader reads to
-      // decide which of the two buttons under it to press, on the panel surface.
-      ".error-fallback-note",
+      // CHANGED ON PURPOSE (V4's Figma): the crash pane's sentence is --muted on
+      // the bare pane now (no card), so it leaves this list; the dialogs the
+      // frames draw in --text-secondary join it: the clear prompt's labels, the
+      // lazy note, the shortcut sheet's actions and group names, the busiest
+      // table's figures, the Explore caption's label and the version pill.
+      ".cc-col dt", ".dm-note", ".kh-action", ".kh-group", ".pl-body .pl-table td.sd-num",
+      ".explore-caption > :first-child", ".release-notes .rn-pill",
       // The feedback dialog's kinds (#1853): a word to choose by, sitting on
       // the segmented track, which is a fill mixed from the foreground, where
       // --muted is 4.05:1 in dark. Read to choose between the three.
@@ -234,20 +335,35 @@ describe("what was migrated to the secondary tier", () => {
       // The integrations' shared failure note (#2178, #2179): the sentence
       // under a failed read's heading, what to do about it, and the
       // provider's own words below it, which then step down to --muted. And
-      // the shared search field's placeholder, by its bed: the field's
-      // --ctl-fill takes --muted to 4.05:1 in dark, as the forge field's did.
-      ".ig-failure-body, .ig-failure-said", ".ig-search-input::placeholder",
+      // (V4's field: the shared search field's placeholder left for --muted.)
+      // CHANGED ON PURPOSE (V4's Figma): the failure note's provider line is mono --muted now, so
+      // only its sentence is at the secondary tier.
+      ".ig-failure-body",
+      // CHANGED ON PURPOSE (V4 Inspector, V4's Figma): the Time tab's
+      // line over the turn's bar, "93% of this turn was waiting on you": the one sentence
+      // that says what the bar is, read to understand it.
+      ".insp-time-share",
       // The Jira panel's sentences: a note over the board (no active sprint,
       // the first 600 shown), a sprint's goal, the empty board's explanation,
       // and a quote inside an issue. Why a read failed is the integrations'
       // shared failure note's.
-      ".jr-board-note", ".jr-goal", ".jr-html blockquote", ".jr-state p",
+      // CHANGED ON PURPOSE (V4's Figma): the empty board's sentence is the
+      // state's own paragraph only, so the shared failure note inside a state
+      // keeps its heading in --text; an issue's description, its section
+      // heads and its Flagged chip are set in this tier too.
+      ".jr-board-note", ".jr-goal", ".jr-html blockquote", ".jr-state > p",
+      ".jr-detail-desc > .jr-html", ".jr-detail-section h3", ".jr-flag-chip",
+      // CHANGED ON PURPOSE (V4's Figma): the initials that stand in for a
+      // missing picture, on their own opaque surface.
+      ".ig-avatar-initials",
       // And around the backlog: how many issues are picked, the Move form's
       // field labels, a reading preview's version and epic, and Clear filters,
       // a worded action that steps up to --text under the pointer.
-      ".jr-selection", ".jr-move-pop label", ".jr-row-preview dd", ".jr-clear",
+      ".jr-selection .btn", ".jr-selection-note", ".jr-move-pop label", ".jr-row-preview dd", ".jr-clear",
       // The explanation below an unsuccessful Jira comment.
-      '.jr-comment-compose [role="alert"]',
+      // CHANGED ON PURPOSE: the plain sentence only; an unconfirmed comment's
+      // words are the write band's, in --text.
+      '.jr-comment-compose > [role="alert"]',
       // Jira's labels and sprint totals: words on a --ctl-fill pill, kept
       // here by their bed rather than their role, as the shared field's
       // placeholder is — --muted is 4.05:1 on that fill in dark. A status
@@ -266,20 +382,45 @@ describe("what was migrated to the secondary tier", () => {
       // row, a branch row and a project in the picker take --ctl-fill under the
       // pointer and while chosen, where --muted is 4.05:1 in dark (#1789) — a
       // state's word beside its mark or in its chip, a row's meta line, a
-      // label, a branch's behind | ahead, and a project's group, there and in
-      // the picker's button. (Its search field is the integrations' shared
-      // one now, .ig-search-input.)
-      ".fg-badge", ".fg-mark-word", ".fg-meta", ".fgl-label", ".fgl-diverge", ".fgl-repo-group",
-      ".fgl-repo-option-group",
+      // label and a branch's behind | ahead. (Its search field is the
+      // integrations' shared one now, .ig-search-input.) CHANGED ON PURPOSE
+      // (V4's Figma): the picker's button names the project alone, and a
+      // project in the picker reads its whole path over when it last moved,
+      // so neither draws the group in this tier any more.
+      ".fg-badge", ".fg-mark-word", ".fgl-label",
+      // CHANGED ON PURPOSE (V4's Figma): the integrations' controls and chips are written in
+      // --text-secondary on their --line edge or soft fills (a branch's chips and change, the
+      // repository trigger, the tabs and detail tabs, Jira's board button, filter chips, status
+      // control, group heads, the compose label and the status words), and a row's meta line and
+      // a branch's ahead and behind went to --muted, the tier the Figma draws them in.
+      ".fd-sections .uh-range-btn", ".fg-tabs .uh-range-btn", ".fgl-branch-change", ".fgl-branch-name .fg-badge",
+      "button.btn.fgl-repo-trigger",
+      // The forge lists' state chips, as Jira's filter chips; the picker's
+      // group heads (Recent, All this token can see), V4's 12/600 Secondary.
+      "button.btn.fgl-chip", ".fgl-repo-head", ".jr-board-btn", ".jr-comment-compose label",
+      ".jr-group-title", ".jr-group-toggle", ".jr-status, .jr-panel .jr-status.ig-chip",
+      "button.btn.jr-chip", "button.btn.jr-status-btn",
+      // CHANGED ON PURPOSE (#2591): New session's title left this tier for
+      // --text at 16px (the form's one heading), and its two quiet controls
+      // joined it as V4's 12px secondary words, like the forge and Jira chips
+      // above: "Choose another folder…" and the "Session options" row.
+      ".ns-form .uh-range-btn[aria-pressed=\"false\"]", "button.btn.ns-choose", ".ns-options-summary",
+      // New session's picker (internal #106): what an empty list says (no
+      // projects yet, nothing matched, a path that needs to be full) — a
+      // sentence read to know what to do next — and the chosen folder's
+      // path, with the path a problem names: the line that says where Start
+      // goes, read before pressing it.
+      ".ns-empty", ".ns-problem-path", ".ns-where-v",
       // The network map's next step: the one sentence that says what to do
       // about the network, or about the deck pointed at. Read, not glanced.
       ".nm-next",
       // Why one account is missing from a share bundle - claude-swap's own
       // sentence, read once and acted on, not a figure to glance at.
-      // The line under every Settings pane's name, saying what the section
-      // holds (#2176) — Text & density's opening sentence was the first of
-      // them. Read once, before anything in the section is.
-      ".settings-pane-note",
+      // V4's Settings nav item and group heading: the section names read in
+      // the nav and over each group, at the secondary tier (the pane's page
+      // head note went to --muted on purpose, V4's Page head).
+      ".settings-tab",
+      ".sm-tone-name",
       // Why a Claude Code setting cannot be changed here, or that a running
       // session wrote it back: one sentence under its row, read and acted on.
       ".settings-row-said-quiet",
@@ -298,7 +439,6 @@ describe("what was migrated to the secondary tier", () => {
       ".radio-filter-back", ".radio-filter-field > span:nth-child(2)", ".radio-filter-heading .icon-btn", ".radio-filter-note",
       ".radio-filter-trigger", ".radio-filter-toggle", ".radio-tab-count",
       ".radio-source-heading > span", ".radio-source-heading > svg", ".radio-workspace-toggle > svg", ".radio-source-help",
-      ".radio-header h2 span",
       ".radio-header-note",
       ".radio-loading > .icon-btn",
       ".radio-map-heading > span",
@@ -313,30 +453,78 @@ describe("what was migrated to the secondary tier", () => {
       ".radio-station-code",
       ".radio-station-pick > span > span",
       ".radio-tuning > span",
+      // The board control bar's zoom level (V4 Board / Controls): a figure on
+      // a button, kept on this tier by the bar's bed (--panel), as V4 draws it.
+      ".react-flow__controls-button[data-zoom-level]",
       ".radio-tuning-tower",
       ".sa-why",
+      // CHANGED ON PURPOSE (V4's Figma): the machine panel's headings, meter-row
+      // labels and process row are set in --text-secondary, and a quota's
+      // partial-data note is 12/16 --text-secondary on --ctl-fill.
+      ".sd-door-name",
+      ".sd-gpu-name",
+      ".sd-h",
+      // A plain row's label is the meter row's label beside it, and Usage's
+      // row label, in the same tier: it was --muted, a step greyer than
+      // Physical and Swap for the same kind of word.
+      ".sd-plain-label",
+      ".sd-row-label",
+      ".up-quota-sub.up-quota-note",
+      // V4's status bar: who has the keys, in the one weight-500 label of a
+      // bar whose hints are --muted (V4's Figma prints it --text-secondary).
+      ".statusbar-who",
+      ".up-model-name",
+      ".up-period .uh-range-btn",
+      ".up-section-title",
+      ".up-session-label",
       // Gruvbox's spend figures (#2125 follow-up): a quantity, so neither the
       // success green the other themes give them nor the totals' --text. Read
       // down a column to compare sessions, which --muted is too quiet for.
-      ":root[data-theme^=\"gruvbox-\"] .uh-detail-cost",
-      // Material's waiting tool, by bed: --warn mixed toward its panel falls
-      // under AA there, and the name is what decides whether to get up.
-      ":root[data-theme=\"gruvbox-material\"] .session-list .sl-waiting-tool",
+      // CHANGED ON PURPOSE (V4's Figma): the history day's cost left this rule (it is the muted
+      // caption of its table), so the rule now ends on the session cost.
+      ":root[data-theme^=\"gruvbox-\"] .up-session-cost:not(.up-unpriced)",
       // The machine panel's process door: the one line that says what the door
       // opens, "every process, with its command line". --muted on the door's
       // plate measured 4.34:1 in dark (#859).
       ".sd-door-sub",
-      // And three lines of it in the session list.
-      ".session-list .sl-recap",
-      // And the status line in the same slot — what the session is doing,
-      // asking or got done — which is the same kind of sentence.
-      ".session-list .sl-status",
+      // Critique 3, point 10: a hovered reading's 6% band takes --muted to
+      // 4.15:1 in dark, so its notes and captions step up a tier while the
+      // band is there (a fault note keeps its --err).
+      ".sysdetail .sd-reading:hover :is(.sd-note:not(.sd-note-err), .sd-plain-note, .sd-fig-cap)",
+      // V4's attention rail (Figma Rail / Group header and Row): a group's label,
+      // the clock at a row's right edge and the tool a row names, all the one
+      // secondary tier the Figma file prints them in. The rail's old recap,
+      // status and plan lines left with the row; their full text is its tooltip.
+      ".session-list .sl-group-label",
+      // The last line of each rule that lifts the muted words a tier on a hovered
+      // or chosen row, where --muted is 4.05:1 in dark (#1789). The hover half
+      // stands alone now, under the mouse query, so it ends a line of its own.
+      // CHANGED ON PURPOSE (V4 top-10 #5): `.sl-model` ended those lines → `.sl-line2`
+      // does, because the row draws no model any more; the same lift, the same tier.
+      ".session-list .sl-row.selected .sl-line2",
+      ".session-list .sl-row:hover .sl-line2",
+      // CHANGED ON PURPOSE (#2591): the row draws its model again, on the meta
+      // line beside the clock, so the same lift ends a `.sl-model` line once more.
+      ".session-list .sl-row.selected .sl-model",
+      ".session-list .sl-row:hover .sl-model",
+      // A phone's Board (critique 3, point 7): a card's task or the question it
+      // waits on is the sentence read there, in the list row's tier; and the
+      // selected card lifts its muted words a tier, as the list's row does.
+      ".phone-board .pb-line",
+      ".phone-board .pb-card.selected .pb-meta",
+      // The words leading a removed row's second line, in the tool name's tier
+      // beside it: what pressing this row does differently.
+      ".session-list .sl-off",
+      ".session-list .sl-time.quiet",
+      ".session-list .sl-tool",
+      // Rail / Usage: "5-hour limit" beside the account's name, the one
+      // secondary-tier word on the meter's first line (V4's Figma).
+      ".session-list .sl-usage-what",
       // The agent's plan (#2157): its steps are sentences the agent wrote and a
-      // reader reads to know where the work stands — on the card's row, in the
-      // session list's line and in the detail panel's checklist. The counts
-      // beside them stay --muted, which is what they are.
+      // reader reads to know where the work stands — on the card's row and in
+      // the detail panel's checklist. The counts beside them stay --muted,
+      // which is what they are.
       ".agent-node .plan-row",
-      ".session-list .sl-plan",
       ".plan-item",
       // The Radar redesign adds explanatory text and neutral utility labels.
       ".empty-hero .film-action",
@@ -356,6 +544,10 @@ describe("what was migrated to the secondary tier", () => {
       ".ta-note",
       ".ta-search input::placeholder",
       ".ta-summary",
+      // CHANGED ON PURPOSE (the owner's phone layout): the phone's key row, whose
+      // caps (Esc, Tab, the arrows, Ctrl+C, Enter) are set in --text-secondary as
+      // the frame draws them, on a --bg-soft key: labels a thumb reads to choose a key.
+      ".ts-key",
       // Its Where the time went, by bed as well: a lane in the ring's legend is
       // raised on --ctl-fill while its level is open, with its time and what it
       // mostly was under the name, and the parts that are not a command — the
@@ -372,12 +564,40 @@ describe("what was migrated to the secondary tier", () => {
       ".ap-proj-loading > span",
       ".read-activity > span",
       ".su-loading > span",
-      ".uh-reading-hint",
-      ".uh-reading-note",
+      // CHANGED ON PURPOSE (V4's Figma): the data dialogs' own prose and labels sit
+      // in the second text step. The recap's opening prompt and its tool chips,
+      // the tool call's code boxes, heads and note, the JSON box, the feedback
+      // dialog's field labels, the quiet Add details row and the armed Discard,
+      // the context dialog's current-turn label and memory paths, the session
+      // usage dialog's section heads, reuse figure and dates, a day's table
+      // figures and cache counts, and the history chips. The wait's two lines
+      // (.uh-reading-note, .uh-reading-hint) moved to the muted step.
+      ".ctx-modal .ctx-md-path",
+      ".ctx-window-label",
+      ".fb-field-label",
+      ".fb-foot .btn.danger.armed",
+      ".fb-label",
+      ".fb-tool",
+      ".modal-section pre.tm-err",
+      ".session-summary .ss-prompt",
+      ".session-summary .ss-tt",
+      ".su-cache-reuse strong",
+      ".su-dates dd",
+      ".su-section-head h3",
+      ".tool-modal .modal-note",
+      ".tool-modal .modal-section h4, .session-summary .modal-section h4",
+      ".tool-modal .modal-section pre",
+      ".tr-json-box",
+      ".uh-day-table tbody td",
+      ".uh-ministat-val",
+      ".uh-toolbar .uh-range-btn",
       // Radar's telemetry inspection adds more of the same utility labels: the
       // highlight and evidence terms, the project context's heading, the prompt
       // filter, the JSON search and its placeholder on --ctl-fill, the JSON
       // tree's controls, and the history toolbar's line and buttons.
+      // The top bar's working and done counts (V4's Figma): the word after the
+      // figure is "text-secondary", 12/16 on --panel, the prose beside a number.
+      ".topbar .count-pill",
       ".tr-content-evidence dt",
       ".tr-highlights dt",
       ".tr-history-toolbar .btn",
@@ -421,8 +641,6 @@ describe("what was migrated to the secondary tier", () => {
       ".tr-tone-unknown",
       ".tr-variables dt > span, .tr-variables dt > code",
           // Readable descriptions in integration discovery and focused Settings.
-      ".explore-glyph",
-      ".explore-info p",
       ".explore-intro",
       ".explore-status",
       ".explore-text-action",
@@ -432,9 +650,55 @@ describe("what was migrated to the secondary tier", () => {
       ".ig-leave-confirm p",
       ".ig-managed-identity p",
       ".ig-overview-info",
-      ".ig-provider .ig-conn-line",
+      // CHANGED ON PURPOSE (V4's Figma): a tracker dialog's resize readout
+      // (its size while a drag or keyboard mode runs) and keyboard mode's line
+      // saying what the keys do are set in this tier, 11px mono.
+      ".ig-rs-keys-hint",
+      ".ig-rs-readout",
       ".ig-total",
+      // CHANGED ON PURPOSE (V4's Figma): Keyboard's field label, its key rows' sentences
+      // and the Note under a group are set in --text-secondary.
+      ".settings-filter-label",
+      ".settings-keys .settings-row-name",
+      ".settings-note",
       ".settings-row-details",
+      // The terminal stage. Its keys bar says in a sentence who has the
+      // keyboard — "Keys on the board", "Typing into paycore", the first-run
+      // line, "The session ended 14m ago. This is its last frame" — in
+      // V4's --muted on the bar's --panel, as the kit draws it (the bar
+      // itself left this list for that). CHANGED ON PURPOSE: Figma V4's
+      // Keys bar sets apart the board's label (.ts-label), the asks run's
+      // count, the answered session ("web-api resumed") and the ask note
+      // ("docs-site asks · Bash") in this tier, where the session's name in
+      // a sentence (.ts-who) used to be the one thing set apart; that span
+      // is gone. The header's sentence takes the
+      // tier for its state part ("working", "waiting 6m"), the tool and its
+      // argument after it staying --muted.
+      ".ts-arrival",
+      ".ts-count",
+      ".ts-label",
+      ".ts-meta-state",
+      // And its state cards: the one sentence that says why there is no pane
+      // (the deck's describeTarget, tmux missing, an error), and the note that
+      // answers a refused Reopen here in place. Prose read once and acted on.
+      ".ts-note",
+      ".ts-resumed",
+      ".ts-text",
+      // The engine card in the same place: the sentence that says where the
+      // terminal engine stands and what pressing the button will do (fetch,
+      // check, retry), and the steps of an install in progress — "Downloading",
+      // "Checking the signature" — read once to know how far it got. The step
+      // being done steps up to --text, the ones still to come down to --muted.
+      ".ts-eng-step",
+      ".ts-eng-text",
+      // The keys bar's sentences that ask nothing of the eye but are read whole:
+      // the end bar and the first-run line (V4 draws both in this tier, with
+      // one Quiet button at the right), and the older hosts dialog's intro and
+      // its "Ends" fact.
+      ".ts-end",
+      ".ts-first",
+      ".oh-intro",
+      ".oh-ends",
       // What's new: the sentence under each change, the always-visible notice
       // beside it, the one line that says which releases are shown (or that
       // this build has none), and the options menu's line about the last
@@ -444,6 +708,10 @@ describe("what was migrated to the secondary tier", () => {
       ".release-notes .rn-note-body",
       ".release-notes .rn-note-notice",
       ".rn-menu-status",
+      // V4's Quiet button: the kit draws a button's words in this tier at
+      // weight 500, a label to press rather than metadata, lifted to --text
+      // under the pointer. Its floors are held in v4-button.test.ts.
+      "button.btn",
     ].sort());
   });
 

@@ -35,7 +35,9 @@ const server = read("../../server/index.mjs") + "\n" + read("../../server/event-
 const quota = read("../../server/quota-shape.mjs");
 const selfUpdate = read("../../server/self-update.mjs");
 // The version chip moved to components/VersionChip.tsx; App.tsx and it are read as one.
-const app = read("../App.tsx") + "\n" + read("../components/VersionChip.tsx");
+// The plain version chip left the bar (V4's Figma); the "newer than the last
+// success" rule now lives with the Settings > Updates line (update-check.ts).
+const app = read("../App.tsx") + "\n" + read("../components/VersionChip.tsx") + "\n" + read("../update-check.ts");
 // The Claude quota section, which draws the top-up, was lifted out of UsagePanel.tsx.
 const quotaSections = read("../components/QuotaSections.tsx");
 // The quota reads, and the shapes their routes answer in, moved to use-quota.ts.
@@ -153,7 +155,7 @@ describe("the fields the server computed and the client dropped (#1046)", () => 
 
   it("only says it when the failure is newer than the last success", () => {
     // Otherwise it describes a problem that has already gone away.
-    expect(app).toMatch(/version\.checkFailedAt > \(version\.checkedAt \?\? 0\)/);
+    expect(app).toMatch(/\bv\.checkFailedAt > \(v\.checkedAt \?\? 0\)/);
   });
 
   it("declares the four pay-as-you-go fields the quota route spreads", () => {

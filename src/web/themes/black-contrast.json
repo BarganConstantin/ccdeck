@@ -8,7 +8,6 @@
   "extends": "dark",
   "tokens": {
     "node-grad": "var(--panel)",
-    "topbar-grad": "var(--panel)",
     "bg": "#000000",
     "bg-soft": "#080808",
     "panel": "#101010",
@@ -25,14 +24,10 @@
     "sm-edge": "#919191",
     "chrome-bg": "#101010",
     "chrome-edge": "#858585",
-    "conn-wash": "#fca5a518",
     "burst-live-wash": "#f0abfc12",
     "hero-core": "#76cfff",
     "grid-line": "#242424",
-    "minimap-mask": "rgba(0, 0, 0, .85)",
-    "session-label-l": "85%",
-    "session-accent-l": "80%",
-    "session-edge-idle-l": "74%"
+    "minimap-mask": "rgba(0, 0, 0, .85)"
   },
   "selection": {
     "background": "#ffffff",

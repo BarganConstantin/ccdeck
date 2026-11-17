@@ -91,10 +91,13 @@ describe("Settings › Notifications, drawn", () => {
     expect(state(html, "notifyQuota")).toBe("false");
     expect(state(html, "notifyReset")).toBe("true");
     expect(state(html, "notifyStopped")).toBe("false");
-    expect(html).toContain('id="sm-notifySwap-label">Account auto-switched<');
+    // CHANGED ON PURPOSE (V4's Figma): three rows are named as V4 names them
+    // (Account switched, Quota back, Sessions stopped by a login or a limit);
+    // the notifications, their order and their notes are the same.
+    expect(html).toContain('id="sm-notifySwap-label">Account switched<');
     expect(html).toContain('id="sm-notifyQuota-label">Quota at 90% and 100%<');
-    expect(html).toContain('id="sm-notifyReset-label">Quota reset<');
-    expect(html).toContain('id="sm-notifyStopped-label">Sessions stopped on login or limit<');
+    expect(html).toContain('id="sm-notifyReset-label">Quota back<');
+    expect(html).toContain('id="sm-notifyStopped-label">Sessions stopped by a login or a limit<');
     expect(html).not.toContain("Login active on another deck");
     expect(html).toContain("For the Claude and Codex accounts you&#x27;re on, whether or not the deck is open.");
   });

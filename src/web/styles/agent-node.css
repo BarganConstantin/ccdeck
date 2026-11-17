@@ -1,53 +1,84 @@
 /* ---------------- agent node ---------------- */
 
-/* The node's --accent is the session's hue, so everything inside it that reads
-   var(--accent) — the stripe, the selected ring, the active spark bar, the
-   token and spawn counts — recolours per session. AgentNode used to hand the
-   whole colour down; it hands down --session-hue now and the tier is the
-   cascade's. The rest of the app keeps the palette's own --accent: this
-   declaration is scoped to the node and inherits no further than its subtree. */
+/* NO COLOUR OF ITS OWN (V4 top-10 #1). The node's --accent was its session's
+   hue, a hash of the session id, so the card's rings and its land flash wore
+   a colour that said nothing. They read the palette's own --accent now, as
+   every other control does; colour on the board means state only. */
 .agent-node {
-  --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
   position: relative;
-  width: calc(260px + var(--ui-card-increase, 0px));
+  /* V4's Agent / Card: 256 wide, a column with a 2px gap, 8px above and below
+     at Compact (--ui-space 0.7, Figma's frame), growing with the density:
+     8 + (space - 0.7) * 20/3 gives 5.33 Tightest, 6.67 Tighter, 8 Compact,
+     10 Default (what the card has always had), 12.67 Comfortable. 10px at the
+     sides. Figma draws the 1px edge inside those, so the padding is each less
+     1px and the card is V4's 70 (88 with an ask or a failure) with its edge.
+     Solid --panel, no shadow at rest and no session stripe. The edge is
+     --line, and --warn only while the card waits on you.
+     The gradient fill is gone from the detail face (the LOD faces keep it). */
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: calc(256px + var(--ui-card-increase, 0px));
   min-width: calc(220px + var(--ui-card-increase, 0px));
-  max-width: calc(260px + var(--ui-card-increase, 0px));
-  padding: calc(10px * var(--ui-space, 1)) 12px calc(10px * var(--ui-space, 1)) 16px;
-  background: var(--node-grad);
+  max-width: calc(256px + var(--ui-card-increase, 0px));
+  padding: calc(8px + (var(--ui-space, 1) - 0.7) * 20px / 3 - 1px) calc(10px - 1px);
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-node);
   color: var(--text);
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  box-shadow: var(--shadow-1);
-  transition: border-color 200ms ease, box-shadow 200ms ease;
+  box-shadow: none;
+  /* A border or a plate changing colour is a colour change, Fast; the card
+     itself only ever animates transform and opacity (V4's motion rule 4), and
+     those two are its join (below) and its leaving (search-and-banners.css).
+     No box-shadow in the list: the selected card's lift lands at once. */
+  transition: border-color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease),
+              opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
   overflow: hidden;
 }
-.agent-node:hover { box-shadow: var(--shadow-2); }
-
-.agent-node.state-active {
-  border-color: var(--inflight);
-  /* THE BORDER ALREADY SAYS IT. This carried a 1px ring and a 22px coloured
-     glow on top of a full hue inversion of the card's outline — three of the
-     twelve channels that were all saying the one word `running`, and the two
-     that made the card a lamp. A hue swap from --line to --inflight on the
-     outline is not subtle; it does not need lighting.
-
-     AND IT SAYS IT WITHOUT A box-shadow OF ITS OWN. Taking the glow away was
-     written as a reset to `var(--shadow-1)` — byte-identical to the base rule
-     above, so it changed nothing about the resting card and its only remaining
-     effect was to outrank `.agent-node:hover`, which is (0,2,0) and earlier.
-     Measured in Firefox on the real sheet, dark theme, hovered:
-
-       .agent-node.state-active -> rgba(0,0,0,0.25) 0 6px 18px   (--shadow-1, the RESTING value)
-       .agent-node.state-done   -> rgba(0,0,0,0.32) 0 10px 24px  (--shadow-2, the lift)
-
-     so on a board with one running session and three finished ones, the three
-     finished cards lifted under the pointer and the running one — the card you
-     are most likely to point at — did not. The base supplies --shadow-1 and
-     the hover supplies --shadow-2; this rule needs to say neither. */
+/* A SESSION JOINS (V4's motion spec, Board): opacity and scale 0.96 to 1, Base,
+   from the place it lands, no blur. A transition from @starting-style, so it is
+   only ever a card that mounts while the board is live (`data-live`, set once
+   the log has replayed and the cards have settled): the cards of a board that is
+   opening are already there, and first paint is still. Its neighbours' move is
+   the outer element's (react-flow.css, Slow on the stage curve). */
+@starting-style {
+  .canvas-wrap[data-live] .react-flow__node .agent-node { opacity: 0; transform: scale(var(--enter-scale)); }
 }
-.agent-node.state-done { border-color: rgba(134,239,172,0.5); }
-.agent-node.state-err { border-color: rgba(252,165,165,0.6); }
+/* LAND (V4's motion spec): n, a notification or ⌘K that goes to a session. The
+   card takes --accent at 16% and lets it go over Base, once (card-land.ts sets
+   and clears `data-land`). A colour, so it is the same under reduced motion. */
+.agent-node::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-base) var(--ease);
+}
+.agent-node[data-land]::after { opacity: 1; transition: none; }
+@media (hover: hover) and (pointer: fine) {
+/* Flat under the pointer too (V4's card has no shadow, lifted or not): the
+   plate takes the tint the faces at a distance and the recap note take. */
+.agent-node:hover { background: color-mix(in srgb, var(--text) 6%, var(--panel)); }
+}
+
+/* The rows Figma does not draw (continued, approval, plan) share ONE top
+   spacing, on top of the column's 2px gap, so the card's rhythm is even: 4px,
+   scaled by the density like the vertical padding. The rows carry no margin of
+   their own. The ask row (waiting, and a stop with its reason) is drawn: it sits
+   on the column's 2px gap alone, which is what makes the card 88 tall. */
+.agent-node :is(.continued-row, .approval-blind-row, .plan-row) {
+  margin-top: calc(4px * var(--ui-space, 1));
+}
+
+/* No border colour per state: Working, Done, Failed and Idle all keep --line
+   (V4's Agent / Card). The state is the word and its glyph. */
+/* Blocked on a human, the one state with an edge of its own: --warn, the
+   colour of its word and its ask line (V4's Agent / Card, State Waiting). */
+.agent-node[data-alarm] { border-color: var(--warn); }
 
 
 /* SELECTION HAS TO OUTRANK THE STATE, and it used to sit ABOVE these three
@@ -57,18 +88,19 @@
    is a channel no state uses: it sits outside the border box, so it composes
    with whatever colour the state put there instead of overwriting it, costs no
    layout, and survives a zoom level at which a 1px border swapping hue does
-   not. The ring is the session's own colour — it read --accent-dim, the global
-   sky blue, so a selected node in a magenta session drew a blue halo.
+   not. The ring is the deck's --accent, the colour of selection everywhere
+   (it wore the session's hue until V4 top-10 #1).
 
    AND IT IS READ OFF THE WRAPPER. This was `.agent-node.selected`, from React
    Flow's `selected` prop, which is never true on a canvas whose `nodes` are
    controlled — so for as long as it was written that way it matched nothing,
    and a selected card looked exactly like the others. snapshotToFlow marks the
-   selected cards' wrappers with `rf-selected`, as it marks rf-exiting. */
+   selected cards' wrappers with `rf-selected`, as it marks rf-exiting.
+
+   The ring alone, with no shadow: V4's cards carry none, selected or not. */
 .react-flow__node.rf-selected .agent-node {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  box-shadow: var(--shadow-2);
 }
 
 /* A CARD REACHED BY TAB draws the same ring (#869). Every card is a tab stop,
@@ -77,11 +109,12 @@
    `.react-flow__node.selectable:focus-visible { outline: none }` at (0,3,0),
    beating `:focus-visible` at (0,1,0) — and nothing selects a card on focus,
    so `.rf-selected` above never stands in for it. The ring goes on the card, like
-   selection's, because the card is the box with the radius and the session's
-   own --accent. Focus without selection still reads apart: no lift. */
-.react-flow__node:focus-visible .agent-node {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+   selection's, because the card is the box with the radius. Focus without selection still reads apart: an inset ring of
+   the focus width. A selected card keeps its selection ring (same wrapper
+   carries both). */
+.react-flow__node:focus-visible:not(.rf-selected) .agent-node {
+  outline: var(--focus-w) solid var(--accent);
+  outline-offset: calc(-1 * var(--focus-w));
 }
 
 /* React Flow still renders its stock keyboard instructions into the page
@@ -115,7 +148,7 @@
   visibility: hidden;
 }
 /* The card's own chrome is drawn in layout units, so at 0.3 its 1px border is
-   a third of a pixel and its 10px radius is three. The face draws the chrome
+   a third of a pixel and its 8px radius under three. The face draws the chrome
    instead, in screen pixels, and the card underneath lets go of its own. Its
    ring is MOVED rather than removed: the selection's and the keyboard's ring
    are drawn on the face below at 2px on screen, so the card's layout-unit
@@ -159,39 +192,36 @@
   overflow: hidden;
   padding: 5px 8px 5px 10px;
   background: var(--node-grad);
-  border: 1px solid var(--lod-alarm, var(--lod-edge, var(--line)));
-  border-radius: 6px;
+  border: 1px solid var(--lod-alarm, var(--lod-ready, var(--lod-edge, var(--line))));
+  border-radius: var(--r-panel);
   color: var(--text);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: calc(14px + var(--ui-text-increase, 0px));
 }
-/* The session's stripe, at the width the card's reads at 1× less a pixel —
-   the same mark in the same hue, so the face is recognisably the card. */
-.lod-face::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--accent);
-  opacity: 0.7;
-}
-/* The state's edge, on a variable rather than on `border-color`, and the one
-   state that must win — blocked on a human — on a variable of its own that the
-   border reads first. Neither competes with the face's `border` shorthand or
-   with the other theme's twin on specificity; the order is in the var() chain.
-   The state values are the card's own, theme for theme. */
+/* ONE FRAME, AND ITS COLOUR IS A STATE (V4 top-10 #1). No session stripe:
+   the face wore its session's hashed hue down its left edge, a second frame
+   whose colour meant nothing. The state's edge is on a variable rather than on
+   `border-color`, and the one state that must win — blocked on a human — on a
+   variable of its own that the border reads first. Neither competes with the
+   face's `border` shorthand or with the other theme's twin on specificity; the
+   order is in the var() chain. Working and Failed have an edge of their own;
+   Done keeps --line. CHANGED ON PURPOSE (V4 top-10 #1): Done drew a green
+   edge, and most cards on a board are done, so green on all of them was noise
+   and the cards that need a look had nothing to stand out from. */
 .agent-node.state-active > .lod-face { --lod-edge: var(--inflight); }
-.agent-node.state-done > .lod-face { --lod-edge: rgba(134,239,172,0.5); }
 .agent-node.state-err > .lod-face { --lod-edge: rgba(252,165,165,0.6); }
 :root[data-color-scheme="light"] .agent-node.state-active > .lod-face { --lod-edge: rgba(126,34,206,0.65); }
-:root[data-color-scheme="light"] .agent-node.state-done > .lod-face { --lod-edge: var(--ok); }
 :root[data-color-scheme="light"] .agent-node.state-err > .lod-face { --lod-edge: var(--err); }
 .lod-face[data-alarm] { --lod-alarm: var(--warn); padding-inline: 6px; }
+/* Ready for a first prompt: the reducer calls it active, so the rules above
+   give it Working's edge. Its own variable, read before the state's, gives it
+   the quiet one in every theme, the hollow ring's colour beside the word. */
+.agent-node.ready > .lod-face { --lod-ready: color-mix(in srgb, var(--muted) 60%, transparent); }
 .agent-node.synthetic > .lod-face { border-style: dashed; }
+@media (hover: hover) and (pointer: fine) {
 .react-flow__node:hover .lod-face {
   background: color-mix(in srgb, var(--text) 6%, var(--panel));
+}
 }
 /* Selection and the keyboard's ring move to the face with the chrome — the
    card's own outline is 2px of layout, which at a distance is a hairline. No
@@ -202,13 +232,84 @@
   outline-offset: 2px;
 }
 .react-flow__node:focus-visible .lod-face {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: var(--focus-w) solid var(--accent);
+  outline-offset: calc(-1 * var(--focus-w));
 }
 
-/* The lines. The name leads at the card's own 12px weight; the title and the
-   signal are the 11px tier under it, the title in the secondary ink and the
-   signal in whatever its tone says. Each ellipsises on its own line. */
+/* A CARD'S FACE: one task line and its status (owner's critique, 2026-11-11),
+   the same at compact and overview. The cluster's label names the session.
+
+   One line by default: the mark, the task, the word. The row is one line tall,
+   wraps, and clips what wraps. The task keeps at least half of it, so a word
+   with no room left beside the task wraps to the clipped line, whole or not at
+   all, and the mark says the state alone, by its shape and its colour. The row
+   never shrinks: a fitted phone board draws faces 14 high, whose content box is
+   6, and the line stands centred over the padding inside the edge. */
+.lod-line {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: flex-start;
+  column-gap: 6px;
+  min-width: 0;
+  height: calc(14px + var(--ui-text-increase, 0px));
+  overflow: hidden;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+}
+.lod-line > .state-mark,
+.lod-line > .alert-mark { flex: none; width: 12px; height: 12px; margin-left: 0; }
+.lod-name {
+  flex: 1 1 0;
+  min-width: 50%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+/* A value, so it is drawn whole or not at all. */
+.lod-state { flex: none; white-space: nowrap; }
+.lod-line[data-status="waiting"] .lod-state { color: var(--warn); }
+.lod-line[data-status="partial"] .lod-state { color: var(--warn); }
+.lod-line[data-status="err"] .lod-state { color: var(--err); }
+/* When it started, only on a card that reads like another (twinClocks): a
+   value, whole or not at all, in the UI face with tabular figures. CHANGED ON
+   PURPOSE (V4 top-10 #2): it was mono, which is for paths, commands and keys;
+   a clock is a figure. */
+.lod-start {
+  flex: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+/* Below 40% (FAR_ZOOM) the face is a pill under a hundred pixels wide (V4's
+   Figma): the start of its task line at the left, cut with an ellipsis, and
+   the mark at the right, on one line at any face height. The word goes to the
+   peek. CHANGED ON PURPOSE (owner's critique, round 3): the pill said the
+   card's label, which for a root is the folder its session's tag says right
+   above it ("ccdeck" under "CCDECK"). The auto-fit stops at 40% now
+   (fit-board.ts); only Fit all and the zoom buttons bring the board here. */
+.canvas-wrap[data-far] .agent-node .lod-state { display: none; }
+.canvas-wrap[data-far] .agent-node .lod-start { display: none; }
+.canvas-wrap[data-far] .agent-node .lod-line {
+  flex-direction: row-reverse;
+  height: calc(14px + var(--ui-text-increase, 0px));
+}
+.canvas-wrap[data-far] .agent-node .lod-name {
+  order: 0;
+  flex: 1 1 0;
+  min-width: 0;
+}
+/* Room for two lines (28px of content): the task on a line of its own, the
+   mark and the word under it, and a look-alike's start time after the word. */
+@container lod (min-height: 28px) {
+  .lod-line { height: calc(2 * (14px + var(--ui-text-increase, 0px))); }
+  .lod-name { order: -1; flex-basis: 100%; }
+  .lod-start { order: 1; }
+}
+
+/* A session note's face (RecapNoteNode): its mark row at the card's 12px weight. */
 .lod-id {
   display: flex;
   align-items: center;
@@ -218,72 +319,26 @@
   font-weight: 600;
   line-height: calc(15px + var(--ui-text-increase, 0px));
 }
-.lod-name,
-.lod-inline,
-.lod-title,
-.lod-signal {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.lod-name { flex: 1 1 auto; }
-.lod-inline { display: none; flex: 1 1 auto; font-weight: 600; }
-/* The title in the voice the card's own session-name row uses for it. */
-.lod-title {
-  font-family: var(--font-mono);
-  color: var(--text);
-}
-.lod-signal { color: var(--muted); }
-.lod-short { display: none; }
-.lod-face [data-tone="warn"] { color: var(--warn); }
-.lod-face [data-tone="err"] { color: var(--err); }
-.lod-face [data-tone="idle"] { color: var(--accent); }
 .state-mark { flex: none; }
+/* The recap's ※ and the dot that stands in for it keep their size in a flex row. */
+.recap-glyph { flex: none; }
+.state-mark[data-kind="idle"] { color: var(--muted); }
 .state-mark[data-kind="live"] { color: var(--inflight); }
 .state-mark[data-kind="done"] { color: var(--ok); }
+/* A turn that finished with failed calls reads as a warning: the tick and the
+   dot at its corner both in the warning's ink, one mark (V4 top-10 #9). It was
+   done's green tick with a --warn dot, a success mark beside "1 failed". The
+   dot's own rule keeps it --warn on every surface that draws the glyph, the
+   Inspector's head and the command menu as well as a .state-mark. */
+.state-mark[data-kind="partial"] { color: var(--warn); }
+.state-mark .kit-warn,
+.kit-warn { fill: var(--warn); }
 .state-mark[data-kind="err"] { color: var(--err); }
 .alert-mark { flex: none; margin-left: auto; color: var(--warn); }
 
-/* OVERVIEW is a smaller face with less in it: one line of 11px, a second only
-   where the card is tall enough, no title, and the short form of the signal. */
+/* OVERVIEW is the same face with less padding round it. */
 .canvas-wrap[data-lod="overview"] .lod-face { padding: 3px 6px 3px 8px; gap: 1px; }
 .canvas-wrap[data-lod="overview"] .lod-id { font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); }
-.canvas-wrap[data-lod="overview"] .lod-title,
-.canvas-wrap[data-lod="overview"] .lod-long { display: none; }
-.canvas-wrap[data-lod="overview"] .lod-short { display: inline; }
-
-/* Read off the face's content box: three lines need 47px of it, and below 57
-   the title is the first to go, so a third line never sits against the edge —
-   but only from a face that has a signal to keep. A card with nothing to say
-   under its name keeps its title on the second line. */
-@container lod (max-height: 56px) {
-  .lod-face[data-signal] .lod-title { display: none; }
-}
-/* One line only. A root card gives its line to the signal rather than its
-   name, because the name is already on the cluster's label at 1×, directly
-   above it — and "Needs you" or "→ 5 · 3 live" is the thing the overview is
-   for. A subagent keeps its name: it has no label above it. */
-@container lod (max-height: 36px) {
-  .lod-id { gap: 4px; }
-  .lod-inline { font-size: calc(11px + var(--ui-text-increase, 0px)); }
-  .lod-id .alert-mark { margin-left: 0; }
-  .lod-signal,
-  .lod-title { display: none; }
-  .lod-face[data-kind="root"][data-signal] .lod-name { display: none; }
-  .lod-face[data-kind="root"][data-signal] .lod-inline { display: block; }
-}
-/* Narrower than a mark and a short word: the mark alone, centred. Nothing is
-   truncated to three letters — the peek beside the pointer has the name, and
-   the shape of the branch is what reads at this size. */
-@container lod (max-width: 72px) {
-  .lod-name,
-  .lod-inline,
-  .lod-signal { display: none; }
-  .lod-face[data-kind="root"][data-signal] .lod-inline { display: none; }
-  .lod-id { justify-content: center; }
-  .alert-mark { margin-left: 0; }
-}
 
 /* Parent-to-child edges hold a readable stroke at a distance. Each edge's own
    width — live, settled, selected — is multiplied by `--edge-k` inline (see
@@ -291,12 +346,11 @@
    scale is the mode's: about 1.3px and up on screen instead of half of one. */
 .canvas-wrap[data-lod="compact"] { --edge-k: max(1, calc(0.9 / var(--zoom, 1))); }
 .canvas-wrap[data-lod="overview"] { --edge-k: calc(0.85 / var(--zoom, 1)); }
-/* And without the width's 200ms ease: the width now follows the zoom, so it
-   changes on every frame of a gesture, and an ease restarted on every edge on
-   every frame is a lag and a cost with nothing to show for either. The fade on
-   opacity, which is what a selection or an exit actually animates, stays. */
-.canvas-wrap[data-lod="compact"],
-.canvas-wrap[data-lod="overview"] { --edge-transition: opacity 500ms ease; }
+/* An edge animates its opacity and nothing else (V4's motion rule 4): a
+   selection or an exit is a fade in Base (an exit in Exit, set inline), and
+   the stroke width takes its new value at once, at every distance and under
+   reduced motion, as it always did while the zoom moves it every frame. */
+.canvas-wrap { --edge-transition: opacity var(--dur-base) var(--ease); }
 
 /* The bubbles are a second view of the tool list and the densest thing on the
    canvas; below the full card they are 5px pills with nothing readable in them.
@@ -310,18 +364,15 @@
   visibility: hidden;
 }
 
-.agent-node .accent-stripe {
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 4px;
-  background: var(--accent);
-  opacity: 0.7;
-}
+/* THE HEAD (V4): who on the left — the name — and the state on the right, its
+   one circle. No model (V4 top-10 #2): the Inspector says it. The context ring
+   is the foot's (context-modal.css). */
 .agent-node .head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
 }
 .agent-node .head-right {
   flex: none;
@@ -329,23 +380,146 @@
   align-items: center;
   gap: 6px;
 }
+/* The state: the face's mark at 14px, then the word, both in the state's own
+   token. The mark takes the colour from its data-kind (the faces' rule) and the
+   alert triangle from its own; the word is set here so a state has one place
+   that names its token. A session blocked on you is --warn: alarming. */
+.agent-node .state-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  white-space: nowrap;
+}
+.agent-node .state-line .state-mark,
+.agent-node .state-line .alert-mark { width: 14px; height: 14px; margin-left: 0; }
+.agent-node .state-line[data-tone="active"] .state-word { color: var(--inflight); }
+.agent-node .state-line[data-tone="done"] .state-word { color: var(--ok); }
+/* Finished with failed calls: one warning, the mark, "Done" and the count all
+   in the warning's ink (V4 top-10 #9; "Done" was done's green). */
+.agent-node .state-line[data-tone="partial"] .state-word { color: var(--warn); }
+.agent-node .state-line[data-tone="partial"] .state-failed { color: var(--warn); }
+.agent-node .state-line[data-tone="err"] .state-word { color: var(--err); }
+.agent-node .state-line[data-tone="waiting"] .state-word { color: var(--warn); }
+/* Ready for a first prompt: quiet, in the --muted its hollow ring is drawn in
+   (.state-mark[data-kind="idle"]). Nothing is at work and nothing is asked. */
+.agent-node .state-line[data-tone="ready"] .state-word { color: var(--muted); }
+.agent-node .state-line[data-tone="done"] .state-mark { color: var(--ok); }
+.agent-node .state-line[data-tone="partial"] .state-mark { color: var(--warn); }
+.agent-node .state-line[data-tone="err"] .state-mark { color: var(--err); }
+.agent-node .state-line[data-tone="waiting"] .state-mark { color: var(--warn); }
+/* Working breathes on the deck's one live tempo; Waiting does not pulse — its
+   row below carries the ping. The mark is a shape as well as a colour, so the
+   state never depends on this motion (state-channels). */
+.agent-node .state-line[data-tone="active"] .state-mark {
+  color: var(--inflight);
+  animation: pulse var(--pulse-live) infinite;
+}
+/* The context ring and its percent, "◔ 17%", right after the foot's token
+   figure: a 14px ring and the figure in the foot's own 11/14 ink, so the
+   button takes its type from the row it sits in. */
 .ctx-donut {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   background: transparent;
   border: none;
   padding: 0;
   cursor: pointer;
-  line-height: 0;
-  border-radius: 50%;
-  transition: filter 120ms ease, transform 120ms ease;
+  font: inherit;
+  color: inherit;
+  border-radius: var(--r-pill);
+  transition: transform var(--dur-fast) var(--ease);
 }
+.ctx-donut svg { flex: none; }
+.ctx-donut-pct { font-variant-numeric: tabular-nums; }
+@media (hover: hover) and (pointer: fine) {
 .ctx-donut:hover { filter: brightness(1.2); transform: scale(1.08); }
+}
 /* After the hover, not before it: the two tie on specificity and a press is
    always a hover as well, so source order is the whole of what decides which
-   scale the pointer sees. 26px of donut, so 0.94 like the other icon targets —
-   0.97 of 26px is under a pixel. */
-.ctx-donut:active { transform: scale(0.94); }
-.ctx-donut:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+   scale the pointer sees. A small target, so 0.94 like the other icon targets. */
+.ctx-donut:active { transform: scale(var(--press-small)); }
+/* ITS TARGET ON SCREEN (WCAG 2.5.8). The ring and its figure are 14px tall in
+   the card, and the card is drawn at the canvas's zoom. An invisible box makes
+   up the difference: 24px / --zoom (written on the canvas,
+   use-canvas-viewport.ts) wide and tall, centred on the button, so it is at
+   least 24 on screen at every zoom the full card is drawn at. It reaches into
+   the card's bottom padding, and under the compact face the foot is gone. */
+.ctx-donut::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, calc(24px / var(--zoom, 1)));
+  height: max(100%, calc(24px / var(--zoom, 1)));
+  transform: translate(-50%, -50%);
 }
 
+
+/* THE COST TOOLTIP (V4): 320 wide on --panel with a --line edge and the
+   overlay's radius and shadow; 12px inside, 8px between its blocks. 11/14 in
+   the sans with tabular figures throughout; each row is 18 tall, the label on the left in --muted and the
+   value on the right in --text, 16px apart. Portalled to the body
+   (CostChipTip), so it sits outside the card and its clip. */
+.cost-tip {
+  position: fixed;
+  z-index: 40;
+  box-sizing: border-box;
+  width: 320px;
+  max-width: calc(100vw - 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-overlay);
+  box-shadow: var(--shadow-overlay);
+  color: var(--text);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+  pointer-events: none;
+}
+/* V4's tooltip motion, the deck's hint (hint.css) applied to this one: after
+   the 450 wait it comes with opacity and 4px, Fast, from @starting-style so a
+   tip raised twice turns round from where it is; the next tooltip along comes
+   at once (`data-instant`); it goes after a 100ms grace, at once. */
+.cost-tip { transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+@starting-style {
+  .cost-tip { opacity: 0; transform: translateY(-4px); }
+}
+.cost-tip[data-instant] { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .cost-tip { transition: opacity var(--dur-fast) var(--ease); }
+  @starting-style {
+    .cost-tip { transform: none; }
+  }
+}
+.cost-tip-title, .cost-tip-row { font-family: var(--font-sans); font-variant-numeric: tabular-nums; }
+.cost-tip-section { display: flex; flex-direction: column; gap: 8px; }
+.cost-tip-title { color: var(--text-secondary); overflow-wrap: anywhere; }
+.cost-tip-rows { display: flex; flex-direction: column; }
+.cost-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 18px;
+}
+/* The tip is 320 wide, and a label spelled out in full ("citire din cache",
+   "Cache geschrieben 5m") beside a long multiplication does not fit it: the
+   label wraps between its words and the sum stays one line, rather than the
+   sum breaking at its × or =. */
+.cost-tip-label { min-width: 0; color: var(--muted); overflow-wrap: anywhere; }
+.cost-tip-value { flex: none; margin-left: auto; color: var(--text); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cost-tip-rule { margin: 0; border: 0; border-top: 1px solid var(--line-soft); height: 0; }
+/* The no-rate variant: the model line, then the sentence in the sans stack. */
+.cost-tip-norate {
+  margin: 0;
+  color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}

@@ -63,9 +63,15 @@ function memo<T>(make: () => T, deps: Deps): T {
   return s.value;
 }
 
+let nextId = 1;
+
 export const react = {
   useRef<T>(init: T) {
     return slot(() => ({ current: init }));
+  },
+  /** A stable id per call site, like React's `:r1:`. */
+  useId() {
+    return slot(() => `:r${nextId++}:`);
   },
   useState<T>(init: T | (() => T)) {
     const inst = current;
@@ -90,9 +96,31 @@ export const react = {
   useLayoutEffect(run: () => void | (() => void), deps?: readonly unknown[]) { effect(true, run, deps); },
   useCallback<F>(fn: F, deps: readonly unknown[]) { return memo(() => fn, deps); },
   useMemo<T>(make: () => T, deps: readonly unknown[]) { return memo(make, deps); },
-  // A store outside React, read as it stands at each render. No test flips one
-  // mid-render, so there is nothing for a subscription to hear.
-  useSyncExternalStore<T>(_subscribe: (onChange: () => void) => () => void, snapshot: () => T) { return snapshot(); },
+  /** A store outside React (feedback-unread.ts): read on every render, and a
+   *  change it announces renders again. */
+  useSyncExternalStore<T>(subscribe: (onChange: () => void) => () => void, getSnapshot: () => T) {
+    const inst = current;
+    if (!inst) throw new Error("a hook was called outside a render");
+    effect(false, () => subscribe(() => { inst.dirty = true; inst.update(); }), [subscribe]);
+    return getSnapshot();
+  },
+  // What a module the dialogs import declares with React at load time — a
+  // lazy chunk, an error boundary, a Suspense round it — none of which this
+  // React draws, since it renders no child component.
+  lazy(_load: () => Promise<unknown>) { return function Lazy() { return null; }; },
+  Component: class Component<P = unknown, S = unknown> {
+    props: P;
+    state = {} as S;
+    constructor(props: P) { this.props = props; }
+    setState(_next: Partial<S>) {}
+  },
+  Suspense({ children }: { children?: unknown }) { return children ?? null; },
+  // Dialog.tsx's presence context: no provider runs here, so a read gives the
+  // default (a dialog that is not leaving).
+  createContext<T>(value: T) {
+    return { _default: value, Provider({ children }: { children?: unknown }) { return children ?? null; } };
+  },
+  useContext<T>(context: { _default: T }) { return context._default; },
   // A component that takes a ref: called plainly, with no ref to hand over.
   forwardRef<P>(render: (props: P, ref: null) => unknown) { return (props: P) => render(props, null); },
 };
@@ -102,6 +130,33 @@ export interface Drawn {
   type: unknown;
   props: Record<string, unknown> & { children?: unknown };
   ref?: unknown;
+}
+
+/** The dialog shell's two components draw nothing but the scrim and the
+ *  surface, with no state of their own: this React draws no child component, so
+ *  they are drawn in place, and a test sees the markup the browser would (the
+ *  `modal-backdrop` with its handlers, the `modal` with its ref and role).
+ *  V4's Checkbox is the same kind of thing — a real `input` with every prop it
+ *  was given, plus the tick's picture — so a dialog's checkbox is pressed where
+ *  the browser would press it. */
+const SHELL = new Set(["Dialog", "DialogScrim", "Checkbox"]);
+/** DialogPresence is transparent while its dialog is open: what it draws is
+ *  what its callback returns (it stays mounted when closed only to let the
+ *  dialog leave, which this React has no time for). */
+const PRESENCE = "DialogPresence";
+function expandShell(n: unknown): unknown {
+  if (Array.isArray(n)) return n.map(expandShell);
+  if (!n || typeof n !== "object" || !("props" in n)) return n;
+  const el = n as Drawn;
+  if (typeof el.type === "function" && SHELL.has((el.type as { name: string }).name)) {
+    return expandShell((el.type as (p: unknown) => unknown)(el.props));
+  }
+  if (typeof el.type === "function" && (el.type as { name: string }).name === PRESENCE) {
+    const { when, children } = el.props as unknown as { when: unknown; children: (v: unknown) => unknown };
+    return when ? expandShell(children(when)) : null;
+  }
+  if (el.props.children === undefined) return n;
+  return { ...el, props: { ...el.props, children: expandShell(el.props.children) } };
 }
 
 /**
@@ -141,7 +196,7 @@ export function mount<P>(
     inst.effectCursor = 0;
     inst.queued = [];
     current = inst;
-    try { tree = component(shown); } finally { current = null; }
+    try { tree = expandShell(component(shown)); } finally { current = null; }
     opts.commit?.(tree);
     const order = [...inst.queued.filter(q => q.layout), ...inst.queued.filter(q => !q.layout)];
     for (const q of order) {

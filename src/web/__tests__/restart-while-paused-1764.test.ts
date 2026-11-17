@@ -146,14 +146,19 @@ describe("restartSafety — the button on a paused canvas", () => {
   it("does not say nothing is running when the canvas cannot see", () => {
     const paused = restartSafety(0, true);
     expect(paused.label).toBe("Restart anyway");
-    expect(paused.clause).not.toMatch(/nothing is running/);
+    // CHANGED ON PURPOSE (V4's Figma): the clauses are sentences, so they
+    // start with a capital; the claim is read case-blind.
+    expect(paused.clause).not.toMatch(/nothing is running/i);
     expect(paused.clause).toMatch(/paused/);
+    // It cannot tell, so the banner takes the Waiting tone as it would for a
+    // running agent.
+    expect(paused.risky).toBe(true);
   });
 
   it("still names what it can see, and is unchanged when not paused", () => {
-    expect(restartSafety(2, true).clause).toBe("2 agents are running — their events during the restart are lost");
-    expect(restartSafety(0, false)).toEqual({ label: "Restart now", clause: "nothing is running" });
-    expect(restartSafety(0)).toEqual({ label: "Restart now", clause: "nothing is running" });
+    expect(restartSafety(2, true).clause).toBe("2 agents are running: their events during the restart are lost.");
+    expect(restartSafety(0, false)).toEqual({ label: "Restart now", clause: "Nothing is running.", risky: false });
+    expect(restartSafety(0)).toEqual({ label: "Restart now", clause: "Nothing is running.", risky: false });
   });
 });
 
@@ -220,22 +225,37 @@ describe("useAutoRestart — a paused canvas and a turn sent from the terminal",
     return { view, deliver, tick };
   }
 
-  it("asks the server for a restart only when idle, and takes its no", async () => {
+  // CHANGED ON PURPOSE (#2591): this case paused the canvas, sent a turn the
+  // pause hid, and read the page asking an idle-only restart → the deck's gate
+  // never pauses now (the owner withdrew Board pause), so a legacy toggle hides
+  // no turn: the page sees it running and asks nothing. The rule the case also
+  // held, that an automatic ask is idle-only and takes the server's no, is
+  // kept in the case after it, on a quiet page whose turn the server alone heard.
+  it("hides no turn behind a legacy pause toggle, so a running turn asks nothing", async () => {
     const { view, deliver, tick } = deck();
     view.now.pause.togglePause();
-    expect(view.now.pause.paused).toBe(true);
+    expect(view.now.pause.paused).toBe(false);
     deliver(env(1, { hook_event_name: "SessionStart" }));
     deliver(env(2, { hook_event_name: "UserPromptSubmit", prompt: "go" }));
     deliver(env(3, { hook_event_name: "PreToolUse", tool_name: "Bash", tool_use_id: "t1", tool_input: { command: "sleep 60" } }));
-    expect(view.now.pause.pauseGate.size, "the pause holds the turn").toBe(3);
+    expect(view.now.pause.pauseGate.size, "nothing is held").toBe(0);
 
-    // The button does not claim a quiet the page cannot see.
+    // The page sees the turn from its next frame on, so the button names it.
+    await tick(T0, T0);
     expect(view.now.restart.restartCopy.label).not.toBe("Restart now");
-    expect(view.now.restart.restartCopy.clause).not.toMatch(/nothing is running/);
+    expect(view.now.restart.restartCopy.clause).not.toMatch(/nothing is running/i);
+
+    await tick(T0 + 250, T0 + IDLE_BEFORE_RESTART_MS + 1_000);
+    expect(asked, "a page that sees a running turn asks no restart").toEqual([]);
+  });
+
+  it("asks the server for a restart only when idle, and takes its no", async () => {
+    // The page is quiet: the turn it cannot see is one the server alone heard.
+    const { view, tick } = deck();
 
     // The page's own clock runs out at T0 + 30s. What it asks then is a
     // restart that only an idle server grants — the server hears the turn the
-    // pause is hiding.
+    // page does not.
     await tick(T0, T0 + IDLE_BEFORE_RESTART_MS);
     expect(asked).toEqual([{ upgrade: false, whenIdle: true }]);
     // Refused, it is not left saying "restarting…", and it does not ask again
@@ -251,7 +271,8 @@ describe("useAutoRestart — a paused canvas and a turn sent from the terminal",
 
   it("still restarts on its own when the server agrees nothing is running", async () => {
     // The pause does not switch auto-update off: a canvas left paused overnight
-    // still updates, because the server knows it is quiet.
+    // still updates, because the server knows it is quiet. (Since #2591 the
+    // toggle pauses nothing, and the update still comes.)
     answer = { status: 200, body: { ok: true, mode: null } };
     const { view, tick } = deck();
     view.now.pause.togglePause();

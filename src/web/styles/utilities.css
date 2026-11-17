@@ -48,7 +48,7 @@
   left: 8px;
   z-index: 100;
   padding: 8px 14px;
-  border-radius: 8px;
+  border-radius: var(--r-ctl);
   background: var(--panel);
   border: 1px solid var(--accent);
   color: var(--text);
@@ -58,6 +58,38 @@
   transform: translateY(calc(-100% - 16px));
 }
 .skip-link:focus { transform: none; }
+/* A path cut in the middle (PathText.tsx): the head gives way first, with its
+   own ellipsis, and the last segment keeps its width, so the file's name stays.
+   A name wider than the whole box is cut too, at its end. Mono, as paths are.
+   No `direction`: see .ctx-md-path. */
+.path-text {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+.path-head { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.path-tail { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+/* A figure at its warning level (LevelMark.tsx): the warning mark, the figure
+   and its word on one line, 4 apart, all in the level's tone, so the colour is
+   never the only thing that says it. The figure keeps its own face; the word
+   and its dot are the interface's, at the figure's size. */
+.level-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+.level-mark[data-tone="warn"] { color: var(--warn); }
+.level-mark[data-tone="err"] { color: var(--err); }
+.level-mark-glyph { flex: none; align-self: center; width: 12px; height: 12px; }
+.level-mark-dot,
+.level-mark-word { font-weight: 400; font-style: normal; }
+
 /* The canvas is the skip link's target and takes focus programmatically, so it
    does get a ring — landing somewhere with no sign you landed is the failure
    this link exists to fix, one step later. Inset, because .canvas-wrap fills
@@ -71,5 +103,4 @@
    question is asked after focus has landed — so App.tsx's releasePointerFocus
    takes the pointer's arrival away instead, and this declaration is left saying
    exactly what it said before. */
-.canvas-wrap:focus-visible { outline-offset: -3px; }
 

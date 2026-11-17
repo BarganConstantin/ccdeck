@@ -3,18 +3,28 @@
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  /* No backdrop blur (#882): the scrim is already 55% opaque, and the blur sat
+  /* No backdrop blur (#882): the scrim already dims the board, and the blur sat
      over a canvas whose dashes and spinners never stop, re-rasterising under
      every dialog for as long as it was open. */
-  --modal-scrim: rgba(5,6,9,0.55);
+  --modal-scrim: var(--scrim);
   background: var(--modal-scrim);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
-  animation: fadeIn 140ms ease-out;
+  /* V4's dialog motion (Open: scrim opacity, Base 200, --ease; Close: Exit 150).
+     Transitions and @starting-style, not keyframes: a person can open a dialog
+     twice inside its own exit, and a transition turns around from the frame it
+     is on where a keyframe restarts from 0. data-state is Dialog.tsx's. */
+  opacity: 1;
+  transition: opacity var(--dur-base) var(--ease);
 }
-:root[data-color-scheme="light"] .modal-backdrop { --modal-scrim: rgba(15,23,42,0.30); }
+@starting-style { .modal-backdrop { opacity: 0; } }
+.modal-backdrop[data-state="closing"] {
+  opacity: 0;
+  pointer-events: none;
+  transition-duration: var(--dur-exit);
+}
 
 /* Native caption controls cannot be dimmed by an HTML backdrop. Keep the
    toolbar in its original colour and paint the scrim below it. The backdrop
@@ -36,11 +46,34 @@
   flex-direction: column;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: var(--r-panel);
-  box-shadow: var(--shadow-2), 0 0 0 1px rgba(125,211,252,0.10);
+  border-radius: var(--r-overlay);
+  box-shadow: var(--shadow-overlay);
   overflow: hidden;
-  animation: popIn 180ms cubic-bezier(0.22,1,0.36,1);
+  opacity: 1;
+  transform: none;
+  transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
 }
+/* Open: opacity and scale --enter-scale to 1, centred. Close: opacity and scale
+   --exit-scale, Exit 150. The closing surface takes no pointer input at all
+   (the scrim above it is pointer-events: none and inert). */
+@starting-style { .modal { opacity: 0; transform: scale(var(--enter-scale)); } }
+.modal-backdrop[data-state="closing"] > .modal {
+  opacity: 0;
+  transform: scale(var(--exit-scale));
+  transition-duration: var(--dur-exit);
+}
+/* Quick open is not a shared-shell dialog: it keeps its own keyframes
+   (quick-open.css), so the scrim's transition stays off for it. */
+.modal-backdrop.qo-backdrop { transition: none; }
+/* Reduced motion: opacity only, the same durations. */
+@media (prefers-reduced-motion: reduce) {
+  .modal { transition-property: opacity; }
+  @starting-style { .modal { transform: none; } }
+  .modal-backdrop[data-state="closing"] > .modal { transform: none; }
+}
+/* V4 motion: a dialog opened by a key, or closed with Esc, has none
+   (input-modality.ts sets the flag on any key and clears it on any pointer). */
+:root[data-motion="instant"] :is(.modal-backdrop, .modal) { transition: none; }
 
 /* THE ONE DIALOG HEADER (tokens.css, "One dialog frame"). Every dialog's top
    row is this: its title on the left at one size and weight, a muted note
@@ -53,28 +86,32 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  /* V4's Figma: the band is --dialog-head-h (44 at the default density) and the
+     1px rule sits BELOW it, so content-box: the title lands at y 12 and the
+     body starts at y 45. */
   min-height: var(--dialog-head-h);
-  box-sizing: border-box;
+  box-sizing: content-box;
   flex-shrink: 0;
-  padding: 8px 16px 8px 20px;
-  border-bottom: 1px solid var(--line);
-  background: var(--bg-soft);
+  padding: 0 8px 0 16px;
+  border-bottom: 1px solid var(--line-soft);
 }
-/* The title, at the deck's one dialog title size (DESIGN.md: 14px/600) and in
+/* The title, at the deck's one title size (16px/600, the type scale) and in
    its own face: a dialog's name is a word, not a value. A heading where the
    dialog has one, a span where it is named by its title alone (KeyboardHelp.tsx
-   says why); either reads the same. The tool modal alone keeps monospace,
-   because its title is a tool's name. */
+   says why); either reads the same. The tool modal's title is a tool's name,
+   and a name is a heading, not something to type: it left monospace with
+   every other figure and label (V4 top-10 #8). The call's id under it stays
+   mono, as does its input. */
 .modal-head h2,
+.modal-head > span.modal-title,
 .modal-tool-name {
   margin: 0;
   font-family: inherit;
-  font-size: calc(14px + var(--ui-text-increase, 0px));
+  font-size: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 600;
-  line-height: 1.3;
+  line-height: var(--lh-card-title);
   color: var(--text);
 }
-.tool-modal .modal-tool-name { font-family: var(--font-mono); }
 .modal-title {
   display: flex;
   align-items: center;
@@ -84,10 +121,8 @@
 .modal-title .status-dot {
   display: inline-block;
   width: 8px; height: 8px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
 }
-.modal-title .status-dot.inflight { background: var(--inflight); animation: pulse var(--pulse-live) infinite; }
-.modal-title .status-dot.done { background: var(--ok); }
 .modal-title .status-dot.err  { background: var(--err); }
 .modal-tool-id {
   color: var(--muted);
@@ -99,10 +134,24 @@
   align-items: center;
   gap: 8px;
 }
+/* The dialog's close and the other header icon buttons (the Usage header's, the
+   recap pin) are the kit's 28 icon button: 28x28, radius --r-ctl, glyph 14.
+   Not the 24px circle .glyph-btn is everywhere else. Written at :where()
+   specificity so the 36 and 44px touch rules a phone already carries (and the
+   per-control rules) keep winning over the size. */
+:where(.modal-head, .modal-actions) .glyph-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin-block: 0;
+  border-radius: var(--r-ctl);
+  font-size: calc(14px + var(--ui-text-increase, 0px));
+}
 .modal-dur {
   color: var(--muted);
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .modal-body {
@@ -111,6 +160,20 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+/* The shared footer: buttons right-aligned on their own band under a divider,
+   no fill. Adopted so far by the clear prompt. */
+.modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: var(--dialog-foot-h);
+  padding: 0 16px;
+  border-top: 1px solid var(--line-soft);
+  flex-shrink: 0;
+  /* Figma: 48 tall with the 1px rule above it as its own line. */
+  box-sizing: content-box;
 }
 .modal-section h4 {
   margin: 0 0 6px;
@@ -123,27 +186,25 @@
   align-items: center;
   gap: 8px;
 }
+/* "error" beside the Response heading is plain text in V4: 12/500 in the error
+   ink, no pill, no edge, no wash. */
 .modal-section .err-tag {
-  font-size: calc(9px + max(0px, var(--ui-text-increase, 0px)));
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 4px;
+  margin-left: 8px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   color: var(--err);
-  background: rgba(252,165,165,0.10);
-  border: 1px solid rgba(252,165,165,0.30);
 }
 .modal-note {
   margin: 0;
   padding: 8px 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-panel);
   background: var(--bg);
   color: var(--muted);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 1.5;
 }
-/* The keyboard sheet's one line under its keys (#852): a footnote, not a box. */
-.kh-foot { margin: 0; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.5; }
 /* The sheet with the single-key shortcuts off: what is so and where to change
    it, on the tour door's row — a sentence and a button — and on the sheet's one
    left edge, parted from the rest by a hairline rather than boxed, which would
@@ -170,7 +231,7 @@
   padding: 12px;
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-ctl);
   color: var(--text);
   font-family: var(--font-mono);
   font-size: calc(12px + var(--ui-text-increase, 0px));
@@ -184,25 +245,62 @@
    heading's own line; a labelled value that fits on one line is drawn as one,
    and a well holds the rest — a change coloured by side, with the side in a
    character as well so it reads without the colour. */
-.tm-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 6px; }
+.tm-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; margin: 0 0 6px; }
 .tm-head h4 { margin: 0; }
 /* Both are the one button, at the one button height the sheet allows (see
    panel-rhythm.test.ts): the copy keeps its width beside the heading, and show
    all sits a step under the well it opens. */
 .tm-copy { flex: none; }
+/* The copy is the kit's 24 icon button at the control radius, no fill or edge. */
+.tm-copy.glyph-btn { width: 24px; height: 24px; padding: 0; margin: 0; border-radius: var(--r-ctl); }
 .tm-more { margin-top: 6px; }
 .tm-block,
 .tm-inline { margin: 0 0 8px; }
 .tm-block:last-child,
 .tm-inline:last-child { margin-bottom: 0; }
-.tm-label { display: block; margin: 0 0 3px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--muted); }
+.tm-label { display: block; margin: 0 0 3px; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); color: var(--muted); }
 .tm-inline { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text); }
 .tm-inline .tm-label { display: inline; margin: 0; flex: none; }
 .tm-inline code { min-width: 0; font-family: var(--font-mono); word-break: break-all; }
 .tm-del { color: var(--err); }
 .tm-add { color: var(--ok); }
 .tm-ctx { color: var(--muted); }
-.modal-section pre.tm-err { color: var(--err); }
+.modal-section pre.tm-err { color: var(--text-secondary); }
+/* THE TOOL CALL (V4): the Input and Response heads are 12/600 labels in the
+   second text step; each payload sits in a code box on the sunken fill, 6 round,
+   no edge, 8 and 10 of padding, mono 12/16, lines not wrapped. */
+/* V4 draws the tool call as the small dialog. */
+.modal.tool-modal { width: var(--dialog-s); }
+.tool-modal .modal-body { gap: 12px; }
+.tool-modal .modal-section h4, .session-summary .modal-section h4 {
+  margin: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-secondary);
+}
+.tool-modal .modal-section pre {
+  padding: 8px 10px;
+  background: var(--sunken);
+  border: 0;
+  border-radius: var(--r-ctl);
+  color: var(--text-secondary);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  white-space: pre;
+  word-break: normal;
+}
+.tool-modal .modal-note {
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--r-panel);
+  background: var(--ctl-fill);
+  color: var(--text-secondary);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
 
 /* Also the reduced-motion entrance for every node and bubble on the canvas, and
    there with `both` — so no `to { opacity: 1 }`, which would fill over .tool-burst.dim,
@@ -210,45 +308,66 @@
    search that never dims anything. Fading to the cascade's own opacity is what
    every caller wanted anyway. */
 @keyframes fadeIn { from { opacity: 0; } }
-@keyframes popIn  { from { opacity: 0; transform: translateY(4px) scale(0.985); } to { opacity: 1; transform: none; } }
 
 /* ---------------- clear confirmation ---------------- */
 
-/* One sentence and two buttons, so it wants none of .modal's 820px. */
+/* V4's 560, the short dialog (--dialog-s). */
 .modal.clear-confirm { width: var(--dialog-s); }
-/* Cancel comes first in the DOM, so it is what focus and the first Tab find;
-   the destructive answer is never the default one. */
+/* Cancel comes first in the DOM (in the .modal-foot), so it is what focus and
+   the first Tab find; the destructive answer is never the default one. The
+   older-hosts dialog (terminal/HostsDialog.tsx) still wears this shell with
+   its buttons in the body, so `.cc-actions` stays for it until it adopts
+   .modal-foot too. */
 .clear-confirm .cc-actions { display: flex; justify-content: flex-end; gap: 8px; }
-/* What goes and what stays, as two labelled groups rather than one sentence
-   (#843): the facts clearCopy always computed, sorted, one to a line. */
+/* What goes and what stays, as V4's two columns (#843): the facts clearCopy
+   always computed, sorted, one to a line. Each column is a 12px --text-secondary
+   label over 13px rows, a 4px --muted bullet before each; a last line under both
+   says it cannot be undone. */
 .cc-plan {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 8px 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
   margin: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--bg);
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 1.5;
 }
-.cc-plan dt { color: var(--muted); font-weight: 600; }
-.cc-plan dd {
+.cc-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.cc-col dt {
+  color: var(--text-secondary);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 600;
+}
+.cc-col dd {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
   margin: 0;
   color: var(--text);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: var(--lh-body);
 }
-.cc-final { margin: 0; color: var(--text); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; }
+.cc-col dd > span { position: relative; padding-left: 12px; min-width: 0; overflow-wrap: anywhere; }
+.cc-col dd > span::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: calc((var(--lh-body) - 4px) / 2);
+  width: 4px;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--muted);
+}
+.cc-col dd > span.cc-none { padding-left: 0; color: var(--muted); }
+.cc-col dd > span.cc-none::before { content: none; }
+.modal-body.cc-body { gap: 20px; }
+.cc-final { margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; }
+@media (max-width: 480px) { .cc-plan { grid-template-columns: minmax(0, 1fr); gap: 16px; } }
 
 /* ---------------- a dialog whose chunk did not arrive ---------------- */
 
-/* One sentence and two buttons, sized like the clear prompt (LazyDialog.tsx). */
-.modal.dialog-missing { width: var(--dialog-s); }
-.dm-note { margin: 0; color: var(--text); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; }
-.dm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+/* V4's 420: the name in the header, one 13px --text-secondary note, and the
+   buttons on the 48 footer (LazyDialog.tsx). */
+.modal.dialog-missing { width: min(420px, calc(100vw - 32px)); }
+.dm-note { margin: 0; color: var(--text-secondary); font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: var(--lh-body); }
 
 /* ---------------- feedback (#1853) ---------------- */
 
@@ -268,56 +387,54 @@
    them instead of overflowing the 82vh the modal allows. */
 .fb-stage { position: relative; display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 .fb-form { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
-/* 8px under the body rather than the shared 16: the facts line, the last thing
-   in it, says what is "sent with it", and sits nearer the Send it is about than
-   the buttons it follows (14px). */
-.modal-body.fb-body { gap: 14px; padding-bottom: 8px; }
+/* The shell's body: 16 of padding and 12 between blocks. The facts line is the
+   last block, above the foot's own rule. */
+.modal-body.fb-body { gap: 12px; }
 
-/* THE KINDS. Three words in a track: the control fill as the track, the chosen
-   one raised onto the panel with the control edge round it, which is the mark
-   that carries the state at 3:1 without the colour (#583's lesson — a wash and
-   a step of grey alone do not). The rest sit on the track in --text-secondary,
-   since --muted on a fill mixed from the foreground is 4.05:1 in dark. Native
-   radios under the paint, pressed as the labelled controls are. */
+/* THE KINDS. Three pills: a hairline at rest in --text-secondary, and the
+   chosen one on the accent wash with the accent edge and the text colour, so
+   the state is carried by the edge as well as the wash. Native radios under
+   the paint, pressed as the labelled controls are. */
 .fb-kinds {
   display: inline-flex;
   align-self: flex-start;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
   margin: 0;
-  padding: 2px;
+  padding: 0;
   border: 0;
-  border-radius: var(--r-ctl);
-  background: var(--ctl-fill);
 }
 .fb-kind {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 24px;
-  padding: 0 12px;
-  border: 1px solid transparent;
-  border-radius: var(--r-tag);
+  min-height: var(--ctl-h-sm);
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
   color: var(--text-secondary);
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  font-weight: 500;
+  font-weight: 400;
   line-height: calc(16px + var(--ui-text-increase, 0px));
   cursor: pointer;
   user-select: none;
-  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out,
-    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .fb-kind:hover { color: var(--text); }
-.fb-kind:active { transform: scale(0.97); }
+}
+.fb-kind:active { transform: scale(var(--press)); }
 .fb-kind:has(input:checked) {
-  border-color: var(--ctl-edge);
-  background: var(--panel);
+  border-color: var(--accent);
+  background: var(--accent-16);
   color: var(--text);
 }
+.fb-kind:has(input:focus-visible) { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
 /* focus-visible rather than focus-within, as on the import card: a click on
    a segment focuses its radio too, and that must not draw a keyboard ring. */
-.fb-kind:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
 .fb-kind input[type="radio"] {
   position: absolute;
   inline-size: 1px;
@@ -335,25 +452,29 @@
    field-sizing. The vertical padding is the field's own: the shared one is a
    one-line control with none, which set the first line on the frame. */
 .fb-compose { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.fb-label { color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 500; line-height: calc(18px + var(--ui-text-increase, 0px)); }
+.fb-label { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: calc(16px + var(--ui-text-increase, 0px)); }
 .ap-manage-input.fb-message {
   display: block;
   width: 100%;
-  min-height: 116px;
+  min-height: 120px;
   max-height: min(40vh, 320px);
   padding: 8px 10px;
+  /* V4's fill; the edge stays the field's --ctl-edge (accounts-manage.css: the kit's
+     --line is under the 3:1 a field's boundary needs). */
+  background: var(--sunken);
   font-family: inherit;
   font-size: calc(13px + var(--ui-text-increase, 0px));
-  line-height: 1.5;
+  line-height: calc(20px + var(--ui-text-increase, 0px));
   resize: vertical;
   field-sizing: content;
 }
 /* Pressed with nothing written, the field says so with its edge as well as
    the line under it: a state has a mark and a word. The focus ring, which it
    has at that moment, stays the accent's. */
+.ap-manage-input.fb-message::placeholder { color: var(--muted); opacity: 1; }
 .ap-manage-input.fb-message[aria-invalid="true"] { border-color: var(--err); }
-.fb-error { margin: 0; color: var(--err); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); text-wrap: pretty; }
-.fb-hint { margin: 0; color: var(--text-dim); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); text-wrap: pretty; }
+.fb-error { animation: wstate-in var(--dur-fast) var(--ease) both; margin: 0; color: var(--err); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); text-wrap: pretty; }
+.fb-hint { margin: 0; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(14px + var(--ui-text-increase, 0px)); text-wrap: pretty; }
 
 /* THE TWO QUIET BUTTONS under the message — Add screenshot, Add details — a
    glyph or a chevron and their words, edgeless at rest like the other quiet
@@ -380,20 +501,23 @@
   border: 1px solid transparent;
   border-radius: var(--r-ctl);
   background: transparent;
-  color: var(--muted);
+  color: var(--text-secondary);
   font: inherit;
   font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-weight: 500;
   line-height: calc(16px + var(--ui-text-increase, 0px));
   cursor: pointer;
-  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out,
-    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
 }
-.fb-tool:hover,
 .fb-tool:focus-visible { border-color: var(--ctl-edge); background: var(--ctl-fill); color: var(--text); }
-.fb-tool:active { transform: scale(0.97); }
+@media (hover: hover) and (pointer: fine) {
+.fb-tool:hover { border-color: var(--ctl-edge); background: var(--ctl-fill); color: var(--text); }
+}
+.fb-tool:active { transform: scale(var(--press)); }
 /* Turns rather than swaps, so open and shut are one control in two states. */
-.fb-chev { display: block; flex: none; transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1); }
-.fb-more[aria-expanded="true"] .fb-chev { transform: rotate(180deg); }
+.fb-chev { display: block; flex: none; transition: transform var(--dur-fast) var(--ease); }
+.fb-more[aria-expanded="true"] .fb-chev { transform: rotate(90deg); }
 
 /* THE DETAILS, unfolding in place. Its row grows from nothing to its content
    (a 0fr → 1fr grid row, the one way to ease to an intrinsic height without
@@ -408,11 +532,11 @@
   display: grid;
   grid-template-rows: 0fr;
   margin-top: -6px;
-  transition: grid-template-rows 160ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: grid-template-rows var(--dur-exit) var(--ease);
 }
 .fb-details[data-open] {
   grid-template-rows: 1fr;
-  transition-duration: 220ms;
+  transition-duration: var(--dur-base);
 }
 .fb-details-clip { min-height: 0; margin: 0 -4px; padding: 0 4px; overflow: hidden; }
 .fb-details-body {
@@ -423,26 +547,26 @@
   visibility: hidden;
   opacity: 0;
   transform: translateY(-4px);
-  transition: opacity 120ms ease-out, transform 120ms ease-out, visibility 0s linear 160ms;
+  transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), visibility 0s var(--ease) var(--dur-exit);
 }
 .fb-details[data-open] .fb-details-body {
   visibility: visible;
   opacity: 1;
   transform: none;
-  transition: opacity 180ms ease-out 60ms, transform 220ms cubic-bezier(0.23, 1, 0.32, 1) 40ms, visibility 0s;
+  transition: opacity var(--dur-base) var(--ease) var(--delay-step), transform var(--dur-base) var(--ease) var(--delay-step), visibility 0s var(--ease);
 }
 .fb-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .fb-field-label {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  color: var(--muted);
+  color: var(--text-secondary);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   font-weight: 500;
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 .fb-optional { color: var(--text-dim); font-size: calc(11px + var(--ui-text-increase, 0px)); font-weight: 400; }
-.fb-field .ap-manage-input { width: 100%; }
+.fb-field .ap-manage-input { width: 100%; background: var(--sunken); }
 /* Where it goes and what may become of it: prose read once, to decide what to
    write, so the reading tier rather than the metadata one. */
 .fb-where {
@@ -457,13 +581,14 @@
 
 /* What rides along, on one line under everything a person writes: the values
    in the data face, the words in the body face, both at the annotation tier. */
-.fb-facts { margin: 0; color: var(--text-dim); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
-.fb-facts-value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.fb-facts { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
+.fb-facts-text { min-width: 0; }
+.fb-facts-value { font-variant-numeric: tabular-nums; }
 /* A send that failed says so right under the facts line, 6px off it rather
-   than the body's 14: the dialog is centred, so every pixel it grows moves
+   than the body's 12: the dialog is centred, so every pixel it grows moves
    Send half as far, and the pointer that pressed Send is about to press it
-   again. One line of failure moves Send 11px, inside its own height. */
-.fb-facts + .fb-error { margin-top: -8px; }
+   again. One line of failure moves Send about 11px, inside its own height. */
+.fb-facts + .fb-error { margin-top: -6px; }
 
 /* IMAGES. The strip between the message and its buttons, once there is one:
    the thumbnails and their count on one line, what a screenshot can show under
@@ -478,7 +603,7 @@
 .fb-shot {
   position: relative;
   flex: none;
-  transition: opacity 140ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 /* Arrives rather than appears: a paste gives no other sign it worked. */
 @starting-style {
@@ -494,9 +619,9 @@
   color: var(--text);
   font: inherit;
   cursor: pointer;
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--dur-fast) var(--ease);
 }
-.fb-shot-pick:active { transform: scale(0.97); }
+.fb-shot-pick:active { transform: scale(var(--press)); }
 /* The thumbnail is the button that replaces it, so its edge is a control's
    (--ctl-edge), not a panel's rule, and lifts to --text under the pointer as
    every control's does. A dark screenshot on the dark panel kept no outline
@@ -509,10 +634,12 @@
   border-radius: var(--r-ctl);
   background: var(--bg);
   object-fit: cover;
-  transition: border-color 120ms ease-out;
+  transition: border-color var(--dur-fast) var(--ease);
 }
-.fb-shot-pick:hover .fb-shot-img,
 .fb-shot-pick:focus-visible .fb-shot-img { border-color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+.fb-shot-pick:hover .fb-shot-img { border-color: var(--text); }
+}
 /* The words on the image's own box — what a press does, and that a fit is
    under way — so neither is carried by a dimmed picture alone. */
 .fb-shot-cue,
@@ -523,13 +650,15 @@
   border-radius: var(--r-tag);
   background: var(--panel);
   color: var(--text);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: calc(16px + var(--ui-text-increase, 0px));
   text-align: center;
 }
-.fb-shot-cue { opacity: 0; transition: opacity 120ms ease-out; }
-.fb-shot-pick:hover .fb-shot-cue,
+.fb-shot-cue { opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
 .fb-shot-pick:focus-visible .fb-shot-cue { opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+.fb-shot-pick:hover .fb-shot-cue { opacity: 1; }
+}
 /* The remove, a disc at the image's corner that stands on the panel rather
    than on the picture, so it reads the same on any screenshot. It keeps
    .glyph-btn's 24px target, press and hover; the disc is the panel's with the
@@ -550,7 +679,7 @@
 /* Beside the images it counts, not across the dialog from them. */
 .fb-shots-count {
   color: var(--text-dim);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -574,12 +703,12 @@
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: opacity 100ms ease-out, visibility 0s linear 100ms;
+  transition: opacity var(--dur-fast) var(--ease), visibility 0s var(--ease) var(--dur-fast);
 }
 .fb-drop[data-active] {
   opacity: 1;
   visibility: visible;
-  transition: opacity 150ms cubic-bezier(0.23, 1, 0.32, 1), visibility 0s;
+  transition: opacity var(--dur-base) var(--ease), visibility 0s var(--ease);
 }
 .fb-drop-frame {
   display: flex;
@@ -592,11 +721,11 @@
   border-radius: var(--r-ctl);
   color: var(--accent);
   transform: scale(0.98);
-  transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--dur-base) var(--ease);
 }
 .fb-drop[data-active] .fb-drop-frame { transform: none; }
 .fb-drop-glyph { display: block; width: 20px; height: 20px; }
-.fb-drop-title { margin: 0; color: var(--text); font-size: calc(14px + var(--ui-text-increase, 0px)); font-weight: 600; }
+.fb-drop-title { margin: 0; color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; }
 .fb-drop-note { margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 
 /* The foot is part of the panel rather than a band of its own — no ground, no
@@ -614,32 +743,47 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding: 0 16px 16px;
+  /* V4's footer (the shell's .modal-foot): a rule above, 48 high, 16 at the sides. */
+  box-sizing: content-box;
+  min-height: var(--dialog-foot-h);
+  padding: 0 16px;
+  border-top: 1px solid var(--line-soft);
 }
-/* 8px more than the foot's gap before Cancel, so Cancel and Send read as the
-   pair and the hint as a note on both, not as Cancel's. */
+/* The send key, at the right of the facts line: plain mono text, as quiet as a
+   line can be and still be read. */
 .fb-shortcut {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 4px;
-  margin-right: 8px;
-  color: var(--text-dim);
+  color: var(--muted);
+  font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
 }
-/* Edgeless and in the quiet ink until it is pointed at, the way the LAN
-   dialog's Unpair is (.lan-peer-foot .btn.danger), and in the error colour
-   only once armed, the moment the colour is about something. */
+/* V4 draws the send key as plain mono text beside the facts, not as key caps:
+   the cap's box, edge and fill are taken off here, the keys stay <kbd>. */
+.fb-shortcut kbd { min-width: 0; height: auto; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: inherit; font: inherit; }
+/* Edgeless and in the quiet ink until it is pointed at. Armed, it is the kit's
+   quiet button with a stroke, still not red: the draining bar and its name say
+   what it will do. (The LAN dialog's Unpair used to share this look; V4 draws
+   it outlined, so it has its own rule in lan-setup.css.) */
 .fb-discard { margin-right: auto; }
 .fb-foot .btn.danger:not(.armed) {
   border-color: transparent;
   color: var(--muted);
 }
-.fb-foot .btn.danger:not(.armed):hover:not(:disabled),
 .fb-foot .btn.danger:not(.armed):focus-visible {
   border-color: color-mix(in srgb, var(--err) 65%, transparent);
   color: var(--err);
 }
-.fb-foot .btn.danger.armed { position: relative; overflow: hidden; color: var(--bg); background: var(--err); }
+@media (hover: hover) and (pointer: fine) {
+.fb-foot .btn.danger:not(.armed):hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--err) 65%, transparent);
+  color: var(--err);
+}
+}
+.fb-foot .btn.danger.armed { position: relative; overflow: hidden; font-weight: 500; border-color: var(--line); color: var(--text-secondary); background: transparent; }
 /* The armed window is real (DISCARD_ARMED_MS), so it is visible: the accounts
    panel's drain bar (.ap-manage-btn.danger.armed), linear and exactly as long,
    because nothing about a countdown should ease. It starts with the arming and
@@ -651,32 +795,12 @@
   right: 0;
   bottom: 0;
   height: 2px;
-  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  background: var(--muted);
   transform-origin: left center;
   animation: ap-disarm 4000ms linear forwards;
 }
-/* Settings › Sounds' cap (.sm-key-note kbd), on the canvas tier so it stands off
-   the panel the foot now sits on. Its ink is the buttons' resting --muted: in
-   --text the two caps were the brightest words in the foot, louder than the
-   Cancel and Send they annotate. */
-.fb-shortcut kbd {
-  /* A box with its own height, so a cap whose glyph is drawn larger stands
-     exactly as tall as its neighbour: an inline box is as tall as its font,
-     and the two caps are set in two sizes. */
-  display: inline-block;
-  min-width: 18px;
-  font-family: var(--font-mono);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  font-weight: 600;
-  line-height: calc(14px + var(--ui-text-increase, 0px));
-  text-align: center;
-  color: var(--muted);
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  padding: 0 5px;
-}
+/* The send key (.fb-shortcut kbd) keeps the kit's key-cap rule in quick-open.css
+   for its element and type; the box, edge and fill are taken off above. */
 /* ⌘ in the mono stack is drawn at a fraction of a capital's height, so beside
    `Enter` it read as a speck. The system face draws it to the height of the
    word beside it; the cap keeps the same box. */
@@ -714,7 +838,7 @@
   justify-content: center;
   gap: 12px;
   background: var(--panel);
-  animation: fadeIn 140ms ease-out both;
+  animation: fadeIn var(--dur-fast) var(--ease) both;
 }
 .fb-done .aa-mark { width: 36px; height: 36px; }
 .fb-done-line {
@@ -722,10 +846,10 @@
   color: var(--text);
   font-size: calc(13px + var(--ui-text-increase, 0px));
   font-weight: 600;
-  animation: aa-done-in 220ms cubic-bezier(0.23, 1, 0.32, 1) 80ms both;
+  animation: aa-done-in var(--dur-base) var(--ease) calc(var(--delay-step) * 2) both;
 }
-.modal-backdrop[data-leaving] { opacity: 0; transition: opacity 160ms ease-out; }
-.modal-backdrop[data-leaving] > .feedback-dialog { transform: scale(0.98); transition: transform 160ms ease-out; }
+.modal-backdrop[data-leaving] { opacity: 0; transition: opacity var(--dur-exit) var(--ease); }
+.modal-backdrop[data-leaving] > .feedback-dialog { transform: scale(var(--exit-scale)); transition: transform var(--dur-exit) var(--ease); }
 
 /* A phone-width window: the kinds take the width, three equal segments, which
    is a bigger target for a thumb and still one row. */
@@ -738,7 +862,7 @@
   /* Comprehension stays, movement goes. The thanks fades in without its line
      travelling; the mark's own answer is add-account.css's. The dialog fades
      out without settling. */
-  .fb-done-line { animation: fadeIn 160ms ease both; }
+  .fb-done-line { animation: fadeIn var(--dur-base) var(--ease) both; }
   .modal-backdrop[data-leaving] > .feedback-dialog { transform: none; }
   /* The details still unfold and fade, which is what says they arrived, and
      neither the row nor the words travel; the chevron still turns, as a state,
@@ -751,7 +875,7 @@
   /* The drop overlay and a new thumbnail keep their fade, which is what says
      something changed, and lose their scale. */
   .fb-drop-frame { transform: none; transition: none; }
-  .fb-shot { transition: opacity 140ms ease-out; }
+  .fb-shot { transition: opacity var(--dur-fast) var(--ease); }
   /* The armed Discard keeps its fill and its words, and loses the bar that
      travels, as the accounts panel's does. */
   .fb-foot .btn.danger.armed::after { animation: none; transform: scaleX(0); }
@@ -759,29 +883,86 @@
 
 /* ---------------- keyboard shortcuts sheet ---------------- */
 
-/* A reference rather than an inspector: two narrow columns of cap and sentence,
-   so it wants none of .modal's 820px and rather more than the clear prompt's
-   440. Everything else it needs — the entrance, the dim behind it, the fade
-   that replaces both under reduced motion — is .modal-backdrop's and .modal's
-   already, which is the whole reason this sheet is built out of them. */
-.modal.key-help { width: var(--dialog-s); }
-/* The caption over each group of rows. The tool inspector says the same thing
-   with `.modal-section h4` and keeps it: h4 belongs to the three dialogs that
-   already had one, so this sheet's groups are h3 and bring their own rule
-   rather than joining that selector list and changing what it means. */
+/* V4's sheet: the 820 dialog (--dialog-m), two columns of groups, each row
+   its action on the left and its keys as chips on the right. Everything else it
+   needs — the entrance, the dim behind it, the fade that replaces both under
+   reduced motion — is .modal-backdrop's and .modal's already. */
+.modal.key-help { width: var(--dialog-m); }
+.key-help > .modal-body { padding: 24px; gap: 16px; }
+.kh-intro { margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; }
+.kh-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 40px; align-items: start; }
+.kh-col { display: flex; flex-direction: column; min-width: 0; }
+.kh-block + .kh-block { padding-top: 16px; }
+/* The caption over each group: 12px semibold --text-secondary on a 22px band
+   (6px under it). h3 is the level a dialog that names itself with
+   aria-labelledby can start at. */
 .kh-group {
-  grid-column: 1 / -1;
-  margin: 10px 0 0;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
+  margin: 0;
+  padding-bottom: 6px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
   font-weight: 600;
+  color: var(--text-secondary);
 }
-/* The first caption is already 16px under the note, which is .modal-body's own
-   gap; the margin above is the air BETWEEN groups and there is nothing above
-   this one to be between. */
-.kh-group:first-child { margin-top: 0; }
+.key-help .sc {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+  min-width: 0;
+}
+.kh-action {
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: var(--lh-body);
+}
+/* The "+" between a chord's chips is for a screen reader only. */
+.kh-plus { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.kh-keys { display: flex; flex: none; align-items: center; justify-content: flex-end; gap: 4px; }
+/* V4's key chip: natural width, 18 tall, a 1px --line edge on --bg-soft, 11px
+   mono medium in --muted, centred. */
+.key-help kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-tag);
+  background: var(--bg-soft);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
+  font-weight: 500;
+}
+/* The footer: the note on the left, the tour's link on the right. */
+.kh-bottom { justify-content: space-between; gap: 16px; }
+.kh-foot { margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; }
+.kh-tour {
+  flex: none;
+  min-height: var(--ctl-h);
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--accent);
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 500;
+}
+@media (hover: hover) and (pointer: fine) {
+  .kh-tour:hover { text-decoration: underline; text-underline-offset: 3px; }
+}
+@media (max-width: 640px) {
+  .kh-cols { grid-template-columns: minmax(0, 1fr); }
+  .kh-col + .kh-col { padding-top: 16px; }
+  .key-help > .modal-body { padding: 16px; }
+  .kh-bottom { flex-wrap: wrap; }
+}
 
 /* ---------------- what's new (#712) ---------------- */
 
@@ -789,13 +970,14 @@
    the short-read width and under the one dialog header. It fades rather than
    pops: popIn's transform would make the dialog the containing block of the
    options menu's fixed popover and move it during the entrance. */
-.modal.release-notes { width: var(--dialog-s); max-height: min(780px, 90dvh); animation: fadeIn 180ms cubic-bezier(0.22,1,0.36,1); }
+.modal.release-notes { width: var(--dialog-s); max-height: min(780px, 90dvh); transition-property: opacity; }
+@starting-style { .modal.release-notes { transform: none; } }
+.modal-backdrop[data-state="closing"] > .modal.release-notes { transform: none; }
 .release-notes > .modal-head, .release-notes > .rn-footer { flex: none; }
 .release-notes .modal-title { flex-wrap: wrap; gap: 8px; }
-.release-notes > .modal-body { min-height: 0; padding: 20px 24px; gap: 18px; scroll-padding-block: 16px; scrollbar-gutter: stable; scrollbar-color: var(--ctl-edge) transparent; }
+.release-notes > .modal-body { min-height: 0; padding: 16px; gap: 18px; scroll-padding-block: 16px; scrollbar-gutter: stable; scrollbar-color: var(--ctl-edge) transparent; }
 /* Keep scroll affordances visible even before pointer hover. */
 .release-notes > .modal-body::-webkit-scrollbar-thumb { background-color: var(--ctl-edge); }
-.release-notes > .modal-body:focus-visible { outline-offset: -2px; }
 .release-notes .rn-status-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
 .release-notes .rn-update-line { margin: 0; min-height: 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--muted); flex: 1 1 240px; }
 .release-notes .rn-update-what { color: var(--text); }
@@ -811,8 +993,8 @@
 .release-notes .rn-update-said:empty { position: absolute; margin: 0; }
 .release-notes .rn-ready p { margin: 0; }
 .release-notes .rn-release + .rn-release { padding-top: 18px; border-top: 1px solid var(--line); }
-.release-notes .rn-version { margin: 0 0 10px; font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; color: var(--muted); }
-.release-notes .rn-summary { margin: 0 0 18px; font-size: calc(18px + var(--ui-text-increase, 0px)); font-weight: 700; line-height: 1.28; letter-spacing: -0.025em; color: var(--text); overflow-wrap: anywhere; }
+.release-notes .rn-version { margin: 0 0 10px; font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 600; color: var(--muted); }
+.release-notes .rn-summary { margin: 0 0 18px; font-size: calc(16px + var(--ui-text-increase, 0px)); font-weight: 700; line-height: 1.28; letter-spacing: -0.025em; color: var(--text); overflow-wrap: anywhere; }
 .release-notes .rn-group-title { margin: 0 0 8px; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); font-weight: 600; }
 .release-notes .rn-notes { list-style: none; margin: 0; padding: 0; }
 .release-notes .rn-note { padding: 12px 0; border-top: 1px solid var(--line); min-width: 0; }
@@ -840,11 +1022,18 @@
 .release-notes .rn-more > div { padding-top: 8px; }
 .release-notes .rn-history > div { padding: 0; }
 /* Keep the full reading row clickable; structural surfaces are not hover fills. */
-.release-notes .rn-more > summary:is(:hover, :focus-visible) .rn-more-label,
-.release-notes .rn-history > summary:is(:hover, :focus-visible) { text-decoration: underline; text-decoration-color: var(--ctl-edge); text-underline-offset: 3px; }
-.release-notes .rn-more > summary:is(:hover, :focus-visible) :is(.rn-chevron, .rn-more-hint),
-.release-notes .rn-history > summary:is(:hover, :focus-visible) { color: var(--text); }
-.release-notes .rn-more > summary:focus-visible, .release-notes .rn-history > summary:focus-visible { outline-offset: -2px; }
+.release-notes .rn-more > summary:focus-visible .rn-more-label,
+.release-notes .rn-history > summary:focus-visible { text-decoration: underline; text-decoration-color: var(--ctl-edge); text-underline-offset: 3px; }
+@media (hover: hover) and (pointer: fine) {
+.release-notes .rn-more > summary:hover .rn-more-label,
+.release-notes .rn-history > summary:hover { text-decoration: underline; text-decoration-color: var(--ctl-edge); text-underline-offset: 3px; }
+}
+.release-notes .rn-more > summary:focus-visible :is(.rn-chevron, .rn-more-hint),
+.release-notes .rn-history > summary:focus-visible { color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+.release-notes .rn-more > summary:hover :is(.rn-chevron, .rn-more-hint),
+.release-notes .rn-history > summary:hover { color: var(--text); }
+}
 .release-notes .rn-more > summary:active .rn-more-label { text-decoration-color: currentColor; text-decoration-thickness: 2px; }
 .release-notes .rn-history > summary { font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; color: var(--muted); }
 .release-notes .rn-more > div > .rn-notes > .rn-note:first-child { border-top: 0; padding-top: 0; }
@@ -858,36 +1047,41 @@
 .release-notes .rn-highlight-details .rn-note-body + .rn-note-body { margin-top: 8px; }
 .release-notes .rn-upgrade-history { border-top: 1px solid var(--line); padding-top: 16px; }
 .release-notes .rn-upgrade-history > .rn-context { margin-bottom: 12px; }
-.release-notes .rn-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 12px 24px; border-top: 1px solid var(--line); background: var(--bg-soft); }
+/* V4's footer: the plain 1px --line-soft rule, no fill, 48 tall. */
+.release-notes .rn-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; min-height: var(--dialog-foot-h); box-sizing: content-box; padding: 0 16px; border-top: 1px solid var(--line-soft); background: none; }
+/* The version beside the title, V4's bordered pill: 11, no v, no fill. */
+.release-notes .rn-pill { padding: 1px 6px; border: 1px solid var(--line); border-radius: var(--r-pill); color: var(--text-secondary); font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; }
+/* The release history, an accent link with its arrow. */
+.release-notes .rn-tour { flex: none; white-space: nowrap; }
+.release-notes .rn-history-link { margin: 0; }
+.release-notes .rn-history-link a { display: inline-flex; align-items: center; gap: 4px; min-height: var(--ctl-h); color: var(--accent); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-weight: 500; text-decoration: none; }
+.release-notes .rn-history-link a:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
+@media (hover: hover) and (pointer: fine) {
+.release-notes .rn-history-link a:hover { text-decoration: underline; text-underline-offset: 3px; }
+}
 .release-notes .rn-footer-links { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; font-size: calc(13px + var(--ui-text-increase, 0px)); }
-.release-notes .rn-text-button { border: 0; background: transparent; padding: 0; font: inherit; cursor: pointer; text-decoration: none; }
-.release-notes .rn-footer a, .release-notes .rn-text-button { display: inline-flex; align-items: center; gap: 4px; min-height: var(--ctl-h); color: var(--muted); text-decoration-color: var(--ctl-edge); text-underline-offset: 3px; white-space: nowrap; }
-.release-notes .rn-footer a { text-decoration-line: underline; }
-.release-notes .rn-footer a:hover, .release-notes .rn-text-button:hover,
-.release-notes .rn-footer a:focus-visible, .release-notes .rn-text-button:focus-visible { color: var(--text); text-decoration-color: currentColor; }
-.release-notes .rn-footer > .primary { min-width: 70px; margin-left: auto; height: auto; padding: 6px 18px; font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 1.4; }
-.release-notes .rn-text-button:hover, .release-notes .rn-text-button:focus-visible { text-decoration: underline; }
-.release-notes .rn-footer a:active, .release-notes .rn-text-button:active { color: var(--text); text-decoration: underline; text-decoration-thickness: 2px; }
+/* Done is V4's Primary at its own size: the footer in the kit's What's new draws
+   the button, not a taller one. */
+.release-notes .rn-footer > .primary { min-width: 70px; margin-left: auto; }
 /* Keep native placement above body content and its complete item hit areas. */
 .rn-options-menu { width: 224px; max-width: calc(100vw - 16px); }
-.rn-options-menu .ap-menu-item { gap: 8px; }
 .rn-menu-status { margin: 0; padding: 8px 10px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; overflow-wrap: anywhere; }
 .rn-menu-status span { display: block; color: var(--muted); }
 .rn-menu-separator { margin: 4px; border-top: 1px solid var(--line); }
 @media (max-width: 600px) {
   .release-notes > .modal-body { padding: 16px; gap: 14px; }
-  .release-notes .rn-footer { padding: 12px 16px; }
+  .release-notes .rn-footer { padding: 0 16px; }
   .release-notes .rn-summary { font-size: calc(16px + var(--ui-text-increase, 0px)); }
   .release-notes .rn-status-row { gap: 4px; }
 }
 @media (pointer: coarse) {
   .release-notes .modal-actions .glyph-btn { min-width: 44px; min-height: 44px; }
   .release-notes .modal-actions .glyph-btn::after { inset: 0; }
-  .release-notes .rn-options-menu .ap-menu-item, .release-notes .rn-text-button, .release-notes .rn-footer a, .release-notes .rn-footer > .primary { min-height: 44px; }
+  .release-notes .rn-options-menu .ap-menu-item, .release-notes .rn-history-link a, .release-notes .rn-footer > .primary { min-height: 44px; }
 }
 /* Keep a reading area when the on-screen keyboard or landscape limits height. */
 @media (max-width: 600px) and (max-height: 400px) {
-  .release-notes .rn-footer { padding: 8px 12px; gap: 8px; }
+  .release-notes .rn-footer { padding: 0 12px; gap: 8px; }
   .release-notes .rn-footer-links { gap: 8px 12px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -902,7 +1096,7 @@
   background: var(--line);
   color: var(--text);
   padding: 0 3px;
-  border-radius: 3px;
+  border-radius: var(--r-ctl);
   font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   white-space: pre-wrap;
@@ -910,42 +1104,27 @@
 
 /* ---------------- session-end summary modal ---------------- */
 
-.session-summary { width: min(720px, 92vw); }
-
-.session-summary .ss-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
-  gap: 24px;
-  padding: 18px 18px 20px;
-  background: linear-gradient(180deg, rgba(134,239,172,0.05), transparent);
-  border-bottom: 1px solid var(--line);
-}
-.session-summary .ss-hero-left { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.session-summary .ss-cost-label {
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  letter-spacing: 0.10em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.session-summary .ss-cost {
-  font-size: calc(34px + var(--ui-text-increase, 0px));
-  font-weight: 700;
-  color: var(--ok);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-  line-height: 1;
-}
+.session-summary { width: var(--dialog-s); }
+.modal.session-summary .modal-body { gap: 12px; }
+/* V4's recap: who it was (the done mark, the name, the short id), the figures bare
+   in one row, then what is under them. */
+.session-summary .ss-who { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 20px; }
+.session-summary .ss-who-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: calc(20px + var(--ui-text-increase, 0px)); color: var(--text); }
+.session-summary .ss-who-id { flex: none; font-family: var(--font-mono); font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); }
+/* The model chips and the cost split are not drawn by V4's frame; they stay,
+   quietly, under the figures. */
+.session-summary .ss-hero { display: flex; flex-direction: column; gap: 8px; }
 .session-summary .ss-models { display: flex; gap: 6px; flex-wrap: wrap; }
 
-.session-summary .ss-hero-right { display: flex; flex-direction: column; justify-content: center; gap: 10px; min-width: 0; }
-.cost-bar.cost-bar-lg { height: 14px; border-radius: 999px; }
+.cost-bar.cost-bar-lg { height: 14px; border-radius: var(--r-pill); }
 .session-summary .ss-cost-legend {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px 16px;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 .session-summary .ssl { display: inline-flex; align-items: baseline; gap: 5px; }
 .session-summary .ssl b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -953,104 +1132,59 @@
   content: "";
   display: inline-block;
   width: 8px; height: 8px;
-  border-radius: 2px;
+  border-radius: 0;
   margin-right: 1px;
 }
 /* The key to the bar above, and it moves with it — the four hsl() literals here
    were the same four the bar declared, so a swatch that stayed behind would key
-   the wrong colour. These sit on the hero's 5% green wash rather than on bare
-   --panel; they measured 2.69, 2.81, 1.79 and 1.83 against it on white and now
-   measure 5.83, 6.86, 5.37 and 4.90 (#619, and #1284 for the cache pair). */
+   the wrong colour. They sit on the bare panel, where the four hues clear the
+   3:1 a mark needs (contrast-floors.test.ts holds it). */
 .session-summary .ssl-in::before  { background: var(--usage-blue); }
 .session-summary .ssl-out::before { background: var(--usage-purple); }
 .session-summary .ssl-cr::before  { background: var(--usage-teal); }
 .session-summary .ssl-cw::before  { background: var(--usage-lime); }
 
-.session-summary .ss-stats {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 6px;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--line);
-}
-.session-summary .ss-stat {
-  display: flex; flex-direction: column; gap: 2px;
-  padding: 8px 10px;
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
+.session-summary .ss-stats { display: flex; flex-wrap: wrap; gap: 8px 32px; }
+.session-summary .ss-stat { display: flex; flex-direction: column; gap: 0; }
 .session-summary .ss-stat-value {
-  font-size: calc(18px + var(--ui-text-increase, 0px));
+  font-family: var(--font-sans);
+  font-size: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 600;
   color: var(--text);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-  line-height: 1.1;
+  line-height: calc(24px + var(--ui-text-increase, 0px));
 }
 .session-summary .ss-stat-label {
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
 .session-summary .ss-stat.tone-err .ss-stat-value { color: var(--err); }
 
-@media (max-width: 640px) {
-  .session-summary .ss-hero { grid-template-columns: 1fr; }
-  .session-summary .ss-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-
-.session-summary .ss-top-tools { display: flex; flex-direction: column; gap: 6px; }
+.session-summary .ss-top-tools { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+/* A tool and how many times: the control fill, a pill, 11/14 tabular in the second step. */
 .session-summary .ss-tt {
-  display: grid;
-  grid-template-columns: 130px 1fr 36px;
-  gap: 10px;
-  align-items: center;
-}
-.session-summary .ss-tt-name {
-  font-family: var(--font-mono);
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.session-summary .ss-tt-bar {
-  height: 6px;
-  background: var(--line);
-  border-radius: 3px;
-  overflow: hidden;
-}
-/* Counts of finished tool calls, so --accent and not the --accent-to-
-   --inflight gradient it drew until #1649. */
-.session-summary .ss-tt-bar-fill {
-  display: block;
-  height: 100%;
-  background: var(--accent);
-  border-radius: 3px;
-}
-.session-summary .ss-tt-count {
-  text-align: right;
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: var(--ctl-fill);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
   font-size: calc(11px + var(--ui-text-increase, 0px));
-  color: var(--muted);
+  line-height: calc(14px + var(--ui-text-increase, 0px));
 }
+.session-summary .ss-tt b { font-weight: 400; }
 
-/* A plain inset block (#862). It wore a 3px accent stripe down its left edge
-   on top of this hairline, which spent the accent on a static quote; the
-   soft ground and the border are enough to say "this is what was typed". */
+/* The opening prompt: plain text, 13/20 in the second step. */
 .session-summary .ss-prompt {
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 1.55;
-  color: var(--text);
-  padding: 10px 12px;
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  border-radius: 4px;
+  margin-top: 4px;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
+  color: var(--text-secondary);
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 200px;
   overflow: auto;
 }
+
 

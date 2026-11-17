@@ -205,7 +205,9 @@ describe("the auto-switch toggle says what it switches, not what it is set to", 
   it("names itself with the words already on the screen above it", () => {
     // SC 2.5.3: what a voice-control user has to pronounce is what they can
     // read. The section's visible title is the h3 this switch sits under.
-    const heading = /<h3 className="ap-auto-title">(\{t\("[^"]+"\)\})<\/h3>/.exec(policy);
+    // CHANGED ON PURPOSE (V4's Figma): the h3 holds the button that opens the
+    // settings, and the title is the first word on that button.
+    const heading = /<span className="ap-auto-name">(\{t\("[^"]+"\)\})<\/span>/.exec(policy);
     expect(heading, "the auto-switch section lost its visible title").not.toBeNull();
     const name = /aria-label=(\{t\("[^"]+"\)\})/.exec(toggle);
     expect(name, NAMELESS).not.toBeNull();
@@ -235,7 +237,10 @@ describe("the auto-switch toggle says what it switches, not what it is set to", 
       'aria-label={t("accounts.header.add")}',
       'aria-label={t("accounts.header.reload")}',
       // The threshold is named by the words beside it now, a real label.
-      'htmlFor={thresholdId}',
+      // CHANGED ON PURPOSE (V4's Figma): the chips and the custom field are
+      // named by the "Switch at" label (aria-labelledby), as a group has no
+      // single control for `htmlFor` to point at.
+      'aria-labelledby={thresholdId}',
       'aria-label={t("accounts.row.dismissLabel")}',
     ]) expect(strip(accountsSurface())).toContain(named);
   });

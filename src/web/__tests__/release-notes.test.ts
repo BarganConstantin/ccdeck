@@ -900,7 +900,9 @@ describe("how App.tsx wires it up", () => {
     // still told which one it is rather than left to guess from `since`.
     expect(app).toMatch(/firstRun: false/);
     expect(app).not.toMatch(/firstRun: decision\.reason/);
-    expect(app).toMatch(/firstRun=\{releaseNotes\.firstRun\}/);
+    // DeckDialogs mounts it in a DialogPresence, which hands the callback the notes.
+    expect(app).toMatch(/<DialogPresence when=\{releaseNotes\}>\{notes => \(\s*<ReleaseNotesModal/);
+    expect(app).toMatch(/firstRun=\{notes\.firstRun\}/);
   });
 
   it("sends a first run to the tour and not to the changelog", () => {
@@ -952,27 +954,30 @@ describe("how App.tsx wires it up", () => {
   });
 
   it("opens the notes before it asks npm, because only one of the two is local", () => {
-    // The ordering, in the one place it can be read off. The dialog is drawn
-    // from a JSON file inlined into this bundle and the check is a round trip
-    // to a registry that may not be reachable at all; awaiting the check first
-    // would leave the button visibly dead for the length of it, and dead
-    // forever on a deck with no route out.
-    const chip = /onClick=\{\(\) => \{ openReleaseNotes\(\); loadVersion\(true\); \}\}/;
-    expect(app).toMatch(chip);
-    // Not the other way round, and not `await`ed: both are the same defect
-    // written differently.
+    // The plain "v3.x.y" chip, whose click did both, left the bar (V4's Figma:
+    // the version chip only when needed). The ordering still holds wherever the
+    // notes and the check meet: the dialog is drawn from a JSON file inlined
+    // into this bundle and the check is a round trip to a registry that may not
+    // be reachable at all, so nothing awaits the check ahead of the dialog.
     expect(app).not.toMatch(/loadVersion\(true\)[^}]*openReleaseNotes/);
     expect(app).not.toMatch(/await loadVersion\(true\)/);
+    // The drift chip opens the notes first and only then brings its notice
+    // back. The ready chip is no longer a door to the notes: V4 draws it as the
+    // restart itself ("Restart to finish"), and What's new for that update
+    // stays in Settings › About.
+    expect(app).toMatch(/onClick=\{\(\) => \{ openReleaseNotes\(\); showNotice\(\); \}\}/);
   });
 
-  it("keeps the check the chip has always done, exactly as it was", () => {
-    // #715 adds a job to this click. It must not quietly drop the one that was
-    // already there: forcing the check is the only way to tell "no update
-    // exists" from "no check has run", which on a machine that only ever runs
-    // `npx ccdeck` is the whole point of the chip.
-    expect(app).toMatch(/loadVersion\(true\)/);
-    // The forced round trip moved with `loadVersion` into use-version-check.ts;
-    // `loadVersion(true)` above is still the chip's own click, in App.tsx.
+  it("keeps the forced check the plain chip used to do, in Settings > Updates", () => {
+    // #715 gave the chip's click a job without dropping the one that was there:
+    // forcing the check is the only way to tell "no update exists" from "no
+    // check has run". With the plain chip gone from the bar its two jobs stand
+    // where the version always was, About and Settings > Updates: What's new
+    // (the notes) and the check (runUpdateCheck -> loadVersion(true)).
+    expect(src("../update-check.ts")).toMatch(/loadVersion\(true\)/);
+    expect(src("../components/ReleaseActions.tsx")).toMatch(/runUpdateCheck\(versionCheck\.loadVersion\)/);
+    expect(src("../components/AboutSection.tsx")).toContain('settingId="whats-new"');
+    // The forced round trip moved with `loadVersion` into use-version-check.ts.
     expect(clientText()).toMatch(/fetch\(force \? "\/api\/version\?refresh=1" : "\/api\/version"\)/);
   });
 
@@ -1002,8 +1007,13 @@ describe("how App.tsx wires it up", () => {
 
   it("draws the dialog out of the shared modal parts and nothing else", () => {
     expect(modal).toMatch(/const dialogRef = useModalDismiss\(onClose\);/);
-    expect(modal).toMatch(/className="modal-backdrop"/);
-    expect(modal).toMatch(/role="dialog" aria-modal="true"/);
+    // The scrim, the surface and its role come from the shared shell, which the
+    // dialog uses for its own name and label.
+    expect(modal).toMatch(/<Dialog scrim=\{scrimPress\} dialogRef=\{dialogRef\} className="release-notes"/);
+    expect(modal).toMatch(/labelledBy="release-notes-title"/);
+    const shell = src("../components/Dialog.tsx");
+    expect(shell).toMatch(/"modal-backdrop"/);
+    expect(shell).toMatch(/role="dialog"\s+aria-modal="true"/);
     // No decision logic in the component: it draws what it is handed. The title
     // split is release-notes.ts's for the same reason — the component calls it,
     // it does not carry a regex of its own.

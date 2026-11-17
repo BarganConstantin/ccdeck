@@ -26,7 +26,7 @@
 // reads AccountsPanel.tsx as text the way manage-block.test.ts and
 // landmark-outline.test.ts do.
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { slotChoices } from "../account-move";
 import { slotCommit, slotShowing, thresholdCommit } from "../picker-commit";
@@ -191,7 +191,9 @@ describe("nothing in the accounts panel acts on a `change`", () => {
   it("reads enough handlers for the sweep to mean anything", () => {
     // The alias field, the slot picker and the threshold picker. If this drops,
     // the assertion below is passing over markup it never found.
-    expect(handlers(surfaceCode, "onChange").length).toBeGreaterThanOrEqual(3);
+    // CHANGED ON PURPOSE (V4's Figma): two — the alias field and the custom
+    // threshold field. The slot list and the threshold chips are buttons.
+    expect(handlers(surfaceCode, "onChange").length).toBeGreaterThanOrEqual(2);
   });
 
   it("leaves every onChange setting state and nothing else", () => {
@@ -201,11 +203,10 @@ describe("nothing in the accounts panel acts on a `change`", () => {
     // wrap them.
     for (const body of handlers(surfaceCode, "onChange")) {
       expect(body, body).not.toMatch(/\b(admin|post|doMove|doSlot|doThreshold|doAlias|doSwitch|onSwitch|makeShare|pressRemove|load|fetch)\s*\(/);
-      // A setter, or one of the five drafts written by name — the ⋯ menu's
-      // two, the threshold's two, its picker and its custom field, and the
-      // next-account picker's one — and each of those is one state write and
-      // nothing else.
-      expect(body, body).toMatch(/\b(set[A-Z]\w*|typeAlias|pickSlot|proposeThreshold|typeThreshold|proposeNext)\(/);
+      // A setter, or one of the four drafts written by name — the ⋯ menu's
+      // two, and the threshold's two, its picker and its custom field — and
+      // each of those is one state write and nothing else.
+      expect(body, body).toMatch(/\b(set[A-Z]\w*|typeAlias|pickSlot|proposeThreshold|typeThreshold)\(/);
     }
     // The threshold's draft is a reducer since the picker grew `Custom…`, so
     // its two writers are one dispatch each, and what a dispatch can do is
@@ -220,14 +221,15 @@ describe("nothing in the accounts panel acts on a `change`", () => {
     expect(reducer).not.toMatch(/\b(admin|post|load|fetch|commitThreshold)\s*\(/);
     expect(accountMenuCode).toMatch(/const typeAlias = \(text: string\) => setAliasDraft\(text\);/);
     expect(accountMenuCode).toMatch(/const pickSlot = \(slot: number\) => setSlotDraft\(slot\);/);
-    const nextCode = withoutComments(readFileSync(fileURLToPath(new URL("../use-next-draft.ts", import.meta.url)), "utf8"));
-    expect(nextCode).toMatch(/const proposeNext = \(value: string\) => setPick\(isNextChoice\(value\) \? value : null\);/);
+    // The next-account rule has no draft at all: an option is a press that
+    // stores at once, so there is nothing for a keystroke to propose.
+    expect(existsSync(fileURLToPath(new URL("../use-next-draft.ts", import.meta.url)))).toBe(false);
   });
 
   it("commits both pickers from a press instead", () => {
     const clicks = handlers(surfaceCode, "onClick").join("\n");
     expect(clicks).toMatch(/doSlot\(a\.num, picked, commit\)/);
-    expect(clicks).toMatch(/doThreshold\(thresholdPick, thresholdCtl\)/);
+    expect(clicks).toMatch(/doThreshold\(thresholdPick, thresholdCtl, true\)/);
     // And the move has exactly one caller, which is that press. `doMove` is
     // declared as `const doMove = async (…)`, so the only `doMove(` in the file
     // is the call — one of them, inside doSlot, reachable from nowhere a
@@ -240,13 +242,16 @@ describe("nothing in the accounts panel acts on a `change`", () => {
     // The retired shape, which must not come back in either picker.
     expect(withoutComments(accountsSurface())).not.toMatch(/onChange=\{e => doMove\(/);
     expect(withoutComments(accountsSurface())).not.toMatch(/onChange=\{e => post\(/);
-    expect(popoverCode).toMatch(/onChange=\{e => pickSlot\(Number\(e\.target\.value\)\)\}/);
-    expect(clientText()).toMatch(/onChange=\{e => proposeThreshold\(e\.target\.value\)\}/);
+    // CHANGED ON PURPOSE (V4's Figma): a slot row is a button that picks, and
+    // nothing is sent until the Move or Swap button is pressed.
+    expect(popoverCode).toMatch(/onClick=\{\(\) => pickSlot\(c\.slot\)\}/);
+    expect(clientText()).toMatch(/proposeThreshold\(CUSTOM_PICK\)/);
   });
 
   it("shows the pending pick in the picker, so the button and the box agree", () => {
     expect(popoverCode).toMatch(/const picked = slotShowing\(choices, slotDraft, a\.num\)/);
-    expect(popoverCode).toMatch(/value=\{String\(picked\)\}/);
+    // CHANGED ON PURPOSE (V4's Figma): the picked row says so with aria-checked.
+    expect(popoverCode).toMatch(/aria-checked=\{c\.slot === picked\}/);
     expect(clientText()).toMatch(/value=\{thresholdPick\}/);
   });
 
@@ -276,8 +281,10 @@ describe("both commit controls are reachable and named", () => {
   it("keeps the picker itself named by a real label", () => {
     // Visible now. The row's block had no room for a label and hid it; the
     // popover's form has a title, and the title is the label.
-    expect(popoverCode).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-slot-\$\{a\.num\}`\}>\{t\("accounts\.menu\.moveTitle"\)\}<\/label>/);
-    expect(clientText()).toMatch(/htmlFor=\{thresholdId\}[^>]*>\{t\("accounts\.policy\.switchAt"\)\}<\/label>/);
+    // CHANGED ON PURPOSE (V4's Figma): the slot list is a radiogroup named by
+    // its title, and the chips by the "Switch at" label.
+    expect(popoverCode).toMatch(/<p className="ap-pop-title" id=\{titleId\}>\{t\("accounts\.menu\.moveTitleNamed"/);
+    expect(clientText()).toMatch(/id=\{thresholdId\}[^>]*>\{t\("accounts\.policy\.switchAt"\)\}<\/span>/);
   });
 
   it("dims both only while a request is out, never at rest", () => {
@@ -320,8 +327,14 @@ describe("the threshold's commit control exists only while there is a pick to st
     // The press is the threshold hook's, which holds the draft for the panel.
     const draftCode = withoutComments(readFileSync(fileURLToPath(new URL("../use-threshold-draft.ts", import.meta.url)), "utf8"));
     const commit = /const doThreshold = async[\s\S]*?\n {2}\};/.exec(draftCode)?.[0] ?? "";
-    expect(commit).toMatch(/document\.activeElement === thresholdSaveRef\.current\) thresholdRef\.current\?\.focus\(\)/);
+    expect(commit).toMatch(/at === thresholdSaveRef\.current \|\| at === document\.body\) thresholdRef\.current\?\.focus\(\)/);
     expect(commit.indexOf("thresholdRef.current?.focus()")).toBeLessThan(commit.indexOf("setThresholdSaved(false)"));
-    expect(clientText()).toMatch(/<select\s+ref=\{thresholdRef\}/);
+    // CHANGED ON PURPOSE (V4's Figma): the picker is a row of chips, which a
+    // press stores at once, so the pick's `save` button only belongs to the
+    // custom field. The ref is on a real element again: the `Custom…` chip, the
+    // control that opened the field and stays when the field goes.
+    expect(clientText()).toMatch(/<form className="ap-threshold-form"/);
+    expect(clientText()).toMatch(/<button ref=\{thresholdRef\} type="button" className="ap-chip"/);
+    expect(draftCode).toMatch(/const thresholdRef = useRef<HTMLButtonElement>\(null\);/);
   });
 });

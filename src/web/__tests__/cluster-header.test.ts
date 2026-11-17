@@ -1,15 +1,12 @@
-// #520 put the name Claude Code gives a session on the node card and left the
-// cluster header alone. The header is the workspace basename, plus four
-// characters of the session id when — and only when — a second cluster carries
-// the same workspace label. That condition is the whole point of the id there:
-// it is a collision disambiguator, not a field the header always wants.
+// #520 put the name Claude Code gives a session on the node card, and the
+// cluster header followed: the workspace basename, then the session's title.
 //
-// The name joins it here, and the id keeps its condition unchanged. The two
-// cannot be traded for each other in either direction. A name does not earn the
-// id, because a header without a collision has nothing to disambiguate; and a
-// name does not excuse it, because two sessions in one workspace can be named
-// the same thing and then the name disambiguates nothing at all. So there are
-// four shapes, three of them uncommon, and each has to be deliberate.
+// CHANGED ON PURPOSE (owner's critique, 2026-11-11): the header also drew four
+// characters of the session id whenever a second cluster carried the same
+// workspace label ("CCDECK · 2886"), which no other surface said. A session is
+// named by one rule everywhere now (rail-row-copy.ts sessionNames), the pill is
+// the folder and the title when the title is something else, and when it
+// started with its id's tail is in the tooltip.
 //
 // The other half is width. The header sits over a group of nodes and its box is
 // the nodes' bounding box — it is not derived from its own text, and the pill is
@@ -25,77 +22,69 @@ import { describe, it, expect } from "vitest";
 import { clusterBounds, type ClusterNode } from "../cluster-bounds";
 import {
   clusterHeader,
+  clusterTooltip,
   truncateName,
   NAME_COLUMNS,
   SEP,
   type ClusterHeader,
 } from "../cluster-header";
+import { startedLine } from "../rail-row-copy";
 import type { AgentNodeData } from "../types";
 
 /** The header as it reads on screen, minus the sheet's uppercasing. */
 function rendered(h: ClusterHeader): string {
-  return [h.label, h.name, h.shortId].filter(Boolean).join(SEP);
+  return [h.label, h.name].filter(Boolean).join(SEP);
 }
 
 const NAME = "account-management-oauth-flow";
-// The header shows the LAST four characters of an id (#1732), so these end in
+// The tooltip names the LAST four characters of an id (#1732), so these end in
 // the four the cases expect.
 const SID = "1c2d0000-0000-4000-8000-000000004efa";
+const T0 = 1_700_000_000_000;
 
-describe("the four shapes a cluster header draws", () => {
-  it("workspace alone, when there is neither a name nor a collision", () => {
-    const h = clusterHeader("vcrm-core", undefined, SID, false);
+describe("the shapes a cluster header draws", () => {
+  it("workspace alone, when the session has no title of its own", () => {
+    const h = clusterHeader("vcrm-core", undefined, SID);
     expect(rendered(h)).toBe("vcrm-core");
     expect(h.name).toBeUndefined();
-    expect(h.shortId).toBeUndefined();
+    expect(clusterHeader("vcrm-core", "", SID).name).toBeUndefined();
+    expect(clusterHeader("vcrm-core", "   ", SID).name).toBeUndefined();
   });
 
-  it("workspace and name, when the session is named and alone in its workspace", () => {
-    const h = clusterHeader("vcrm-core", NAME, SID, false);
-    expect(rendered(h)).toBe(`vcrm-core${SEP}${NAME}`);
-    expect(h.shortId).toBeUndefined();
+  it("workspace and title, when the session has a title", () => {
+    expect(rendered(clusterHeader("vcrm-core", NAME, SID))).toBe(`vcrm-core${SEP}${NAME}`);
   });
 
-  it("workspace and id, when the workspace collides and nothing is named", () => {
-    const h = clusterHeader("vcrm-core", undefined, SID, true);
-    expect(rendered(h)).toBe(`vcrm-core${SEP}4efa`);
-    expect(h.name).toBeUndefined();
+  it("says a title that is only the folder again once", () => {
+    expect(rendered(clusterHeader("vcrm-core", "VCRM-Core ", SID))).toBe("vcrm-core");
   });
 
-  it("all three, in that order, when the session is named AND collides", () => {
-    const h = clusterHeader("vcrm-core", NAME, SID, true);
-    expect(rendered(h)).toBe(`vcrm-core${SEP}${NAME}${SEP}4efa`);
-  });
-
-  it("reads exactly as it did before #520 when the session has no name", () => {
-    // Both no-name shapes, byte for byte against the two strings the header
-    // composed when the name did not exist. This is the Codex card promise from
-    // #520 one level up: a provider that carries no naming record leaves the
-    // header alone rather than leaving a hole in it.
-    expect(rendered(clusterHeader("vcrm-core", undefined, SID, false))).toBe("vcrm-core");
-    expect(rendered(clusterHeader("vcrm-core", undefined, SID, true))).toBe("vcrm-core · 4efa");
-    expect(rendered(clusterHeader("vcrm-core", "", SID, true))).toBe("vcrm-core · 4efa");
-    expect(rendered(clusterHeader("vcrm-core", "   ", SID, true))).toBe("vcrm-core · 4efa");
+  it("never draws a piece of the id, however many sessions share the workspace", () => {
+    const a = clusterHeader("vcrm-core", undefined, "11110000-0000-4000-8000-000000004efa", ["22220000-0000-4000-8000-000000009bd7"]);
+    expect(rendered(a)).toBe("vcrm-core");
+    expect(a.fullLabel).toBe("vcrm-core");
+    expect(a).not.toHaveProperty("shortId");
   });
 });
 
-describe("the name never takes the short id over", () => {
-  it("does not summon an id that no collision asked for", () => {
-    expect(clusterHeader("vcrm-core", NAME, SID, false).shortId).toBeUndefined();
+describe("what tells two sessions of one name apart is in the tooltip", () => {
+  it("names when the session started and as much of its id's tail as the board needs", () => {
+    const peers = ["11110000-0000-4000-8000-000000004efa", "22220000-0000-4000-8000-000000009bd7"];
+    const a = clusterHeader("vcrm-core", NAME, peers[0], peers, { startedAt: T0 });
+    expect(a.idTail).toBe("4efa");
+    expect(a.title).toContain(`\n${startedLine(T0, "4efa")}\n`);
+    expect(clusterTooltip(a)).toBe(a.title);
+    // The whole run first, the started line under it, then what a press does.
+    expect(a.title.split("\n")[0]).toBe(`vcrm-core${SEP}${NAME}`);
   });
 
-  it("does not dismiss the id it cannot replace", () => {
-    expect(clusterHeader("vcrm-core", NAME, SID, true).shortId).toBe("4efa");
+  it("grows the tail until the sessions differ", () => {
+    const peers = ["019b2c3d-0000-7000-8000-00000000c450", "019b2c3d-0000-7000-8000-00000001c450"];
+    expect(clusterHeader("proj", undefined, peers[0], peers, { startedAt: T0 }).idTail).toBe("0c450");
   });
 
-  it("keeps two identically named sessions in one workspace apart", () => {
-    // The case the id exists for, with the name doing nothing about it: same
-    // workspace, same name, two sessions. Without the id these two headers are
-    // the same string.
-    const a = clusterHeader("vcrm-core", NAME, "11110000-0000-4000-8000-000000004efa", true);
-    const b = clusterHeader("vcrm-core", NAME, "22220000-0000-4000-8000-000000009bd7", true);
-    expect(rendered(a)).not.toBe(rendered(b));
-    expect([a.shortId, b.shortId]).toEqual(["4efa", "9bd7"]);
+  it("leaves the started line out when the start is not known", () => {
+    expect(clusterHeader("vcrm-core", NAME, SID).title).not.toMatch(/4efa/);
   });
 });
 
@@ -140,14 +129,14 @@ describe("a name is cut to a bound the header can afford", () => {
 
   it("keeps the whole name in the tooltip when the header could not show it", () => {
     const long = "Refactor mailbox controller request response handling";
-    const h = clusterHeader("vcrm-core", long, SID, true);
+    const h = clusterHeader("vcrm-core", long, SID);
     expect(h.name).not.toBe(long);
-    expect(h.fullLabel).toBe(`vcrm-core${SEP}${long}${SEP}4efa`);
+    expect(h.fullLabel).toBe(`vcrm-core${SEP}${long}`);
     expect(h.fullLabel).not.toContain("…");
   });
 
   it("says the same thing twice when nothing was cut", () => {
-    const h = clusterHeader("vcrm-core", NAME, SID, false);
+    const h = clusterHeader("vcrm-core", NAME, SID);
     expect(h.fullLabel).toBe(rendered(h));
   });
 });
@@ -189,12 +178,12 @@ describe("the header reads the name off the session root", () => {
     expect(clusterBounds([sub, root])[0].name).toBe(NAME);
   });
 
-  it("gives two same-named sessions in one workspace their ids and neither the other name", () => {
+  it("gives two same-named sessions in one workspace their ids' tails for the tooltip, and neither the other name", () => {
     const boxes = clusterBounds([
       card("11110000-0000-4000-8000-000000004efa", 0, { sessionName: NAME }),
       card("22220000-0000-4000-8000-000000009bd7", 900, { sessionName: NAME }),
     ]);
-    expect(boxes.map(c => c.shortId)).toEqual(["4efa", "9bd7"]);
+    expect(boxes.map(c => c.idTail)).toEqual(["4efa", "9bd7"]);
     expect(boxes.map(c => c.name)).toEqual([NAME, NAME]);
   });
 });
@@ -208,19 +197,19 @@ describe("the header reads the name off the session root", () => {
 describe("the workspace field is bounded by the same ruler as the name", () => {
   it("cuts a workspace past the column budget, ellipsis included in the count", () => {
     const long = "a-really-quite-long-monorepo-package-directory-name";
-    const h = clusterHeader(long, undefined, "sess-1", false);
+    const h = clusterHeader(long, undefined, "sess-1");
     expect([...h.label].length).toBeLessThanOrEqual(NAME_COLUMNS);
     expect(h.label.endsWith("…")).toBe(true);
   });
 
   it("keeps the whole of it in the tooltip", () => {
     const long = "a-really-quite-long-monorepo-package-directory-name";
-    expect(clusterHeader(long, undefined, "sess-1", false).fullLabel).toContain(long);
+    expect(clusterHeader(long, undefined, "sess-1").fullLabel).toContain(long);
   });
 
   it("leaves every ordinary workspace exactly as it was", () => {
     for (const w of ["vcrm-core", "ccdeck", "boom-next-gen", "web-core"]) {
-      expect(clusterHeader(w, undefined, "sess-1", false).label).toBe(w);
+      expect(clusterHeader(w, undefined, "sess-1").label).toBe(w);
     }
   });
 });

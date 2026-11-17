@@ -1,16 +1,20 @@
 // The topbar's observation group, and the readouts in it: the status strip (the
-// stream's pill), the count of sessions blocked on you and the queue that names
-// them, and what the browser answered when notifications were asked for.
+// stream's pill), the three count pills (waiting, working, done) with the
+// queue popover that names who is waiting, and what the browser answered when
+// notifications were asked for.
 //
 // Moved out of App.tsx's markup unchanged: the readouts first, and then the
-// group itself (ReadoutGroup, at the end) — the wordmark, the version chip, the
-// live regions that speak for these (which have to be mounted whether or not
+// group itself (ReadoutGroup, at the end) — the wordmark, the counts, the
+// chips, the live regions that speak for these (which have to be mounted whether or not
 // these are, #372) and the reasons each sits where it does. App.tsx hands the
 // group each hook's return whole, and it is taken apart there under the names
-// the markup already used.
-import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
+// the markup already used. The bar's END group (version chip, Layout switch,
+// Search, Feedback) is the group's children, so it stands after the start
+// group in one element each, as V4's Figma draws the bar.
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import type { BlockedSession } from "../ambient-counts";
 import { MARK_SMALL_ON_LIGHT_SRC, MARK_SMALL_SRC, PRODUCT } from "../brand";
+import { DONE_WORD_MSG, WORKING_WORD_MSG, type SessionCounts } from "../topbar-counts";
 import { statusPill } from "../status-pill";
 import type { useDesktopUpdate } from "../use-desktop-update";
 import type { useLiveAnnouncements } from "../use-live-announcements";
@@ -20,11 +24,17 @@ import type { useVersionCheck } from "../use-version-check";
 import type { useWelcomeAndNotes } from "../use-welcome-and-notes";
 import type { Incident } from "../provider-status";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
-import { namesThatFit, queueEntryDetail, queueEntryName, queueName, waitWhat } from "../waiting-queue";
+import { queueEntryName, queueName, waitWhat } from "../waiting-queue";
+import AnchoredPopover from "./AnchoredPopover";
+import ChipPresence from "./ChipPresence";
 import { IncidentChips } from "./ProviderIncidents";
+import { Kbd } from "./Kbd";
+import { AlertMark, StateMark } from "./StateMark";
 import { elapsedShort } from "./SessionList";
 import { useHint } from "./use-hint";
 import VersionChip from "./VersionChip";
+import { versionChipNeeded } from "../version-chip";
+import { useBoardEmpty } from "../board-empty";
 import { t as translate, useT, type TFunction } from "../i18n";
 
 export function StatusStrip({ live, paused, pauseGate }: {
@@ -35,8 +45,14 @@ export function StatusStrip({ live, paused, pauseGate }: {
 }) {
   const t = useT();
   const singleKeys = useSingleKeyShortcuts();
+  const pill = statusPill({
+    connected: live, paused,
+    held: pauseGate.size, dropped: pauseGate.dropped, singleKeys,
+  }, t);
   return (
-    <span className="status">
+    /* The strip is the chip's slot: it arrives and leaves with the pill
+       (ChipPresence), and is no element at all once the pill has gone. */
+    <ChipPresence show={!pill.resting} className="status">
       {/* Three states, not two. Read through the gate rather than a
           counter of its own: the queue is the thing being reported.
           The count is in the LABEL now, not only the title. It used to be
@@ -45,44 +61,22 @@ export function StatusStrip({ live, paused, pauseGate }: {
           canvas verbs went in #527 — so one fact stopped being split
           across two ends of a row, and the pill, which already knew the
           number, says it.
-          The ghost below is what keeps that free. The pill's width is
-          upstream of everything after it in the readout — the blocked
-          count and any incident chip: a count going 9 → 10 would walk
-          them, which is #504 one bar over, and the count moves on its own
-          where a label never did. A copy of the
-          widest label this tone can reach sits in the same grid cell as
-          the live one, so the box measures its own worst case in whatever
-          font the platform hands it. The alternative was a min-width in
-          pixels, which is the wrong tool for a string — the number would
-          be measured in the face this machine renders and shipped to
-          Segoe UI and to whatever fontconfig picks, where a wider face
-          overruns it and the reflow is back.
-          aria-hidden AND visibility: hidden on the ghost, so it is out of
-          the accessible tree twice over. The pill has no name of its own
-          to protect — it is an unfocusable span, see the tab-stop note in
-          topbar-interaction.test.ts — but it does have a title, and a
-          reader that walks the markup should not find the word twice. */}
-      {(() => {
-        const pill = statusPill({
-          connected: live, paused,
-          held: pauseGate.size, dropped: pauseGate.dropped, singleKeys,
-        }, t);
-        // Nothing at rest (#719). The ghost above explains why the box
-        // measures its own worst case; this is the case where the box
-        // itself is not earned. The strip is then empty, and `:empty` takes
-        // it out of the row with the 24px gap before it, so the readout
-        // closes up without anything shifting on its own — the tone only
-        // ever changes because Space was pressed or the stream died.
-        if (pill.resting) return null;
-        return (
-          <span className={`pill ${pill.tone}`} title={pill.title}>
-            <span className="pill-box">
-              <span className="pill-widest" aria-hidden>{pill.widest}</span>
-              <span className="pill-label">{pill.label}</span>
-            </span>
-          </span>
-        );
-      })()}
+          The pill hugs the label it shows (V4 draws "paused · 3" 84 wide).
+          It used to hold the widest label its tone could reach in an
+          invisible copy, so a count going 9 → 10 would not walk what came
+          after it (#504); the counts stand before it now, and only the
+          incident and notify chips follow, so the slack it cost the bar
+          bought almost nothing. The figures are tabular, so a count only moves
+          the pill when it gains a digit. */}
+      {/* Nothing at rest (#719): the box itself is not earned. The slot is
+          then gone and the readout closes up without anything shifting on
+          its own — the tone only ever changes because Space was pressed or
+          the stream died. */}
+      {!pill.resting && (
+        <span className={`pill ${pill.tone}`} title={pill.title}>
+          <span className="pill-label">{pill.label}</span>
+        </span>
+      )}
       {/* WHAT IS LEFT IS THE ONE THING THE STRIP IS FOR: whether the stream
           is alive. That is a fact about right now, which is the only tense a
           topbar can keep, and the two readouts that used to follow the pill
@@ -106,222 +100,229 @@ export function StatusStrip({ live, paused, pauseGate }: {
           the phrase never had room for.
           A glance costs a click or a key now; the bar costs no attention,
           and the machine no read nobody asked for. */}
-    </span>
+    </ChipPresence>
   );
 }
 
-/** One queued session in a line, for a hint that lists the ones the bar has
- *  no room to name: "web-api — Bash · 6m". */
-function queueLine(w: BlockedSession, now: number, t: TFunction): string {
-  return `${w.label} — ${waitWhat(w.waiting, t)} · ${elapsedShort(w.waiting.since, undefined, now)}`;
-}
-
-/** Up to six of them, and how many more past those. */
-function queueLines(sessions: BlockedSession[], now: number, t: TFunction): string {
-  const lines = sessions.slice(0, 6).map(w => queueLine(w, now, t));
-  if (sessions.length > 6) lines.push(t("board.queue.andMore", { n: sessions.length - 6 }));
-  return lines.join("\n");
-}
-
-/** The count of sessions blocked on you, in amber: the bar's one alarm, and
- *  the last thing on it ever lost to a narrow window (see .readout). A click
- *  goes to the one that has waited longest, and so does W, which then walks
- *  the rest (#825). Its hint names the key, and lists the sessions the queue
- *  beside it has no room to name — all of them, where the queue has folded. */
-export function WaitingStat({ waitingSessions, waitingCursorRef, focusSession, now, named }: {
-  /** The sessions blocked on you, longest-stuck first; the caller shows this only when there is one. */
-  waitingSessions: BlockedSession[];
-  /** Where W starts from, so a click here and the next W press agree (#825). */
-  waitingCursorRef: MutableRefObject<string | null>;
-  focusSession: (sessionId: string) => void;
-  now: number;
-  /** How many of them the queue beside the count names. */
-  named: number;
-}) {
-  const t = useT();
-  const singleKeys = useSingleKeyShortcuts();
-  const hint = useHint("below");
-  const unnamed = waitingSessions.slice(named);
-  const count = waitingSessions.length;
-  return (
-    <>
-      <button
-        type="button"
-        className="waiting-stat"
-        onClick={() => {
-          // The same place W starts, so the next press moves on (#825).
-          waitingCursorRef.current = waitingSessions[0].id;
-          focusSession(waitingSessions[0].id);
-        }}
-        aria-label={t("board.queue.waitingForYou", { count })}
-        aria-keyshortcuts={singleKeys ? "W" : undefined}
-        {...hint.bind({
-          label: t("board.queue.longest"),
-          keys: singleKeys ? "W" : undefined,
-          detail: unnamed.length > 0 ? queueLines(unnamed, now, t) : undefined,
-        })}
-      >
-        <span className="ap-pulse" aria-hidden />
-        <b>{count}</b> {t("board.queue.waiting")}
-      </button>
-      {hint.node}
-    </>
-  );
-}
-
-/** One queued session's words: its name, how long it has waited, and what on
- *  — the session list row's order, "waiting 6m · Bash", so the two read the
- *  same. The wait is the line's number and stands in the foreground; what it
- *  is on is the annotation (DESIGN.md, duration beats description). */
+/** One queued session's words: its name, the one its rail row shows, how long
+ *  it has waited, and what on — the session list row's order, "waiting 6m ·
+ *  Bash", so the two read the same. V4 sets the name on the left and the wait
+ *  with what it is on at the row's right end, one quiet run. */
 function QueueEntryWords({ w, now }: { w: BlockedSession; now: number }) {
   const t = useT();
   return (
     <>
-      <span className="we-name">{queueName(w.label)}</span>
+      <span className="we-name">{queueName(w.name ?? w.label)}</span>
       <span className="we-wait">{elapsedShort(w.waiting.since, undefined, now)}</span>
       <span className="we-what">· {waitWhat(w.waiting, t)}</span>
     </>
   );
 }
 
-/** How far the queue's first name stands from the count: the readout's own
- *  12px, where the bar's 24 would set the names apart as another group. The
- *  queue box takes the bar's 24px gap back with a margin, so with nothing in
- *  it the bar is the width it was without it. */
-export const QUEUE_LEAD_PX = 12;
-/** How recently a session must have started waiting for its name to arrive
- *  with an entrance rather than simply be there. */
-const FRESH_MS = 2_000;
-/** The space between two names, `.wait-list`'s gap. A number here rather than
- *  a read of the style, which the render path does not make (#612). */
-export const QUEUE_GAP_PX = 4;
+/** How many rows the list can show at once, read off the list itself: its
+ *  visible height over the step from one row to the next (a row and the gap
+ *  after it), taken from where the first two rows sit rather than from
+ *  getComputedStyle, which stays off the client's render paths. */
+function rowsInView(list: HTMLElement): number {
+  const [first, second] = Array.from(list.children) as HTMLElement[];
+  if (!first) return 0;
+  const step = second ? second.offsetTop - first.offsetTop : first.offsetHeight;
+  if (step <= 0) return list.children.length;
+  return Math.floor((list.clientHeight + step - first.offsetHeight) / step);
+}
 
-/**
- * WHO IS WAITING, BY NAME (the bar's one job, spelled out). With the panel
- * toggles gone to the window's edges (EdgeRails.tsx), the room the controls
- * and the month's phrase held goes to the sessions the count counts: each by
- * name, what it is stopped on and how long, longest wait first — a press, or
- * Enter, from its card.
+/** The waiting pill's id, which the queue popover hangs off and is named by. */
+export const WAITING_PILL_ID = "waiting-pill";
+export const QUEUE_POP_ID = "queue-pop";
+/** --dur-exit (tokens.css), in ms: how long a closing popover stays mounted so
+ *  its opacity and scale can run out. A test holds the two equal. */
+export const QUEUE_EXIT_MS = 150;
+
+/** The last input was a key (input-modality.ts): V4 opens and closes by key
+ *  with no motion at all. */
+function keyDriven(): boolean {
+  return typeof document !== "undefined" && document.documentElement.dataset.motion === "instant";
+}
+
+/** The queue popover's face (V4's top bar: the old `.wait-names` row is this
+ *  menu). A muted "Waiting on you" over one row per waiting session in the
+ *  order W and N walk — the longest wait first — each the Waiting glyph, the
+ *  name, and the wait at the right end, and a row goes to that session.
+ *  Every waiting session keeps its row: when the window cannot show them all,
+ *  the rows scroll and a foot says how many are out of view, with N, the key
+ *  that walks them. The heading and the foot are seen, not read: the pill
+ *  names the menu, and every row is in it.
+ *  AnchoredPopover owns the placement under the pill, Escape, a press
+ *  outside, and the arrows along the rows (role="menu"). ITS MOTION is
+ *  transitions on a class: it mounts closed (opacity 0, scale --enter-scale from
+ *  the pill's corner), a frame later `queue-pop-open` takes it to 1, and
+ *  leaving removes the class so it runs to .98 over --dur-exit before the
+ *  caller unmounts it. By key there is no motion (data-motion="instant"), and
+ *  under reduced motion only opacity moves; both are in topbar-controls.css. */
+function QueuePopover({ sessions, now, leaving, onPick, onClose }: {
+  sessions: BlockedSession[];
+  now: number;
+  leaving: boolean;
+  onPick: (sessionId: string) => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const singleKeys = useSingleKeyShortcuts();
+  const [shown, setShown] = useState(false);
+  useLayoutEffect(() => {
+    if (keyDriven()) { setShown(true); return; }
+    let frame = requestAnimationFrame(() => { frame = requestAnimationFrame(() => setShown(true)); });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  const listRef = useRef<HTMLDivElement>(null);
+  const scrolled = useRef(0);
+  const [unseen, setUnseen] = useState(0);
+  // After AnchoredPopover has placed the surface (its layout effect runs
+  // first): placing measures it uncapped, which takes the list's scroll back to
+  // the top, so the reader's scroll is handed back here, and the foot counts
+  // what the capped list cannot show.
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    if (list.scrollHeight <= list.clientHeight + 1) { setUnseen(0); return; }
+    list.scrollTop = scrolled.current;
+    setUnseen(Math.max(0, sessions.length - rowsInView(list)));
+  });
+  return (
+    <AnchoredPopover
+      anchorId={WAITING_PILL_ID} id={QUEUE_POP_ID} role="menu" labelledBy={WAITING_PILL_ID} align="start"
+      className={leaving ? "queue-pop queue-pop-leaving" : shown ? "queue-pop queue-pop-open" : "queue-pop"}
+      onClose={onClose}
+    >
+      <div className="queue-head" aria-hidden>{t("board.queue.title")}</div>
+      <div className="queue-rows" ref={listRef} onScroll={e => { scrolled.current = e.currentTarget.scrollTop; }}>
+        {sessions.map(w => (
+          <button
+            key={w.id}
+            type="button"
+            role="menuitem"
+            className="queue-row"
+            onClick={() => onPick(w.id)}
+            aria-label={queueEntryName(w.name ?? w.label, w.waiting, now - w.waiting.since, t)}
+          >
+            <AlertMark size={14} />
+            <QueueEntryWords w={w} now={now} />
+          </button>
+        ))}
+      </div>
+      {unseen > 0 && (
+        <div className="queue-foot" aria-hidden>
+          <span>{t("board.queue.more", { n: unseen })}</span>
+          {singleKeys && <Kbd>n</Kbd>}
+        </div>
+      )}
+    </AnchoredPopover>
+  );
+}
+
+/** A count pill that is only a readout: Working and Done. 24 tall, no stroke,
+ *  the glyph, the figure at 600 (tabular) and the word. Not drawn at zero (V4
+ *  top-10 #5): "0 done" was a readout of nothing, read on every glance. V4's
+ *  Figma drew all three pills whenever the deck had a session, a quiet "0
+ *  waiting" among them; the bar draws a count now only while it counts
+ *  something, and Waiting, the one that asks for you, comes back lit. */
+const PILL_CLASS = {
+  working: "count-pill count-working",
+  done: "count-pill count-done",
+} as const;
+
+export function CountPill({ kind, count, glyph, word }: {
+  kind: "working" | "done";
+  count: number;
+  glyph: ReactNode;
+  word: string;
+}) {
+  if (count === 0) return null;
+  return (
+    <span className={PILL_CLASS[kind]}>
+      {glyph}
+      <b>{count}</b>
+      <span className="count-word">{word}</span>
+    </span>
+  );
+}
+
+/** The count of sessions blocked on you: the first of the bar's three pills,
+ *  outlined in --warn, the bar's one alarm — and the door to the queue. A press
+ *  (or Enter, Space, ArrowDown) opens the queue popover under it; a row goes to
+ *  that session, and so does W, which then walks the rest (#825). With nothing
+ *  waiting it is not drawn at all (V4 top-10 #5); it was a quiet "0 waiting"
+ *  readout, the bar saying there was no alarm in words.
  *
- * AS MANY AS FIT, THEN "+N MORE". The box takes whatever width the bar has
- * left (`flex: 1 1 0`) and nothing it does not, and every name is measured in
- * a hidden ruler at the width it would draw, so the queue never clips a name
- * in half: it names the ones that fit whole and says how many more there are.
- * "+N more" opens the session list, whose top rows are the same sessions in the
- * same order, and moves focus there.
- *
- * NAMES FOLD BEFORE THE COUNT. A box that only takes what is left is the first
- * thing a narrowing bar takes back, so the names go to nothing while the
- * readout beside them is still whole; under that, the readout gives from the
- * left as it always has and the count is the last thing on the bar. On a
- * phone the bar holds the count alone and this is not drawn.
- *
- * NOTHING WAITING IS NOTHING HERE. No "Nothing waiting on you": the deck cannot
- * see a Codex session's block (README, Blocked on you), so on a machine running
- * Codex that sentence would be a claim it cannot back, and on one running
- * Claude Code alone the absent amber count already says it.
- *
- * QUIET FOR A SCREEN READER. The count's region speaks when a session starts
- * waiting (block-announce.ts); the names are buttons with whole names and no
- * region of their own, so nothing is said twice.
- *
- * Neutral text: the amber is the count's alone, and a row of amber names would
- * be a row of alarms.
- */
-export function WaitingNames({ waitingSessions, waitingCursorRef, focusSession, now, onFit, onMore }: {
+ *  What the press did before: it went straight to the longest wait (or, with
+ *  the terminal on, started the run of asks). Both stay one key away — W does
+ *  each (use-deck-shortcuts.ts) — and the longest wait is the popover's first
+ *  row, focused when it opens. "+N more" (the session list) is L. */
+export function WaitingStat({ waitingSessions, waitingCursorRef, focusSession, now }: {
   /** The sessions blocked on you, longest-stuck first. */
   waitingSessions: BlockedSession[];
-  /** Where W starts from, so a click on a name and the next W press agree (#825). */
+  /** Where W starts from, so a row here and the next W press agree (#825). */
   waitingCursorRef: MutableRefObject<string | null>;
   focusSession: (sessionId: string) => void;
   now: number;
-  /** Told how many names fit, for the count's hint. */
-  onFit: (named: number) => void;
-  /** Opens the session list, where every one of them is, and focuses it. */
-  onMore: () => void;
 }) {
   const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   const hint = useHint("below");
-  const boxRef = useRef<HTMLDivElement>(null);
-  const rulerRef = useRef<HTMLSpanElement>(null);
-  const [fit, setFit] = useState(0);
-  const ids = waitingSessions.map(w => w.id).join("\n");
+  const count = waitingSessions.length;
+  const [pop, setPop] = useState<"closed" | "open" | "leaving">("closed");
+  const popRef = useRef(pop);
+  popRef.current = pop;
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const close = useCallback(() => {
+    if (popRef.current !== "open") return;
+    if (keyDriven()) { setPop("closed"); return; }
+    setPop("leaving");
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setPop("closed"), QUEUE_EXIT_MS);
+  }, []);
+  // Everyone answered while it was up: nothing left to list.
+  useEffect(() => { if (count === 0 && pop !== "closed") setPop("closed"); }, [count, pop]);
 
-  useLayoutEffect(() => {
-    const box = boxRef.current;
-    const ruler = rulerRef.current;
-    if (!box || !ruler) return;
-    const measure = () => {
-      const marks = Array.from(ruler.children) as HTMLElement[];
-      const moreMark = marks.pop();
-      setFit(namesThatFit({
-        widths: marks.map(m => m.getBoundingClientRect().width),
-        room: box.clientWidth - QUEUE_LEAD_PX,
-        gap: QUEUE_GAP_PX,
-        more: moreMark?.getBoundingClientRect().width ?? 0,
-      }));
-    };
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const seen = new ResizeObserver(measure);
-    seen.observe(box);
-    seen.observe(ruler);
-    return () => seen.disconnect();
-  }, [ids]);
-
-  const named = waitingSessions.slice(0, fit);
-  const rest = waitingSessions.slice(fit);
-  useEffect(() => { onFit(named.length); }, [named.length, onFit]);
-
-  const go = (id: string) => {
-    waitingCursorRef.current = id;
-    focusSession(id);
-  };
+  if (count === 0) return null;
+  const waitingLabel = t("board.queue.waitingForYou", { count });
   return (
-    <div className="wait-names" ref={boxRef}>
-      <ul className="wait-list">
-        {named.map(w => (
-          <li key={w.id} data-fresh={now - w.waiting.since < FRESH_MS || undefined}>
-            <button
-              type="button"
-              className="wait-entry"
-              onClick={() => go(w.id)}
-              aria-label={queueEntryName(w.label, w.waiting, now - w.waiting.since, t)}
-              {...hint.bind({ label: w.label, detail: queueEntryDetail(w.waiting, t) })}
-            >
-              <QueueEntryWords w={w} now={now} />
-            </button>
-          </li>
-        ))}
-        {named.length > 0 && rest.length > 0 && (
-          <li>
-            <button
-              type="button"
-              className="wait-more"
-              onClick={onMore}
-              aria-label={t("board.queue.moreLabel", { n: rest.length })}
-              aria-keyshortcuts={singleKeys ? "L" : undefined}
-              {...hint.bind({
-                label: t("board.queue.openList"),
-                keys: singleKeys ? "L" : undefined,
-                detail: queueLines(rest, now, t),
-              })}
-            >{t("board.note.more", { n: rest.length })}</button>
-          </li>
-        )}
-      </ul>
-      {/* Every name at the width it would draw, and "+N more" at its widest,
-          laid out where nothing sees them, so the queue knows what fits
-          before it draws a name it would have to cut. */}
-      {waitingSessions.length > 0 && <span className="wait-ruler" ref={rulerRef} aria-hidden>
-        {waitingSessions.map(w => (
-          <span key={w.id} className="wait-entry"><QueueEntryWords w={w} now={now} /></span>
-        ))}
-        <span className="wait-more">{t("board.note.more", { n: waitingSessions.length })}</span>
-      </span>}
+    <>
+      <button
+        type="button"
+        id={WAITING_PILL_ID}
+        className="count-pill waiting-stat"
+        onClick={() => {
+          if (popRef.current === "closed") setPop("open");
+          else close();
+        }}
+        onKeyDown={e => {
+          if (e.key === "ArrowDown" && popRef.current === "closed") { e.preventDefault(); setPop("open"); }
+        }}
+        aria-label={waitingLabel}
+        aria-haspopup="menu"
+        aria-expanded={pop === "open"}
+        aria-controls={pop !== "closed" ? QUEUE_POP_ID : undefined}
+        aria-keyshortcuts={singleKeys ? "W" : undefined}
+        {...hint.bind({ label: waitingLabel, keys: singleKeys ? "W" : undefined })}
+      >
+        <AlertMark size={14} />
+        <b>{count}</b>
+        <span className="count-word">{t("board.queue.waiting")}</span>
+      </button>
       {hint.node}
-    </div>
+      {pop !== "closed" && (
+        <QueuePopover
+          sessions={waitingSessions} now={now} leaving={pop === "leaving"} onClose={close}
+          onPick={id => {
+            waitingCursorRef.current = id;
+            close();
+            focusSession(id);
+          }}
+        />
+      )}
+    </>
   );
 }
 
@@ -362,7 +363,7 @@ export function NotifySaid({ notifySaid }: { notifySaid: "on" | "blocked" }) {
 
 export function ReadoutGroup({
   versionCheck, welcome, desktopUpdate, pause, announcements, notify,
-  waitingSessions, waitingCursorRef, focusSession, live, now, incidents, queueNamed,
+  waitingSessions, waitingCursorRef, focusSession, live, now, incidents, counts, asksSaid, children,
 }: {
   versionCheck: ReturnType<typeof useVersionCheck>;
   welcome: ReturnType<typeof useWelcomeAndNotes>;
@@ -380,15 +381,22 @@ export function ReadoutGroup({
   now: number;
   /** What the providers' status pages report, incidents only (#1311). */
   incidents: Incident[];
-  /** How many of the waiting sessions the queue beside the count names. */
-  queueNamed: number;
+  /** The working and done pills' figures (topbar-counts.ts); waiting is the
+   *  queue's own length. */
+  counts: Pick<SessionCounts, "working" | "done">;
+  /** What the terminal's asks run says aloud (use-asks.ts), absent while the
+   *  terminal flag is off. */
+  asksSaid?: string;
+  /** The bar's END group after the version chip: the Layout switch, Search and
+   *  Feedback, which App owns. */
+  children?: ReactNode;
 }) {
-  const { version, notice, noticeOpen, showNotice, versionChecking, loadVersion } = versionCheck;
+  const { notice, noticeOpen, showNotice } = versionCheck;
   const { chipVersion, openReleaseNotes } = welcome;
   const { readyAppUpdate, desktopUpdateRestarting, desktopUpdateFailure, askDesktopUpdateRestart } = desktopUpdate;
-  // A press of the topbar's Restart to update that came to nothing opens What's
-  // new, where the reason and the way out are already written (rn-update-said)
-  // — the button itself has nowhere to say a sentence. Only a press made HERE:
+  // A press of the ready chip (Restart to finish) that came to nothing opens
+  // What's new, where the reason and the way out are already written
+  // (rn-update-said) — the chip itself has nowhere to say a sentence. Only a press made HERE:
   // the dialog's own button fails into the dialog already on screen, and
   // reopening it would swap an upgrade's notes for the whole list. The ref is
   // let go when the press is over either way, so a later failure from the
@@ -407,6 +415,7 @@ export function ReadoutGroup({
   const t = useT();
   const { blockedSaid, watchSaid, incidentSaid } = announcements;
   const { notifySaid } = notify;
+  const empty = useBoardEmpty();
   return (
     /* Three groups now, not two, and this is the observation one.
        The bar used to be a brand and one flat run of eight controls with
@@ -427,6 +436,7 @@ export function ReadoutGroup({
        that has to be noticed cannot be a moving target. Everything ahead
        of it here (the logo, the wordmark, the version chip) has bounded
        width, so on the left it is an anchor instead. */
+    <>
     <div className="readout">
       <div className="brand">
         {/* The kit's small mark, decorative: the <h1> beside it is the name.
@@ -452,14 +462,23 @@ export function ReadoutGroup({
             the heading that sentence would become part of the heading's
             name. */}
         <h1>{PRODUCT}</h1>
-        {/* The version chip, and what clicking it does: see VersionChip. */}
-        <VersionChip
-          readyAppUpdate={readyAppUpdate} notice={notice} noticeOpen={noticeOpen}
-          version={version} chipVersion={chipVersion} versionChecking={versionChecking} now={now}
-          openReleaseNotes={openReleaseNotes} showNotice={showNotice} loadVersion={loadVersion}
-          restartToUpdate={restartToUpdate} updateRestarting={desktopUpdateRestarting}
-        />
       </div>
+      {/* The three counts (V4's Figma, Top bar), 8 apart, right after the
+          wordmark: sessions waiting on you (outlined, and the door to the
+          queue popover), working, done. Each only while it counts something
+          (V4 top-10 #5): a zero is not drawn, and with all three at zero the
+          group is not either, so no gap is kept for them. One that comes back
+          moves what follows it over by its width; the bar's end group stays
+          put. Nothing over an empty board (board-empty.ts). The figures are the
+          sessions' own words (cardState). On a phone only the waiting one
+          stays (topbar.css). */}
+      {!empty && waitingSessions.length + counts.working + counts.done > 0 && (
+        <div className="counts">
+          <WaitingStat waitingSessions={waitingSessions} waitingCursorRef={waitingCursorRef} focusSession={focusSession} now={now} />
+          <CountPill kind="working" count={counts.working} glyph={<StateMark kind="live" size={14} />} word={t(WORKING_WORD_MSG)} />
+          <CountPill kind="done" count={counts.done} glyph={<StateMark kind="done" size={14} />} word={t(DONE_WORD_MSG)} />
+        </div>
+      )}
       {/* NOT a live region, and #372 is the issue that took the
           `role="status"` off it. Nothing in this strip is a status
           *message*: it is a permanently visible readout the user can read
@@ -517,6 +536,11 @@ export function ReadoutGroup({
           at the end of the group says it on screen, and comes and goes; this
           is mounted always, for the reason above, and says the same. */}
       <div className="vis-hidden" role="status" aria-atomic="true">{notifySaidSentence(notifySaid, t)}</div>
+      {/* The asks run's sentences — "paycore resumed.", "No more asks." —
+          beside the alarm they follow up on. Mounted from the moment the
+          terminal flag is known to be on, which is before any run can start,
+          for the reason above; absent altogether while it is off. */}
+      {asksSaid != null && <div className="vis-hidden" role="status" aria-atomic="true">{asksSaid}</div>}
       {/* Outside the .status strip and inside .readout, which are two
           separate placements and only one of them still has the reason it
           was given.
@@ -549,10 +573,8 @@ export function ReadoutGroup({
           who is waiting come after the count, outside this group, and fold
           before any of it (WaitingNames). */}
       <IncidentChips incidents={incidents} />
-      {waitingSessions.length > 0 && (
-        <WaitingStat waitingSessions={waitingSessions} waitingCursorRef={waitingCursorRef} focusSession={focusSession}
-          now={now} named={queueNamed} />
-      )}
+      {/* The count of sessions blocked on you is the first pill above, in
+          .counts. */}
       {/* The ask, and it lives HERE rather than in a settings panel.
           Every browser requires a user gesture to raise the permission
           prompt, so this button is not decoration — without it the feature
@@ -587,5 +609,22 @@ export function ReadoutGroup({
           spoken by the always-mounted region above, not by this chip. */}
       {notifySaid && <NotifySaid notifySaid={notifySaid} />}
     </div>
+    {/* The END group (V4's Figma): the version chip only when there is
+        something to say, then whatever App hands in — the Layout switch,
+        Search, Feedback — 8 apart, never clipped. */}
+    <div className="tb-end">
+      <ChipPresence show={versionChipNeeded({ readyAppUpdate, notice })}>
+        <span className="v-group">
+          <VersionChip
+            readyAppUpdate={readyAppUpdate} notice={notice} noticeOpen={noticeOpen}
+            chipVersion={chipVersion}
+            openReleaseNotes={openReleaseNotes} showNotice={showNotice}
+            restartToUpdate={restartToUpdate} updateRestarting={desktopUpdateRestarting}
+          />
+        </span>
+      </ChipPresence>
+      {children}
+    </div>
+    </>
   );
 }

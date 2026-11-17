@@ -31,16 +31,14 @@ export const CUSTOM_MAX = 99;
 /** What the field says under itself while it is open and nothing is wrong. It
  *  names the unit, because the field's `%` is drawn for the eye and hidden from
  *  a screen reader, which hears this as the field's description. */
-export const CUSTOM_HINT = `A whole percent from ${CUSTOM_MIN} to ${CUSTOM_MAX}.`;
+export function customHint(t: TFunction = tNow): string {
+  return t("accounts.threshold.hint", { min: CUSTOM_MIN, max: CUSTOM_MAX });
+}
 
 /** The threshold picker's options: the five, plus whatever the store holds if
  *  it is none of them — `cswap config set` takes any number, and a picker that
  *  cannot show the stored value shows its first option instead, which is a
  *  setting the loop is not using. */
-export function customHint(t: TFunction = tNow): string {
-  return t("accounts.threshold.hint", { min: CUSTOM_MIN, max: CUSTOM_MAX });
-}
-
 export function thresholdChoices(stored: string): number[] {
   const n = Number(stored);
   const all = Number.isFinite(n) && n > 0 && !THRESHOLDS.includes(n) ? [...THRESHOLDS, n] : THRESHOLDS;

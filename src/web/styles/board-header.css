@@ -1,0 +1,71 @@
+/* ---------------- the board header (V4's Figma, Board › bhead) ----------------
+   A strip across the top of the canvas cell: two figures, the longest wait and
+   the board's spend, a number over its label (components/BoardHeader.tsx,
+   board-header.ts); the counts of sessions are the top bar's. Drawn only with
+   sessions on the board and off a phone; main carries `data-board-head` then,
+   and that one attribute is everything below that moves. */
+
+/* The cell becomes a column while the strip is in it: the strip keeps its
+   height and the board (React Flow's wrapper, which sets its own 100% inline)
+   takes the rest. Everything else in the cell is absolutely placed, so none of
+   it joins the column. Nothing floats at the cell's top edge any more: the
+   tool filter that did, lifted under the strip by --board-head-top, is a group
+   of the canvas bar's ⋯ menu now (V4 top-10 #5), and the property went with it. */
+.canvas-wrap[data-board-head] {
+  display: flex;
+  flex-direction: column;
+}
+.canvas-wrap[data-board-head] > .react-flow {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.board-head {
+  flex: none;
+  box-sizing: border-box;
+  height: var(--board-head-h);
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 24px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  /* Never wraps, never scrolls. The container is the strip itself, which is as
+     wide as the cell, and the thresholds below hide the right-hand stats
+     before anything can clip. */
+  overflow: hidden;
+  white-space: nowrap;
+  container-type: inline-size;
+  container-name: board-head;
+}
+.bh-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+.bh-num {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  font-size: calc(16px + var(--ui-text-increase, 0px));
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--text);
+}
+.bh-num[data-tone="none"] { color: var(--muted); }
+.bh-label {
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* A narrow board drops the right-hand stat. The container is the strip's
+   content box, so the right panels' inset (the inline padding) counts as
+   taken. Measured in Chromium at the default text size: the two stats need
+   204px, and 273px with every label and number 30% longer (a translation, a
+   larger reading size). The threshold sits above the longer need, so the
+   second stat goes before anything clips. The first stat always stays. */
+@container board-head (max-width: 280px) {
+  .bh-stat:nth-child(2) { display: none; }
+}

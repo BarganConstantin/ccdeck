@@ -13,6 +13,7 @@ import type { Node, NodeDragHandler } from "reactflow";
 import { sessionOfNode } from "./layout-geometry";
 import { hidePeek } from "./components/SessionPeek";
 import { saveLayout } from "./layout-storage";
+import type { Squeeze } from "./packed-board";
 import type { GraphState } from "./reducer";
 import type { AgentNodeData } from "./types";
 import type { useDragTrash } from "./use-drag-trash";
@@ -21,12 +22,17 @@ type Point = { x: number; y: number };
 type Trash = ReturnType<typeof useDragTrash>;
 
 export function useNodeDrag({
-  nodes, stateRef, pinnedRef, positionsRef, draggingRef, dragPatchRef,
+  nodes, shown = nodes, squeeze = null, stateRef, pinnedRef, positionsRef, draggingRef, dragPatchRef,
   setDragging, setDragMoveTick, setDragTick, endBubble, markInteract, disableAutoFit,
   beginTrashDrag, trackTrashDrag, endTrashDrag, removeNode,
 }: {
-  /** The nodes on the canvas this render, for a session drag's members. */
+  /** The nodes on the canvas this render, at the board's places, for a session drag's members. */
   nodes: Node[];
+  /** The same nodes where they are drawn, and the map between the two, while
+   *  the faces draw the board packed (packed-board.ts). React Flow reports a
+   *  drag in drawn places and the board keeps its own. Absent, they agree. */
+  shown?: Node[];
+  squeeze?: Squeeze | null;
   stateRef: MutableRefObject<GraphState>;
   pinnedRef: MutableRefObject<Map<string, Point>>;
   positionsRef: MutableRefObject<Map<string, Point>>;
@@ -52,8 +58,18 @@ export function useNodeDrag({
     sessionId: string | undefined;
     start: Point;
     members: Map<string, Point>;
+    /** Where each member is drawn at the start, for the patch that follows the pointer. */
+    drawn: Map<string, Point>;
+    /** The drawn x the session's leftmost card started at: where a move
+     *  across a closed band is carried back to the board from. */
+    anchor: number;
     pinsBefore: Map<string, Point | undefined>;
   } | null>(null);
+
+  /** The board's place for a drawn one. Only x is packed. */
+  const toBoard = (p: Point): Point => (squeeze ? { x: squeeze.back(p.x), y: p.y } : { x: p.x, y: p.y });
+  /** How far the board moves a session whose drawn cards moved `dx` from `anchor`. */
+  const boardDx = (anchor: number, dx: number) => (squeeze ? squeeze.back(anchor + dx) - squeeze.back(anchor) : dx);
 
   const onNodeDragStart: NodeDragHandler = (_, n) => {
     // React Flow resolves the dragged ID against its current controlled nodes.
@@ -76,7 +92,9 @@ export function useNodeDrag({
       // gesture delta to a fixed origin (the group node's own start).
       const sid = (n.data as { sessionId?: string })?.sessionId;
       const members = new Map<string, Point>();
+      const drawn = new Map<string, Point>();
       const pinsBefore = new Map<string, Point | undefined>();
+      let anchor = Infinity;
       if (sid) {
         for (const m of nodes) {
           const d = m.data as AgentNodeData | undefined;
@@ -84,8 +102,16 @@ export function useNodeDrag({
           members.set(m.id, { x: m.position.x, y: m.position.y });
           pinsBefore.set(m.id, pinnedRef.current.get(m.id));
         }
+        for (const m of shown) {
+          if (!members.has(m.id)) continue;
+          drawn.set(m.id, { x: m.position.x, y: m.position.y });
+          if (m.type === "agent") anchor = Math.min(anchor, m.position.x);
+        }
       }
-      groupDragRef.current = { sessionId: sid, start: { x: n.position.x, y: n.position.y }, members, pinsBefore };
+      groupDragRef.current = {
+        sessionId: sid, start: { x: n.position.x, y: n.position.y }, members, drawn,
+        anchor: Number.isFinite(anchor) ? anchor : n.position.x, pinsBefore,
+      };
       // The box carries the whole session, and the session's root card has the
       // session's id, so the trash takes the box by that card's name.
       const root = sid ? stateRef.current.agents.get(sid) : undefined;
@@ -93,7 +119,7 @@ export function useNodeDrag({
       return;
     }
     beginTrashDrag(n.type === "agent" ? (stateRef.current.agents.get(n.id)?.label ?? "") : null);
-    pinnedRef.current.set(n.id, { x: n.position.x, y: n.position.y });
+    pinnedRef.current.set(n.id, toBoard(n.position));
   };
   const onNodeDrag: NodeDragHandler = (event, n) => {
     if (!n) return;
@@ -107,16 +133,21 @@ export function useNodeDrag({
       // Move every member by the delta. Writing pinned/positions is the
       // source of truth snapshotToFlow reads; the nonce forces an
       // immediate recompute so the nodes follow this frame.
+      const bx = boardDx(g.anchor, dx);
       for (const [id, p0] of g.members) {
-        const p = { x: p0.x + dx, y: p0.y + dy };
+        const p = { x: p0.x + bx, y: p0.y + dy };
         pinnedRef.current.set(id, p);
         positionsRef.current.set(id, p);
       }
       // Patch the members and the box itself, rather than rebuilding
-      // the whole graph on every pointer move as this used to.
+      // the whole graph on every pointer move as this used to. The patch
+      // is what is drawn: the drawn places, moved by the pointer's delta.
       const patch = dragPatchRef.current;
       if (patch) {
-        for (const [id, p0] of g.members) patch.set(id, { x: p0.x + dx, y: p0.y + dy });
+        for (const [id, p0] of g.members) {
+          const at = g.drawn.get(id) ?? p0;
+          patch.set(id, { x: at.x + dx, y: at.y + dy });
+        }
         patch.set(n.id, { x: n.position.x, y: n.position.y });
       }
       setDragMoveTick(t => t + 1);
@@ -124,8 +155,8 @@ export function useNodeDrag({
     }
     // Live-pin during drag so an incoming event re-render doesn't
     // snap the node back to its dagre slot mid-motion.
-    pinnedRef.current.set(n.id, { x: n.position.x, y: n.position.y });
-    positionsRef.current.set(n.id, { x: n.position.x, y: n.position.y });
+    pinnedRef.current.set(n.id, toBoard(n.position));
+    positionsRef.current.set(n.id, toBoard(n.position));
     // And render it now, rather than whenever the next rebuild happens.
     dragPatchRef.current?.set(n.id, { x: n.position.x, y: n.position.y });
     setDragMoveTick(t => t + 1);
@@ -162,8 +193,9 @@ export function useNodeDrag({
       if (g) {
         const dx = n.position.x - g.start.x;
         const dy = n.position.y - g.start.y;
+        const bx = boardDx(g.anchor, dx);
         for (const [id, p0] of g.members) {
-          const p = { x: p0.x + dx, y: p0.y + dy };
+          const p = { x: p0.x + bx, y: p0.y + dy };
           pinnedRef.current.set(id, p);
           positionsRef.current.set(id, p);
         }
@@ -173,8 +205,8 @@ export function useNodeDrag({
       setDragTick(t => t + 1);
       return;
     }
-    pinnedRef.current.set(n.id, { x: n.position.x, y: n.position.y });
-    positionsRef.current.set(n.id, { x: n.position.x, y: n.position.y });
+    pinnedRef.current.set(n.id, toBoard(n.position));
+    positionsRef.current.set(n.id, toBoard(n.position));
     if (droppedOnTrash) {
       removeNode(n.id);
       return;

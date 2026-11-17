@@ -138,7 +138,14 @@ import { armLifecycle, handlePresence, handleRestart, handleStop, handleUpgrade,
 export { markDeckReady, releaseRestart } from "./lifecycle.mjs";
 // The settings as this process holds them, and every write that changes them —
 // see prefs-state.mjs.
-import { prefsRead } from "./prefs-state.mjs";
+import { heldPrefs, prefsRead } from "./prefs-state.mjs";
+// Whether this deck has a ccdeck account at all — hidden, and off unless
+// CCDECK_ACCOUNT=1 or the deck-owned `account` pref says so; see
+// account-flag.mjs. The account's own modules are imported only behind it.
+import { accountOn } from "./account-flag.mjs";
+// The way out a launcher takes, for the steps the server registers on it (the
+// account's last status frame) — see lifecycle.mjs onBeforeShutdown.
+export { beforeShutdown } from "./lifecycle.mjs";
 // Quota read for the account notifications while no page reads it — only while
 // one of their quota switches is on (account-watch.mjs).
 import { startAccountWatch, noteCodexAutoTick } from "./account-watch.mjs";
@@ -150,6 +157,10 @@ import { applyLanPrefs, resetLanLoaded } from "./lan-deck.mjs";
 import { handleLanInvite, handleLanPeer, handleLanStatus, handleLanSync } from "./lan-routes.mjs";
 // GET and POST /api/prefs — see prefs-routes.mjs.
 import { handlePrefsGiveBack, handlePrefsRead, handlePrefsWrite } from "./prefs-routes.mjs";
+// POST /api/session-name, and the names it keeps (internal #101) — see
+// session-name-route.mjs and session-deck-names.mjs.
+import { announceKeptNames, handleSessionNameWrite } from "./session-name-route.mjs";
+import { loadDeckNames } from "./session-deck-names.mjs";
 // Usage reports and the feedback dialog (#1853). The requests to
 // api.ccdeck.dev are made in reports.mjs, never in this file.
 import {
@@ -174,6 +185,7 @@ import { handleBestOfNostalgia, handleCafeMusicBgm, handleClaudeFm, handleFmStat
 // The usage panel's quota and history reads — see usage-routes.mjs.
 import { startToolAudit } from "./tool-audit.mjs";
 import { handleToolAudit } from "./tool-audit-routes.mjs";
+import { handleSessionTranscript, SESSION_TRANSCRIPT_ROUTE } from "./session-transcript-routes.mjs";
 import { startQuotaHistory } from "./quota-history.mjs";
 import { startQuotaCloses } from "./quota-closes.mjs";
 import { startQuotaCloseWatch } from "./quota-close-watch.mjs";
@@ -181,6 +193,27 @@ import { handleCcusage, handleCcusageSession, handleCodexQuota, handleCodexUsage
 // Connected trackers (#2178) and each provider's own reads. See
 // integrations/routes.mjs; nothing in it is shared with paired decks.
 import { handleIntegrations } from "./integrations/routes.mjs";
+// The Command Panel's eight routes, every one absent while the panel is
+// switched off and answered by the optional local engine while it is on —
+// see terminal-routes.mjs — its folder check, which the deck answers itself
+// under the same switch, and the WebSocket upgrade that carries a session,
+// which runs its own gates because the route table never sees an upgrade
+// (terminal-socket.mjs).
+import {
+  handleTerminalAdopt, handleTerminalClaim, handleTerminalEndHosts, handleTerminalFolder, handleTerminalHosts, handleTerminalLaunch, handleTerminalOpen,
+  handleTerminalStatus, handleTerminalTarget, terminalUpgradeOptions,
+  handleEngineStatus, handleEngineAction,
+} from "./terminal-routes.mjs";
+import { installTerminalUpgrade } from "./terminal-socket.mjs";
+// Whether this deck's platform has the Command Panel, which Settings' switch
+// follows: Linux and macOS; on Windows only the test-only preview, which no
+// production entry can ask for (command-panel-platform.mjs).
+import { commandPanelPlatform } from "./command-panel-platform.mjs";
+// For bin/deck.js's shutdown: an upgraded socket is not in the HTTP server's
+// connection list, so closeAllConnections() never reaches a terminal; and the
+// Command Panel's engine, a child of this process, is stopped beside them.
+export { closeAllTerminals } from "./terminal-socket.mjs";
+export { stopCommandPanelEngine } from "./command-panel-engine.mjs";
 // The port fallback, one listen attempt, and the words for a failed one — see
 // listen.mjs. The loop that uses them is startServer's.
 import { listenFailure, portRetryable, randomPort, tryListen } from "./listen.mjs";
@@ -205,13 +238,61 @@ export function requestUrl(rawUrl) {
   catch { return null; }
 }
 
-export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null } = {}) {
+// The ccdeck account's routes, loaded the first time they are wanted and only
+// while the account is on (account-flag.mjs) — so a deck with it off never
+// evaluates a line of them. One per process, like the deck's token.
+let accountRoutes = null;
+function loadAccountRoutes(deps) {
+  accountRoutes ??= import("./ccdeck-account-routes.mjs")
+    .then(m => m.startAccountRoutes(deps))
+    .catch(err => { accountRoutes = null; throw err; });
+  return accountRoutes;
+}
+
+/** The account at boot, once the settings are read: loaded and started when
+ *  it is on — which also loads it before any install can replace the tree, the
+ *  pin pinned-build.mjs cannot give a module a deck with the account off must
+ *  never evaluate — and nothing at all when it is off. */
+async function startAccountWhenOn(deps) {
+  try {
+    await prefsRead;
+    if (accountOn(heldPrefs.current())) await loadAccountRoutes(deps);
+  } catch (err) {
+    console.error(`${PRODUCT}: the account could not start:`, err?.message ?? err);
+  }
+}
+
+/** An /api/account route: with the account off, exactly the 404 an /api path
+ *  with no route answers, asked of nothing else — see account-flag-off.test.ts. */
+async function accountRoute(req, res, url, deps) {
+  await prefsRead;
+  if (!accountOn(heldPrefs.current())) return send(res, 404, { error: "not found" });
+  const routes = await loadAccountRoutes(deps);
+  return routes.handle(req, res, url);
+}
+
+// `account` is handed to the account's service as its stand-ins (a token store
+// that never reaches a real keychain, a clock): the suite's, like `terminal`
+// on the terminal branch. The product passes nothing.
+// `terminal` is handed to the Command Panel's routes and its upgrade as their
+// stand-ins (see terminalDeps in terminal-routes.mjs). The product passes
+// nothing. A test passes an engine's terminal as `terminal.engine`
+// (engineTerminals in pro-engine-terminal.mjs), or the JS backend as
+// `terminal.jsBackend` (terminal-js-routes.mjs) to run the routes on a tmux
+// server of its own: only a caller of startServer can, and nothing the deck
+// runs imports that backend, so no setting, variable, flag or request reaches
+// it.
+export async function startServer({ port = 4317, host = "127.0.0.1", persist = null, portRange = [4318, 4400], workspace = "", codex = true, claude = true, onRestart = null, onStop = null, cswapQuiet = null, terminal = {}, account = {} } = {}) {
   startQuotaHistory();
   startQuotaCloses();
   await startToolAudit();
   armLifecycle({ onRestart, onStop, persist, onSelfUpdate: () => reporter.noteSelfUpdate() });
   // Which tree and which CLIs, normalised once — see setDeckScope.
   setDeckScope({ workspace, claude, codex });
+  // Whether the Command Panel's switch is offered here, asked once: the
+  // platform's answer, nothing loaded, unless a test-only preview option is
+  // handed on Windows (command-panel-platform.mjs).
+  const panelPlatform = await commandPanelPlatform(terminal);
   // A boot is the one moment the file, and not the engine, is the authority on
   // the key, the pairings and the port. See lanApplyFields.
   resetLanLoaded();
@@ -247,6 +328,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // already. Just keep the buffer + seq counter primed.
     }
   }
+  // The names a reader gave sessions in the deck, read once (internal #101),
+  // and told to the sessions the replay put back — see announceKeptNames.
+  await loadDeckNames();
+  announceKeptNames(eventsSince(0));
   // The async handlers below are dispatched as floating promises. Node's
   // default for an unhandled rejection is to kill the process, which would
   // take the whole deck down — SSE stream, hook ingest and all — because one
@@ -339,19 +424,21 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/presence")    return guard(handlePresence(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/shutdown")    return guard(handleStop(req, res), res);
     if (["GET", "POST"].includes(req.method) && ["/api/tool-audit", "/api/tool-audit/storage"].includes(url.pathname)) return guard(handleToolAudit(req, res), res);
+    if (url.pathname === SESSION_TRANSCRIPT_ROUTE) return guard(handleSessionTranscript(req, res), res);
     if (req.method === "GET" && url.pathname === "/api/quota/history") return guard(handleQuotaHistory(req, res), res);
     if (req.method === "GET" && url.pathname === "/api/quota/closes") return guard(handleQuotaCloses(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/quota")       return guard(handleQuota(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/codex-usage")  return guard(handleCodexUsage(req, res), res);
     // Machine state, not session state: sampled on the server's own timer and
     // deliberately kept out of the event stream. See src/server/system-metrics.mjs.
-    if (req.method === "GET"  && url.pathname === "/api/prefs")        return handlePrefsRead(req, res);
+    if (req.method === "GET"  && url.pathname === "/api/prefs")        return handlePrefsRead(req, res, panelPlatform);
     if (req.method === "GET"  && url.pathname === "/api/lan")          return handleLanStatus(req, res);
     if (req.method === "POST" && url.pathname === "/api/lan/peer")     return guard(handleLanPeer(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/lan/invite")   return guard(handleLanInvite(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/lan/sync")     return guard(handleLanSync(req, res), res);
-    if (req.method === "POST" && url.pathname === "/api/prefs")        return guard(handlePrefsWrite(req, res), res);
-    if (req.method === "POST" && url.pathname === "/api/prefs/give-back") return guard(handlePrefsGiveBack(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/prefs")        return guard(handlePrefsWrite(req, res, panelPlatform), res);
+    if (req.method === "POST" && url.pathname === "/api/session-name") return guard(handleSessionNameWrite(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/prefs/give-back") return guard(handlePrefsGiveBack(req, res, panelPlatform), res);
     if (req.method === "POST" && url.pathname === "/api/reports")      return guard(handleReportsWrite(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/ui-language")  return guard(handleUiLanguageWrite(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/feedback")     return handleFeedbackFacts(req, res);
@@ -474,6 +561,41 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // once per name per day. A name, never what was in it. See feature-use.mjs.
     if (req.method === "POST" && url.pathname === "/api/feature") return guard(handleFeature(req, res), res);
 
+    // The Command Panel. While it is switched off each of these answers the
+    // 404 below, word for word, without asking anything of anyone — see
+    // terminal-routes.mjs. Session ids ride in the query or the body, never in
+    // the path, so GUARDED_READS can name the three reads exactly.
+    if (req.method === "GET"  && url.pathname === "/api/terminal/status") return guard(handleTerminalStatus(req, res, terminal), res);
+    if (req.method === "GET"  && url.pathname === "/api/terminal/target") return guard(handleTerminalTarget(req, res, url, terminal), res);
+    if (req.method === "GET"  && url.pathname === "/api/terminal/hosts")  return guard(handleTerminalHosts(req, res, terminal), res);
+    if (req.method === "POST" && url.pathname === "/api/terminal/hosts/end") return guard(handleTerminalEndHosts(req, res, terminal), res);
+    if (req.method === "POST" && url.pathname === "/api/terminal/open")   return guard(handleTerminalOpen(req, res, terminal), res);
+    if (req.method === "POST" && url.pathname === "/api/terminal/adopt")  return guard(handleTerminalAdopt(req, res, terminal), res);
+    if (req.method === "POST" && url.pathname === "/api/terminal/launch") return guard(handleTerminalLaunch(req, res, terminal), res);
+    if (req.method === "POST" && url.pathname === "/api/terminal/claim")  return guard(handleTerminalClaim(req, res, terminal), res);
+    if (req.method === "POST" && url.pathname === "/api/terminal/folder") return guard(handleTerminalFolder(req, res, terminal), res);
+    // The engine's install, from the page (engine-install.mjs): its state, an
+    // install from the registry or from a file, a cancel and a remove.
+    if (req.method === "GET"  && url.pathname === "/api/terminal/engine") return guard(handleEngineStatus(req, res, terminal), res);
+    if (req.method === "POST" && url.pathname.startsWith("/api/terminal/engine/")) return guard(handleEngineAction(req, res, url.pathname.slice("/api/terminal/engine/".length), terminal), res);
+    // The ccdeck account (account-flag.mjs). Switched off, each of these is
+    // the 404 below, word for word, and nothing of the account is loaded. The
+    // two reads are in GUARDED_READS; the POSTs are mutations like any other.
+    if (req.method === "GET"  && url.pathname === "/api/account")                return guard(accountRoute(req, res, url, account), res);
+    if (req.method === "POST" && url.pathname === "/api/account/connect")        return guard(accountRoute(req, res, url, account), res);
+    if (req.method === "POST" && url.pathname === "/api/account/connect/cancel") return guard(accountRoute(req, res, url, account), res);
+    if (req.method === "POST" && url.pathname === "/api/account/disconnect")     return guard(accountRoute(req, res, url, account), res);
+    if (req.method === "POST" && url.pathname === "/api/account/ui")             return guard(accountRoute(req, res, url, account), res);
+    if (req.method === "POST" && url.pathname === "/api/account/ui/applied")     return guard(accountRoute(req, res, url, account), res);
+    if (req.method === "GET"  && url.pathname === "/api/account/sync/preview")   return guard(accountRoute(req, res, url, account), res);
+    if (req.method === "POST" && url.pathname === "/api/account/sync/mode")      return guard(accountRoute(req, res, url, account), res);
+    if (req.method === "POST" && url.pathname === "/api/account/sync/resolve")   return guard(accountRoute(req, res, url, account), res);
+    if (req.method === "POST" && url.pathname === "/api/account/sync/upload")    return guard(accountRoute(req, res, url, account), res);
+    // The account's feedback conversations, the list and everything under it
+    // (ccdeck-account-routes.mjs): the reads are guarded by prefix.
+    if (req.method === "GET"  && (url.pathname === "/api/account/feedback/threads" || url.pathname.startsWith("/api/account/feedback/threads/"))) return guard(accountRoute(req, res, url, account), res);
+    if (req.method === "POST" && (url.pathname === "/api/account/feedback/threads" || url.pathname.startsWith("/api/account/feedback/threads/"))) return guard(accountRoute(req, res, url, account), res);
+
     // AN UNMATCHED /api/ PATH IS A 404, not the SPA shell.
     //
     // serveStatic falls back to index.html for a path it cannot find, which is
@@ -541,6 +663,16 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     }
   });
 
+  // THE ONE 'upgrade' LISTENER, and what having one costs: while it is there
+  // Node hands every request that carries an Upgrade header to it instead of
+  // to `route`, on any path and past every gate above. So it answers a 404 to
+  // everything that is not the terminal's own socket, and runs the gates again
+  // itself for the one path it takes. It is there only while the panel is
+  // switched on (installTerminalUpgrade follows the switch), so a deck with
+  // the panel off answers an offered upgrade the way it always did. Before the
+  // listen loop, so it is armed on whichever port binds.
+  installTerminalUpgrade(server, terminalUpgradeOptions(terminal));
+
   // Try requested port first, then up to 10 random ports from portRange.
   const candidates = [port];
   for (let i = 0; i < 10; i++) candidates.push(randomPort(portRange[0], portRange[1]));
@@ -601,6 +733,10 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
       // unref'd timers. Switched off in Appearance, or with
       // AGENTS_DECK_NO_REPORTS / AGENTS_DECK_NO_INSTALL, nothing is sent.
       reporter.start();
+      // The ccdeck account, when it is on: the status frames and the settings
+      // sync of a deck that is connected, after the reporter as the design
+      // orders them. Off — the default — nothing here is even imported.
+      void startAccountWhenOn(account);
       // Auto-switch resumes only if the user previously turned it on; the
       // module reads its own persisted flag and does nothing otherwise. Its
       // ticks wait for `cswapQuiet`, the launcher's word that claude-swap is not

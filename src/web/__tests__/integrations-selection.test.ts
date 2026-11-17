@@ -13,6 +13,7 @@
 // far enough from the hover's, in OKLab, to be told apart. The values are read
 // from the stylesheet itself, theme overrides included, so a palette edit or a
 // change to the rule that walks a theme under the floor fails here.
+import { THEMES as CATALOG_THEMES } from "../theme";
 import { describe, expect, it } from "vitest";
 import { THEMES, apart, color, contrast, css, declarations, host, over, palette, panelOf, scopeOf, type Rgba } from "./integrations-palette";
 
@@ -29,21 +30,25 @@ const r2 = (n: number) => Math.round(n * 1000) / 1000;
 
 describe("the selected row in an integration panel", () => {
   it("reads every shipped theme, so a pass covers all of them", () => {
-    expect(THEMES.length).toBe(12);
+    expect([...THEMES].sort()).toEqual([...CATALOG_THEMES].sort());
     for (const theme of THEMES) expect(palette(theme).panel, theme).toBeTruthy();
   });
 
   it("declares one fill, one hover fill and one ink for every word, on the host's modal", () => {
     const props = declarations(host, ".ig-modal");
-    expect(props["ig-sel-fill"]).toBe("var(--accent-dim)");
-    expect(props["ig-hover-fill"]).toBe("var(--ctl-fill)");
+    // CHANGED ON PURPOSE (V4's Figma): a selected row is the kit's neutral --selected, not the
+    // accent wash, and the hover is a lighter text tint so the two stay apart (checked below).
+    expect(props["ig-sel-fill"]).toBe("var(--selected)");
+    expect(props["ig-hover-fill"]).toBe("color-mix(in srgb, var(--text) 2%, transparent)");
     expect(props["ig-sel-ink"]).toBe("var(--text)");
     expect(props["ig-sel-muted"]).toBe("var(--text)");
   });
 
-  it("leaves the app-wide --accent-dim alone and overrides only the palettes it fails in", () => {
+  it("leaves the app-wide --accent-dim alone and overrides no palette", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the neutral --selected clears the floors in every palette
+    // (measured below), so the two Gruvbox accent mixes the old wash needed are gone.
     const overridden = THEMES.filter(t => "ig-sel-fill" in declarations(host, `:root[data-theme="${t}"] .ig-modal`));
-    expect(overridden.sort()).toEqual(["gruvbox-dark", "gruvbox-material"]);
+    expect(overridden).toEqual([]);
     expect(host).not.toMatch(/--accent-dim\s*:/);
   });
 
@@ -98,6 +103,8 @@ describe("the selected row in an integration panel", () => {
     // The deck answers forced colours in one block (forced-colors-871.test.ts).
     const forced = css.slice(css.indexOf("@media (forced-colors: active) {"));
     expect(forced).toMatch(/\n\s*\.ig-row\[data-selected\]\s*\{\s*outline:\s*2px solid Highlight/);
-    expect(host).toMatch(/@media \(hover: none\)\s*\{[^}]*\.ig-row:hover:not\(\[data-selected\]\)/);
+    // A touch never lifts a row: the lift is for mice only, so no touch reset is needed.
+    expect(host).toMatch(/@media \(hover: hover\) and \(pointer: fine\)\s*\{\s*\.ig-row:hover \{/);
+    expect(host).not.toMatch(/@media \(hover: none\)/);
   });
 });

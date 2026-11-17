@@ -22,6 +22,9 @@ const LOOK_AGAIN_MS = 60_000;
 export interface AccountAttention {
   /** The accounts to ask about now. Empty is no prompt. */
   rows: AttentionRow[];
+  /** The roster as last read (null before the first), for what else on the page
+   *  names the active account, such as the rail's usage meter. */
+  accounts: Account[] | null;
   /** The account whose sign-in is open, which the prompt steps aside for. */
   signingIn: AttentionRow | null;
   /** A roster arrived — from the panel's poll, or this hook's own read. */
@@ -123,6 +126,7 @@ export function useAccountAttention(
 
   return {
     rows,
+    accounts,
     signingIn,
     observe,
     signIn: setSigningIn,

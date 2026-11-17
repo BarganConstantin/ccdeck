@@ -11,12 +11,16 @@
 // camera's other users (a focus, the reframe, the reader's own gestures) stay
 // in App.tsx and reach the refs from there.
 import { useCallback, useEffect, useRef } from "react";
-import { useReactFlow, useStoreApi, type ReactFlowState } from "reactflow";
+import { useReactFlow, useStoreApi, type Node, type ReactFlowState } from "reactflow";
 
-import { cardBodyPx, fitZoomForDrawnLanes } from "./semantic-zoom";
+import { boardRect } from "./board-rect";
+import { AUTO_FIT_MIN_ZOOM, FIT_MIN_ZOOM, fitBoard } from "./fit-board";
+import { cardBodyPx } from "./semantic-zoom";
+import { sessionGroupNodes } from "./session-group-nodes";
 import { TEXT_SIZE_INCREASE, currentTextSize } from "./reading-preferences";
-import { FIT_FILL, FIT_MARGIN, railCover } from "./use-layout-frame";
-import { shouldAnimateViewport } from "./viewport-motion";
+import { railCover } from "./use-layout-frame";
+import { stageEase as easeOut } from "./motion-ease";
+import { CAMERA_FAST_MS, CAMERA_SLOW_MS, shouldAnimateViewport } from "./viewport-motion";
 import { guardZoomPath, isViewableViewport } from "./zoom-path";
 
 /** d3-zoom's own transform for the pane — the scale `k`, the translation
@@ -34,8 +38,30 @@ type PaneTransform = Extract<
 /** The pane zoom behaviours whose interpolator is already guarded. */
 const guardedZooms = new WeakSet<object>();
 
+/** A d3 transition on the pane, `duration` long, on V4's stage curve
+ *  (--ease-stage, navigator-flip.ts). `selection.transition()` is d3-transition's
+ *  and reaches the selection through React Flow, which imports it for its own
+ *  setViewport; the types do not carry it, so its three calls are named here. */
+type PaneSelection = NonNullable<ReactFlowState["d3Selection"]>;
+type PaneTransition = Parameters<NonNullable<ReactFlowState["d3Zoom"]>["transform"]>[0];
+function stageTransition(selection: PaneSelection, duration: number): PaneTransition {
+  const t = (selection as unknown as {
+    transition(): { duration(ms: number): { ease(fn: (t: number) => number): unknown } };
+  }).transition();
+  return t.duration(duration).ease(easeOut) as PaneTransition;
+}
+
+/** Stops whatever transition the pane is running, where the camera stands. */
+function interruptPane(selection: PaneSelection | null | undefined): void {
+  (selection as unknown as { interrupt?: () => unknown } | null | undefined)?.interrupt?.();
+}
+
 // Matches TOOL_LANE_W in layout-geometry.ts — the burst lane drawn beside each card.
 export const TOOL_LANE_ALLOWANCE = 420;
+
+/** Who asked for a fit: the auto-fit, which keeps the faces' task line, or the
+ *  reader's Fit all and F, which show the whole board however small. */
+export type FitReach = "auto" | "all";
 
 export function useCamera() {
   const rf = useReactFlow();
@@ -86,12 +112,23 @@ export function useCamera() {
    */
   const applyViewport = useCallback((next: { x: number; y: number; zoom: number }, duration: number) => {
     if (!isViewableViewport(next)) return;
+    const { d3Zoom, d3Selection } = storeApi.getState();
+    const current = d3Selection?.property("__zoom") as PaneTransform | undefined;
     if (shouldAnimateViewport({ durationMs: duration, documentHidden: document.hidden })) {
+      // On V4's stage curve, not d3's own cubic in-out: React Flow's
+      // setViewport takes a duration and no easing, so the transition is made
+      // here and handed to the same d3Zoom.transform it would have used. Same
+      // d3 transition, so a wheel, a pinch or a drag interrupts it at once and
+      // a second request starts from wherever the camera is.
+      if (d3Zoom && d3Selection && current && current.k > 0 && next.zoom > 0) {
+        d3Zoom.transform(stageTransition(d3Selection, duration), current
+          .scale(next.zoom / current.k)
+          .translate((next.x - current.x) / next.zoom, (next.y - current.y) / next.zoom));
+        return;
+      }
       rf.setViewport(next, { duration });
       return;
     }
-    const { d3Zoom, d3Selection } = storeApi.getState();
-    const current = d3Selection?.property("__zoom") as PaneTransform | undefined;
     if (d3Zoom && d3Selection && current && current.k > 0 && next.zoom > 0) {
       d3Zoom.transform(d3Selection, current
         .scale(next.zoom / current.k)
@@ -140,6 +177,24 @@ export function useCamera() {
    *  way. The correction now lands only while its fit is still the latest. */
   const cameraEpochRef = useRef(0);
   const lastFitTimeRef = useRef(0);
+  /** How to run the fit that is animating again, from where the camera is
+   *  now: set by fitLeft, cleared by every other move. A window resize in the
+   *  middle of a fit asks it, so the animation ends on the new frame and not
+   *  on the one the old window measured. */
+  const refitRef = useRef<(() => void) | null>(null);
+  /** The zoom a run of zoom steps is on its way to, so a second press adds to
+   *  the first instead of to the frame it has reached so far. */
+  const zoomGoalRef = useRef<{ zoom: number; until: number } | null>(null);
+  /** The board's own places, as the layout put them (use-board-graph.ts
+   *  `nodes`), set by App each render. Below the full card React Flow is
+   *  handed the board packed (packed-board.ts), and a fit read off it would
+   *  depend on the zoom it was asked from. Null until the board is built; the
+   *  fit then reads React Flow's nodes. */
+  const boardRef = useRef<Node[] | null>(null);
+  /** The reader's Fit all holds: set by Fit all, F and recenter, and the fits
+   *  that follow on their own (a panel, a resize, a new session) keep showing
+   *  the whole board until the reader pans or zooms by hand (releaseFitAll). */
+  const fitAllHeldRef = useRef(false);
 
   /** A MOVE THE DECK MAKES ON PURPOSE, to `want` over `duration`. Every one of
    *  them does the same four things in the same order, and they used to be
@@ -151,6 +206,8 @@ export function useCamera() {
    *  for a caller that checks later whether its move is still the latest. */
   const moveCamera = useCallback((want: { x: number; y: number; zoom: number }, duration: number): number => {
     const epoch = ++cameraEpochRef.current;
+    refitRef.current = null;
+    zoomGoalRef.current = null;
     // Immediate moves emit onMove synchronously. Stamp first, so a press of
     // Recenter is recognised as a deck fit instead of disabling auto-fit again.
     lastFitTimeRef.current = Date.now();
@@ -164,26 +221,30 @@ export function useCamera() {
   }, [applyViewport]);
 
   /**
-   * Frame the graph against the left edge of the canvas.
+   * Frame the graph in the canvas the panels leave.
    *
-   * React Flow's fitView centres, and there is no asymmetric-padding option,
-   * so this measures what is actually drawn and sets the viewport outright.
-   * Left-anchored because a graph parked mid-canvas leaves dead space on the
-   * side the eye starts from.
+   * React Flow's fitView centres on the whole pane, and there is no
+   * asymmetric-padding option, so this measures what is actually drawn and
+   * sets the viewport outright: centred across the canvas left of the rail
+   * when the board is narrower than it, from the left margin when it is not
+   * (fit-board.ts). The name is older than the centring: it was anchored left
+   * until a board held by its height stood in the canvas's left half.
+   *
+   * `reach` is who asked. The auto-fit (`auto`) never frames the board below
+   * the zoom its faces still say each card's task at, and leaves the rest of
+   * a board too big for that to a pan; Fit all and F (`all`) show the whole
+   * board however small (fit-board.ts), and so does every fit after them
+   * until the reader pans or zooms by hand.
    */
-  const fitLeft = useCallback((duration = 500) => {
-    // MAX_ZOOM 1: cards are drawn at their natural size, so magnifying past
-    // 1:1 only makes a small graph look coarse. FILL leaves the frame a little
-    // loose — a fit that touches the margins reads as "already too big" and
-    // gives the eye nowhere to land when the next session appears.
-    const MARGIN = FIT_MARGIN, MAX_ZOOM = 1, MIN_ZOOM = 0.2, FILL = FIT_FILL;
+  const fitLeftRef = useRef<(duration?: number, reach?: FitReach) => void>(() => {});
+  const fitLeft = useCallback((duration = CAMERA_SLOW_MS, reach: FitReach = fitAllHeldRef.current ? "all" : "auto") => {
     try {
       const pane = document.querySelector(".canvas-wrap");
       const drawn = Array.from(document.querySelectorAll(".react-flow__node"))
         .filter(el => (el as HTMLElement).offsetWidth > 0);
       if (!pane || drawn.length === 0) return;
 
-      const paneRect = pane.getBoundingClientRect();
+      const paneRect = boardRect(pane);
       const vp = rf.getViewport();
       if (!Number.isFinite(vp.zoom) || vp.zoom <= 0) return;
 
@@ -191,8 +252,11 @@ export function useCamera() {
       // R fits after 80ms, while node transforms ease for 320ms; measuring
       // screen rectangles then frames the old/intermediate arrangement and
       // leaves the final nodes under a side panel. Keep the DOM visibility
-      // filter, but pair its unscaled dimensions with the store's targets.
-      const targets = new Map(rf.getNodes().map(n => [n.id, n]));
+      // filter, but pair its unscaled dimensions with the targets: the
+      // board's own places (boardRef), not the packed ones the faces draw,
+      // so the fit is the same from any zoom.
+      const board = boardRef.current;
+      const targets = new Map<string, Node>((board ? [...sessionGroupNodes(board), ...board] : rf.getNodes()).map(n => [n.id, n]));
       const rects = drawn.flatMap(el => {
         const node = targets.get((el as HTMLElement).dataset.id ?? "");
         if (!node) return [];
@@ -200,49 +264,26 @@ export function useCamera() {
         const width = node.width ?? (el as HTMLElement).offsetWidth;
         const height = node.height ?? (el as HTMLElement).offsetHeight;
         if (!(width > 0 && height > 0)) return [];
-        return [{ left: pos.x, right: pos.x + width, top: pos.y, bottom: pos.y + height }];
+        return [{ left: pos.x, right: pos.x + width, top: pos.y, bottom: pos.y + height, type: node.type }];
       });
-      if (rects.length === 0) return;
-      const minX = Math.min(...rects.map(r => r.left));
-      const maxX = Math.max(...rects.map(r => r.right));
-      const minY = Math.min(...rects.map(r => r.top));
-      const maxY = Math.max(...rects.map(r => r.bottom));
-      const w = maxX - minX, h = maxY - minY;
-      if (!(w > 0 && h > 0)) return;
-
-      // Tool bursts are an overlay rather than nodes, so they are absent from
-      // these rects — leave room or the last column's chips get clipped. The
-      // rail's strip is not room either: a board framed into it would put its
-      // last column under the machine and usage panels.
-      //
-      // Only where they are drawn, though (fitZoomForDrawnLanes): below the
-      // full card the bubbles are hidden, and room kept for them there is the
-      // band of empty canvas a board used to sit in the middle of.
       const railWidth = railCover(pane);
-      const fitWith = (lane: number) => Math.max(MIN_ZOOM, Math.min(
-        MAX_ZOOM,
-        ((paneRect.width - railWidth - MARGIN * 2) / (w + lane)) * FILL,
-        ((paneRect.height - MARGIN * 2) / h) * FILL,
-      ));
-      const zoom = fitZoomForDrawnLanes(fitWith(TOOL_LANE_ALLOWANCE), fitWith(0), cardBodyPx(TEXT_SIZE_INCREASE[currentTextSize()]));
-
+      const bodyPx = cardBodyPx(TEXT_SIZE_INCREASE[currentTextSize()]);
       // One frame, computed once. It used to be spelled out twice — here and
       // again inside the correction below — which is two chances to disagree
       // about where the graph was supposed to go.
-      const want = {
-        x: MARGIN - minX * zoom,
-        // Tall canvases read down from the top. Centring a width-bound board
-        // there left hundreds of empty pixels above and below its sessions.
-        // Keep the familiar vertical centring on landscape/square canvases.
-        y: (paneRect.height > paneRect.width - railWidth
-          ? MARGIN : Math.max(MARGIN, (paneRect.height - h * zoom) / 2)) - minY * zoom,
-        zoom,
-      };
+      const want = fitBoard(rects, {
+        pane: { width: paneRect.width, height: paneRect.height }, rail: railWidth, bodyPx,
+        floor: reach === "all" ? FIT_MIN_ZOOM : AUTO_FIT_MIN_ZOOM,
+      });
+      if (!want) return;
+      const { zoom } = want;
       const epoch = moveCamera(want, duration);
+      // Asked again if the window is resized while this one is still moving.
+      refitRef.current = () => fitLeftRef.current(duration, reach);
       // A transition can also be cut short — the pane loses its frames when the
       // tab is hidden mid-animation, and the user can grab it. Check afterwards
       // and, if the frame never arrived, put it there outright. Not fitView:
-      // that centres, which is the one thing this function exists to avoid.
+      // that centres on the whole pane, rail and floor rules and all ignored.
       window.setTimeout(() => {
         try {
           // Only if it is still THIS fit's target: a second fit started in the
@@ -258,6 +299,15 @@ export function useCamera() {
       }, duration + 60);
     } catch { /* viewport not ready */ }
   }, [rf, applyViewport, moveCamera]);
+  fitLeftRef.current = fitLeft;
+  /** Fit all and F: the whole board, below the auto-fit's floor if it takes
+   *  that, and held there for the fits that follow on their own. */
+  const fitAll = useCallback(() => {
+    fitAllHeldRef.current = true;
+    fitLeft(CAMERA_SLOW_MS, "all");
+  }, [fitLeft]);
+  /** The reader panned or zoomed by hand: the auto-fit's floor is back. */
+  const releaseFitAll = useCallback(() => { fitAllHeldRef.current = false; }, []);
 
   // A fit that is animating when the tab goes away loses its frames where it
   // stands — a canvas stopped part-way to a frame nobody chose, which is worse
@@ -285,9 +335,94 @@ export function useCamera() {
     return () => document.removeEventListener("visibilitychange", land);
   }, [applyViewport]);
 
+  /** THE READER TOOK THE CAMERA. A wheel, a pinch or a press on the canvas
+   *  while a fit or a focus is animating stops it where it stands: the pane's
+   *  d3 transition is interrupted (d3-zoom's own gestures already do that, and
+   *  this covers the ones that arrive through the store), the fit's trailing
+   *  correction is superseded so it cannot put the board back over the move,
+   *  and the deck's stamp is cleared so what follows reads as the reader's own
+   *  gesture and not as the tail of the fit. A no-op when nothing is moving. */
+  const takeOver = useCallback(() => {
+    if (!pendingFitRef.current) return;
+    pendingFitRef.current = null;
+    refitRef.current = null;
+    cameraEpochRef.current += 1;
+    lastFitTimeRef.current = 0;
+    interruptPane(storeApi.getState().d3Selection);
+  }, [storeApi]);
+
+  /** A zoom step, in Fast on the same transition a fit uses (V4's Board
+   *  camera): the buttons and the 100% reset. It starts from where the camera
+   *  is, and a second press while one is moving adds to the goal of the first.
+   *  About the middle of the pane, as React Flow's own zoomIn did, and never
+   *  stamped as the deck's own fit: it is the reader's gesture, so auto-fit
+   *  stands down for it (viewport-intent.ts). */
+  const zoomStep = useCallback((goal: (zoom: number) => number) => {
+    // A zoom by hand, from a key as well as a press: Fit all lets go.
+    fitAllHeldRef.current = false;
+    const { d3Zoom, d3Selection, minZoom, maxZoom } = storeApi.getState();
+    const current = d3Selection?.property("__zoom") as PaneTransform | undefined;
+    if (!d3Zoom || !d3Selection || !current || !(current.k > 0)) return;
+    const live = zoomGoalRef.current && zoomGoalRef.current.until > Date.now() ? zoomGoalRef.current.zoom : current.k;
+    const want = Math.max(minZoom ?? 0, Math.min(maxZoom ?? Infinity, goal(live)));
+    if (!Number.isFinite(want) || !(want > 0)) return;
+    cameraEpochRef.current += 1;
+    refitRef.current = null;
+    pendingFitRef.current = null;
+    lastFitTimeRef.current = 0;
+    if (shouldAnimateViewport({ durationMs: CAMERA_FAST_MS, documentHidden: document.hidden })) {
+      zoomGoalRef.current = { zoom: want, until: Date.now() + CAMERA_FAST_MS + 60 };
+      d3Zoom.scaleTo(stageTransition(d3Selection, CAMERA_FAST_MS) as never, want);
+    } else {
+      zoomGoalRef.current = null;
+      d3Zoom.scaleTo(d3Selection, want);
+    }
+  }, [storeApi]);
+  /** THE CAMERA SIDEWAYS BY `dx` SCREEN PX, AT ONCE, for the switch between
+   *  the packed board and the board as laid out (use-repack-anchor.ts): the
+   *  cards move in that frame, and the camera with them keeps the one the
+   *  reader is zooming at where it was. Through the pane's d3-zoom, so a wheel
+   *  or a pinch in progress carries on from here. A zoom step still on its way
+   *  is interrupted by the move and sent on to its goal for the time it had
+   *  left. Not stamped: it belongs to the reader's own zoom. */
+  const panBy = useCallback((dx: number) => {
+    if (!Number.isFinite(dx) || dx === 0) return;
+    const { d3Zoom, d3Selection } = storeApi.getState();
+    const current = d3Selection?.property("__zoom") as PaneTransform | undefined;
+    if (!d3Zoom || !d3Selection || !current || !(current.k > 0)) return;
+    d3Zoom.transform(d3Selection, current.translate(dx / current.k, 0));
+    const goal = zoomGoalRef.current;
+    const left = goal ? goal.until - 60 - Date.now() : 0;
+    if (goal && left > 0 && shouldAnimateViewport({ durationMs: left, documentHidden: document.hidden })) {
+      d3Zoom.scaleTo(stageTransition(d3Selection, left) as never, goal.zoom);
+    }
+  }, [storeApi]);
+  /** The + and − buttons: one step of React Flow's own 1.2 each way. */
+  const zoomBy = useCallback((factor: number) => zoomStep(zoom => zoom * factor), [zoomStep]);
+  /** The level in the control bar: back to 100%. */
+  const zoomReset = useCallback(() => zoomStep(() => 1), [zoomStep]);
+
+  // A window resized in the middle of a fit would leave the animation on its
+  // way to the frame the old window measured. After the layout has settled
+  // (the 80ms the reframe waits too), the fit that was moving is asked again
+  // and starts from where the camera is.
+  useEffect(() => {
+    let timer: number | undefined;
+    const onResize = () => {
+      if (!pendingFitRef.current || !refitRef.current) return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => { if (pendingFitRef.current) refitRef.current?.(); }, 100);
+    };
+    window.addEventListener("resize", onResize);
+    return () => { window.removeEventListener("resize", onResize); window.clearTimeout(timer); };
+  }, []);
+
   /** Where the pane is right now, for a move that has to come back to it —
    *  Re-arrange keeps it so its Undo can return the view it replaced. */
   const currentViewport = useCallback(() => rf.getViewport(), [rf]);
 
-  return { applyViewport, moveCamera, fitLeft, currentViewport, cameraEpochRef, lastFitTimeRef };
+  return {
+    applyViewport, moveCamera, fitLeft, fitAll, releaseFitAll, panBy, boardRef, currentViewport, cameraEpochRef, lastFitTimeRef,
+    takeOver, zoomBy, zoomReset,
+  };
 }

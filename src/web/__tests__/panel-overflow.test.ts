@@ -169,11 +169,11 @@ describe("the cost bar inside the usage panel", () => {
   const effectiveWidth = declIn(scoped, "width") ?? decl(".cost-bar", "width");
   const [ml, mr] = horizontalMargin(scoped);
 
-  it("is measured against a border-box, which is what makes 280px a 278px panel", () => {
+  it("is measured against a border-box, which is what makes 320px a 318px panel", () => {
     // Every number below assumes the declared width IS the border box. The
     // sheet says so once, globally, and the arithmetic is wrong without it.
     expect(bodyOf("*")).toMatch(/box-sizing\s*:\s*border-box/);
-    expect(contentWidth).toBe(278);
+    expect(contentWidth).toBe(318);
   });
 
   it("declares a scroll on one axis, which is why an overflow on the other one shows", () => {
@@ -185,35 +185,27 @@ describe("the cost bar inside the usage panel", () => {
     expect(Number.isNaN(panelWidth)).toBe(false);
   });
 
-  it("keeps its margins inside the panel instead of adding them to a full width", () => {
-    expect(isZero(ml)).toBe(false);
-    expect(isZero(mr)).toBe(false);
-    const margins = px(ml) + px(mr);
-
-    // The used width of the bar's box, for the two forms the width can take.
-    // `auto` on a block-level flex container is the space left after margins;
-    // a percentage is a share of the content box and knows nothing about them.
+  // CHANGED ON PURPOSE (V4's Figma): the Usage panel's body pads 12 on every side and the bar
+  // carries no margin of its own, so there is nothing to add to its width. The claim is the
+  // same: the bar never overhangs the panel's content box.
+  it("keeps the bar inside the panel: no margin of its own, the body's padding is its inset", () => {
+    expect(isZero(ml)).toBe(true);
+    expect(isZero(mr)).toBe(true);
+    const inset = px(decl(".up-body", "padding")!);
     const used = effectiveWidth === "auto"
-      ? contentWidth - margins
-      : Number.isNaN(pct(effectiveWidth)) ? px(effectiveWidth) : (contentWidth * pct(effectiveWidth)) / 100;
+      ? contentWidth - 2 * inset
+      : Number.isNaN(pct(effectiveWidth)) ? px(effectiveWidth) : ((contentWidth - 2 * inset) * pct(effectiveWidth)) / 100;
     expect(Number.isNaN(used)).toBe(false);
-
-    const overhang = margins + used - contentWidth;
-    expect(overhang).toBeLessThanOrEqual(0);
-    // The live numbers, kept as numbers: 28px of overhang before, none after,
-    // and a bar that now measures the same 250px as the rows above and below.
-    expect(overhang).toBe(0);
-    expect(used).toBe(250);
-    expect(margins).toBe(28);
+    expect(inset).toBe(12);
+    expect(used).toBeLessThanOrEqual(contentWidth - 2 * inset);
+    expect(used).toBe(294);
   });
 
-  it("lines up with the two rows it sits between, which is what 250px is", () => {
-    // `.qb-track` and `.up-table` fill `.up-section`'s 14px padding box and
-    // measured 1775 → 2025 all along. The bar overhanging them by 14px was the
-    // visible half of this defect before anything scrolled.
-    expect(decl(".up-section", "padding")).toBe("0 14px");
-    expect(px(ml)).toBe(14);
-    expect(px(mr)).toBe(14);
+  it("lines up with the two rows it sits between, which is what 294px is", () => {
+    // The tables and the quota tracks fill the body's padding box like the bar, so all three
+    // measure the body's 294.
+    expect(decl(".up-section", "padding")).toBe("0");
+    expect(decl(".up-body", "padding")).toBe("12px");
     expect(decl(".up-table", "width")).toBe("100%");
   });
 
@@ -268,15 +260,17 @@ describe("a percentage width under a horizontal margin", () => {
     // than written another way so it enters the margin check below, which is
     // what this list is for.
     expect([...percentWidth].sort()).toEqual([
+      // Settings › Account (hidden): the join preview's table, filling its
+      // row. No rule gives it a margin; named so it enters the check below.
+      "account-diff",
       // The Projects report's per-day chart: a column and its stacked segments,
       // each filling the fixed-width day slot the flex plot hands them. Named
       // here so they enter the margin check below; no rule gives them a margin.
       "ap-proj-col", "ap-proj-colseg",
-      // The Account capacity table (#1707, #1713), which fills the dialog's
-      // body; its columns are sized in pixels now, and the account column takes
-      // the rest. Named so it enters the margin check below; no rule gives it a
-      // margin.
-      "ap-report-table",
+      // CHANGED ON PURPOSE (V4's Figma): the Account capacity table is not on this
+      // list any more. It is four columns of 678px in all, as the frame draws
+      // them, so it has no percentage width to check; on a phone it is
+      // `width: auto`.
       // Each reset-day hit area fills its grid cell, with no outer margins.
       "ap-reset-day-button",
       "bw-ep-head", "bw-radar", "cost-bar",
@@ -307,7 +301,10 @@ describe("a percentage width under a horizontal margin", () => {
       // of the ring's legend, and a part, one button across its list row. No
       // rule gives either a margin.
       "tt-lane", "tt-part",
-      "uh-bar", "uh-bar-seg", "up-session-open", "up-table",
+      // CHANGED ON PURPOSE (V4's Figma): a day's bar is a fixed 24 wide now, inside a
+      // plot that fills its column (uh-bar-plot), and a day's detail is a table
+      // that fills the dialog (uh-day-table). No rule gives either a margin.
+      "uh-bar-plot", "uh-bar-seg", "uh-day-table", "up-session-open", "up-table",
     ]);
 
     const violations: string[] = [];
@@ -339,12 +336,8 @@ describe("the account alias in the accounts panel row", () => {
     expect(decl(".ap-alias", "overflow")).toBe("hidden");
     expect(decl(".ap-alias", "text-overflow")).toBe("ellipsis");
     expect(decl(".ap-alias", "white-space")).toBe("nowrap");
-    // Its sibling, unchanged — a "fix" that took the containment off the email
-    // to make room for the alias would move the defect rather than close it.
-    expect(decl(".ap-email", "min-width")).toBe("0");
-    expect(decl(".ap-email", "overflow")).toBe("hidden");
-    expect(decl(".ap-email", "text-overflow")).toBe("ellipsis");
-    expect(decl(".ap-email", "white-space")).toBe("nowrap");
+    // CHANGED ON PURPOSE (V4's Figma): the row draws one name, so there is no
+    // email span beside it to contain; the address is on the door's title.
   });
 
   it("is capped below the row, so an absurd name cannot squeeze the email to nothing", () => {
@@ -362,10 +355,12 @@ describe("the account alias in the accounts panel row", () => {
     // length. The two measurements above are arithmetic done against 40, so
     // 40 is what the assertion says; the comments and the sheet cannot drift
     // apart while it does.
-    expect(decl(".ap-email", "flex")).toBe("1");
-    const cap = pct(decl(".ap-alias", "max-width"));
-    expect(cap, "the alias cap is not a plain percentage").not.toBeNaN();
-    expect(cap).toBe(40);
+    //
+    // CHANGED ON PURPOSE (V4's Figma): the row draws one name, so there is no
+    // second span to squeeze and no cap to hold; the name shrinks to what the
+    // plan, the tag and the figure leave it.
+    expect(decl(".ap-alias", "flex")).toBe("0 1 auto");
+    expect(decl(".ap-alias", "max-width")).toBeNull();
   });
 
   it("is never pinned unshrinkable, which would undo all of it", () => {
@@ -409,12 +404,17 @@ describe("the account alias in the accounts panel row", () => {
     expect(clientText()).toMatch(/const identity = a\.alias && a\.email \? `\$\{a\.alias\} · \$\{a\.email\}` : name;/);
     const door = /<button type="button" className="ap-row-open"[^>]*>/.exec(accountRow)?.[0] ?? "";
     expect(door, "the door button was not found").not.toBe("");
+    // CHANGED ON PURPOSE (compact accounts, #2539): the title is the identity
+    // alone again. Every window, its reset and the age of the reading are drawn
+    // in the open row now, so the title no longer stands in for them.
     expect(door).toMatch(/title=\{identity\}/);
+    expect(clientText()).not.toMatch(/detailTitle/);
     // A title reaches neither a keyboard nor a screen reader (WCAG 1.4.13), and
     // the door is NAMED by the alias when there is one — so the email rides in
-    // its description, pointed at by the id the email span carries.
+    // its description, pointed at by the id the (screen-reader-only) email span
+    // carries.
     expect(door).toMatch(/aria-describedby=\{\[\s*a\.alias && a\.email \? `ap-\$\{ids\}email-\$\{a\.num\}` : null,/);
-    expect(clientText()).toMatch(/<span className="ap-email" id=\{`ap-\$\{ids\}email-\$\{a\.num\}`\}/);
+    expect(clientText()).toMatch(/<span className="ap-email vis-hidden" id=\{`ap-\$\{ids\}email-\$\{a\.num\}`\}>\{a\.email\}<\/span>/);
   });
 
   it("carries the whole name in a title, because the row may be showing part of it", () => {
@@ -429,8 +429,11 @@ describe("the account alias in the accounts panel row", () => {
     // pins by value instead of allowing the whole 0–100 interval, the email box
     // is 31.98px — about four characters and an ellipsis of a 55-character
     // address. Both spans carry their own whole value now.
-    expect(clientText()).toMatch(/<span className="ap-alias" title=\{a\.alias\}>\{a\.alias\}<\/span>/);
-    expect(clientText()).toMatch(/<span className="ap-email" id=\{`ap-\$\{ids\}email-\$\{a\.num\}`\} title=\{a\.email \?\? undefined\}>\{a\.email\}<\/span>/);
+    // CHANGED ON PURPOSE (V4's Figma): one name, titled with the whole identity
+    // (alias · address), so neither half of it is lost to the ellipsis.
+    // The name is drawn in two parts, an address's domain quieter than the
+    // name before it and cut first, and the title is on the whole of it.
+    expect(clientText()).toMatch(/<span className="ap-alias" title=\{identity\}>\s*<span className="ap-alias-local">\{local\}<\/span>\s*\{domain && <span className="ap-alias-domain">\{domain\}<\/span>\}\s*<\/span>/);
     // And the org is not quietly promoted into the same attribute: two values
     // in one tooltip is how the identifier lost it in the first place.
     expect(accountsFeature).not.toMatch(/className="ap-email"[^>]*a\.org/);
@@ -459,6 +462,8 @@ describe("the account alias in the accounts panel row", () => {
     // the guard. Sixty-four W's measured 705px — two and a half times the
     // panel — before the ellipsis went on.
     expect(clientText()).toMatch(/className="ap-alias"/);
-    expect(decl(".ap-alias", "max-width")).not.toBeNull();
+    // CHANGED ON PURPOSE (V4's Figma): contained by overflow and the ellipsis,
+    // not by a cap.
+    expect(decl(".ap-alias", "overflow")).toBe("hidden");
   });
 });

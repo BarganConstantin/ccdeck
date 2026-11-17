@@ -106,8 +106,9 @@ describe("a session that arrives later goes where the board has room", () => {
     const nodes = sessions(n);
     return { nodes, positions: new Map<string, Point>(nodes.map((node, i) => [node.id, { x: 0, y: i * PITCH }])) };
   };
-  // The pitch autoLayout leaves between two columns: card, lane, one card of gap.
-  const NEXT_COLUMN = W + LANE + W;
+  // The pitch autoLayout leaves between two columns: card, lane, and a session
+  // box's chrome (COLUMN_GAP) — no longer a whole card of gap on top.
+  const NEXT_COLUMN = W + LANE + CHROME;
 
   it("does not turn a subagent's x position into a second session column on a portrait frame", () => {
     const { nodes, positions } = column(5);

@@ -27,8 +27,10 @@ describe("the rail's activity chips say their category (#841)", () => {
     expect(count).toBeGreaterThan(name);
   });
 
-  it("makes the emoji decoration, now that the word carries the meaning", () => {
-    expect(chip).toMatch(/<span className="cat-emoji" aria-hidden>/);
+  // CHANGED ON PURPOSE: V4's Figma draws the Inspector's pills as "file 18", a word and
+  // a count, with no emoji; the word carries the whole meaning.
+  it("draws no emoji: the word carries the meaning", () => {
+    expect(chip).not.toContain("cat-emoji");
   });
 
   it("has a word for every category the taxonomy knows", () => {
@@ -41,7 +43,9 @@ describe("the rail's activity chips say their category (#841)", () => {
 
   it("draws the word in the key tier, at the chip's own size", () => {
     const rule = /(?:^|\n)\.cat-chip \.cat-name\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
-    expect(rule).toMatch(/color:\s*var\(--muted\)/);
+    // CHANGED ON PURPOSE: V4's Figma sets the whole pill, word and count, in one ink
+    // (mono 11/14 --text-secondary on the pill), so the word takes the pill's colour.
+    expect(rule).toMatch(/color:\s*inherit/);
     expect(rule).not.toMatch(/font-size/);
   });
 });

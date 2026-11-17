@@ -86,7 +86,12 @@ describe("the pace note opens the number it is measured against (#856)", () => {
 
 describe("what stays a title, because it decides nothing (#856)", () => {
   it("keeps the card's cost breakdown a title", () => {
-    expect(node).toMatch(/<span className="cost-meta" title=\{cost\.tt\}>/);
+    // The foot's list keys the span itself now (V4's card dropped the wrapper).
+    // CHANGED ON PURPOSE (V4's cost tooltip): the breakdown is a tooltip that
+    // opens on hover and keyboard focus (CostChipTip) instead of the native
+    // title. It still decides nothing and is not a disclosure: nothing opens
+    // that the reader has to answer, and Escape closes it.
+    expect(node).toMatch(/<CostChipTip key="cost" className="cost-meta" tip=\{cost\.tip\}>/);
   });
 
   it("keeps where a quota reading came from a title", () => {

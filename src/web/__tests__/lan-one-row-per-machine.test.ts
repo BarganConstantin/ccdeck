@@ -102,7 +102,10 @@ describe("two decks on one machine are one row", () => {
 
 describe("the dialog lists every deck at the address", () => {
   it("is handed the folded decks and a way to unpair each one", () => {
-    expect(SECTION).toMatch(/twins=\{\(openRow\.twins \?\? \[\]\)\.map\(t => \(\{ row: t, peer: rowSource\(status, t\)\.peer \?\? null \}\)\)\}/);
+    // The dialog sits in a DialogPresence that hands it the open row and the
+    // status, so a closing dialog keeps the rows it was opened on.
+    expect(SECTION).toMatch(/<DialogPresence when=\{openRow && status \? \{ openRow, status \} : null\}>\s*\{\(\{ openRow: row, status: s \}\) => \(/);
+    expect(SECTION).toMatch(/twins=\{\(row\.twins \?\? \[\]\)\.map\(t => \(\{ row: t, peer: rowSource\(s, t\)\.peer \?\? null \}\)\)\}/);
     expect(SECTION).toMatch(/onUnpair=\{fp => answer\("unpair", fp, "unpair that deck"\)\}/);
     // And stays open when the machine's other deck takes the lead.
     expect(SECTION).toMatch(/r\.fp === peerOpen \|\| r\.twins\?\.some\(t => t\.fp === peerOpen\)/);

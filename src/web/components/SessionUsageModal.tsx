@@ -6,6 +6,7 @@ import { agentLabel } from "../provider-copy";
 import { fmtCost } from "../pricing";
 import { fmtTokens } from "../token-format";
 import { sessionFailure, type SessionReply, type SessionSelection, type SessionSpeed } from "../session-usage";
+import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { RefreshGlyph } from "./action-glyphs";
 import SessionUsageLoading from "./SessionUsageLoading";
@@ -55,21 +56,21 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
   // Reasoning is already in output and must not become a fifth segment.
   const tokenSum = tokens.reduce((sum, token) => sum + token.n, 0);
   return createPortal(
-    <div className="modal-backdrop" {...scrim} role="presentation">
-      <div className="modal su-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="session-usage-title">
+    <Dialog scrim={scrim} dialogRef={dialogRef} className="su-modal" labelledBy="session-usage-title">
         <header className="modal-head">
           <div className="su-title">
             <h2 id="session-usage-title">{t("insights.session.title")}</h2>
-            <span title={session.label}>{session.label}</span>
           </div>
           <div className="modal-actions">
+            {/* V4: the session's name sits on the right, before the buttons, in the dialog's caption voice. */}
+            <span className="modal-dur su-caption" title={session.label}>{session.label}</span>
             <button type="button" className="glyph-btn" onClick={() => setRevision(n => n + 1)} disabled={!reply}
               aria-label={t("insights.session.refresh")} title={t("insights.session.refresh")}><RefreshGlyph /></button>
             <button type="button" className="glyph-btn" ref={closeRef} onClick={onClose} aria-label={t("insights.session.closeEsc")} title={t("insights.audit.closeEsc")}>×</button>
           </div>
         </header>
         <div className="modal-body su-body" aria-busy={!reply}>
-          <div className="su-scope"><span>{agentLabel(session.agent)}</span><span>{t("insights.session.whole")}</span></div>
+          <div className="su-scope"><span>{t("insights.session.whole")}</span><span>{agentLabel(session.agent)}</span></div>
           {session.agent === "codex" && <label className="su-pricing">
             {t("insights.session.estimateUsing")}
             <select value={speed} disabled={!reply} onChange={event => { setReply(null); setSpeed(event.target.value as SessionSpeed); }}>
@@ -141,7 +142,9 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
           <details className="su-id"><summary>{t("insights.session.id")}</summary><code>{session.sessionId}</code></details>
           </footer>
         </div>
-      </div>
-    </div>, document.body,
+        <footer className="modal-foot">
+          <button type="button" className="btn primary" onClick={onClose}>{t("shell.done")}</button>
+        </footer>
+    </Dialog>, document.body,
   );
 }

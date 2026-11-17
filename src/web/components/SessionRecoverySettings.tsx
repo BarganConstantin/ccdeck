@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
-import { SettingsGroup, SettingRow } from "./SettingsParts";
+import { SettingRow } from "./SettingsParts";
 import { useT, type TFunction } from "../i18n";
+import { useOptimisticSwitch } from "../use-optimistic-switch";
+import { refuseSave, setSettingsFailure } from "../settings-failure";
 
 /** One switch over one boolean in /api/prefs: what it reads as, saving it, and
  *  what went wrong. `fallback` is the server's default, used when the answer
- *  holds no real boolean for it. */
+ *  holds no real boolean for it. A refused save is said once, under the page
+ *  head (settings-failure.ts), with the server's answer so the line can offer
+ *  the repair it names. */
 function usePrefSwitch(key: string, fallback: boolean, t: TFunction) {
   const [enabled, setEnabled] = useState<boolean | null>(null);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const savingRef = useRef(false);
   const read = (v: unknown) => (typeof v === "boolean" ? v : fallback);
@@ -20,43 +23,61 @@ function usePrefSwitch(key: string, fallback: boolean, t: TFunction) {
     }).catch(() => { if (live) setError(t("settings.recover.readFail")); });
     return () => { live = false; };
   }, [key]);
-  const change = async () => {
-    if (enabled === null || !selfPressAccepted(savingRef.current)) return;
-    savingRef.current = true; setBusy(true); setError("");
+  /** The write behind the flip: true when the server took it. */
+  const write = async (next: boolean) => {
+    savingRef.current = true;
     try {
-      const r = await fetch("/api/prefs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ [key]: !enabled }) });
-      if (!r.ok) throw new Error();
-      const d = await r.json();
-      if (!d.ok) throw new Error();
-      setEnabled(read(d.prefs[key]));
-    } catch { setError(t("settings.recover.saveFail")); }
-    finally { savingRef.current = false; setBusy(false); }
+      const r = await fetch("/api/prefs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ [key]: next }) });
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !d?.ok) { refuseSave(d, t); return false; }
+      setEnabled(read(d.prefs?.[key]));
+      setSettingsFailure(null);
+      return true;
+    } catch { refuseSave(null, t); return false; }
+    finally { savingRef.current = false; }
   };
-  return { enabled, busy, error, change };
+  const flip = useOptimisticSwitch(enabled, write);
+  const change = () => {
+    if (enabled === null || !selfPressAccepted(savingRef.current)) return;
+    void flip.flip();
+  };
+  return { enabled: flip.checked, ready: enabled !== null, error, change };
 }
 
-/** This preference applies to the next server start; it never replays tools. */
-export default function SessionRecoverySettings({ provider }: { provider: "Codex" | "Claude" }) {
+/** Bring back the sessions a restart interrupted, one row per provider: busy
+ *  Claude sessions, unfinished Codex turns. The preference applies to the next
+ *  server start; it never replays tools. Drawn in General's Sessions group
+ *  (SessionsSection.tsx). The note is the whole of what the row says (V4
+ *  top-10 #10): its Details repeated it, with how the deck finds the sessions,
+ *  which is the deck's business and not a choice the reader makes. */
+export default function SessionRecoveryRow({ provider }: { provider: "Codex" | "Claude" }) {
   const key = provider === "Codex" ? "recoverCodexSessions" : "recoverClaudeSessions";
   const settingId = `${provider.toLowerCase()}-session-recovery`;
   const t = useT();
   const recover = usePrefSwitch(key, true, t);
-  return <SettingsGroup id={`${settingId}-title`} title={t("settings.recover.group", { provider })}>
-    <SettingRow settingId={settingId} name={t("settings.recover.name")} note={provider === "Codex" ? t("settings.recover.codexNote") : t("settings.recover.claudeNote")} details={provider === "Codex" ? t("settings.recover.codexDetails") : t("settings.recover.claudeDetails")} control={
-      <button type="button" className="switch" role="switch" aria-label={provider === "Codex" ? t("settings.recover.codexAria") : t("settings.recover.claudeAria")} aria-checked={recover.enabled === true} {...selfPressProps(recover.busy, recover.enabled === null)} onClick={() => { void recover.change(); }}><span className="switch-knob" /></button>
+  const nameId = `settings-${settingId}-name`, noteId = `settings-${settingId}-note`;
+  return <>
+    <SettingRow settingId={settingId}
+      name={provider === "Codex" ? t("settings.recover.codexName") : t("settings.recover.claudeName")} nameId={nameId}
+      note={provider === "Codex" ? t("settings.recover.codexNote") : t("settings.recover.claudeNote")} noteId={noteId}
+      control={
+      <button type="button" className="switch" role="switch" aria-labelledby={nameId} aria-describedby={noteId} aria-checked={recover.enabled} {...selfPressProps(false, !recover.ready)} onClick={recover.change}><span className="switch-knob" /></button>
     } />
     {recover.error && <p role="alert">{recover.error}</p>}
-    {provider === "Claude" && <ContinueStoppedRow t={t} />}
-  </SettingsGroup>;
+  </>;
 }
 
 /** Continue stopped background sessions by themselves (#2193): OFF until it is
- *  turned on, the server's default (deck-prefs.mjs `continueStopped`). */
-function ContinueStoppedRow({ t }: { t: TFunction }) {
+ *  turned on, the server's default (deck-prefs.mjs `continueStopped`). Claude's,
+ *  and last in the Sessions group, after Codex's row. It keeps its Details: what
+ *  counts as stopped, and that it continues once per stop, are what the reader
+ *  weighs before turning it on, and the note has room for neither. */
+export function ContinueStoppedRow() {
+  const t = useT();
   const pref = usePrefSwitch("continueStopped", false, t);
   return <>
     <SettingRow settingId="claude-continue-stopped" name={t("settings.recover.continueName")} note={t("settings.recover.continueNote")} details={t("settings.recover.continueDetails")} control={
-      <button type="button" className="switch" role="switch" aria-label={t("settings.recover.continueAria")} aria-checked={pref.enabled === true} {...selfPressProps(pref.busy, pref.enabled === null)} onClick={() => { void pref.change(); }}><span className="switch-knob" /></button>
+      <button type="button" className="switch" role="switch" aria-label={t("settings.recover.continueAria")} aria-checked={pref.enabled} {...selfPressProps(false, !pref.ready)} onClick={pref.change}><span className="switch-knob" /></button>
     } />
     {pref.error && <p role="alert">{pref.error}</p>}
   </>;

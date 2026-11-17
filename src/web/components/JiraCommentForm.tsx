@@ -5,6 +5,7 @@ import type { JiraApi } from "../jira-api";
 import { failureOf, IntegrationFailure } from "../integrations/client";
 import { definiteJiraWriteFailure, useJiraWriteState } from "../jira-write-state";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
+import IntegrationWriteBand from "./IntegrationWriteBand";
 
 export default function JiraCommentForm({ api, connectionId, issueKey, onChanged }: { api: JiraApi; connectionId: string; issueKey: string; onChanged: () => void }) {
   const t = useT();
@@ -44,10 +45,15 @@ export default function JiraCommentForm({ api, connectionId, issueKey, onChanged
     <label htmlFor="jira-comment-text">{t("integrations.comment.add")}</label>
     <textarea ref={textRef} id="jira-comment-text" value={text} maxLength={10000} rows={3} readOnly={busy} onChange={e => { if (busyRef.current) return; write.update({ draft: e.target.value, ...(!uncertain && error ? { error: "" } : {}) }); setSent(false); }} placeholder={t("integrations.comment.placeholder")} />
     <div className="jr-comment-actions">
-      <button ref={sendRef} type="button" className="btn" {...selfPressProps(busy || !!loading, !text.trim() || uncertain)} onClick={send}>{busy ? t("integrations.comment.sending") : t("integrations.comment.send")}</button>
-      {uncertain && <button ref={checkedRef} type="button" className="btn" aria-disabled={operation?.state === "pending" || undefined} onClick={() => { if (typeof document !== "undefined" && document.activeElement === checkedRef.current) textRef.current?.focus(); void write.acknowledge(); }}>{t("integrations.comment.checked")}</button>}
+      <button ref={sendRef} type="button" className="btn primary" {...selfPressProps(busy || !!loading, !text.trim() || uncertain)} onClick={send}>{busy ? t("integrations.comment.sending") : t("integrations.comment.send")}</button>
       {sent && <span role="status">{t("integrations.comment.added")}</span>}
     </div>
-    {error && <p role="alert">{error}</p>}
+    {/* Not knowing whether Jira kept the comment is the shared write band, with
+        the way out inside it; a definite failure stays a plain sentence. */}
+    {uncertain
+      ? <IntegrationWriteBand message={error || t("integrations.comment.cannotConfirm")}>
+          <button ref={checkedRef} type="button" className="btn" aria-label={t("integrations.comment.checked")} aria-disabled={operation?.state === "pending" || undefined} onClick={() => { if (typeof document !== "undefined" && document.activeElement === checkedRef.current) textRef.current?.focus(); void write.acknowledge(); }}>{t("integrations.comment.checkedShort")}</button>
+        </IntegrationWriteBand>
+      : error && <p role="alert">{error}</p>}
   </div>;
 }

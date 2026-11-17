@@ -26,10 +26,13 @@ const token = (name: string, width: number) => cascade(sel => selects(sel, [el("
 
 type Left = "none" | "sessions" | "accounts";
 
-/** `.app` with any run of `:has(.x)` / `:not(:has(.x))`, against what is open
+/** `:has(.x)` or `:has(.x, .y)`: it matches when any of its classes is there. */
+const HAS = String.raw`:has\(\.[\w-]+(?:,\s*\.[\w-]+)*\)`;
+
+/** `.app` with any run of `:has(...)` / `:not(:has(...))`, against what is open
  *  beside a selected session's panel. Its weight, or null when it does not match. */
 function appCompound(sel: string, left: Left): number | null {
-  const m = /^\.app((?::has\(\.[\w-]+\)|:not\(:has\(\.[\w-]+\)\))*)$/.exec(sel);
+  const m = new RegExp(`^\\.app((?:${HAS}|:not\\(${HAS}\\))*)$`).exec(sel);
   if (!m) return null;
   const present = (cls: string) =>
     (cls === "session-list" && left === "sessions")
@@ -37,19 +40,41 @@ function appCompound(sel: string, left: Left): number | null {
     || (cls === "left-column" && left !== "none")
     || cls === "detail";
   let spec = 10;
-  for (const p of m[1].match(/:has\(\.[\w-]+\)|:not\(:has\(\.[\w-]+\)\)/g) ?? []) {
-    const cls = /\.([\w-]+)/.exec(p)![1];
-    if (present(cls) !== !p.startsWith(":not")) return null;
+  for (const p of m[1].match(new RegExp(`${HAS}|:not\\(${HAS}\\)`, "g")) ?? []) {
+    const classes = [...p.matchAll(/\.([\w-]+)/g)].map(c => c[1]);
+    if (classes.some(present) !== !p.startsWith(":not")) return null;
     spec += 10;
   }
   return spec;
+}
+
+/** `sel`'s compound selectors, split at the spaces between them and never at
+ *  the one after a comma inside a `:has(...)` list. */
+function compounds(sel: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let cur = "";
+  for (const ch of sel.trim()) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if (/\s/.test(ch) && depth === 0) {
+      if (cur) out.push(cur);
+      cur = "";
+    } else cur += ch;
+  }
+  if (cur) out.push(cur);
+  return out;
 }
 
 /** How heavily `sel` selects the element, or null. Any selector whose subject
  *  is `.app` or `.detail` in a form this cannot read fails the test rather than
  *  being skipped, so a new kind of rule cannot slip past it. */
 function matches(sel: string, subject: "app" | "detail", left: Left): number | null {
-  const parts = sel.split(/\s+/);
+  // CHANGED ON PURPOSE: the phone corrections now apply under every strip
+  // banner, `.app:has(.banner-mark, .rating-banner) .detail`, so the reader
+  // reads a `:has()` list instead of failing on the space after its comma.
+  // No banner is open in these cases, so that rule still never matches.
+  const parts = compounds(sel);
   const last = parts.at(-1)!;
   if (!/^\.(app|detail)(?![\w-])/.test(last)) return null;
   if (subject === "app") {
@@ -59,10 +84,18 @@ function matches(sel: string, subject: "app" | "detail", left: Left): number | n
     return spec;
   }
   if (last !== ".detail") {
+    // CHANGED ON PURPOSE (the phone layout): the sheet's leaving state is not
+    // the open sheet the boxes below are asked of.
+    if (last === ".detail.leaving") return null;
     if (last.startsWith(".detail")) throw new Error(`unread selector: ${sel}`);
     return null;
   }
   if (parts.length === 1) return 10;
+  // CHANGED ON PURPOSE (the phone layout): the Inspector sheet's box is written
+  // once, in phone-sheet.css, under the app's weight three times so that no
+  // banner row's rule outranks it (three classes and one: 40, over the 30 of
+  // `.app:has(...) .detail`). It used to be repeated in detail-panel.css.
+  if (parts.length === 2 && parts[0] === ".app.app.app") return 40;
   if (parts.length !== 2) throw new Error(`unread selector: ${sel}`);
   const anc = appCompound(parts[0], left);
   return anc == null ? null : anc + 10;
@@ -87,7 +120,9 @@ function length(v: string, width: number): number {
     return length(value, width);
   }
   if (s === "0") return 0;
-  const m = /^(-?[\d.]+)(px|vw)$/.exec(s);
+  // CHANGED ON PURPOSE (the owner's phone layout): the Inspector sheet is `100%`
+  // of the window, which here is `vw`'s own arithmetic.
+  const m = /^(-?[\d.]+)(px|vw|%)$/.exec(s);
   if (!m) throw new Error(`unread length: ${v}`);
   return m[2] === "px" ? +m[1] : (+m[1] * width) / 100;
 }
@@ -128,63 +163,63 @@ describe("a selected session on a narrow window (#1790)", () => {
       });
     }
 
-    it(`puts the panel over the canvas at ${width}px, inside the window and under the topbar`, () => {
+    // CHANGED ON PURPOSE (the owner's phone layout): the Inspector is a bottom
+    // sheet at this width: the window's whole width, up from the dock, with its
+    // height capped under the top bar (phone-sheet.css), not a panel pinned at
+    // the right edge from the bar down.
+    it(`puts the panel over the canvas at ${width}px as a sheet, inside the window and under the topbar`, () => {
       for (const left of LEFTS) {
         const right = length(resolve("detail", "right", left, width)!, width);
+        const edge = length(resolve("detail", "left", left, width)!, width);
         const w = length(resolve("detail", "width", left, width)!, width);
-        const top = length(resolve("detail", "top", left, width)!, width);
         expect(right).toBeGreaterThanOrEqual(0);
+        expect(edge).toBeGreaterThanOrEqual(0);
         // Its left edge, and the × pinned inside its right one, both on screen.
         expect(width - right - w).toBeGreaterThanOrEqual(0);
-        // Under the topbar: no higher than the grid's first row, the bar's
-        // own, read from the same sheet rather than from a number this test
-        // keeps — the bar was 52px, and is 44 since its panel toggles left for
-        // the window's edges (2026-10-08).
+        expect(w).toBe(width);
+        // Under the topbar: the sheet hangs from the dock, and what it may
+        // take is the window less the grid's first row, the bar's own, read
+        // from the same sheet (50 on the phone frame, from 44).
         const bar = length(splitTop(resolve("app", "grid-template-rows", left, width)!.replace(/\s+(?![^(]*\))/g, ","))[0], width);
-        expect(bar).toBe(44);
-        expect(top).toBeGreaterThanOrEqual(bar);
+        expect(bar).toBe(50);
+        expect(resolve("detail", "top", left, width)).toBe("auto");
+        expect(resolve("detail", "--sheet-room", left, width)).toContain("var(--topbar-h)");
       }
     });
 
     it(`ends the panel above the phone's dock at ${width}px, so its foot is not drawn under it`, () => {
       // Under 641px the controls stand in a dock along the bottom
       // (edge-rails.css), fixed over everything docked (z-index 25 against the
-      // sheet's 20). A sheet that ran to the window's foot had its last 56px
+      // sheet's 23). A sheet that ran to the window's foot had its last 58px
       // under the dock — its last rows out of reach. It ends where the dock
       // begins, by the dock's own height, safe area and all.
+      // CHANGED ON PURPOSE (the phone layout): the sheet's `bottom` is the
+      // custom property `--sheet-bottom` (phone-sheet.css), and that property is
+      // the dock's height plus the safe area: the same hang from the dock, read
+      // through one more step. Both are pinned below.
       const dock = cascade(sel => selects(sel, [el("div", ["edge-dock"])]), "height", width);
       for (const left of LEFTS) {
-        expect(resolve("detail", "bottom", left, width), left).toBe(dock);
+        expect(resolve("detail", "bottom", left, width), left).toBe("var(--sheet-bottom)");
+        expect(resolve("detail", "--sheet-bottom", left, width), left).toBe(dock);
       }
     });
   }
 
-  it("takes the selected ribbon off a phone's bar, where the sheet says the same thing", () => {
-    // The last piece a selection added to a bar that holds its controls down
-    // to 320px only without it: at 320 it shrank to its × and pushed the last
-    // control 12px past the right edge. It went only while the sheet was up at
-    // first; with the sheet closed it drew its state over the Session list
-    // button and took the waiting pill's room, so it goes at a phone's width
-    // whether or not the sheet is up — which includes while it is.
-    const hides = (width: number) => sheetRules().some(r => mediaApplies(r.media, width)
-      && r.selectors.includes(".selected-ribbon") && /display:\s*none/.test(r.body));
-    expect(hides(320)).toBe(true);
-    expect(hides(480)).toBe(true);
-    expect(hides(641)).toBe(false);
-  });
-
   it("keeps the wide layout exactly as it was: a 360px column beside the canvas", () => {
+    // The track reads --inspector-w since V4's Inspector, and the Default
+    // density's value of it is the 360px this test is named for.
+    expect(token("--inspector-w", 1280)).toBe("360px");
     for (const width of [648, 900, 1280]) {
-      expect(layout("none", width)).toMatchObject({ template: "1fr 360px", overlay: false });
+      expect(layout("none", width)).toMatchObject({ template: "1fr var(--inspector-w)", overlay: false });
       // `auto` since 2026-10-08: the track is the left column's, which is the
       // session list's 288px while the list is in it (styles/left-column.css).
-      expect(layout("sessions", width)).toMatchObject({ template: "auto 1fr 360px", overlay: false });
+      expect(layout("sessions", width)).toMatchObject({ template: "auto 1fr var(--inspector-w)", overlay: false });
     }
     // With Accounts open the panel and the column are 648px between them, so
     // from 641 to 647px the column gives up what the window lacks (#1840) —
     // still a column, never the sheet.
     for (const width of [648, 900, 1280]) {
-      expect(layout("accounts", width)).toMatchObject({ template: "auto 1fr 360px", overlay: false });
+      expect(layout("accounts", width)).toMatchObject({ template: "auto 1fr var(--inspector-w)", overlay: false });
     }
     expect(resolve("detail", "position", "accounts", 641) ?? "static").toBe("relative");
   });

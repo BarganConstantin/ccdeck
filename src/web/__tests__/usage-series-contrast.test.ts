@@ -60,7 +60,7 @@ import { join } from "node:path";
 import { USAGE_HISTORY_FILES } from "./usage-history-surface";
 import { modelFamily } from "../model-label";
 import { modelColor } from "../usage-history";
-import { sheetText } from "./sheet-source";
+import { mouseFlat, sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 
@@ -201,7 +201,8 @@ function topLevel(s: string): Array<{ selector: string; body: string }> {
   return out;
 }
 
-const RULES = topLevel(css);
+// The mouse query's rules are read where they stand: a desktop pointer meets them at the top level.
+const RULES = topLevel(mouseFlat(css));
 const selectors = (list: string) => list.split(",").map(s => s.replace(/\s+/g, " ").trim());
 
 function bodyOf(selector: string): string {
@@ -283,8 +284,12 @@ const WAS: Record<string, string> = {
 const BEDS = {
   // The shared shell's surface: the dialog composes `.modal` since #874.
   panel: tokenNameOf(decl(".modal", "background")!)!,
-  detail: tokenNameOf(decl(".uh-detail", "background")!)!,
-  track: tokenNameOf(decl(".uh-model-bar", "background")!)!,
+  // CHANGED ON PURPOSE (V4's Figma): a day is a table on the panel now, with no
+  // box and no model meters, so the two other beds are read from the rules that
+  // still paint them: the range strip's --bg-soft track, and the CLI split bar's
+  // --line track. The same three beds are swept below, none dropped.
+  detail: tokenNameOf(decl(".uh-range", "background")!)!,
+  track: tokenNameOf(decl(".uh-agent-bar", "background")!)!,
 };
 
 // ── the maths, against ends everybody already knows ─────────────────────────
@@ -551,7 +556,10 @@ describe("no band wears a state colour (#1284)", () => {
     expect(WAS.haiku).toBe(TOK.dark["--ok"]);
     expect(WAS["gpt-5"]).toBe(TOK.dark["--warn"]);
     expect(WAS.gpt).toBe(TOK.dark["--err"]);
-    expect(deltaE(parseColor("#b0490c"), parseColor(TOK.light["--warn"]))).toBeCloseTo(3.9, 1);
+    // V4 aligned the live light --warn to Figma (#9c5600) on 2026-10-31, so the
+    // history is held to the value that shipped when #1284 measured: #ad4e08.
+    const SHIPPED_LIGHT_WARN = "#ad4e08";
+    expect(deltaE(parseColor("#b0490c"), parseColor(SHIPPED_LIGHT_WARN))).toBeCloseTo(3.9, 1);
   });
 
   it("keeps every palette member — and so every series — 16 ΔE from --ok, --warn and --err, in both themes", () => {
@@ -666,11 +674,15 @@ describe("the selected range is a state you can see (#583)", () => {
   const pressed = ".uh-range-btn[aria-pressed=\"true\"]";
 
   it("reproduces what the on-state used to be worth, in both themes", () => {
+    // V4 aligned light --bg-soft (the strip's track) to Figma's #f7f8fa on
+    // 2026-10-31, so the history is held to the track that shipped when #583
+    // measured: white.
+    const shippedTrack = (theme: Theme) => (theme === "light" ? parseColor("#ffffff") : track(theme));
     for (const theme of themes) {
-      const wash = over(parseColor(TOK[theme]["--accent-dim"]), track(theme));
+      const wash = over(parseColor(TOK[theme]["--accent-dim"]), shippedTrack(theme));
       const rest = parseColor(TOK[theme]["--muted"]);
       const on = parseColor(TOK[theme]["--text"]);
-      expect(contrastRatio(wash, track(theme))).toBeCloseTo(theme === "light" ? 1.392 : 1.895, 3);
+      expect(contrastRatio(wash, shippedTrack(theme))).toBeCloseTo(theme === "light" ? 1.392 : 1.895, 3);
       expect(contrastRatio(rest, on)).toBeCloseTo(theme === "light" ? 2.403 : 2.752, 3);
     }
   });
@@ -715,17 +727,32 @@ describe("the selected range is a state you can see (#583)", () => {
     // fill this strip does not have; and the ::after that carries the accent.
     // Split like that on purpose — cyan appears once in this control and it is
     // the indicator, never the type.
-    expect(scoped.map(r => r.sel)).toEqual([
+    // CHANGED ON PURPOSE (V4's Figma): two, not three. The strip is pills now; the chosen one
+    // carries its state on its own box (an --accent stroke at full strength and the --accent-16
+    // wash V4 draws), so there is no ::after indicator rule.
+    // CHANGED ON PURPOSE (V4's Figma): the history dialog's own range chips are the
+    // same pills, so its toolbar adds the same two rules (the chosen chip and the
+    // hover that holds its label): an --accent stroke at full strength on the --accent-16 wash.
+    // CHANGED ON PURPOSE (#2591): New session's chosen agent is one more such
+    // rule: an --accent edge at full strength on the --selected fill, no wash.
+    expect(scoped.map(r => r.sel).sort()).toEqual([
+      '.ns-form .ns-agents .uh-range-btn[aria-pressed="true"]',
+      '.uh-toolbar .uh-range-btn:hover, .uh-toolbar .uh-range-btn[aria-pressed="true"]:hover',
+      '.uh-toolbar .uh-range-btn[aria-pressed="true"]',
       '.up-period .uh-range-btn[aria-pressed="true"]',
       '.up-period .uh-range-btn[aria-pressed="true"]:hover',
-      '.up-period .uh-range-btn[aria-pressed="true"]::after',
-    ]);
+    ].sort());
     // The indicator arrives solid, in exactly one of them. It is the
     // foreground now rather than the accent: which range is showing is a
     // selection, not data, and the sheet keeps cyan for data, live state and
     // focus. The doctrine is unchanged, a small mark at full strength.
-    const carries = scoped.filter(r => /background:\s*var\(--text\)\s*;/.test(r.body));
-    expect(carries.map(r => r.sel)).toEqual(['.up-period .uh-range-btn[aria-pressed="true"]::after']);
+    // The stroke, in --accent, solid: the state arrives at full strength in exactly one rule.
+    const carries = scoped.filter(r => /border-color:\s*var\(--accent\)\s*;/.test(r.body));
+    expect(carries.map(r => r.sel).sort()).toEqual([
+      '.ns-form .ns-agents .uh-range-btn[aria-pressed="true"]',
+      '.uh-toolbar .uh-range-btn[aria-pressed="true"]',
+      '.up-period .uh-range-btn[aria-pressed="true"]',
+    ].sort());
     for (const r of all) {
       // And nowhere is it diluted, in any spelling.
       expect(r.body, `${r.sel} paints the state as a wash`)
@@ -734,8 +761,8 @@ describe("the selected range is a state you can see (#583)", () => {
     // And the colour it arrives in is worth the state, on the surface it lands
     // on. 3:1 is 1.4.11's bar for a non-text indicator; #583's wash was 1.895.
     for (const theme of themes) {
-      const ratio = contrastRatio(parseColor(TOK[theme]["--text"]), parseColor(TOK[theme]["--panel"]));
-      expect(ratio, `--text on --panel in ${theme}`).toBeGreaterThanOrEqual(3);
+      const ratio = contrastRatio(parseColor(TOK[theme]["--accent"]), parseColor(TOK[theme]["--panel"]));
+      expect(ratio, `--accent on --panel in ${theme}`).toBeGreaterThanOrEqual(3);
     }
   });
 
@@ -798,7 +825,7 @@ describe("the selected range is a state you can see (#583)", () => {
   });
 
   it("keeps the press feedback the strip already had", () => {
-    expect(decl(".uh-range-btn:active", "transform")).toBe("scale(0.97)");
+    expect(decl(".uh-range-btn:active", "transform")).toBe("scale(var(--press))"); // --press is .97
   });
 });
 
@@ -911,14 +938,16 @@ const INLINE = MODULES.flatMap(m => inlineColours(m.path, m.src));
 
 describe("the sweep that could not see a .tsx literal, which is why none of this was caught", () => {
   it("finds the colours the components set inline at all", () => {
-    // Six of them are this modal's — the day bars' segments, both legend dots,
-    // the per-CLI share bar and the per-model bar fill — and the rest are the
+    // Five of them are this modal's — the day bars' segments, both legend dots,
+    // the per-CLI share bar and the day table's model dot — and the rest are the
     // deck's. If this number collapses, the scanner broke and every assertion
     // below went vacuous with it.
     expect(INLINE.length).toBeGreaterThanOrEqual(10);
     // The modal and every file lifted out of it: the day's breakdown draws two.
     const modal = INLINE.filter(c => USAGE_HISTORY_FILES.some(f => isModule(c.file, f)));
-    expect(modal.length).toBe(6);
+    // CHANGED ON PURPOSE (V4's Figma): the day's table keeps each model's dot and drops
+    // the per-model bar fill, so five, not six.
+    expect(modal.length).toBe(5);
     expect(new Set(modal.map(c => c.prop))).toEqual(new Set(["background"]));
   });
 

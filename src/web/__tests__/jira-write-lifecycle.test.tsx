@@ -4,11 +4,15 @@ vi.mock("react", async () => (await import("./fake-react")).react);
 const { default: JiraCommentForm } = await import("../components/JiraCommentForm");
 const { default: JiraTransition } = await import("../components/JiraTransition");
 const { useJiraWriteState } = await import("../jira-write-state");
+const { default: IntegrationWriteBand } = await import("../components/IntegrationWriteBand");
 
 beforeEach(() => vi.stubGlobal("window", globalThis));
 afterEach(() => vi.unstubAllGlobals());
 
 const button = (tree: unknown, label: string) => one(tree, el => el.type === "button" && textOf(el) === label)!;
+// "I checked" is the button's visible word inside the write band; its name
+// still says what was checked.
+const checkedComments = (tree: unknown) => one(tree, el => el.type === "button" && el.props["aria-label"] === "I checked the comments");
 
 it("finishes the initial guard check while a comment is being typed", async () => {
   let resolve!: (response: Response) => void;
@@ -17,6 +21,7 @@ it("finishes the initial guard check while a comment is being typed", async () =
   (one(view.tree, e => e.type === "textarea")!.props.onChange as (e: unknown) => void)({ target: { value: "draft" } });
   resolve(Response.json({ operations: [] })); await flush();
   expect(button(view.tree, "Add comment").props.disabled).toBe(false);
+  expect(button(view.tree, "Add comment").props.className).toBe("btn primary");
   expect(one(view.tree, e => e.type === "textarea")!.props.value).toBe("draft");
   view.unmount();
 });
@@ -52,10 +57,15 @@ it("keeps an in-flight comment locked when leaving and reopening its issue", asy
   await pending; await flush();
   expect(button(next.tree, "Add comment").props.disabled).toBe(true);
   expect(one(next.tree, e => e.type === "textarea")!.props.value).toBe("draft");
-  expect(button(next.tree, "I checked the comments")).toBeTruthy();
+  // CHANGED ON PURPOSE: the unconfirmed comment is the shared write band, with
+  // "I checked" inside it, where it was a plain sentence and a button beside Add comment.
+  const band = one(next.tree, e => e.type === IntegrationWriteBand)!;
+  expect(band.props.message).toBe("Could not confirm whether Jira saved the comment. Check the comments before sending again.");
+  expect(textOf(checkedComments(band)!)).toBe("I checked");
+  expect(one(next.tree, e => e.type === "p" && e.props.role === "alert")).toBeNull();
   (one(next.tree, e => e.type === "textarea")!.props.onChange as (e: unknown) => void)({ target: { value: "edited draft" } });
   expect(one(next.tree, e => e.type === "textarea")!.props.value).toBe("edited draft");
-  (button(next.tree, "I checked the comments").props.onClick as () => void)(); await flush();
+  (checkedComments(next.tree)!.props.onClick as () => void)(); await flush();
   expect(one(next.tree, e => e.type === "textarea")!.props.value).toBe("edited draft");
   next.unmount(); vi.unstubAllGlobals();
 });
@@ -120,7 +130,9 @@ it("treats an explicit Jira 400 rejection as definite", async () => {
   (one(view.tree, e => e.type === "textarea")!.props.onChange as (e: unknown) => void)({ target: { value: "draft" } });
   await (button(view.tree, "Add comment").props.onClick as () => Promise<void>)(); await flush();
   expect(button(view.tree, "Add comment").props.disabled).toBe(false);
-  expect(one(view.tree, e => e.type === "button" && textOf(e) === "I checked the comments")).toBeNull();
+  expect(checkedComments(view.tree)).toBeNull();
+  expect(one(view.tree, e => e.type === IntegrationWriteBand)).toBeNull();
+  expect(one(view.tree, e => e.type === "p" && e.props.role === "alert")).toBeTruthy();
   expect(one(view.tree, e => e.type === "textarea")!.props.value).toBe("draft");
   (one(view.tree, e => e.type === "textarea")!.props.onChange as (e: unknown) => void)({ target: { value: "fixed draft" } });
   view.unmount();

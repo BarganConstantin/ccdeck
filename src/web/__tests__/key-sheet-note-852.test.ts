@@ -5,7 +5,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { KEY_HELP, KEY_HELP_NOTE } from "../key-help";
+import { KEY_HELP, KEY_HELP_NOTE_MSG } from "../key-help";
+import { en } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): the note is a key now; the
+// words are read through the English catalog.
+const KEY_HELP_NOTE = en[KEY_HELP_NOTE_MSG];
 import { defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -23,12 +28,14 @@ describe("the keyboard sheet's note (#852)", () => {
     expect(caps).toContain("Esc");
   });
 
-  it("comes after the keys and before the end of the body", () => {
-    const grid = sheet.indexOf('<div className="shortcuts">');
+  it("comes after the keys, in the footer under them", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the note is the footer's left text, under
+    // the two columns of keys.
+    const grid = sheet.indexOf('<div className="kh-cols">');
     // The footnote's second sentence says where the single-key shortcuts are
     // turned off (WCAG 2.1.4); KEY_HELP_NOTE still opens it, once.
     const note = sheet.indexOf("<p className=\"kh-foot\">{t(\"settings.key.note\")} {t(\"settings.key.switchNote\", { place: t(\"settings.key.place\") })}</p>");
-    const end = sheet.indexOf("</section>");
+    const end = sheet.indexOf("</footer>");
     expect(grid).toBeGreaterThan(-1);
     expect(note).toBeGreaterThan(grid);
     expect(note).toBeLessThan(end);
@@ -37,7 +44,8 @@ describe("the keyboard sheet's note (#852)", () => {
 
   it("reads as a footnote — no box of its own", () => {
     const rule = /(?:^|\n)\.kh-foot\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
-    expect(rule).toMatch(/font-size:\s*11px/);
+    // CHANGED ON PURPOSE (V4's Figma): the footnote is the Small style, 12/16.
+    expect(rule).toMatch(/font-size:\s*12px/);
     expect(rule).not.toMatch(/border|background/);
   });
 });

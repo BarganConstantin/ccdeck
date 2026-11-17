@@ -52,11 +52,14 @@ describe("character appearance preference", () => {
   it("uses a dismissible, accessible modal of one height for the appearance settings", () => {
     const styles = sheetText();
     expect(modal()).toContain("useModalDismiss");
-    expect(modal()).toContain('role="dialog"');
-    expect(modal()).toContain('aria-modal="true"');
-    expect(modal()).toContain('className="modal-backdrop"');
-    expect(modal()).toContain('className="modal settings-modal"');
-    expect(modal()).toContain('aria-labelledby="settings-title"');
+    // The shell (Dialog.tsx) draws role, aria-modal, the scrim and `modal`;
+    // Settings names its own class and its title.
+    expect(read("components/Dialog.tsx")).toContain('role="dialog"');
+    expect(read("components/Dialog.tsx")).toContain('aria-modal="true"');
+    expect(read("components/Dialog.tsx")).toContain('"modal-backdrop"');
+    expect(modal()).toContain('<Dialog');
+    expect(modal()).toContain('className="settings-modal"');
+    expect(modal()).toContain('labelledBy="settings-title"');
     expect(themes()).toContain('role="radiogroup"');
     expect(themes()).toContain('role="radio"');
     expect(modal()).toContain("onClick={() => requestLeave(onClose)}");
@@ -85,7 +88,9 @@ describe("character appearance preference", () => {
     // One tab stop in the pair, on the theme that is set; the arrows walk it.
     expect(themes()).toContain("tabIndex={theme === choice ? 0 : -1}");
     // The previews are pictures; the name is the word under each.
-    expect(themes()).toMatch(/<svg viewBox="0 0 112 56" aria-hidden focusable="false">/);
+    // CHANGED ON PURPOSE (V4's Figma): the preview is 128 × 62 and not 2:1, so the
+    // drawing fills it (slice) instead of sitting in it; it is still aria-hidden.
+    expect(themes()).toMatch(/<svg viewBox="0 0 112 56" preserveAspectRatio="xMidYMid slice" aria-hidden focusable="false">/);
     // The character's switch is a row now, named by the words beside it and
     // described by the line under them (#2176); the caption names the group.
     expect(character()).toContain('aria-labelledby="appearance-character-label"');

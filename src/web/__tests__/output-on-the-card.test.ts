@@ -134,10 +134,14 @@ describe("the chart stops calling a working session idle", () => {
     expect(spark).toMatch(/for \(const at of outputs \?\? \[\]\) mark\(at\);/);
   });
 
-  it("draws itself for a session that has produced but called nothing", () => {
-    // The case the whole change is about: a minute of thinking with no tool in
-    // it used to render no chart at all, because the chart was gated on tools.
-    expect(node).toContain('(data.tools.length > 0 || (data.outputs?.length ?? 0) > 0)');
+  // CHANGED ON PURPOSE (V4's Figma, Agent / Card): the card's foot draws up to
+  // three tool-kind icons in place of the activity chart, so there is no chart
+  // on the card to gate. The counting stays in tool-spark.ts, tested above and
+  // below, for whatever reads it next.
+  it("is no longer drawn on the card, whose foot says tool kinds instead", () => {
+    expect(node).not.toContain("ToolRateSpark");
+    expect(node).not.toContain("tool-spark-row");
+    expect(node).toContain("recentToolKinds(data.tools)");
   });
 
   it("says what it counted, both halves", () => {

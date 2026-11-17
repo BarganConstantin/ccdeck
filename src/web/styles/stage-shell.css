@@ -1,0 +1,265 @@
+/* ---------------- the terminal stage in the deck's layout ----------------
+
+   Where the stage and the navigator sit, and what the canvas does under them
+   (use-stage.ts, components/terminal/StageShell.tsx). What they draw inside
+   their boxes is terminal-stage.css's and board-navigator.css's.
+
+   THE STAGE SHARES THE CANVAS'S CELL rather than adding a column of its own.
+   The canvas keeps its size, so the hidden board is never re-packed for a
+   narrower frame and the close lands its tiles on the clusters they left;
+   the six .app templates stay the six drift-pane-615 measures. The stage is
+   the cell's right-hand side at a whole number of columns (--stage-w, from
+   stage-geometry.ts), the navigator its left (--nav-w), and React Flow stays
+   mounted under both, faded and inert.
+
+   Nothing here applies while the flag is off: no element carries a .stage-*
+   class, and <main> never carries data-stage.
+
+   THE STAGE NEVER SIZES THE CELL IT SHARES. The canvas's track is `1fr`,
+   whose floor is `auto`: the widest minimum any item in the track asks for.
+   A grid item with a plain fixed width asks for exactly that width, so
+   `width: var(--stage-w)` held the track open at the stage's own width. A
+   window taken straight from 1440px to 900 kept an 844px track where the
+   window had 820 for it: the page scrolled 24px sideways, the topbar's
+   Feedback ran off the edge, and the stage's ✕ sat under the right stripe,
+   where a click on it pressed Usage. use-stage.ts sizes the stage from the
+   canvas, so it read that inflated track back as the room it had; in the
+   takeover, where the stage is the whole cell, the answer was the same 844
+   again, and the loop held itself until the window grew. Smaller steps got
+   away with it only because each measure left the stage narrower than the
+   next window's real cell.
+   A width with a percentage in it asks nothing of the track (CSS Sizing 3,
+   cyclic percentages: for the track's sizing it is `auto`, and every child
+   of the dock is positioned or not drawn, so `auto` is nothing). So the
+   stage is its whole columns, never wider than its cell, and the canvas is
+   the size the grid would give it with no stage at all, which is what
+   use-stage.ts measures. The cap also covers the frame between a resize and
+   the measure that answers it. */
+
+.stage-dock {
+  grid-column: 1;
+  grid-row: 3;
+  justify-self: end;
+  position: relative;
+  z-index: 15;
+  width: min(var(--stage-w), 100%);
+  min-width: 0;
+  min-height: 0;
+}
+/* Beside a left panel the canvas is the second track, and so is the stage. */
+.app:has(.session-list) .stage-dock,
+.app:has(.accounts-panel) .stage-dock { grid-column: 2; }
+/* On a phone the left panel lies over the canvas instead (left-column.css),
+   the grid has one track, and a stage left in a second one would add it back:
+   the canvas would fall to nothing, the takeover width with it, and the two
+   would trade places on every measure. */
+@media (max-width: 640px) {
+  .app:has(.session-list) .stage-dock,
+  .app:has(.accounts-panel) .stage-dock { grid-column: 1; }
+  /* The Term takeover as the phone frame draws it: a header 56 high with a back
+     button a thumb can hit (32 wide, 44 high), and a note under the terminal
+     52 high with room to read. The stage measures both as drawn. */
+  .ts-stage[data-takeover] .ts-head { height: 56px; }
+  .ts-stage[data-takeover] .ts-head > .glyph-btn { width: 32px; height: 44px; }
+  /* Drawn at 32, hit at 44 by 44: the invisible target reaches 6px out each side. */
+  .ts-stage[data-takeover] .ts-head > .glyph-btn::after { inset: 0 -6px; }
+  .ts-stage[data-takeover] .ts-bar { height: auto; min-height: 52px; padding-inline: 16px; }
+  /* The header's rest as the frame draws it: the back 4 in, the title block (the
+     14px glyph, then the name over the meta line) taking the row, 12 to the
+     right edge, 8 between. The three 24px controls are the ⋯ at the end
+     (StageHeader.tsx): type into the session, full screen and close are its
+     menu, a 44 target where they were three 24s. */
+  .ts-stage[data-takeover] .ts-head { gap: 8px; padding: 0 12px 0 4px; }
+  .ts-stage[data-takeover] .ts-ctl { display: none; }
+  .ts-stage[data-takeover] .ts-head > .ts-more.glyph-btn { display: inline-flex; flex: none; width: 44px; height: 44px; margin-right: -4px; }
+  .ts-stage[data-takeover] .ts-head > .ts-more.glyph-btn::after { inset: 0; }
+  .ts-stage[data-takeover] .ts-id { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 0 6px; align-items: center; padding-top: 3px; }
+  .ts-stage[data-takeover] .ts-id:not(:has(> .ts-glyph)) { grid-template-columns: minmax(0, 1fr); }
+  .ts-stage[data-takeover] .ts-id > .ts-glyph { grid-column: 1; grid-row: 1; }
+  .ts-stage[data-takeover] .ts-id > .ts-name { grid-column: -2; grid-row: 1; }
+  .ts-stage[data-takeover] .ts-id > .ts-meta { grid-column: -2; grid-row: 2; }
+  /* The note at the foot is --bg-soft under a --line-soft rule; the key row is
+     under it, always drawn: six keys sharing the width, 38 high and a 44 target. */
+  .ts-stage[data-takeover] .ts-bar { background: var(--bg-soft); border-top: 1px solid var(--line-soft); }
+  .ts-stage[data-takeover] .ts-keyrow {
+    display: flex;
+    flex: none;
+    box-sizing: border-box;
+    height: 55px;
+    gap: 6px;
+    padding: 8px;
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+  }
+  .ts-stage[data-takeover] .ts-keyrow[hidden] { display: none; }
+  .ts-key { flex: 1 1 0; min-width: 0; height: 38px; }
+  /* 38 to look at, 44 to press: the target reaches 3px past the key, above and below. */
+  .ts-key::after { content: ""; position: absolute; inset: -3px 0; }
+  /* Pressed on the finger going down, not after it lifts: the scale and the fill
+     are the kit's press. */
+  .ts-key:active:not(:disabled) { transform: scale(var(--press)); background: var(--selected); color: var(--text); }
+  .ts-key:disabled { opacity: var(--dim-off); }
+}
+@media (max-width: 640px) and (prefers-reduced-motion: reduce) {
+  .ts-key { transition: none; }
+  .ts-key:active:not(:disabled) { transform: none; }
+}
+/* Drawn at a phone's width only. A key's own look is here, beside the hide of
+   the row it is in (a button's look is not left to a query: the sheet's
+   control-appearance guard reads it here); its size and its press are in the
+   phone block above. */
+.ts-keyrow { display: none; }
+.ts-key {
+  position: relative;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: var(--bg-soft);
+  color: var(--text-secondary);
+  font: 500 12px/16px var(--font-mono);
+  transition: transform var(--dur-fast) var(--ease);
+}
+.ts-head > .ts-more.glyph-btn { display: none; }
+
+/* While it grows out of a card or back into one, the stage covers the whole
+   cell and a clip-path is the window onto it (stage-morph.ts): the terminal
+   inside stays at its final size and place, uncovered rather than scaled.
+   Capped as the dock is, and against the same cell: at rest the dock is the
+   stage's width, mid-morph the whole cell. */
+.stage-dock[data-morph] { justify-self: stretch; width: auto; }
+.stage-in {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(var(--stage-w), 100%);
+}
+.stage-ground { display: none; }
+.stage-dock[data-morph] .stage-ground {
+  display: block;
+  position: absolute;
+  inset: 0;
+  background: var(--panel);
+}
+/* Mounted unseen while its pane attaches, at its real size, so xterm can
+   measure and draw the seed before the first frame of the morph. */
+.stage-dock[data-phase="waiting"],
+.stage-nav[data-phase="waiting"] { visibility: hidden; }
+
+/* The window's 1px edge in the card's state colour, and the card's name
+   riding into the header — the morph's two drawn parts, placed by script. */
+.stage-edge {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  pointer-events: none;
+}
+.stage-dock[data-morph] .stage-edge { display: block; }
+.stage-rider {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  transform-origin: 0 0;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--text);
+  pointer-events: none;
+}
+.stage-dock[data-rider] .stage-rider { display: block; }
+/* The header's own name waits for the rider, so the two never print over
+   each other. The rider is the header's name at the header's size (13px in
+   V4, 16px in v3): it flies at that size and is scaled to the card's. */
+.stage-dock[data-rider] .ts-name { opacity: 0; }
+/* What sits beside the rider's landing arrives after it, and leaves before it
+   flies home (stage-morph.ts `late`): the header's state glyph and sentence,
+   and its controls. Only the header's: the keys bar and the cards wear the
+   same glyph beside text that is already there. The context chip is last of
+   all, on stage-morph.ts's `chip` ramp. */
+.stage-dock[data-rider] .ts-head .ts-glyph,
+.stage-dock[data-rider] .ts-meta,
+.stage-dock[data-rider] .ts-ctl { opacity: var(--stage-late, 1); }
+.stage-dock[data-rider] .ts-ctxchip { opacity: var(--stage-chip, 1); }
+
+/* The board's compact form, in the canvas's place. */
+.stage-nav {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 14;
+  width: var(--nav-w);
+}
+/* While the fold runs the board is still fading out under the tiles (or back
+   in, closing), so the navigator lends it its ground until the fold is done. */
+.stage-nav .board-nav[data-folding] { background: none; }
+/* And "+ New session" over its count is the navigator's, not a cluster's: it
+   has no rect on the board to fly from, so it is there once the fold is done
+   and gone as soon as a close begins, never printed over the board's cards. */
+.stage-nav[data-phase="opening"] .nav-head,
+.stage-nav[data-phase="closing"] .nav-head { visibility: hidden; }
+
+/* The double-click window after an open from a click (stage-shell.ts): the
+   second press of a double-click goes through to the card it was aimed at. */
+.stage-dock[data-grace],
+.stage-nav[data-grace] { pointer-events: none; }
+/* But the header's buttons answer from the first frame (V4's motion spec): ✕
+   during the open closes it, turning the morph around. Except a button the
+   pressed card lies under: StageDock marks it data-over-origin while the
+   window is open, so the second press of a double click still reaches the
+   card and its detail panel. */
+.stage-dock[data-grace] .ts-head button:not([data-over-origin]) { pointer-events: auto; }
+
+/* THE RIGHT-HAND RAILS STAND ASIDE while the stage is on screen. Usage and
+   Machine float at the right edge (machine-panel.css's --rail-r), which is
+   exactly where the stage's header and its ✕ are; left there they would cover
+   the controls that close the stage, and moved left of it they would cover
+   the navigator, which is the board itself now — on a deck that opens with
+   both rails out, that is every first open. So they are hidden for as long as
+   the stage is seen, their open flags untouched, and back when it closes.
+   Hidden, not unmounted: their size still counts in the board's frame
+   (use-layout-frame.ts's railCover reads their boxes), so the board under the
+   stage is never re-packed for a rail it cannot see. Not while the stage waits
+   unseen for its pane: nothing has changed on screen yet.
+   Only ever the panels that were open before the stage came. One asked for
+   while the stage is up — its button, U, S — takes the right of the deck back
+   and the stage goes (use-stage.ts useRailPanel), so a press is never answered
+   by a panel this rule then hides; while hidden, its button reads closed. The
+   phases this selector names are stage-shell.ts's stageSeen, which the hook
+   reads: the two must say the same. */
+.app:has(.stage-dock:not([data-phase="waiting"])) :is(.usage-panel, .sysdetail) { visibility: hidden; }
+
+/* The board under the stage, at rest: gone from sight, and inert in the DOM
+   (use-stage.ts). During the morph its opacity is the fold's, per frame. */
+.canvas-wrap[data-stage="open"] > .react-flow { opacity: 0; }
+/* What floats over the board goes with it: the board's header and the empty
+   board's hero. The zoom stack (and the tool filter in its ⋯ menu) and the
+   minimap are inside React Flow and fade with it. */
+.canvas-wrap[data-stage="opening"] > .board-head,
+.canvas-wrap[data-stage="open"] > .board-head,
+.canvas-wrap[data-stage="closing"] > .board-head,
+.canvas-wrap[data-stage="opening"] > .empty-hero,
+.canvas-wrap[data-stage="open"] > .empty-hero,
+.canvas-wrap[data-stage="closing"] > .empty-hero { visibility: hidden; }
+
+/* THE DIVIDER'S DOUBLE CLICK is a move: the widths come back to the default on
+   --dur-move and the stage's curve (V4's motion spec), and the navigator beside
+   them goes with them. Only while Divider.tsx holds data-snap: a drag is 1:1
+   and a key is at once, so neither ever carries a transition. The terminal is
+   told its size once, when it has rested (use-terminal-session.ts). Reduced
+   motion snaps. */
+.app[data-snap] .stage-dock,
+.app[data-snap] .stage-in,
+.app[data-snap] .stage-nav { transition: width var(--dur-move) var(--ease-stage); }
+@media (prefers-reduced-motion: reduce) {
+  .app[data-snap] .stage-dock,
+  .app[data-snap] .stage-in,
+  .app[data-snap] .stage-nav { transition: none; }
+}

@@ -9,7 +9,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import IntegrationFailureNote from "../components/IntegrationFailureNote";
-import { actionLabel, failureAction, failureSaid, failureWords, retryWait, retryWhen, type FailureInfo } from "../integrations/failure";
+import { actionLabel, failureAction, failureSaid, failureWords, retryWait, retryWhen, statusLine, type FailureInfo } from "../integrations/failure";
 import type { IntegrationErrorKind } from "../integrations/types";
 import { sheetText } from "./sheet-source";
 
@@ -60,6 +60,30 @@ describe("what a failure offers", () => {
     expect(failureSaid({ kind: "auth", detail: "Bad credentials" }, "x")).toBeNull();
     expect(failureSaid({ kind: "expired", detail: "Token expired" }, "x")).toBeNull();
   });
+
+  it("names the status a provider answered: alone for a token, under one fixed sentence for an error answer", () => {
+    expect(statusLine(401)).toBe("401 Unauthorized");
+    expect(statusLine(500)).toBe("500 Internal Server Error");
+    expect(statusLine(599)).toBe("599");
+    expect(statusLine(200)).toBeNull();
+    expect(statusLine(undefined)).toBeNull();
+    // A token failure says the status and never the words that came with it.
+    expect(failureSaid({ kind: "auth", status: 401, detail: "Bad credentials" }, "x")).toBe("401 Unauthorized");
+    expect(failureSaid({ kind: "expired", status: 401 }, "x")).toBe("401 Unauthorized");
+    // An error answer: the fixed sentence, and what the provider answered under it.
+    const answered: FailureInfo = { kind: "upstream", message: "500 Internal Server Error", status: 500 };
+    const words = failureWords(answered, "Jira");
+    expect(words.body).toBe("Try again in a moment.");
+    expect(failureSaid(answered, words.body)).toBe("500 Internal Server Error");
+    const said: FailureInfo = { kind: "upstream", message: "Jira answered 502.", status: 502, detail: "Bad gateway at the proxy" };
+    expect(failureWords(said, "Jira").body).toBe("Try again in a moment.");
+    expect(failureSaid(said, "Try again in a moment.")).toBe("Bad gateway at the proxy");
+    // The deck's own account of a failure with no answer stays the sentence.
+    expect(failureWords({ kind: "upstream", message: "The board could not be read." }, "Jira").body).toBe("The board could not be read.");
+    // A kind whose own sentence already says what the status would adds none.
+    expect(failureSaid({ kind: "rate-limit", status: 429 }, "x")).toBeNull();
+    expect(failureSaid({ kind: "not-found", status: 404 }, "x")).toBeNull();
+  });
 });
 
 describe("the failure note on screen", () => {
@@ -67,6 +91,12 @@ describe("the failure note on screen", () => {
     const html = render({ kind: "expired" });
     expect(html).toMatch(/<button type="button" class="btn primary">Reconnect<\/button>/);
     expect(html).not.toMatch(/Try again/);
+  });
+
+  it("says what the provider answered under a refused token's sentence", () => {
+    const html = render({ kind: "auth", status: 401, detail: "Bad credentials" }, { provider: "Jira" });
+    expect(html).toContain('<p class="ig-failure-said">Jira said: 401 Unauthorized</p>');
+    expect(html).not.toContain("Bad credentials");
   });
 
   it("draws nothing to press for a page that is gone", () => {
@@ -92,10 +122,11 @@ describe("the failure note on screen", () => {
     expect(alert).not.toMatch(/<button/);
   });
 
-  it("is a quieter status with the warning mark over rows that are the last answer", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the note draws no mark, warning or error; the tone is the shorter, quieter note.
+  it("is a quieter status without a mark over rows that are the last answer", () => {
     const html = render({ kind: "upstream", message: "GitHub answered 500.", detail: "Server is busy" }, { stale: true });
     expect(html).toMatch(/<div class="ig-failure" data-kind="upstream" data-stale="true"><div class="ig-failure-text" role="status">/);
-    expect(html).toMatch(/<path d="M7 1.9 12.9 12H1.1Z">/);
+    expect(html).not.toContain("<svg");
     expect(html).not.toContain("Server is busy");
   });
 
@@ -105,10 +136,16 @@ describe("the failure note on screen", () => {
     expect(html).toContain("Choose another board.");
   });
 
-  it("carries its tone on the edge and the mark, and no wash behind the words", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the note is a panel-filled box on a --line-soft edge at --r-node,
+  // 12px inside, with no coloured edge and no mark; the heading, the sentence and the provider's own
+  // words carry the difference, so there is still no wash behind the words.
+  it("is a panel-filled note on a quiet edge, with no tone colour on the edge", () => {
     const rule = /\.ig-failure\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
-    expect(rule).toMatch(/border:\s*1px solid color-mix\(in srgb, var\(--err\)/);
+    expect(rule).toMatch(/border:\s*1px solid var\(--line-soft\)/);
+    expect(rule).toMatch(/border-radius:\s*var\(--r-node\)/);
+    expect(rule).toMatch(/padding:\s*12px/);
     expect(rule).toMatch(/background:\s*var\(--panel\)/);
-    expect(css).toMatch(/\.ig-failure\[data-stale\]\s*\{[^}]*border-color:\s*color-mix\(in srgb, var\(--warn\)/);
+    expect(rule).not.toMatch(/--err|--warn/);
+    expect(css).not.toMatch(/\.ig-failure\[data-stale\]\s*\{[^}]*--warn/);
   });
 });

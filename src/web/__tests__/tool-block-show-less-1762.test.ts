@@ -23,6 +23,9 @@ vi.mock("react", () => ({
   useRef: (init: unknown) => ({ current: init }),
   useEffect: () => {},
   useMemo: (make: () => unknown) => make(),
+  // Dialog.tsx (ToolModal draws its shell) makes a context when it loads.
+  createContext: (value: unknown) => ({ _currentValue: value }),
+  useContext: (context: { _currentValue: unknown }) => context._currentValue,
 }));
 
 const { ToolBlock } = await import("../components/ToolModal");

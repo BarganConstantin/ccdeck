@@ -9,8 +9,6 @@ import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { useT } from "../i18n";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
 
-export const PLAY_SOUNDS_NOTE = "A tone when a turn finishes, and when Claude asks for something.";
-
 interface Props {
   soundOn: boolean;
   onToggleSound: () => void;
@@ -22,22 +20,21 @@ export default function SoundSwitch({ soundOn, onToggleSound }: Props) {
   const t = useT();
   const labelId = useId();
   const singleKeys = useSingleKeyShortcuts();
-  const noteId = useId();
   return (
     // A real switch, not a word in a box (#886), in the shared row
     // (SettingsParts.tsx, #2176): the row is a <label>, so a press on the name
     // reaches the switch once and there is one tab stop. Named for what it
     // does, "Play sounds", and not for the section: Settings heads the section
     // "Sounds" right above it, and the two would read as one word said twice.
-    // Its group has no caption: it is the section's master switch, above the
-    // groups it governs.
-    <SettingsGroup>
+    // Its group is captioned "Sound" (V4): it is the section's master switch,
+    // above the groups it governs. No line under the name (V4 top-10 #10): it
+    // named the two tones, whose own groups stand right under it.
+    // The note's id is gone with it, so nothing describes the switch by it.
+    <SettingsGroup id="sm-sound-caption" title={t("settings.sounds.group")}>
       <SettingRow
         settingId="play-sounds"
         name={t("radio.sound.name")}
         nameId={labelId}
-        note={t("radio.sound.note")}
-        noteId={noteId}
         control={
           <>
             {/* The key, drawn as a key, beside the switch it flips: M is the
@@ -49,7 +46,6 @@ export default function SoundSwitch({ soundOn, onToggleSound }: Props) {
               role="switch"
               aria-checked={soundOn}
               aria-labelledby={labelId}
-              aria-describedby={noteId}
               aria-keyshortcuts={singleKeys ? "M" : undefined}
               className="switch"
               onClick={onToggleSound}

@@ -68,5 +68,15 @@ export function useSoundSwitch(chimesRef: MutableRefObject<ChimePlayer | null>) 
    *  invert yet, and "not false" would arm the tones on a guess. */
   const soundOnRef = useMirroredRef(soundOn);
 
-  return { soundOn, toggleSound, activateSoundRef, soundOnRef };
+  /** The switch set to a value rather than flipped — what the ccdeck
+   *  account's settings sync applies (account-bridge.ts) — and through the one
+   *  door, the toggle, rather than a third writer of the flag. Nothing until
+   *  the stored value has been read: there is no state to compare yet. The
+   *  toggle's unlock asks a context to run off a press, which a browser may
+   *  refuse; the player asks again on the next press (chime-player.ts). */
+  const setSound = useCallback((on: boolean) => {
+    if (soundOnRef.current !== null && soundOnRef.current !== on) toggleSound();
+  }, [toggleSound]);
+
+  return { soundOn, toggleSound, setSound, activateSoundRef, soundOnRef };
 }

@@ -33,25 +33,32 @@ const bodyOf = (sel: string) => rules.filter(r => r.sels.includes(sel)).map(r =>
 const background = (sel: string) => /background:\s*([A-Za-z]+)\s*;/.exec(bodyOf(sel))?.[1];
 const opts = (sel: string) => /forced-color-adjust:\s*none/.test(bodyOf(sel));
 
+// The stream chip's live state has no rule to answer (V4 draws Live
+// without a chip), so only the two states it draws are here.
 const RESTING_WORDED = [
-  ".topbar .status .pill.live::before",
   ".topbar .status .pill.paused::before",
   ".topbar .status .pill.dead::before",
-  ".conn-banner .conn-dot",
+  // CHANGED ON PURPOSE (V4's Figma): the lost-connection mark is a stroked kit icon in currentColor, which a Contrast theme repaints in the text colour by itself, so there is no dot rule left to redraw.
   ".waiting-dot",
   ".ap-dot",
 ];
 const RESTING = [".sl-dot::before", ".bw-dot", ".bw-mode-dot", ".bw-prof-dot"];
-// The ready-update chip's dot recolours itself to the accent in a rule more
-// specific than the version dot's own, so it has to be named here as well or
-// that accent would stand in for Highlight under a Contrast theme.
-const LIVE = [".sl-dot.state-active::before", ".state-pill.state-active::before", ".bw-mode-dot.on", ".topbar .brand button.v .v-dot", ".topbar .brand button.v.ready .v-dot"];
-const METERS = [".sysdetail .sd-fill", ".sysdetail .sd-core-fill", ".ctx-window-fill", ".session-summary .ss-tt-bar-fill"];
+// CHANGED ON PURPOSE (V4's Figma): the version chip leads with a stroked kit
+// icon in currentColor, which a Contrast theme repaints in the button's text
+// colour by itself, so the version dot's Highlight rule is gone with the dot.
+const LIVE = [".sl-dot.state-active::before", ".bw-mode-dot.on"];
+// CHANGED ON PURPOSE (V4's Figma): the recap draws its tools as chips and a day as a table, so the
+// recap's tool bar and the history dialog's per-model meter are gone from these three lists.
+// The context dialog's meter and its two levels, and a tool's failed bar in Tool activity with its
+// track, are listed here too (CHANGED ON PURPOSE, V4's Figma).
+const METERS = [".sysdetail .sd-fill", ".sysdetail .sd-core-fill", ".ctx-window-fill", ".ctx-modal .ctx-window-fill", '.ctx-modal .ctx-window-fill[data-level="high"]', '.ctx-modal .ctx-window-fill[data-level="full"]', ".ta-list[data-sort=failed] .ta-track > .ta-bar"];
 // Account capacity's state marks (#1713) are not here on purpose: they are
 // drawn as borders, which a Contrast theme repaints in CanvasText with no rule
 // of this block's, a filled mark staying filled and a hollow one hollow.
-const OWN_COLOUR = [".qb-fill", ".ap-lane-fill", ".ap-report-meter i", ".uh-bar-seg", ".uh-agent-seg", ".uh-model-bar-fill", ".uh-legend-dot", ".cost-bar .cb-seg"];
-const TRACKS = [".qb-track", ".ap-lane-track", ".sd-track", ".sd-core", ".session-summary .ss-tt-bar", ".uh-model-bar", ".uh-agent-bar", ".cost-bar", ".ap-report-meter"];
+// CHANGED ON PURPOSE (V4's Figma): an account row draws one meter, its last
+// line (`.ap-meter` and its fill), where the open row drew a bar per window.
+const OWN_COLOUR = [".qb-fill", ".ap-meter-fill", ".ap-report-meter i", ".uh-bar-seg", ".uh-agent-seg", ".uh-legend-dot", ".cost-bar .cb-seg"];
+const TRACKS = [".qb-track", ".ap-meter", ".sd-track", ".sd-core", ".uh-agent-bar", ".cost-bar", ".ap-report-meter", ".ta-track"];
 
 describe("the deck under a Windows Contrast theme (#871)", () => {
   it("answers forced colours in exactly one block", () => {
@@ -107,7 +114,8 @@ describe("the deck under a Windows Contrast theme (#871)", () => {
     expect(background(".switch-knob")).toBe("CanvasText");
     expect(background(".switch:hover:not(:disabled) .switch-knob")).toBe("CanvasText");
     expect(opts(".switch-knob")).toBe(true);
-    for (const on of [".switch[aria-checked=\"true\"]", ".switch[aria-checked=\"true\"]:hover:not(:disabled)", ".ver-banner .switch[aria-checked=\"true\"]"]) {
+    // CHANGED ON PURPOSE (V4's Figma): the version banner has no switch of its own any more.
+    for (const on of [".switch[aria-checked=\"true\"]", ".switch[aria-checked=\"true\"]:hover:not(:disabled)"]) {
       expect(opts(on), on).toBe(true);
       expect(background(on), on).toBe("Highlight");
       expect(bodyOf(on), on).toMatch(/border-color:\s*Highlight/);

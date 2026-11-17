@@ -1,0 +1,95 @@
+/* ── Naming a session in place (internal #101) ─────────────────────────────
+   The field (SessionNameField.tsx) is the deck's own text field
+   (.ap-manage-input) cut to the height of the name it replaces, in the name's
+   own weight, so opening it moves nothing around it: 24 in the Workspace
+   header and on a row of the Sessions list, 28 under the Inspector's 16px
+   title. The ↺ beside it is a header glyph; the error line is --err, and the
+   field, which says aria-invalid then, takes the --err edge every invalid
+   field takes while the keyboard is in it (tokens.css). */
+.sn-field {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+}
+.sn-field .sn-input {
+  flex: 1 1 96px;
+  min-width: 0;
+  min-height: 0;
+  height: 24px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: 20px;
+}
+.sn-field[data-place="hero"] .sn-input {
+  height: 28px;
+  font-size: calc(16px + var(--ui-text-increase, 0px));
+}
+.sn-field .sn-input[aria-busy="true"] { cursor: progress; }
+.sn-field .sn-reset { flex: none; }
+.sn-error {
+  flex: 1 0 100%;
+  min-width: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  color: var(--err);
+}
+/* The header is one row 36–44 tall: the error stays on the field's line and
+   gives way first, with an ellipsis; its words are read out whole (role=alert). */
+.sn-field[data-place="header"] { flex-wrap: nowrap; }
+.sn-field[data-place="header"] .sn-error {
+  flex: 0 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* THE PENCIL after a name: the header's and the Inspector's. Quiet, --muted,
+   and where a pointer can hover it is drawn only while the name's row is under
+   the pointer or the keyboard is on it, so a header at rest reads as it did.
+   Its place is kept either way, so the name never moves when it shows. Touch
+   draws it always: there is no hover to find it with. */
+.ts-rename,
+.hero-rename { flex: none; color: var(--muted); }
+.sn-glyph { display: block; }
+@media (hover: hover) and (pointer: fine) {
+  .ts-rename,
+  .hero-rename { opacity: 0; transition: opacity var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease); }
+  .ts-id:hover > .ts-rename,
+  .hero-line:hover > .hero-rename { opacity: 1; }
+}
+/* The keyboard finds it wherever it is drawn, outside the mouse query. */
+.ts-rename:focus-visible,
+.hero-rename:focus-visible { opacity: 1; }
+/* A double click on the name opens the field too: the name says so with the
+   text cursor a field has. */
+.ts-name[data-renamable],
+.hero-title[data-renamable] { cursor: text; }
+
+/* A phone's header: the ⋯ menu holds Rename, so no pencil; the field takes
+   the name's cell in the title block's grid (stage-shell.css). */
+.ts-stage[data-takeover] .ts-id > .ts-rename { display: none; }
+.ts-stage[data-takeover] .ts-id > .sn-field { grid-column: -2; grid-row: 1; }
+
+/* A row of the Sessions list while it is being named: the row's box, glyph
+   kept, the field in the name's place, nothing pressed or hovered. */
+.session-list .sl-row.sl-row-edit {
+  align-items: center;
+  cursor: default;
+}
+.session-list .sl-row.sl-row-edit:active { transform: none; }
+/* The glyph sits on the field's 24px line, not the name's 17px one. */
+.session-list .sl-row.sl-row-edit .sl-glyph { align-self: flex-start; height: 24px; padding-top: 0; }
+@media (hover: hover) and (pointer: fine) {
+  .session-list .sl-row.sl-row-edit:hover { background: transparent; }
+  .session-list .sl-row.sl-row-edit.selected:hover { background: var(--selected); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ts-rename,
+  .hero-rename { transition: none; }
+}

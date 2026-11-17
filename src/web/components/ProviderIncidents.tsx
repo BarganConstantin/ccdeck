@@ -10,12 +10,16 @@
 // Links rather than buttons, because that is what they do: a new tab on
 // another site, which the ↗ says before the press. `noopener noreferrer`, so
 // the page opened learns nothing about the deck, not even its port.
+import { useEffect, useState } from "react";
 import type { Incident } from "../provider-status";
 import { useT } from "../i18n";
 import { ExternalLinkGlyph } from "./action-glyphs";
+import ChipPresence from "./ChipPresence";
+
+const ORDER: Incident["provider"][] = ["claude", "codex"];
 
 /**
- * The chips, one per provider in an incident, for the topbar's readout.
+ * One chip, for the topbar's readout.
  *
  * NAMED BY WHAT THEY SHOW. There is no aria-label: the chip carries its words
  * in three lengths and the sheet shows one of them — the full state, one word
@@ -24,30 +28,62 @@ import { ExternalLinkGlyph } from "./action-glyphs";
  * sheet hides with `display: none` leave the name with them, so the name is
  * always what is visible, plus the vis-hidden tail that says where it goes.
  */
-export function IncidentChips({ incidents }: { incidents: Incident[] }) {
+function IncidentChip({ i }: { i: Incident }) {
   const t = useT();
   return (
+    <a
+      // Written out, so unstyled-class.test.ts can hold both to a rule.
+      className={i.stale ? "provider-incident provider-incident-stale" : "provider-incident"}
+      data-state={i.state}
+      href={i.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={i.detail}
+    >
+      {/* V4's Figma: a 14px icon (the state's shape in its centre) and one
+          line, "Claude · partial outage · as of HH:MM" — the time the
+          status page last answered (Incident.readAt). The ↗ left the chip
+          with the frame; the title and the hidden tail still say it opens
+          the provider's page in a new tab. */}
+      <span className="pi-icon" aria-hidden><span className="pi-dot" /></span>
+      <span className="pi-text">
+        <span className="pi-name">{i.name}</span>
+        {" "}<span className="pi-words">· {i.chipWords}</span>
+        {" "}<span className="pi-short">· {i.shortWords}</span>
+        {" "}<span className="pi-asof">· {t("shell.incident.asOf", { time: i.readAt })}</span>
+      </span>
+      <span className="vis-hidden">, {t("shell.incident.opens", { host: i.host })}</span>
+    </a>
+  );
+}
+
+/** The chips, one per provider in an incident, for the topbar's readout. */
+export function IncidentChips({ incidents }: { incidents: Incident[] }) {
+  // A provider whose incident ended stays in its slot until the exit has run
+  // out (ChipPresence), drawn from the last thing it was given.
+  const [leaving, setLeaving] = useState<Incident["provider"][]>([]);
+  const present = new Map(incidents.map(i => [i.provider, i] as const));
+  useEffect(() => {
+    setLeaving(prev => {
+      const next = ORDER.filter(p => present.has(p) || prev.includes(p));
+      return next.length === prev.length && next.every((p, n) => p === prev[n]) ? prev : next;
+    });
+  });
+  const providers = ORDER.filter(p => present.has(p) || leaving.includes(p));
+  return (
     <>
-      {incidents.map(i => (
-        <a
-          key={i.provider}
-          // Written out, so unstyled-class.test.ts can hold both to a rule.
-          className={i.stale ? "provider-incident provider-incident-stale" : "provider-incident"}
-          data-state={i.state}
-          href={i.href}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={i.detail}
-        >
-          <span className="pi-dot" aria-hidden />
-          <span className="pi-name">{i.name}</span>
-          <span className="pi-words">· {i.chipWords}</span>
-          <span className="pi-short">· {i.shortWords}</span>
-          {i.asOf && <span className="pi-asof">· {t("shell.incident.asOf", { time: i.asOf })}</span>}
-          <span className="pi-go" aria-hidden><ExternalLinkGlyph /></span>
-          <span className="vis-hidden">, {t("shell.incident.opens", { host: i.host })}</span>
-        </a>
-      ))}
+      {providers.map(p => {
+        const i = present.get(p);
+        return (
+          <ChipPresence
+            key={p}
+            show={i !== undefined}
+            onExited={() => setLeaving(prev => (present.has(p) ? prev : prev.filter(x => x !== p)))}
+          >
+            {i ? <IncidentChip i={i} /> : null}
+          </ChipPresence>
+        );
+      })}
     </>
   );
 }

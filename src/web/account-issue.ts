@@ -175,6 +175,9 @@ export interface AccountIssue {
   fix: string | null;
   tone: "warn" | "quiet";
   blocksSwitch: boolean;
+  /** "rate" for a rate limit: the row's state line draws it with a clock in
+   *  the waiting ink, because it clears on its own at a time. */
+  kind?: "rate";
 }
 
 /** accounts.issue.everywhere / everywhereHint: what a dead login's row says when no paired deck can repair it — see
@@ -248,7 +251,10 @@ function ownIssue(
   }
   if (a.error) {
     const e = errorText(a.error, t);
-    return { text: sentence(e.text), hint: e.hint, fix: e.fixable ? t("accounts.issue.signInAgain") : null, tone: e.fixable ? "warn" : "quiet", blocksSwitch: e.fixable };
+    return {
+      text: sentence(e.text), hint: e.hint, fix: e.fixable ? t("accounts.issue.signInAgain") : null, tone: e.fixable ? "warn" : "quiet", blocksSwitch: e.fixable,
+      ...(a.error === "http-429" ? { kind: "rate" as const } : {}),
+    };
   }
   return null;
 }

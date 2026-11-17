@@ -60,7 +60,9 @@ describe("the detail panel counts errors and chips over every call (#1842)", () 
 
   it("counts failures older than the window", () => {
     const html = panel(early);
-    expect(html).toContain(`<b>${CALLS}</b> calls`);
+    // CHANGED ON PURPOSE (V4 critique 3): Activity and Tool calls are one
+    // section; its heading carries the lifetime count "250 calls" carried.
+    expect(html).toContain(`Tool calls <span class="section-count">${CALLS}</span>`);
     expect(html).toContain('<span class="ac-item ac-err"><b>60</b> err</span>');
   });
 

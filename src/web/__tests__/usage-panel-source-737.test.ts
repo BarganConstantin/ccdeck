@@ -47,6 +47,7 @@ import {
 } from "../usage-from-ccusage";
 import { distinctSessionLabels } from "../usage-session-join";
 import { sheetText } from "./sheet-source";
+import { en } from "../i18n/en";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const panel = read("../components/UsagePanel.tsx");
@@ -223,7 +224,8 @@ describe("what the figures are labelled with while a slower period loads", () =>
     const view = rangeView(landedToday, "all");
     expect(view.shown).toBe("today");
     expect(view.stale).toBe(true);
-    expect(nounFor(view.shown, "all")).toBe(PERIODS.find(p => p.key === "today")!.noun);
+    // CHANGED ON PURPOSE (the UI in every language): the period's noun is a key now, read through the English catalog.
+    expect(nounFor(view.shown, "all")).toBe(en[PERIODS.find(p => p.key === "today")!.nounMsg]);
   });
 
   it("is not stale once the pressed period is the one on screen", () => {
@@ -252,7 +254,8 @@ describe("what the figures are labelled with while a slower period loads", () =>
   it("always has a noun, including for a period this build no longer offers", () => {
     // A stored preference from an older build must not leave the headline with
     // a bare figure and no word over it.
-    expect(nounFor(null, "month")).toBe(PERIODS.find(p => p.key === "month")!.noun);
+    // CHANGED ON PURPOSE (the UI in every language): the period's noun is a key now, read through the English catalog.
+    expect(nounFor(null, "month")).toBe(en[PERIODS.find(p => p.key === "month")!.nounMsg]);
     expect(nounFor("nope" as never, "today")).toBe("today");
   });
 });
@@ -432,16 +435,21 @@ describe("markup, read as source", () => {
     // The tooltip is now a pair — what the span covers at rest, and what is
     // being read while it reads — so the assertion is that `p.hint` is still
     // the resting half rather than that it is the only half.
-    expect(strip).toMatch(/title=\{period === p\.key && rangePending \? t\("usage\.period\.reading", \{ period: t\(`usage\.period\.\$\{p\.key\}\.noun`\) \}\) : t\(`usage\.period\.\$\{p\.key\}\.hint`\)\}/);
+    // CHANGED ON PURPOSE (the UI in every language): the shaper's PERIODS entry
+    // now carries the keys (nounMsg, hintMsg), and the strip reads them with t.
+    expect(strip).toMatch(/title=\{period === p\.key && rangePending \? t\("usage\.period\.reading", \{ period: t\(p\.nounMsg\) \}\) : t\(p\.hintMsg\)\}/);
+    expect(strip).toContain("{t(p.labelMsg)}");
     expect(surface).not.toMatch(/title="[^"]*month/i);
   });
 
-  it("shows the selector only when there is a source with periods in it", () => {
-    // The board has exactly one span — now — so three chips over a board-only
-    // panel would be three words for the same figure.
-    // Two links, one per file: the panel mounts the strip behind the gate, and
-    // the strip is the chips.
-    expect(panel).toMatch(/\{fromRange && <UsagePeriodStrip /);
+  it("shows the selector from the first paint, before the logs have answered", () => {
+    // CHANGED ON PURPOSE (owner 2026-11-10): no board headline; chips from first paint; logs-unread sentence.
+    // The panel used to mount the chips only once ccusage had answered, over a
+    // board-only body. That body is gone: the figures come from the logs or not
+    // at all, so the chips are there from the start and say a read is out
+    // (`firstRead`) until the first one comes back.
+    expect(panel).toContain("<UsagePeriodStrip period={period} rangePending={rangePending || firstRead} setPeriod={setPeriod} />");
+    expect(panel).not.toMatch(/\{fromRange && <UsagePeriodStrip /);
     expect(strip).toMatch(/<div\s+className="uh-range up-period"/);
   });
 
@@ -450,7 +458,12 @@ describe("markup, read as source", () => {
     // empty, which used to remove the whole panel body — including the only
     // control that could have reached "month".
     expect(panel.indexOf("<UsagePeriodStrip")).toBeGreaterThan(-1);
-    expect(panel.indexOf("<UsagePeriodStrip")).toBeLessThan(panel.indexOf("{totalTokenSum > 0 ? ("));
+    // CHANGED ON PURPOSE (V4's Figma): the gate follows the skeleton's own
+    // branch, which also sits after the strip.
+    // CHANGED ON PURPOSE (owner 2026-11-10): no board headline; chips from first paint; logs-unread sentence.
+    const gate = "{showSkeleton || !fromRange ? null : totalTokenSum > 0 ? (";
+    expect(panel.indexOf(gate), "the token gate is gone or renamed").toBeGreaterThan(-1);
+    expect(panel.indexOf("<UsagePeriodStrip")).toBeLessThan(panel.indexOf(gate));
     // Every period but `all`, which has no longer one to offer (#1806).
     expect(panel).toContain(`: <>{t("usage.empty.period", { period: periodWord })}<br />{t("usage.empty.longer")}</>`);
   });
@@ -502,16 +515,16 @@ describe("markup, read as source", () => {
     expect(models).not.toMatch(/staleCls|up-stale/);
     expect(sessions).not.toMatch(/staleCls|up-stale/);
     expect(css).not.toMatch(/\.up-stale\b/);
-    // The scope sentence is boardScopeTitle's since Settings › General's
-    // single-key switch: BOARD_SCOPE_TITLE while H opens the history, the same
-    // sentence naming Usage history once it does not (WCAG 2.1.4).
-    expect(panel).toContain('<div className="up-total" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>');
-    expect(panel).toContain('<div className="up-tokens-row" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>');
+    // CHANGED ON PURPOSE (owner 2026-11-10): no board headline; chips from first paint; logs-unread sentence.
+    // The board's scope sentence hung on these two as a title; with no board
+    // figure left in the panel there is no scope to explain, and no title.
+    expect(panel).toContain('<div className="up-total">');
+    expect(panel).toContain('<div className="up-tokens-row">');
     expect(models).toContain('<section className="up-section">');
     expect(sessions).toContain('<section className="up-section">');
     // The words that carry it: the noun of the period SHOWN, not the one pressed.
     expect(panel).toContain("const periodNoun = nounFor(shownPeriod, period);");
-    expect(panel).toContain('<span className="up-total-label">{fromRange ? periodWord : boardSpendLabel()}</span>');
+    expect(panel).toContain('<span className="up-total-label">{periodWord}</span>');
   });
 
   it("reads the seam through the functions rather than re-deciding it here", () => {
@@ -520,7 +533,10 @@ describe("markup, read as source", () => {
     // test can reach it, and every case above would still pass.
     expect(panel).toContain("const figures = panelFigures(range,");
     expect(panel).toContain("const periodNoun = nounFor(shownPeriod, period);");
-    expect(rangeHook).toContain("return { ...rangeView(landed, period), loading };");
+    // CHANGED ON PURPOSE (owner 2026-11-10): no board headline; chips from first paint; logs-unread sentence.
+    // `tried` joins `loading`: whether any read has come back, so the panel can
+    // tell "still reading" from "could not read".
+    expect(rangeHook).toContain("return { ...rangeView(landed, period), loading, tried };");
     for (const gone of ["fromRange ? rangeSum.cost +", "fromRange ? rangeSum.tokens", "landed.period !== period,"]) {
       expect(surface, `${gone} is decided in the component again`).not.toContain(gone);
     }
@@ -545,65 +561,39 @@ describe("the period strip's indicator", () => {
     return css.slice(at, css.indexOf("}", at));
   };
 
-  it("takes its width from the label, never from the segment", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the strip is three pills, not a row of words over a 2px
+  // indicator. The grid that sized the indicator from the label, the resting row that kept the
+  // labels from stepping, the halfway hover and the inset ring were all that indicator's;
+  // what is pinned instead is the pill, its hover and its chosen state.
+  it("is a pill per period: a box of its own with a stroke, never an indicator under a word", () => {
     const seg = block(".up-period .uh-range-btn");
-    expect(seg).toMatch(/display:\s*grid/);
-    expect(seg).toMatch(/grid-template-columns:\s*max-content/);
-    // A percentage here would be a percentage of the segment again, under any
-    // spelling — that is the defect, not the number 60.
-    const mark = block('.up-period .uh-range-btn[aria-pressed="true"]::after');
-    expect(mark).not.toMatch(/width\s*:/);
-    expect(block(".up-period .uh-range-btn::after")).not.toMatch(/width\s*:\s*\d+%/);
+    expect(seg).toMatch(/height:\s*24px/);
+    expect(seg).toMatch(/border:\s*1px solid var\(--line\)/);
+    expect(seg).toMatch(/border-radius:\s*var\(--r-pill\)/);
+    expect(css).not.toContain(".up-period .uh-range-btn::after");
   });
 
-  it("occupies its row at rest, so no label steps when the period changes", () => {
-    // The row is `auto` and sized by the ::after. If the ::after existed only
-    // while pressed the row would collapse to 0 on the other two segments and
-    // every label would sit 1px lower than the selected one — a shift the
-    // reader sees as the strip twitching under their own click.
-    const seg = block(".up-period .uh-range-btn");
-    expect(seg).toMatch(/grid-template-rows:\s*1fr auto/);
-    const rest = block(".up-period .uh-range-btn::after");
-    expect(rest).toMatch(/content:\s*""/);
-    expect(rest).toMatch(/height:\s*2px/);
-    expect(rest).toMatch(/background:\s*transparent/);
-    // And because the row is always there, the state can fade rather than
-    // teleport — over the same 120ms the label's colour takes.
-    expect(rest).toMatch(/transition:\s*background-color 120ms/);
-  });
-
-  it("does not let hover wear the selected colour", () => {
-    // The shared chip rule repaints any hovered label in --text, which is
-    // exactly what the selected label steps to. With the pointer still resting
-    // on the strip after a click — the commonest frame there is — two of three
-    // segments read identically and a 2px rule was the only difference left.
-    expect(block(".up-period .uh-range-btn:hover"))
-      .toMatch(/color:\s*color-mix\(in srgb, var\(--text\) 45%, var\(--muted\)\)/);
+  it("does not let hover wear the selected state", () => {
+    // Hover lifts the word to --text; the chosen pill alone has the wash and the accent stroke.
+    expect(block(".up-period .uh-range-btn:hover")).toMatch(/color:\s*var\(--text\)/);
+    const chosen = block('.up-period .uh-range-btn[aria-pressed="true"]');
+    expect(chosen).toMatch(/background:\s*var\(--accent-16\)/);
+    expect(chosen).toMatch(/border-color:\s*var\(--accent\)/);
   });
 
   it("keeps the selected word legible under the pointer that chose it", () => {
-    // `.uh-range-btn[aria-pressed="true"]:hover` paints the label in --bg,
-    // which is right for the modal's chips — there it sits on an --accent
-    // FILL. This strip has no fill, both selectors are (0,3,0), and the shared
-    // one is declared later, so the selected word was --bg on --panel: 1.080:1
-    // in dark, 1.132:1 in light. Gone, at the exact moment the pointer is
-    // guaranteed to be on it.
+    // The shared hover paints the label in --bg, which is right for the modal's chips on an
+    // --accent FILL; this pill has a wash, so the hover keeps --text.
     const held = block('.up-period .uh-range-btn[aria-pressed="true"]:hover');
     expect(held).toMatch(/color:\s*var\(--text\)/);
-    // And it has to out-specify the shared rule, not merely restate it.
-    expect(css.indexOf('.up-period .uh-range-btn[aria-pressed="true"]:hover'))
-      .toBeGreaterThan(-1);
+    expect(css.indexOf('.up-period .uh-range-btn[aria-pressed="true"]:hover')).toBeGreaterThan(-1);
   });
 
-  it("keeps its focus ring inside the segment and off the indicator", () => {
-    // The shared `button:focus-visible` draws 2px of --accent at offset 1px.
-    // On this control its bottom stroke landed on the indicator's own pixels in
-    // the indicator's own colour, so the selected tab, focused, showed no
-    // indicator at all; and `border-radius: 0` on the segment had shadowed the
-    // global ring's 4px, leaving the one hard-cornered ring in the deck.
-    const ring = block(".up-period .uh-range-btn:focus-visible");
-    expect(ring).toMatch(/outline-offset:\s*-4px/);
-    expect(ring).toMatch(/border-radius:\s*4px/);
+  it("takes the global focus ring, with no ring of its own", () => {
+    // The global ring is 1.5px accent inside the box (V4's Figma); the old ring was inset to clear
+    // the indicator, which is gone.
+    expect(css).not.toContain(".up-period .uh-range-btn:focus-visible");
+    expect(css).toMatch(/:focus-visible \{\s*outline: var\(--focus-w\) solid var\(--accent\);\s*outline-offset: calc\(-1 \* var\(--focus-w\)\);\s*\}/);
   });
 });
 
@@ -705,7 +695,7 @@ describe("the period strip's keyboard and memory", () => {
     // The mark that already says WHICH period is the one that says it is being
     // fetched — nothing new appears. Keyed on the attribute alone so it stays
     // out of the set of scoped state rules usage-series-contrast holds to three.
-    const at = css.indexOf("\n.up-period .uh-range-btn[data-pending]::after {");
+    const at = css.indexOf("\n.up-period .uh-range-btn[data-pending] {");
     expect(at, "no pending rule for the indicator").toBeGreaterThan(-1);
     const rule = css.slice(at, css.indexOf("}", at));
     expect(rule).toMatch(/animation: up-period-reading 1100ms/);
@@ -721,7 +711,7 @@ describe("the period strip's keyboard and memory", () => {
     // figures are still dimmed and the live region still speaks, so nothing
     // about the wait lives only in the animation.
     const rm = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
-    expect(rm).toContain(".up-period .uh-range-btn[data-pending]::after { animation: none; }");
+    expect(rm).toContain(".up-period .uh-range-btn[data-pending] { animation: none; }");
   });
 
   it("says the wait out loud, from a region that was already there", () => {
@@ -749,9 +739,10 @@ describe("the period strip's keyboard and memory", () => {
     // and a reader who takes the middle of a scale for a rolling 30 days is
     // wrong by up to 30 days on the 1st with nothing on screen to correct them.
     const month = PERIODS.find(p => p.key === "month")!;
-    expect(month.hint).toMatch(/calendar month/i);
-    expect(month.hint).toMatch(/not the last 30 days/i);
-    for (const p of PERIODS) expect(p.hint, `${p.key} has no hint`).toMatch(/\S/);
+    // CHANGED ON PURPOSE (the UI in every language): the hint is a key now, read through the English catalog.
+    expect(en[month.hintMsg]).toMatch(/calendar month/i);
+    expect(en[month.hintMsg]).toMatch(/not the last 30 days/i);
+    for (const p of PERIODS) expect(en[p.hintMsg], `${p.key} has no hint`).toMatch(/\S/);
     // And the sentence has to stay true of `sinceFor`, which is what actually
     // asks for the range: the month starts on the 1st, locally.
     const may = new Date(2026, 4, 17, 9, 30);

@@ -39,3 +39,17 @@ it('observes the continuation without replaying prompts or tools copied from the
   expect(events.filter((e: { payload: { tool_use_id?: string } }) => e.payload.tool_use_id === 'old-tool')).toHaveLength(1);
   expect(events.filter((e: { payload: { hook_event_name: string } }) => e.payload.hook_event_name === 'SessionStart')).toHaveLength(1);
 });
+
+it('refreshes the provider title when only the session index changes', async () => {
+  const id = '12345678-1234-1234-1234-123456789abc';
+  await writeFile(join(source, 'session_index.jsonl'), JSON.stringify({ id, thread_name: 'Verifică proiectele de pe desktop' }) + '\n');
+  await scanCodexNow();
+  const titles = () => eventsSince(0).filter((e: { payload: { session_id: string; hook_event_name: string } }) =>
+    e.payload.session_id === id && e.payload.hook_event_name === 'SessionNamed');
+  expect(titles().at(-1)?.payload.sessionName).toBe('Verifică proiectele de pe desktop');
+  await appendFile(join(source, 'session_index.jsonl'), JSON.stringify({ id, thread_name: 'Updated title' }) + '\n');
+  const now = Date.now();
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(now + 2000);
+  try { await scanCodexNow(); } finally { clock.mockRestore(); }
+  expect(titles().at(-1)?.payload.sessionName).toBe('Updated title');
+});

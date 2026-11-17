@@ -292,7 +292,8 @@ describe("the layout, pinned to what was measured", () => {
     // `.sd-fill` against the same 0-100. Without a track, 4px and 15px in a
     // 24px box are two positions with nothing to be positions against.
     expect(rule(".pl-spark")).toMatch(/background:\s*var\(--line-soft\)/);
-    expect(rule(".sd-track")).toContain("background: var(--line)");
+    // CHANGED ON PURPOSE (V4's Figma): the track is 2 high on --ctl-fill.
+    expect(rule(".sd-track")).toContain("background: var(--ctl-fill)");
   });
 
   it("draws the floor before anything stands on it", () => {
@@ -391,12 +392,13 @@ describe("the process section is one way in, and draws nothing", () => {
     const block = processes();
     expect(block).toContain('{t("insights.proc.title")}');
     expect(block).toContain('{t("insights.machine.processesSub")}');
-    expect(block).toContain('<i className="sd-row-more" aria-hidden>›</i>');
-    // The name is in the reading colour, not the heading grey. The door is a
-    // row now, not a card inside the panel: no plate fill, no radius and no
-    // edge of its own (1.4.11 is satisfied by the label), set off by a
-    // hairline above the section instead.
-    expect(rule(".sd-door-name")).toContain("color: var(--text)");
+    // CHANGED ON PURPOSE (V4's Figma): the kit's 14 chevron, not a typed ›.
+    expect(block).toContain('<KitIcon name="chevron-right" className="sd-row-more" />');
+    // The door is a row now, not a card inside the panel: no plate fill, no
+    // radius and no edge of its own (1.4.11 is satisfied by the label).
+    // CHANGED ON PURPOSE (V4's Figma): the row's name is 500 12/16
+    // --text-secondary, the same colour as the section headings.
+    expect(rule(".sd-door-name")).toContain("color: var(--text-secondary)");
     expect(rule(".sysdetail .sd-door .sd-door-plate")).not.toContain("background");
     expect(rule(".sysdetail .sd-door .sd-door-plate")).not.toContain("border-radius");
     expect(rule(".sysdetail .sd-door .sd-door-plate")).not.toContain("border:");
@@ -459,9 +461,12 @@ describe("the dialog's own rhythm", () => {
     // paddings.
     const body = pad(".pl-body"), strip = pad(".pl-strip");
     const head = 12; // .modal-head, shared by every dialog
-    expect(body.bottom + strip.top).toBe(20);
+    // CHANGED ON PURPOSE (V4's Figma): the body is padded 16 on every side, so
+    // the air between the list and the band is 26 and under the title 28; the
+    // relationship (a title keeps more than a peer band) holds.
+    expect(body.bottom + strip.top).toBe(26);
     // A title is not a peer, so it keeps slightly more.
-    expect(head + body.top).toBe(22);
+    expect(head + body.top).toBe(28);
     // The strip is the last band, so its bottom IS the outer frame, and the
     // frame matches itself top and bottom.
     expect(strip.bottom).toBe(12);
@@ -556,6 +561,8 @@ describe("the dialog's type", () => {
     expect(modalSrc).toContain('note={t("insights.proc.memoryNote")}');
     expect(modalSrc).toContain('note={t("insights.proc.processNote")}');
     // On the headers, not in a band of their own.
+    // The footer is the shared Done band (V4's Figma), carrying the count: no
+    // footnote band and no rule of its own.
     expect(modalSrc).not.toContain("pl-foot");
     expect(css).not.toContain(".pl-foot");
     // And the header is what carries them. SortHead moved into this file with

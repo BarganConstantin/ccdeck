@@ -28,6 +28,7 @@ describe("the machine panel has a heading (#879)", () => {
   it("keeps the title's look: no heading margin arrives with the tag", () => {
     const rule = /^\.sd-title\s*\{([^}]*)\}/m.exec(css)?.[1] ?? "";
     expect(rule).toMatch(/margin:\s*0/);
-    expect(rule).toMatch(/font-size:\s*12px/);
+    // CHANGED ON PURPOSE (V4's Figma): the title is 600 13/20, as every panel's.
+    expect(rule).toMatch(/font-size:\s*13px/);
   });
 });

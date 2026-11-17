@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fmtCost } from "../pricing";
 import { boardBySession, liveDelta, NO_DELTA, type SessionUsage } from "../live-delta";
 import {
-  boardScopeTitle, boardSessionTable, boardScopeLabel, boardSpendLabel,
+  boardSessionTable,
   type BoardSessionRow,
 } from "../board-usage";
 import {
@@ -19,28 +19,35 @@ import { fmtTokens } from "../token-format";
 import type { Providers } from "../providers";
 import type { Incident } from "../provider-status";
 import CostBar from "./CostBar";
-import FilmLink from "./FilmLink";
+import { KitIcon } from "./kit-icons";
+import PanelInfo from "./PanelInfo";
 import { ClaudeQuotaSection, CodexQuotaSection } from "./QuotaSections";
 import UsageModelTable from "./UsageModelTable";
 import UsagePeriodStrip from "./UsagePeriodStrip";
 import UsageSessionBreakdown from "./UsageSessionBreakdown";
 import SessionUsageModal from "./SessionUsageModal";
 import QuotaHistoryModal from "./QuotaHistoryModal";
+import { DialogPresence } from "./Dialog";
 import type { SessionSelection } from "../session-usage";
 import { selfPressProps } from "../panel-press";
 import { useCodexQuota, useQuota } from "../use-quota";
 import { useEndedWeeks } from "../quota-closes";
 import { useUsageRange } from "../use-usage-range";
+import { useSkeletonDelay } from "../use-skeleton-delay";
 import { useCountUp } from "../use-count-up";
 import { useBoardSpend } from "../use-board-spend";
 import { usePanelClock } from "../use-panel-clock";
 import { useT } from "../i18n";
+import SheetHandle from "./SheetHandle";
 import { anyUnpriced, quotaRefreshLabel, worthALine } from "../usage-panel-rules";
 import { reportedCost } from "../reported-cost";
 import { boardSessionNames, boardSessionStates, distinctSessionLabels } from "../usage-session-join";
 import { withKey } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { PLACE_KEYS, usePanelPlace } from "../panel-place";
+import type { PanelDock } from "../side-column";
+import { DockButtons } from "./SideColumn";
+import PanelFoldHead, { quotaFoldLine } from "./PanelFoldHead";
 
 // The rows of the two board tables, and UNKNOWN_MODEL, are board-usage.ts's,
 // with the folds that build them (#1175). The tables that draw them, and
@@ -66,6 +73,10 @@ import { PLACE_KEYS, usePanelPlace } from "../panel-place";
 // whether the session list is open — are usage-prefs.ts's, with the reasons
 // each is kept and the default each falls back to.
 
+/** How long a pressed period may show the previous one's figures before the
+ *  skeleton replaces them. */
+const SKELETON_AFTER_MS = 150;
+
 interface Props {
   state: GraphState;
   now: number;
@@ -77,15 +88,17 @@ interface Props {
   /** Asked to close, still on screen for the length of its exit. */
   leaving?: boolean;
   onClose: () => void;
+  /** Its place in Workspace's side column (side-column.ts); absent on the Board. */
+  dock?: PanelDock;
 }
 
-export default function UsagePanel({ state, now, providers, incidents = [], leaving, onClose, liveSince = null }: Props & {
+export default function UsagePanel({ state, now, providers, incidents = [], leaving, onClose, dock, liveSince = null }: Props & {
   /** When the stream's replay landed, or null while there is none — see App.tsx.
    *  The $/min counts only from here (#821). */
   liveSince?: number | null;
 }) {
   const singleKeys = useSingleKeyShortcuts();
-  const place = usePanelPlace(PLACE_KEYS.usage);
+  const place = usePanelPlace(PLACE_KEYS.usage, dock);
   const [inspectedSession, setInspectedSession] = useState<SessionSelection | null>(null);
   const [quotaHistoryOpen, setQuotaHistoryOpen] = useState<"pointer" | "keyboard" | null>(null);
   const boardProviders = useMemo(() => new Map(
@@ -150,13 +163,21 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
   boardNowRef.current = () => (liveSince == null ? null : boardBySession(state.agents.values(), now));
   const takeBaseline = useCallback(() => boardNowRef.current(), []);
 
-  const { data: range, shown: shownPeriod, stale: rangeStale, loading: rangeLoading, baseline } =
+  const { data: range, shown: shownPeriod, stale: rangeStale, loading: rangeLoading, baseline, tried: rangeTried } =
     useUsageRange(period, rangeRefresh, takeBaseline);
   const fromRange = range != null;
+  // NO BOARD HEADLINE, EVER (owner, 2026-11-10). Before the logs answer, the
+  // panel used to open on the canvas's own sum — "$1150 spend on this board" —
+  // and then jump to "$29.25 today" once ccusage landed: one figure, two
+  // meanings, forty times apart. Now the period chips are there from the first
+  // paint and the figures wait for the logs: reading until the first read comes
+  // back, a plain sentence if it came back with nothing.
+  const firstRead = !fromRange && !rangeTried;
+  const readFailed = !fromRange && rangeTried;
 
   // `loading` on its own is not a state this panel shows, and that has not
   // changed: a refresh of the range already on screen moves no figure the
-  // reader can act on, and dimming for it would make the panel flicker once a
+  // reader can act on, and a skeleton for it would make the panel flicker once a
   // minute on its own poll. What is read below is `loading AND stale` — a
   // fetch genuinely in flight FOR A PERIOD THAT IS NOT THE ONE SHOWN.
   /**
@@ -169,17 +190,29 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
    * transcript directory rather than the range asked of it — and every read of
    * a range already fetched is 10ms, from the server's own cache. So the wait is
    * uniform, it happens on the first press of each word, and after that the
-   * strip is instant for the rest of the session. Two and a half seconds of a
-   * panel that only dims is a panel that looks broken rather than busy.
+   * strip is instant for the rest of the session. Two and a half seconds of
+   * unchanged figures is a panel that looks broken rather than busy, so after a
+   * short delay (below) the skeleton says it is reading.
    *
    * `loading && stale` rather than `loading`, for the reason above it, and
    * rather than `stale` alone for a reason that matters more: a fetch that
    * FAILS leaves the figures stale for good, and an indicator keyed on staleness
    * would then say "reading" forever. `loading` clears in the fetch's own
-   * `finally`, so a failure stops the signal and leaves the figures dimmed —
-   * which is the truth: they are the previous period's, and nothing is coming.
+   * `finally`, so a failure stops the signal and the previous period's figures
+   * come back under their own noun — which is the truth: they are the previous
+   * period's, and nothing is coming.
    */
   const rangePending = rangeLoading && rangeStale;
+  // The skeleton (V4's Figma) takes the stale figures' place, but only once the
+  // wait is real: a range the server already holds answers in about 10ms, and a
+  // skeleton flashing for that long is a flicker. So the previous period's
+  // figures stay for the first SKELETON_AFTER_MS and the skeleton follows.
+  // The hook is false in the very render the answer lands (use-skeleton-delay.ts).
+  const skeleton = useSkeletonDelay(rangePending, SKELETON_AFTER_MS);
+  // The first read takes the same skeleton, after the same short wait: the
+  // server answers a range it already holds in about 10ms.
+  const firstSkeleton = useSkeletonDelay(firstRead, SKELETON_AFTER_MS);
+  const showSkeleton = (fromRange && skeleton) || firstSkeleton;
 
   // The board's own names and states, by session id — the two halves of the
   // join between ccusage's session rows and the canvas. The folds are
@@ -210,7 +243,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
 
   // The word over the figures names the range the figures came from, not the
   // chip the reader just pressed. While a slower range loads, the panel reads
-  // "$4.20 today" with `all` pressed and dimmed — never "$4.20 all time".
+  // "$4.20 today" with `all` pressed — never "$4.20 all time".
   const periodNoun = nounFor(shownPeriod, period);
   // The same word in the reader's language, for the lines this panel draws
   // itself; the breakdown component below still takes the English one.
@@ -221,9 +254,9 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
   // pressable, and since #1289 not the figures either. They used to fade to
   // --dim-stale, and every one of them is a word: 0.45 took --text to 3.55:1 and
   // --muted to 1.95:1 on the dark panel, under AA for the numbers a reader is
-  // still using. The stale state is said in words instead, at full contrast —
-  // the headline's noun names the period the figures are FROM ("$4.20 today"
-  // with `all` pressed), the session heading says "active today", and the
+  // still using. For the first SKELETON_AFTER_MS the previous period's figures
+  // stay at full contrast, their noun naming the period they are FROM ("$4.20
+  // today" with `all` pressed); after that the skeleton replaces them. The
   // pressed chip pulses while its read is out.
 
   // WHAT HAS HAPPENED SINCE THE READING WAS TAKEN, from the canvas.
@@ -271,10 +304,10 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
 
   const anyLoading = quotaLoading || codexLoading;
 
-  // The header's ↻ means "everything on this panel", and the range is now part
-  // of everything. `refresh=1` on that path is what forces a new ccusage child
-  // rather than the 2-minute cached reading — a manual press is the one moment
-  // paying for a fresh run is right.
+  // The foot's Refresh means "everything on this panel": both quotas and the
+  // period's figures, the panel's one way to try again. `refresh=1` on that
+  // path is what forces a new ccusage child rather than the 2-minute cached
+  // reading — a manual press is the one moment paying for a fresh run is right.
   const refreshAll = () => { refreshQuota(); refreshCodex(); setRangeRefresh(n => n + 1); };
 
   // One string, used as both the ↻'s tooltip and its accessible name (#381).
@@ -286,6 +319,10 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
   // shows, per provider, and cannot drift into promising a section that is not
   // rendered.
   const refreshLabel = quotaRefreshLabel(providers, t);
+  // The headline in one line, for a folded header: the logs' figure only.
+  const spendLine = !fromRange ? null : hasCost
+    ? t("shell.side.usageSum", { amount: fmtCost(figures.cost), period: periodWord })
+    : t("shell.side.usageTokens", { n: fmtTokens(totalTokenSum), period: periodWord });
 
   return (
     // The id is the target of the topbar toggle's aria-controls. It is spelled
@@ -303,56 +340,40 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
     // canvas, openable and closable without changing what the canvas shows.
     // Its header moves it (panel-place.ts).
     <aside className={`usage-panel${leaving ? " leaving" : ""}`} id="usage-panel" aria-label={t("usage.title")} {...place.panel}>
+      <SheetHandle />
       <div className="up-header" {...place.grip}>
+        {/* Folded by the Inspector on the Board: the header is one button that
+            opens the panel, with the quota left (the period's spend where
+            there is no quota reading). */}
+        {place.tucked && dock ? (
+          <PanelFoldHead title={t("usage.title")} summary={quotaFoldLine(quota, t) ?? spendLine} onToggle={dock.unfold} />
+        ) : <>
         {/* h2, under the topbar's h1 (#381). Same level as the other panels'
             titles, and the four `up-section-title`s below stepped from h4 to h3
-            with it, so the panel reads h1 → h2 → h3 with nothing skipped. */}
-        <h2>{t("usage.title")}</h2>
-        <div className="up-header-right">
-          {(providers.claude || providers.codex) && <button type="button"
-            className="glyph-btn" aria-label={t("usage.historyOpen")}
-            title={t("usage.history")} onClick={event => setQuotaHistoryOpen(event.detail === 0 ? "keyboard" : "pointer")}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M4 4v16h16M8 8l4 4 4-3 4 7" />
-            </svg>
-          </button>}
-          {/* Named after what is actually below it, and gone when neither
-              section is. On a Codex-only deck "Refresh Claude + Codex quota"
-              promises a section that is not there, which is the same lie in
-              miniature as the panel this change removed; with both CLIs absent
-              the control refreshes nothing at all. */}
-          {(providers.claude || providers.codex) && (
-          <button
-            type="button"
-            className="glyph-btn up-refresh-btn"
-            onClick={refreshAll}
-            /* #620: this was `disabled={anyLoading}`, and both hooks set their
-               `loading` before their first await — so the ↻ went disabled
-               under the press that had just come from it. It is the worst of
-               the nine to lose focus on: the panel is docked with no focus
-               trap, and the Codex leg of this refresh is a full second or
-               more, all of it with focus on `<body>` and nothing to hand it
-               back. The glyph goes on saying which state it is in. */
-            {...selfPressProps(anyLoading)}
-            aria-label={refreshLabel}
-            title={refreshLabel}
-          >{anyLoading ? "…" : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5" />
-            </svg>}</button>
-          )}
-          <button
-            type="button"
-            className="glyph-btn up-close"
-            onClick={onClose}
-            aria-label={t("usage.closePanel")}
-            title={withKey(t("usage.close"), "U", singleKeys)}
-          ><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="1.6" strokeLinecap="round" aria-hidden><path d="m6 6 12 12M18 6 6 18" /></svg></button>
-        </div>
+            with it, so the panel reads h1 → h2 → h3 with nothing skipped.
+            Opened beside the Inspector, the title folds it back to its row. */}
+        {dock?.refold ? (
+          <PanelFoldHead title={t("usage.title")} open onToggle={dock.refold} />
+        ) : <h2>{t("usage.title")}</h2>}
+        {/* Folded in Workspace's column, the header keeps the headline. */}
+        {dock?.folded && fromRange && <span className="side-sum">{spendLine}</span>}
+        <DockButtons dock={dock} popOut={place.popOut} />
+        {/* The video, behind ⓘ: a ▷ here read as "run". */}
+        <PanelInfo film="usage" panel={t("usage.title")} />
+        {/* ONE close (V4's Figma). The panel's two other header buttons went to
+            its foot: the refresh as a quiet "Refresh" and the quota history as
+            a quiet "Quota history", both still here and still pressable. */}
+        <button
+          type="button"
+          className="glyph-btn up-close"
+          onClick={onClose}
+          aria-label={t("usage.closePanel")}
+          title={withKey(t("usage.close"), "U", singleKeys)}
+        ><KitIcon name="close" /></button>
+        </>}
       </div>
 
+      <div className="up-body">
       {/* ── Claude quota ── */}
       {providers.claude && (
         <ClaudeQuotaSection quota={quota} quotaLoading={quotaLoading} nowSec={nowSec} weekEnds={claudeWeekEnds}
@@ -378,26 +399,43 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
           conditional now: the headline and the bar appear when there is money
           to report, and the breakdown appears whenever there is anything to
           break down. */}
-      {/* WHICH SPAN, when there is a source that has spans at all.
-              The board has exactly one — right now — so the strip appears only
-              under ccusage, and the panel is silently the old panel when
-              ccusage is absent rather than showing three chips that all mean
-              the same thing. */}
-      {fromRange && <UsagePeriodStrip period={period} rangePending={rangePending} setPeriod={setPeriod} />}
+      {/* WHICH SPAN, from the first paint (owner, 2026-11-10). The chips no
+              longer wait for ccusage: the figures under them come only from
+              the logs, so the chips are the panel's question from the moment
+              it opens, and the reader can pick a period while the first read
+              is still out. */}
+      <UsagePeriodStrip period={period} rangePending={rangePending || firstRead} setPeriod={setPeriod} />
 
-      {totalTokenSum > 0 ? (
+      {showSkeleton ? (
         <>
-          {/* The headline says whose spend it is (#687).
-              It read "total spend", and it is not a total of anything: it walks
-              the agents on the canvas, and `pruneDoneSessions` takes finished
-              sessions off the canvas two minutes after they end, six at a time.
-              Ten finished sessions reading $75.00 read $45.00 one 250ms tick
-              later with nothing refunded — a correct number under a word that
-              claims a period it does not cover, which is the worst kind of wrong
-              number because nothing on screen looks broken.
-              The label carries the scope and the tooltip carries the rest: why
-              the figure falls, and that H opens the one surface which answers
-              "what has today cost me" from the logs on disk. */}
+          {/* A READ FOR ANOTHER PERIOD IS OUT (V4's Figma): the words, then two
+              skeleton rows where the figures will be. */}
+          <p className="up-reading">{t("usage.period.reading", { period: t(`usage.period.${period}.noun`) })}</p>
+          <div className="up-skels" aria-hidden="true">
+            {[0, 1].map(i => (
+              <div key={i} className="up-skel">
+                <span className="up-bone up-bone-dot" />
+                <span className="up-bone up-bone-name" />
+                <span className="up-bone up-bone-cost" />
+              </div>
+            ))}
+          </div>
+        </>
+      ) : !fromRange ? (
+        // Nothing from the logs: still reading (blank for the first short
+        // wait), or the read came back empty-handed. No board figure stands
+        // in for it. Said once; the Refresh at the foot is the way to try
+        // again, so no line here points at it (owner, 2026-11-11).
+        readFailed && (
+          <div className="up-empty">{t("usage.period.unread", { period: periodWord })}</div>
+        )
+      ) : totalTokenSum > 0 && (
+        <>
+          {/* The headline says whose spend it is (#687): the period's, read
+              from the logs. It once summed the agents on the canvas, which
+              evicts finished sessions on a timer, so the figure fell with
+              nothing refunded; since 2026-11-10 the canvas's sum is not a
+              headline here at all, before or after ccusage answers. */}
           {/* THE HEADLINE IS ALWAYS THERE, in one of four states, by the rule
               History's total and the model table's rows print with
               (reportedCost), on the note's own test (hasUnpriced):
@@ -410,17 +448,17 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
               were the whole. `hasCost` is the source's own, not the counted
               figure, so a count passing through zero cannot flip the state.
               Without money the value stands alone: the strip below says the
-              scope there, the period under ccusage and the board's otherwise. "not priced" takes the rows' muted italic
+              period there. "not priced" takes the rows' muted italic
               (.up-unpriced), not the money green. */}
-          <div className="up-total" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>
+          <div className="up-total">
             <span className={!hasCost && hasUnpriced ? "up-total-value up-unpriced" : "up-total-value"}>
               {hasCost ? <>{fmtCost(shownCost)}{hasUnpriced && "+"}</> : reportedCost(0, hasUnpriced)}
             </span>
-            {hasCost && <span className="up-total-label">{fromRange ? periodWord : boardSpendLabel()}</span>}
+            {hasCost && <span className="up-total-label">{periodWord}</span>}
           </div>
           {hasCost && (
             <>
-              <p className="up-source">{t("usage.estimate", { source: fromRange ? "ccusage" : t("usage.source.live") })}</p>
+              <p className="up-source">{t("usage.estimate", { source: "ccusage" })}</p>
               {/* NO BAR OVER A ccusage HEADLINE, and it is not an omission.
                   The bar splits a total across input / output / cache, and
                   ccusage publishes one cost per model rather than that split —
@@ -435,7 +473,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
             </>
           )}
 
-          <div className="up-tokens-row" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>
+          <div className="up-tokens-row">
             <span className="up-tok"><span className="up-k">{t("usage.tokens.in")}</span>{fmtTokens(shownIn)}</span>
             <span className="up-tok"><span className="up-k">{t("usage.tokens.out")}</span>{fmtTokens(shownOut)}</span>
             {/* Gated on the TRUE value, not the counted one: a strip that
@@ -450,8 +488,13 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
                 The same word the headline's label takes, on the same rule:
                 under ccusage the strip is the period's reading from the logs,
                 and "on this board" there named a canvas it does not count. */}
-            {!hasCost && <span className="up-tok up-scope">{fromRange ? periodWord : boardScopeLabel()}</span>}
+            {!hasCost && <span className="up-tok up-scope">{periodWord}</span>}
           </div>
+        </>
+      )}
+
+      {showSkeleton || !fromRange ? null : totalTokenSum > 0 ? (
+        <>
 
           {/* NO BOARD FIGURE UNDER A ccusage HEADLINE.
               There used to be one here — the canvas's own spend, on its own
@@ -463,8 +506,7 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
               could never win: $7,385 on the board under $170 for today reads as
               a contradiction until you have read a tooltip.
               The board's own figures are still on the topbar, where they carry
-              the same sentence, and the board branch below still prints them
-              when ccusage has not answered at all. */}
+              the same sentence. */}
 
           {(fromRange ? rangeModelRows.length : boardModelRows.length) > 0 && (
             <UsageModelTable
@@ -524,20 +566,45 @@ export default function UsagePanel({ state, now, providers, incidents = [], leav
               are above this block now, so the way out — month, all — is on
               screen either way. On `all` there is no way out to point at, and
               "No usage all time" is not a sentence (#1806). */}
-          {fromRange
-            ? (shownPeriod ?? period) === "all"
-              ? <>{t("usage.empty.all")}</>
-              : <>{t("usage.empty.period", { period: periodWord })}<br />{t("usage.empty.longer")}</>
-            : <>{t("usage.empty.none")}<br />{t("usage.empty.start")}</>}
+          {(shownPeriod ?? period) === "all"
+            ? <>{t("usage.empty.all")}</>
+            : <>{t("usage.empty.period", { period: periodWord })}<br />{t("usage.empty.longer")}</>}
         </div>
       )}
-      {/* The panel's last line, whatever is above it: the header's row is
-          already the title, the burn rate and two acts. */}
-      <div className="film-foot"><FilmLink film="usage" /></div>
-      {inspectedSession && <SessionUsageModal key={`${inspectedSession.agent}:${inspectedSession.sessionId}`}
-        session={inspectedSession} onClose={() => setInspectedSession(null)} />}
-      {quotaHistoryOpen && <QuotaHistoryModal providers={providers} instant={quotaHistoryOpen === "keyboard"}
-        accounts={{ claude: quota?.historyAccount, codex: codexQuota?.historyAccount }} onClose={() => setQuotaHistoryOpen(null)} />}
+      {/* The two acts the header lost (V4's Figma draws one close there). The
+          refresh is named after what is below it and gone when neither quota
+          section is: with both CLIs absent it would refresh nothing, and on a
+          Codex-only deck "Refresh Claude + Codex quota" promises a section that
+          is not there. */}
+      {(providers.claude || providers.codex) && (
+        <div className="up-acts">
+          <button
+            type="button"
+            className="up-quiet up-refresh-btn"
+            onClick={refreshAll}
+            /* #620: this was `disabled={anyLoading}`, and both hooks set their
+               `loading` before their first await, so the button went disabled
+               under the press that had just come from it and focus fell to
+               <body>. It stays pressable and says it is busy instead. */
+            {...selfPressProps(anyLoading)}
+            aria-label={refreshLabel}
+            title={refreshLabel}
+          ><KitIcon name="update" className="refresh-glyph" />{t("usage.refreshWord")}</button>
+          <button type="button" className="up-quiet" aria-label={t("usage.historyOpen")}
+            title={t("usage.history")} onClick={event => setQuotaHistoryOpen(event.detail === 0 ? "keyboard" : "pointer")}>
+            <KitIcon name="history" />{t("usage.history")}
+          </button>
+        </div>
+      )}
+      </div>
+      <DialogPresence when={inspectedSession}>{session => (
+        <SessionUsageModal key={`${session.agent}:${session.sessionId}`}
+          session={session} onClose={() => setInspectedSession(null)} />
+      )}</DialogPresence>
+      <DialogPresence when={quotaHistoryOpen}>{mode => (
+        <QuotaHistoryModal providers={providers} instant={mode === "keyboard"}
+          accounts={{ claude: quota?.historyAccount, codex: codexQuota?.historyAccount }} onClose={() => setQuotaHistoryOpen(null)} />
+      )}</DialogPresence>
     </aside>
   );
 }

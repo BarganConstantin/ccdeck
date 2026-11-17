@@ -97,9 +97,11 @@ function declIn(body: string, prop: string): string | null {
   return all.length ? all[all.length - 1][1].replace(/\s+/g, " ").trim() : null;
 }
 
-/** Every rule naming this exact selector, concatenated in source order. */
-function decl(selector: string, prop: string): string | null {
+/** Every rule naming this exact selector, concatenated in source order; with
+ *  `base`, only the rules outside any at-rule (the size a desktop window draws). */
+function decl(selector: string, prop: string, base = false): string | null {
   const bodies = RULES
+    .filter(r => !(base && r.nested))
     .filter(r => r.selector.split(",").some(s => s.replace(/\s+/g, " ").trim() === selector))
     .map(r => r.body);
   return bodies.length ? declIn(bodies.join(";"), prop) : null;
@@ -111,9 +113,6 @@ type FontSize = { selector: string; value: string; px: number };
 const FONT_SIZES: FontSize[] = RULES.flatMap(r => {
   const v = declIn(r.body, "font-size");
   if (!v) return [];
-  // The Aa illustrations demonstrate the selectable offsets; they are not
-  // reading-text tiers. Keep this exception confined to that exact selector.
-  if (r.selector.trim() === ".reading-type-sample" && v === "var(--reading-sample-size)") return [];
   return r.selector.split(",").map(s => s.replace(/\s+/g, " ").trim()).filter(Boolean)
     .map(selector => ({ selector, value: v, px: parseFloat(v) }));
 });
@@ -121,24 +120,40 @@ const FONT_SIZES: FontSize[] = RULES.flatMap(r => {
 // ── §3, the ladder ──────────────────────────────────────────────────────────
 
 /** The closed set. Eleven steps, declared in styles.css beside the tokens and
- *  asserted here; there is deliberately no --fs-* token behind any of them,
- *  because no two rules in this sheet have to change size together and a token
- *  that says they do would be worse than the literals it replaced. */
-const LADDER = [9, 10, 11, 12, 13, 14, 16, 18, 22, 26, 34];
+ *  asserted here; there is deliberately no --fs-* token behind any of these
+ *  rules, because no two of them have to change size together and a token
+ *  that says they do would be worse than the literals it replaced. V4's type
+ *  roles (tokens.css) are the one set that must move together, and each is a
+ *  step of this ladder (v4-tokens.test.ts). */
+// CHANGED ON PURPOSE (V4's Figma): the recap's 34px spend left with the box it sat in
+// (the spend is the first of the recap's bare figures, at 18), so 34 is no longer a step.
+// CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the
+// ladder is the five-step scale, 11 the floor; type-scale.test.ts holds it over every sheet.
+const LADDER = [11, 12, 13, 16, 22];
+
+/** Icon glyphs set as text characters (×, ›, + and −): a glyph's size is an
+ *  icon's, not a step of the type, so the ladder does not read them
+ *  (type-scale.test.ts names the same four, with their reasons). The selector
+ *  is as FONT_SIZES splits it, at its commas. */
+const GLYPHS = new Set([":where(.modal-head", ".modal-actions) .glyph-btn", ".fd-jump-arrow", ".ig-close", ".radio-map-tools .radio-map-button"]);
+const TEXT_SIZES = FONT_SIZES.filter(f => !GLYPHS.has(f.selector));
 
 /** The resolution floor the report measured and this issue acts on: a step
  *  smaller than this is not a rank, it is two spellings of one size. */
 const RESOLVABLE = 1.07;
 
 describe("the type ladder is a closed set (#379 §3)", () => {
-  it("keeps the size illustrations proportional to the actual selectable offsets", () => {
-    expect(decl(".reading-type-sample", "font-size")).toBe("var(--reading-sample-size)");
-    const samples = ["smallest", "smaller", "default", "larger", "largest"].map(value =>
-      parseFloat(decl(`.reading-choice[data-size="${value}"]`, "--reading-sample-size")!));
-    expect(samples.map(size => size - samples[2])).toEqual([-2, -1, 0, 2, 4]);
+  // CHANGED ON PURPOSE (V4 Figma): the Aa illustrations are gone (the sizes are a
+  // Select), and the same promise now sits on the option names: each says the body
+  // size its step gives, 13 px plus the step's real offset.
+  it("names each text size with the body size its offset gives", () => {
+    const source = readFileSync(new URL("../components/ReadingSection.tsx", import.meta.url), "utf8");
+    const named = [...source.matchAll(/\["(smallest|smaller|default|larger|largest)", "[^"]+", "(\d+) px"\]/g)];
+    expect(named.map(m => m[1])).toEqual(["smallest", "smaller", "default", "larger", "largest"]);
+    expect(named.map(m => Number(m[2]) - 13)).toEqual([-2, -1, 0, 2, 4]);
   });
   it("sets every font-size in the sheet to a step on the ladder", () => {
-    const off = FONT_SIZES.filter(f => !LADDER.includes(f.px));
+    const off = TEXT_SIZES.filter(f => !LADDER.includes(f.px));
     expect(off.map(f => `${f.selector} → ${f.value}`)).toEqual([]);
   });
 
@@ -149,10 +164,11 @@ describe("the type ladder is a closed set (#379 §3)", () => {
     for (const f of FONT_SIZES) expect(f.value, f.selector).toMatch(/^\d+px$/);
   });
 
-  it("uses no more than eleven distinct sizes, down from the eighteen counted", () => {
-    const distinct = [...new Set(FONT_SIZES.map(f => f.px))].sort((a, b) => a - b);
+  // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): five, down from eleven.
+  it("uses no more than five distinct sizes, down from the eighteen counted", () => {
+    const distinct = [...new Set(TEXT_SIZES.map(f => f.px))].sort((a, b) => a - b);
     expect(distinct).toEqual(LADDER);
-    expect(distinct.length).toBeLessThanOrEqual(11);
+    expect(distinct.length).toBeLessThanOrEqual(5);
   });
 
   it("leaves no two steps closer together than a reader can resolve", () => {
@@ -182,13 +198,15 @@ describe("the type ladder is a closed set (#379 §3)", () => {
 
   it("still finds the rules the collapse moved, so a pass is not vacuous", () => {
     // The four rules the report singled out, at the values they landed on.
-    expect(decl(".ap-email", "font-size")).toBe("12px");            // was 10.5, #857's floor, then the row's name
-    expect(decl(".detail .row .v", "font-size")).toBe("11px");      // was 11.5
-    expect(decl(".session-list .sl-label", "font-size")).toBe("12px"); // was 12.5
-    expect(decl(".uh-stat-label", "font-size")).toBe("9px");        // was 9.5
-    expect(decl(".uh-bar-label", "font-size")).toBe("9px");         // was 8
-    expect(decl(".modal-tool-name", "font-size")).toBe("14px");     // the context title's was 15; every dialog title's since 2026-10-23
-    expect(decl(".detail-hero .hero-title", "font-size")).toBe("18px"); // was 17
+    expect(decl(".ap-alias", "font-size")).toBe("13px");            // was .ap-email at 10.5, #857's floor, then the row's name; V4's account row names at 13/20
+    expect(decl(".detail .row .v", "font-size")).toBe("12px");      // was 11.5, then 11; V4's Figma sets the Inspector's values at 12
+    // CHANGED ON PURPOSE (the phone row name): read outside @media, since a phone's row names at 14 (v4-phone-layout).
+    expect(decl(".session-list .sl-label", "font-size", true)).toBe("13px"); // was 12.5, then 12; V4's rail row names at 13/20
+    expect(decl(".uh-stat-label", "font-size")).toBe("12px");       // was 9.5, then 9; V4's Figma: the history stats' labels at 12/16
+    expect(decl(".uh-bar-label", "font-size")).toBe("11px");        // was 8, then 9; V4's Figma: a day's name under its bar at 11/14
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a title is 16.
+    expect(decl(".modal-tool-name", "font-size")).toBe("16px");     // the context title's was 15, then 14; every dialog title's since 2026-10-23
+    expect(decl(".detail-hero .hero-title", "font-size")).toBe("16px");   // was 17, then 18, then V4's 14
     expect(FONT_SIZES.length).toBeGreaterThan(150);
   });
 
@@ -197,15 +215,22 @@ describe("the type ladder is a closed set (#379 §3)", () => {
     // node's body-to-secondary hierarchy is exactly this pair of sizes, and a
     // 9% step is above the floor asserted above.
     expect(decl(".agent-node", "font-size")).toBe("12px");
-    expect(decl(".agent-node .meta", "font-size")).toBe("11px");
-    expect(decl(".agent-node .sub", "font-size")).toBe("11px");
+    // CHANGED ON PURPOSE (V4's Agent / Card): the card's two lower rows are the
+    // foot (the meta row, still 11px) and the task line (12px body, the sub
+    // row's 11px mono row is gone). The 12 / 11 pair is the same pair.
+    expect(decl(".agent-node .foot", "font-size")).toBe("11px");
+    expect(decl(".agent-node .task-line", "font-size")).toBe("12px");
     expect(11 / 10).toBeGreaterThan(RESOLVABLE);
     expect(12 / 11).toBeGreaterThan(RESOLVABLE);
-    // And the three big money numbers stay three sizes apart, on three surfaces
-    // of very different size.
-    expect(decl(".detail-hero .hero-cost-value", "font-size")).toBe("22px");
-    expect(decl(".up-total-value", "font-size")).toBe("26px");
-    expect(decl(".session-summary .ss-cost", "font-size")).toBe("34px");
+    // And the big money numbers: the Usage panel's hero is the one at 22, the
+    // Inspector's and the recap's spends are figures at 16.
+    // CHANGED ON PURPOSE (V4's Figma): the Inspector's spend is 18 and the Usage panel's hero 22 (were 22 and 26).
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): 18 went to 16.
+    expect(decl(".detail-hero .hero-cost-value", "font-size")).toBe("16px");
+    expect(decl(".up-total-value", "font-size")).toBe("22px");
+    // CHANGED ON PURPOSE (V4's Figma): the recap's spend is the first bare figure, 18/24 mono.
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): 18 went to 16.
+    expect(decl(".session-summary .ss-stat-value", "font-size")).toBe("16px");
   });
 });
 
@@ -307,19 +332,25 @@ describe("no font-size is declared where a shared rule outranks it (#379, #380)"
     // icon twin, `button.btn.icon-btn` at 14px, left the sheet with the
     // topbar's panel buttons (2026-10-08); `button.btn` is the collision that
     // remains, and the one the sweep above has to keep seeing.
-    expect(decl("button.btn", "font-size")).toBe("12px");
+    // V4's button: 13px (was 12px).
+    expect(decl("button.btn", "font-size")).toBe("13px");
     expect(higher(specificity("button.btn"), specificity(".ap-refresh"))).toBe(true);
     // And the class sets really were read out of the components.
     expect(CLASS_SETS.some(s => s.includes("btn"))).toBe(true);
     expect(CLASS_SETS.length).toBeGreaterThan(50);
   });
 
-  it("keeps the one per-button override that does out-rank the shared rule", () => {
+  it("lets the Inspector's foot buttons take the shared rule's size, as V4's Quiet button", () => {
     // `.detail-hero .hero-action-btn` is (0,2,0) against `button.btn`'s (0,1,1),
     // so its 11px renders. It is not dead and must not be swept up with the
     // seven that were.
-    expect(decl(".detail-hero .hero-action-btn", "font-size")).toBe("11px");
-    expect(higher(specificity(".detail-hero .hero-action-btn"), specificity("button.btn"))).toBe(true);
+    // CHANGED ON PURPOSE (V4's Figma): it is `.detail .hero-action-btn` now, at 12px, and the
+    // relation is unchanged: (0,2,0) against `button.btn`'s (0,1,1).
+    // CHANGED ON PURPOSE (V4's Figma): the foot's Recap, Export JSON and Remove
+    // are drawn as the Quiet button, 13/500, so the override is gone and the
+    // shared rule's 13px is the one that renders.
+    expect(decl(".detail .hero-action-btn", "font-size")).toBeNull();
+    expect(decl("button.btn", "font-size")).toBe("13px");
   });
 
   it("removed the seven font sizes without removing the rules around them", () => {
@@ -336,7 +367,8 @@ describe("no font-size is declared where a shared rule outranks it (#379, #380)"
     // `.ap-switch` is no longer `.ap-manage-btn` with a class beside it that
     // nothing could win with: it is a control of its own, and its size is its
     // own rule's to say.
-    expect(decl(".ap-switch", "font-size")).toBe("11px");
+    // CHANGED ON PURPOSE (V4's Figma): the row's Switch is the kit's Small, 12.
+    expect(decl(".ap-switch", "font-size")).toBe("12px");
     expect(decl(".ap-add", "font-size")).toBeNull();
     // The colour is gone rather than dead. It was pinned here as the surviving
     // declaration when the font-size went, but it never rendered either:
@@ -349,13 +381,14 @@ describe("no font-size is declared where a shared rule outranks it (#379, #380)"
     expect(decl(".ap-add", "margin-right")).toBe("6px");
     expect(decl(".up-close", "font-size")).toBeNull();
     expect(decl(".up-close", "color")).toBe("var(--muted)");
-    expect(decl(".session-list .sl-close", "font-size")).toBeNull();
-    expect(decl(".session-list .sl-close", "width")).toBe("26px");
+    expect(decl(".session-list .sl-icon-btn", "font-size")).toBeNull();
+    expect(decl(".session-list .sl-icon-btn", "width")).toBe("24px"); // was 26; V4's rail header button is 24x24
     expect(decl(".uh-reload", "font-size")).toBeNull();
     expect(decl(".uh-reload", "padding")).toBe("0");
     expect(decl(".up-refresh-btn", "font-size")).toBeNull();
-    // 1px 8px since #887 put padding on the space ladder (7px is off it).
-    expect(decl(".up-refresh-btn", "padding")).toBe("1px 8px");
+    // CHANGED ON PURPOSE (V4's Figma): the refresh left the header for the body's foot as a quiet
+    // text button, `.up-quiet`, whose box is that rule's; `.up-refresh-btn` carries no padding.
+    expect(decl(".up-refresh-btn", "padding")).toBeNull();
   });
 });
 
@@ -420,7 +453,8 @@ describe("one token per dimming decision, and two decisions (#379 §2)", () => {
     // silently restate itself about stale data. Since #1289 what reads the
     // token is the modal's marks rather than its words (contrast-floors.test.ts
     // holds it there), and the expired share keeps its ink altogether.
-    for (const mark of [".uh-stale .uh-bar-seg", ".uh-stale .uh-agent-seg", ".uh-stale .uh-model-bar-fill", ".uh-stale .uh-legend-dot"]) {
+    // CHANGED ON PURPOSE (V4's Figma): a day is a table now, so its model meter fill left the list.
+    for (const mark of [".uh-stale .uh-bar-seg", ".uh-stale .uh-agent-seg", ".uh-stale .uh-legend-dot"]) {
       expect(decl(mark, "opacity"), mark).toBe("var(--dim-stale)");
     }
     expect(decl(".uh-stale", "opacity")).toBeNull();
@@ -432,8 +466,10 @@ describe("one token per dimming decision, and two decisions (#379 §2)", () => {
     // The opacity table lists `.cat-filter.off { opacity: 0.38 }`. It is not
     // there to fix: #368 dropped the fade entirely and carries "off" on the
     // colour tier, a greyed emoji and #370's strike-through instead.
-    expect(decl(".cat-filter.off", "opacity")).toBeNull();
-    expect(decl(".cat-filter.off", "color")).toBe("var(--muted)");
+    // CHANGED ON PURPOSE: the legend's items are gone; a hidden category is a
+    // row of the Tools menu, its word --text-dim and its dot hollow; still no fade.
+    expect(decl(".cat-tools-item.off", "opacity")).toBeNull();
+    expect(decl(".cat-tools-item.off", "color")).toBe("var(--text-dim)");
     expect(css).not.toMatch(/opacity:\s*0\.38/);
   });
 
@@ -448,7 +484,8 @@ describe("one token per dimming decision, and two decisions (#379 §2)", () => {
     expect(decl(".ap-dot", "opacity")).toBe("0.55");
     expect(decl(".ap-field::after", "opacity")).toBe("0.5");
     expect(decl(".aa-mark-ring", "opacity")).toBe("0.45");
-    expect(decl(".agent-node .accent-stripe", "opacity")).toBe("0.7");
+    // (`.agent-node .accent-stripe` was listed here at 0.7; V4's card has no
+    // stripe, so there is nothing left to hold.)
   });
 
   it("made every control it touched lighter-dimmed than it was, never darker", () => {
@@ -537,41 +574,52 @@ describe("the accounts lane reads its name before its footnote (#379 §1)", () =
       .toBeLessThan(contrastRatio(rgb(light["--muted"]), rgb(light["--panel"])));
   });
 
-  it("never draws the 9px footnote stronger than the 10px name above it", () => {
-    const label = decl(".ap-lane-label", "color")!;
-    const reset = decl(".ap-lane-reset", "color")!;
-    const token = (v: string) => /var\((--[\w-]+)\)/.exec(v)![1];
+  // CHANGED ON PURPOSE (V4's Figma): the reset is no longer a footnote under the
+  // window's name. The open row says each window on one line, a key and a value
+  // ("7-day  49% · resets Thu 9:00 AM"), as it says when the account was read
+  // and what its organization sends: the key in the muted ink, and the value —
+  // the number and its reset — in the secondary ink. What the report fixed
+  // still holds: the window's name is never drawn in the weaker of the two
+  // tiers it was inverted against (--text-dim), and the reset is never louder
+  // than the number it belongs to.
+  const ink = (selector: string, theme: "dark" | "light", bed: ReturnType<typeof rgb>) =>
+    contrastRatio(rgb(TOKENS[theme][/var\((--[\w-]+)\)/.exec(decl(selector, "color")!)![1]]), bed);
+
+  it("draws the window's name in the key's ink and its reset in the value's", () => {
+    expect(decl(".ap-lane-label", "color")).toBe("var(--muted)");
+    expect(decl(".ap-lane-value", "color")).toBe("var(--text-secondary)");
+    expect(decl(".ap-lane-reset", "color")).toBe("var(--text-secondary)");
+    // The same pair as the open row's other lines.
+    expect(decl(".ap-meta-key", "color")).toBe("var(--muted)");
     for (const theme of ["dark", "light"] as const) {
       const bed = rgb(TOKENS[theme]["--panel"]);
-      const l = contrastRatio(rgb(TOKENS[theme][token(label)]), bed);
-      const r = contrastRatio(rgb(TOKENS[theme][token(reset)]), bed);
-      expect(l, `${theme}: label ${l.toFixed(2)}:1 vs reset ${r.toFixed(2)}:1`)
-        .toBeGreaterThanOrEqual(r);
+      expect(ink(".ap-lane-label", theme, bed), `${theme}: the name over --text-dim`)
+        .toBeGreaterThanOrEqual(contrastRatio(rgb(TOKENS[theme]["--text-dim"]), bed));
+      expect(ink(".ap-lane-reset", theme, bed), `${theme}: the reset no louder than the value`)
+        .toBeLessThanOrEqual(ink(".ap-lane-value", theme, bed));
     }
   });
 
   it("holds on the active row too, which is the one the reader is looking at", () => {
-    // `.ap-account.active` tints the whole row with 6% --accent, so the lane's
-    // bed there is not --panel. The order has to survive that bed as well.
-    const tint = /color-mix\(in srgb, var\(--accent\) (\d+)%/.exec(
-      decl(".ap-account.active", "background")!,
-    )!;
-    const pct = parseInt(tint[1], 10) / 100;
+    // `.ap-account.active` fills the whole row with --selected (V4's Figma: the
+    // text ink at 8% over the panel), so the lane's bed there is not --panel.
+    // The order has to survive that bed as well. CHANGED ON PURPOSE.
+    expect(decl(".ap-account.active", "background")).toBe("var(--selected)");
+    const pct = 0.08;
     for (const theme of ["dark", "light"] as const) {
-      const bed = over([...rgb(TOKENS[theme]["--accent"]), pct], rgb(TOKENS[theme]["--panel"]));
-      const l = contrastRatio(rgb(TOKENS[theme][/var\((--[\w-]+)\)/.exec(decl(".ap-lane-label", "color")!)![1]]), bed);
-      const r = contrastRatio(rgb(TOKENS[theme][/var\((--[\w-]+)\)/.exec(decl(".ap-lane-reset", "color")!)![1]]), bed);
-      expect(l, `${theme} active row`).toBeGreaterThanOrEqual(r);
+      const bed = over([...rgb(TOKENS[theme]["--text"]), pct], rgb(TOKENS[theme]["--panel"]));
+      expect(ink(".ap-lane-label", theme, bed), `${theme} active row`)
+        .toBeGreaterThanOrEqual(contrastRatio(rgb(TOKENS[theme]["--text-dim"]), bed));
+      expect(ink(".ap-lane-reset", theme, bed), `${theme} active row`).toBeLessThanOrEqual(ink(".ap-lane-value", theme, bed));
     }
   });
 
-  it("raised the label rather than lowering the footnote", () => {
-    // The swap had two directions available and only one of them makes nothing
-    // on the row quieter than it already was. The label takes the stronger tier.
-    expect(decl(".ap-lane-label", "color")).toBe("var(--muted)");
-    expect(decl(".ap-lane-reset", "color")).toBe("var(--text-dim)");
-    // And the size step under it is untouched: the name is still the larger.
-    expect(parseFloat(decl(".ap-lane-label", "font-size")!))
-      .toBeGreaterThan(parseFloat(decl(".ap-lane-reset", "font-size")!));
+  it("sets the name, the number and the reset at the line's one size", () => {
+    // Nothing on the line sets a size of its own: the line is the kit's
+    // Small, 12, so no part of it can drift under the others.
+    expect(decl(".ap-lane-label", "font-size")).toBeNull();
+    expect(decl(".ap-lane-reset", "font-size")).toBeNull();
+    expect(decl(".ap-lane-pct", "font-size")).toBeNull();
+    expect(parseFloat(decl(".ap-lane", "font-size")!)).toBe(12);
   });
 });

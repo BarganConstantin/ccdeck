@@ -1,38 +1,390 @@
 /* ---------------- detail panel ---------------- */
 
+/* THE INSPECTOR (V4's Inspector): the panel is one column, --inspector-w wide
+   (the grid track reads the same token), a header of tabs over a body that
+   scrolls. The padding and the gap are the body's now (.insp-b below), so the
+   column itself has none and clips nothing: the body is what scrolls, and a
+   section taller than the window is reached by it rather than lost. */
 .detail {
   position: relative;
   background: var(--panel);
   border-left: 1px solid var(--line);
-  padding: 18px;
-  overflow: auto;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+/* Inspector / Header: --pane-head-h tall, the tabs at the start and Fold at the
+   end, a hairline under it. */
+.insp-h {
+  flex: none;
+  box-sizing: border-box;
+  height: var(--pane-head-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6px 0 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+/* The tabs pill: a --bg-soft track, the chosen tab a --panel chip on it. 24
+   tall in all (V4's Figma): the 1px stroke sits INSIDE the frame's 2px
+   padding, so 1px of padding inside the 1px edge, not 2px outside it, which
+   measured 26. */
+.insp-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-ctl);
+}
+.insp-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 8px 0 6px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 500;
+}
+/* Its target (WCAG 2.5.8): the tab is 20 tall, so an invisible box 2px above
+   and below reaches the pill's outer edge, 24, and 1px each side meets the
+   next tab's in the middle of their 2px gap. The phone's own, larger target
+   (phone-sheet.css) comes later and wins there. */
+.insp-tab::after { content: ""; position: absolute; inset: -2px -1px; }
+/* An unselected tab's icon is a step brighter than its label (V4's Figma:
+   Text/Secondary over Text/Muted); the selected tab's takes the text colour. */
+.insp-tab .glyph { width: 14px; height: 14px; color: var(--text-secondary); }
+/* The selected tab is the --panel chip on the track and nothing more: the
+   frame lifts it with no shadow. */
+.insp-tab[aria-selected="true"] {
+  background: var(--panel);
+  color: var(--text);
+  font-weight: 600;
+}
+.insp-tab[aria-selected="true"] .glyph { color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+.insp-tab:hover:not([aria-selected="true"]),
+.insp-tab:hover:not([aria-selected="true"]) .glyph { color: var(--text); }
+}
+/* Fold: one quiet 24x24 icon button at the control radius (the rail's close, on the right). */
+.detail .insp-fold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+}
+@media (hover: hover) and (pointer: fine) {
+.detail .insp-fold:hover { background: var(--ctl-fill); }
+}
+/* The body: 8 under the header, 12 at the sides and the foot, a gap of 8,
+   and the scroller (V4's Figma, every tab). A tabpanel that is not the chosen
+   one is `hidden`, which a `display` here would otherwise beat. */
+.insp-b {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px 12px;
+  overflow-y: auto;
+}
+.insp-b[hidden] { display: none; }
+/* Each tab's head row: a title, what it is about, a spacer, a figure. */
+.insp-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: 20px;
+}
+.insp-title { font-weight: 600; color: var(--text); }
+/* The info mark after a title: the kit's 14px info glyph in --muted, its
+   sentence in a hover hint (Inspector.tsx). The target is ::after, 24 square
+   round the glyph, so the head row keeps its height. */
+.insp-info {
+  position: relative;
+  flex: none;
+  align-self: center;
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--r-pill);
+  color: var(--muted);
+  cursor: help;
+}
+.insp-info::after { content: ""; position: absolute; inset: -5px; }
+.insp-info svg { width: 14px; height: 14px; }
+@media (hover: hover) and (pointer: fine) {
+.insp-info:hover { color: var(--text); }
+}
+.ap-peek.insp-hint {
+  width: min(252px, calc(100vw - 16px));
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  color: var(--text-secondary);
+}
+.insp-qual { color: var(--muted); }
+.insp-spacer { flex: 1; }
+.insp-fig {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.insp-note {
+  margin: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  color: var(--muted);
+}
+/* THE TIME TAB (V4's Figma): the head row, four figures two by two, one bar
+   split by lane, the calls of the turn on a span axis, and a note. The lane
+   colours are the ring's in Tool activity (tool-audit.css: Claude, this machine,
+   you), and nothing here moves: the bars are drawn where the data puts them. */
+.insp-time-load { display: flex; align-items: center; gap: 8px; }
+.insp-time-stats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px 12px;
+}
+.insp-time-stat { min-width: 0; }
+.insp-time-stat dt {
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.insp-time-stat dd {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.insp-time-stat[data-tone="warn"] dd { color: var(--warn); }
+.insp-time-split { display: flex; flex-direction: column; gap: 4px; }
+.insp-time-share {
+  margin: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+.insp-time-share b {
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--warn);
+}
+.insp-time-bar {
+  display: flex;
+  height: 6px;
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+/* The lanes, in the order the bar has always had them (you, Claude, this
+   machine), each at its share of strength (V4's Figma): the wait is the loud
+   one, the machine the quietest. */
+.insp-time-bar i { flex: 1 1 0; min-width: 0; }
+.insp-time-bar i[data-lane="you"] { background: color-mix(in srgb, var(--warn) 55%, transparent); }
+.insp-time-bar i[data-lane="claude"] { background: color-mix(in srgb, var(--accent) 34%, transparent); }
+.insp-time-bar i[data-lane="machine"] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.insp-time-table { display: flex; flex-direction: column; }
+.insp-time-axis,
+.insp-time-row {
+  display: grid;
+  grid-template-columns: 124px minmax(0, 1fr);
+  align-items: center;
+}
+/* The column's name is a word, in the UI face at 12/16; only the figures on
+   the axis are tabular, as the durations in the rows are. */
+.insp-time-axis {
+  height: 20px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  color: var(--muted);
+}
+.insp-time-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
+}
+/* Figma draws the row radius 5, which has no fill to show it and no step on the
+   radius ladder (spacing-ladder-887), so it is left out. */
+.insp-time-row { height: 24px; }
+/* The name column, 124 wide (V4's Figma): the chevron's 12px slot at x 5, the
+   14px tool icon at x 24, the name at x 44; a call a subagent made is 14
+   further in on all three. The argument takes what is left, right-aligned. */
+.insp-time-name {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding-left: calc(5px + var(--depth, 0) * 14px);
+}
+.insp-time-slot { flex: none; width: 12px; height: 12px; margin-right: 7px; display: inline-flex; }
+.insp-time-icon { flex: none; width: 14px; height: 14px; margin-right: 6px; display: inline-flex; color: var(--muted); }
+.insp-time-icon svg { width: 14px; height: 14px; }
+.insp-time-op {
+  flex: none;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--text);
+}
+/* The call's argument is what was typed, so mono; how long it took is a figure,
+   so the sans with tabular digits (V4 top-10 #8). */
+.insp-time-arg,
+.insp-time-took {
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-weight: 400;
+  line-height: 14px;
+  color: var(--muted);
+}
+.insp-time-arg { font-family: var(--font-mono); }
+.insp-time-took { font-family: var(--font-sans); font-variant-numeric: tabular-nums; }
+.insp-time-arg { flex: 1 1 auto; min-width: 0; margin-left: 4px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A path is two spans in a flex box, which text-align does not move; an auto
+   margin does, and never pushes them out at the left. */
+.insp-time-arg.path-text > :first-child { margin-left: auto; }
+/* The duration rides the lane, right of the bar (its place is set inline). */
+.insp-time-took { position: absolute; top: 5px; white-space: nowrap; }
+.insp-time-fold {
+  flex: none;
+  display: inline-flex;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+.insp-time-fold[aria-expanded="false"] svg { transform: rotate(-90deg); }
+.insp-time-lane { position: relative; align-self: stretch; overflow: hidden; }
+.insp-time-span {
+  position: absolute;
+  top: 7px;
+  height: 10px;
+  min-width: 2px;
+  border-radius: var(--r-ctl);
+  background: color-mix(in srgb, var(--text) 16%, transparent);
+}
+.insp-time-span[data-thin] { border-radius: 0; }
+/* A subagent's span: --accent at 14% with an inset 1px edge of it at 40%. */
+.insp-time-span[data-group] {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.insp-time-wait {
+  position: absolute;
+  top: 5px;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0 4px;
+  border-radius: var(--r-ctl);
+  background: var(--panel);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
+  color: var(--warn);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* What the detail panel has always shown, under the tree, with the gap between
+   its sections it had before the body took the panel's padding. */
+.insp-detail {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
-/* Close (×) button — top-right of the detail panel. `.glyph-btn` for its whole
-   appearance, which this one was already most of the way to: transparent fill,
-   a border that was transparent at rest, --muted, 24 x 24. What it drew that
-   the standard does not is a hover that faded a box IN — a --ctl-fill wash and a
-   --ctl-edge border arriving together under the pointer — so the control read as
-   boxed exactly when it was being aimed at. Only the corner it is pinned to is
-   this panel's own business, and that is all that is left here.
-   It is the one control in this group that is not in a header row; it is the
-   detail panel's close all the same, and leaving it as the last × on the deck
-   with a hover box would have been the split this change is removing. */
-.detail-close {
+/* The Agents tree: the root's card at full width, each child in a row with a
+   16px gutter per level that holds its tree lines (1px --line). A row's own
+   column draws a vertical from the gap above it down to the card's middle, and
+   a 10px stub into the card; a "tee" goes on to the foot of the row, for the
+   next sibling to meet, and an outer column that is "through" carries its
+   ancestor's line past the row. */
+.insp-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.insp-row { display: flex; align-items: stretch; min-width: 0; }
+.insp-gut { position: relative; flex: none; width: 16px; }
+.insp-gut[data-line]::before {
+  content: "";
   position: absolute;
-  top: 10px;
-  right: 12px;
-  z-index: 2;
-  /* `.glyph-btn` hands its vertical padding back as a negative margin so a
-     header ROW stays the height of the glyph written in it. There is no row
-     here — this is pinned to a corner, and `top` is measured to the margin
-     edge, so the same two declarations would have quietly lifted the × four
-     pixels up the panel instead. The target is unchanged; only the reason for
-     the margin does not apply. */
-  margin-top: 0;
-  margin-bottom: 0;
+  left: 6px;
+  top: -8px;
+  bottom: 0;
+  width: 1px;
+  background: var(--line);
+}
+.insp-gut[data-line="elbow"]::before { bottom: 50%; }
+.insp-gut[data-line="elbow"]::after,
+.insp-gut[data-line="tee"]::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  width: 10px;
+  height: 1px;
+  background: var(--line);
+}
+.insp-card {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+/* The keyboard's stop for the card: there, named, and neither seen nor in the
+   pointer's way. Its focus ring is drawn on the card beside it, which has the
+   card's own corners. The card the panel is about wears no ring of its own
+   (V4's Figma): its state stroke alone, and aria-current on this button. */
+.insp-pick {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+}
+/* The focused thing is the hidden pick button, the card is its box: the one ring, inside. */
+.insp-card:has(.insp-pick:focus-visible) .agent-node { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
+/* The card is the board's, drawn to the row's width instead of the board's 256. */
+.insp-card .agent-node {
+  width: auto;
+  min-width: 0;
+  max-width: none;
 }
 /* When the detail panel is closed, drop its 360px column so the canvas
    reclaims the space. Keyed off the panel's own absence now. It used to be
@@ -45,18 +397,20 @@
 .app:has(.left-column):not(:has(.detail)) { grid-template-columns: auto 1fr; }
 
 /* JUST ABOVE THE BREAKPOINT, WITH EITHER LEFT PANEL OPEN (#1840). Both left panels are 288px, and
-   the detail column's 360px are 648px between them, so from 641 to 647px the
-   desktop row was up to 7px wider than the window: the page scrolled sideways
-   and the last topbar control sat partly off screen. Here the column gives up
-   what the window lacks, 7px at most, rather than the layout turning into the
-   sheet a few pixels early; from 648px up it is 360px again. Before the block
-   below, which outranks it at 640px and under by source order. */
+   the detail column's --inspector-w are 288 + the column between them: at
+   Default (360px) 648px, so from 641 to 647px the desktop row was up to 7px
+   wider than the window: the page scrolled sideways and the last topbar
+   control sat partly off screen. Here the column gives up what the window
+   lacks, 7px at most, rather than the layout turning into the sheet a few
+   pixels early; from 648px up it is its full width again. At Compact (320px)
+   288 + 320 = 608, under the breakpoint, so the band is a no-op there. Before
+   the block below, which outranks it at 640px and under by source order. */
 @media (max-width: 647px) {
-  .app:has(.left-column) { grid-template-columns: auto 1fr minmax(0, 360px); }
+  .app:has(.left-column) { grid-template-columns: auto 1fr minmax(0, var(--inspector-w)); }
 }
 
 /* A SHEET OVER THE CANVAS, NOT A COLUMN BESIDE IT, below the sheet's 640px
-   breakpoint (#1790) — the move #849 made for the rails. The 360px track was
+   breakpoint (#1790) — the move #849 made for the rails. The --inspector-w track was
    added whatever the window's width, so on a phone or a zoomed window
    selecting a session took the canvas to 0px and the grid ran past the right
    edge, the topbar with it: at 400px with the session list open the page was
@@ -74,18 +428,14 @@
    320px window. A row of two tracks does not need it — an item spanning more
    than one track, one of them flexible, has no automatic minimum.
    On the rails' layer (20) and after them in the document, so where they meet
-   the panel a selection just opened is the one on top. The desktop layout is
-   untouched. */
+   the panel a selection just opened is the one on top. The sheet is as wide
+   as the column (--inspector-w: 320px at Compact, 360px at Default), or the
+   window when that is narrower. The desktop layout is untouched. */
 @media (max-width: 640px) {
   .app, .app:not(:has(.detail)) { grid-template-columns: minmax(0, 1fr); }
-  .detail {
-    position: fixed;
-    top: var(--topbar-h);
-    right: 0;
-    bottom: 0;
-    width: min(360px, 100vw);
-    z-index: 20;
-  }
+  /* THE INSPECTOR IS A SHEET HERE: phone-sheet.css has its geometry and its
+     look (the whole width of the window, up from the dock, its height capped
+     under the top bar), written once for all four sheets. */
 }
 
 /* The panel's captions, at both of the levels they now sit at (#381): the
@@ -93,14 +443,19 @@
    h1, and the sections under a selected agent stay h3. The child combinator is
    load-bearing — `.detail-hero .hero-title` is an h2 too, and it is the
    agent's name rather than a caption, so a plain `.detail h2` would try to set
-   it in 11px uppercase grey. */
+   it in 11px uppercase grey.
+   The Context tab sets the context modal's own body in this panel, and its
+   headings (`h3.ctx-section-title`) are that body's: they keep the margin and
+   the look context-modal.css gives them, as in the modal, so they are left out
+   of the caption rule (which would zero their 18px 0 8px at specificity 0,1,1). */
 .detail > h2,
-.detail h3 {
+.detail h3:not(.ctx-section-title) {
   margin: 0;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-secondary);
   font-weight: 600;
 }
 .detail .empty {
@@ -111,24 +466,23 @@
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  padding: calc(5px * var(--ui-space, 1)) 0;
-  border-bottom: 1px solid var(--line-soft);
+  padding: 2px 0;
   font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
   gap: 12px;
 }
-.detail .row:last-child { border-bottom: none; }
-.detail .row .k { color: var(--muted); }
+.detail .row .k { color: var(--muted); font-weight: 400; }
 .detail .row .v {
   color: var(--text);
   font-family: var(--font-mono);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 220px;
   white-space: nowrap;
 }
 .detail .tool {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   padding: calc(5px * var(--ui-space, 1)) 0;
   color: var(--text);
@@ -177,7 +531,7 @@
 .detail .tool .name .status-dot::before {
   content: "";
   width: 6px; height: 6px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: currentColor;
 }
 .detail .tool .name .status-dot.inflight { color: var(--inflight); }

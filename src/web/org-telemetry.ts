@@ -42,6 +42,9 @@ export interface TelemetryLine {
   tone: "warn" | "quiet";
   /** The whole sentence, for the title and for a screen reader. */
   detail: string;
+  /** What goes out, without the "Telemetry ·" in front: the open account row
+   *  says it beside a "Telemetry" key of its own. */
+  words: string;
 }
 
 /**
@@ -57,8 +60,10 @@ export function telemetryLine(t: OrgTelemetry | null | undefined, nowSec: number
   const who = t.orgName ? t.orgName : tr("radar.org.who");
   const what = words.length ? tr("radar.org.whatContent", { words: listed(words, tr) }) : tr("radar.org.usageData");
   const where = t.destinations.length ? listed(t.destinations, tr) : tr("radar.org.collector");
+  const said = words.length ? words.join(tr("radar.org.sep")) : tr("radar.org.usageData");
   return {
-    text: tr("radar.org.line", { words: words.length ? words.join(tr("radar.org.sep")) : tr("radar.org.usageData") }),
+    text: tr("radar.org.line", { words: said }),
+    words: said,
     tone: words.length ? "warn" : "quiet",
     detail: tr("radar.org.detail", { who, what, where, ago: ago(t.seenAt, nowSec) }) + (holdOut ? tr("radar.org.holdOut") : ""),
   };

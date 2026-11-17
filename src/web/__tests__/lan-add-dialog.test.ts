@@ -38,20 +38,28 @@ function rule(selector: string): string {
 }
 
 describe("two ways in, drawn as two of a kind", () => {
-  it("puts the mint on the invite heading's own row, not under the field as its submit", () => {
+  it("keeps the mint off the field it is not the submit of: its own outlined button under the paste field", () => {
     // THE DEFECT. `lan-add-mint` was `width: 100%` and centred, so the strongest
     // thing on screen was the action that does not add a deck — and it sat
     // where a form's submit sits, one line under the paste field's help, so it
     // read as the commit for the field above it.
+    //
+    // CHANGED ON PURPOSE (V4's Figma): the mint left the heading's row for an
+    // outlined `Make an invite` button under the paste field, at the left edge
+    // — the kit's quiet button, not a primary and not full width. What this
+    // test protects is unchanged: it is drawn outside the field's own row, so
+    // it is not read as that field's commit, and it is not the heaviest mark
+    // in the dialog.
     expect(ADD).not.toContain("lan-add-mint");
     expect(CSS).not.toContain("lan-add-mint");
-    const head = /<h3 className="lan-h">\s*With an invite([\s\S]*?)<\/h3>/.exec(ADD);
-    expect(head, "the invite heading carries the other direction").not.toBeNull();
-    expect(head?.[1]).toMatch(/lan-h-act/);
-    expect(head?.[1]).toMatch(/invite\("make"\)/);
-    // Quiet, and quiet on purpose: no border, no fill, the heading's own ink.
-    // A bordered pill here would put it back in competition with `join`.
-    expect(head?.[1]).not.toMatch(/ap-manage-btn/);
+    const make = /<button type="button" className="btn lan-make"[\s\S]*?invite\("make"\)/.exec(ADD);
+    expect(make, "the mint is an outlined kit button").not.toBeNull();
+    expect(make?.[0]).not.toMatch(/primary/);
+    expect(make?.[0]).not.toMatch(/ap-manage-btn/);
+    // Not inside the paste field's own row, where its commit lives.
+    const joinRow = /htmlFor="lan-add-join"[\s\S]*?<\/div>\s*<\/div>/.exec(ADD)?.[0] ?? "";
+    expect(joinRow).not.toBe("");
+    expect(joinRow).not.toMatch(/invite\("make"\)/);
     // It goes away while one is live, because the card below is then the thing
     // to act on and a deck may only offer one token at a time.
     expect(ADD).toMatch(/\{!live && \(/);
@@ -85,8 +93,15 @@ describe("two ways in, drawn as two of a kind", () => {
     expect(CSS).not.toMatch(/ap-lan-verb/);
     // The gap BETWEEN the two methods has to beat every gap inside one of them,
     // or distance stops grouping anything. A heading sits 6px off its field.
+    //
+    // CHANGED ON PURPOSE (V4's Figma): a 1px rule now divides the methods, with
+    // 16 above it (the body's gap) and 16 below (the second method's padding).
+    // The distance between the methods is still the sum, and that is what has
+    // to beat the gaps inside one.
     const gap = /gap:\s*(\d+)px/.exec(rule(".modal.lan-add .modal-body"))?.[1];
-    expect(Number(gap)).toBeGreaterThan(20);
+    const pad = /padding-top:\s*(\d+)px/.exec(rule(".modal.lan-add .modal-section + .modal-section"))?.[1];
+    expect(Number(gap) + Number(pad)).toBeGreaterThan(20);
+    expect(rule(".modal.lan-add .modal-section + .modal-section")).toMatch(/border-top: 1px solid var\(--line-soft\)/);
   });
 });
 

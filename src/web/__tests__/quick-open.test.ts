@@ -7,16 +7,17 @@ import type { QuickItem } from "../quick-open";
 import type { RailItem } from "../components/EdgeRails";
 import type { RailItems } from "../rail-items";
 import type { Row } from "../components/SessionList";
+import type { AgentNodeData } from "../types";
 
 vi.mock("react", async (orig) => ({ ...(await orig<typeof import("react")>()), useEffect: (run: () => void) => { run(); } }));
 
 const { mountDeckKeys } = await import("./deck-keys-harness");
 const { modalStack } = await import("../modal-dismiss");
 const {
-  EMPTY_SESSIONS, RECENT_KEY, SECTION_CAP, fuzzyMatch, isQuickOpenChord, quickOpenChordLabel, rankQuick,
-  readRecent, rememberRecent, stepRow, withRecent,
+  EMPTY_SESSIONS, RECENT_KEY, SECTION_CAP, flatGroupRows, fuzzyMatch, groupQuick, isQuickOpenChord, quickOpenChordLabel,
+  rankQuick, readRecent, rememberRecent, stepRow, withRecent,
 } = await import("../quick-open");
-const { quickOpenItems, sessionLine } = await import("../quick-open-items");
+const { quickOpenItems, sessionLine, startFolder } = await import("../quick-open-items");
 const { indexFor } = await import("../settings-search");
 const { openedAt, SETTINGS_CLOSED } = await import("../settings");
 const { keyHelpFor } = await import("../key-help");
@@ -83,6 +84,64 @@ describe("the list an empty field shows", () => {
     expect(list[0].section).toBe("recent");
     expect(list[0].items.map(r => r.item.id)).toEqual(["door:usage", "theme:rider-black"]);
     expect(list.find(s => s.section === "open")).toBeUndefined();
+  });
+});
+
+// Design recommendations (2026-11-09): V4 keeps Settings behind a cog at the
+// foot of the left stripe, so an empty field names it, with its chord, on its
+// own after the sessions. It is never the row Enter runs on an empty field:
+// that stays the first session (the one waiting) or what was opened last.
+describe("Settings, listed on its own in an empty field", () => {
+  const settings = item("door:settings", "open", "Settings", { pinned: true, keyCap: "Ctrl+,", tag: "Dialog" });
+  const waiting = item("session:w", "sessions", "web-api", { tone: "waiting" });
+  const working = item("session:k", "sessions", "docs-site", { tone: "working" });
+  const doors = [item("door:usage", "open", "Usage"), settings];
+  const actions = [item("action:fit", "actions", "Fit every agent on screen")];
+  const empty = (items: QuickItem[], recent: string[] = []) => groupQuick(rankQuick(items, "", recent), false);
+  const ids = (groups: ReturnType<typeof empty>) => groups.map(g => [g.group, g.items.map(r => r.item.id)]);
+
+  it("follows the sessions, in a group of its own with no caption, and leaves the doors", () => {
+    const groups = empty([waiting, working, ...doors, ...actions]);
+    expect(ids(groups)).toEqual([
+      ["needs", ["session:w"]],
+      ["sessions", ["session:k"]],
+      ["pinned", ["door:settings"]],
+      ["do", ["action:fit"]],
+      ["open", ["door:usage"]],
+    ]);
+    const pinned = groups.find(g => g.group === "pinned")!;
+    expect(pinned.title).toBe("");
+    expect(pinned.items[0].item.keyCap).toBe("Ctrl+,");
+  });
+
+  it("leaves the chosen row where it was: the first session, or what was opened last", () => {
+    const before = (items: QuickItem[], recent: string[] = []) =>
+      flatGroupRows(empty(items.map(i => ({ ...i, pinned: undefined })), recent))[0].item.id;
+    const now = (items: QuickItem[], recent: string[] = []) => flatGroupRows(empty(items, recent))[0].item.id;
+    for (const [items, recent] of [
+      [[waiting, working, ...doors, ...actions], []],
+      [[working, ...doors, ...actions], []],
+      [[waiting, working, ...doors, ...actions], ["door:usage"]],
+      [[...doors, ...actions], []],
+      [[settings], []],
+    ] as Array<[QuickItem[], string[]]>) {
+      expect(now(items, recent)).toBe(before(items, recent));
+    }
+    expect(now([waiting, working, ...doors, ...actions])).toBe("session:w");
+  });
+
+  it("is never the first row, even with no session and nothing opened lately", () => {
+    const groups = empty([...doors, ...actions]);
+    expect(groups.map(g => g.group)).toEqual(["do", "pinned", "open"]);
+    expect(flatGroupRows(groups)[0].item.id).toBe("action:fit");
+  });
+
+  it("is listed once: in Recent when it was opened lately, and ranked like any row once something is typed", () => {
+    const recent = empty([waiting, ...doors, ...actions], ["door:settings"]);
+    expect(ids(recent)[0]).toEqual(["recent", ["door:settings"]]);
+    expect(recent.find(g => g.group === "pinned")).toBeUndefined();
+    const typed = rankQuick([waiting, ...doors, ...actions], "sett");
+    expect(typed.map(s => [s.section, s.items.map(r => r.item.id)])).toEqual([["open", ["door:settings"]]]);
   });
 });
 
@@ -204,7 +263,8 @@ describe("the chord", () => {
   it("is on the shortcuts sheet, and stays there with the letters off as the one way to the panels", () => {
     const row = keyHelpFor(true).flatMap(g => g.rows).find(r => r.cap === "Ctrl + K");
     expect(row).toMatchObject({ macCap: "⌘ K", chord: true });
-    expect(keyHelpFor(false).find(g => g.title === "Panels and dialogs")?.rows.map(r => r.cap)).toEqual(["Ctrl + K"]);
+    // CHANGED ON PURPOSE (V4's Figma): Quick open is still alone in the panels group with the letters off, which V4 names Panels.
+    expect(keyHelpFor(false).find(g => g.title === "Panels")?.rows.map(r => r.cap)).toEqual(["Ctrl + K"]);
   });
 });
 
@@ -231,7 +291,6 @@ function sources(extra: Partial<Parameters<typeof quickOpenItems>[0]> = {}) {
   const src = {
     rails,
     sessions: [] as Row[],
-    now: 100_000,
     openSession: vi.fn(),
     settings: indexFor(true),
     openSettings: vi.fn(),
@@ -260,6 +319,11 @@ describe("the rows the deck offers", () => {
     expect(byId(items, "door:usage")?.keyCap).toBeUndefined();
     expect(byId(items, "action:fit")?.keyCap).toBeUndefined();
     expect(byId(items, "door:settings")?.keyCap).toBe("Ctrl+,");
+  });
+
+  it("pin Settings, and only Settings, for an empty field", () => {
+    const { items } = sources();
+    expect(items.filter(i => i.pinned).map(i => i.id)).toEqual(["door:settings"]);
   });
 
   it("open Settings at a section, or land on the one setting that was asked for", () => {
@@ -304,24 +368,78 @@ describe("the rows the deck offers", () => {
     expect(byId(sources({ clear }).items, "action:clear")).toMatchObject({ subtitle: "Asks first", verb: "Ask first", run: clear });
   });
 
-  it("say Pause or Resume as the stream stands", () => {
-    expect(byId(sources().items, "action:pause")?.title).toBe("Pause the stream");
-    expect(byId(sources({ paused: true }).items, "action:pause")?.title).toBe("Resume the stream");
+  it("offer Next waiting as Do's first row while someone waits, on N's cap, running N's move", () => {
+    expect(byId(sources().items, "action:next-waiting")).toBeUndefined();
+    const nextWaiting = vi.fn();
+    const { items } = sources({ nextWaiting });
+    expect(byId(items, "action:next-waiting")).toMatchObject({ title: "Next waiting", subtitle: "the longest wait first", keyCap: "n", run: nextWaiting });
+    expect(items.filter(i => i.section === "actions")[0].id).toBe("action:next-waiting");
+    expect(byId(sources({ nextWaiting, singleKeys: false }).items, "action:next-waiting")?.keyCap).toBeUndefined();
+    expect(sourceOf("App.tsx")).toContain("stepWaiting(stateRef.current, waitingCursorRef, focusSessionOnView)");
+    expect(sourceOf("use-deck-shortcuts.ts")).toContain("stepWaiting(stateRef.current, waitingCursorRef, focusSession, e.shiftKey)");
+  });
+
+  it("offer a new Claude and a new Codex in the focused folder only where the deck can start one", () => {
+    expect(sources().items.filter(i => i.section === "start")).toEqual([]);
+    const launch = vi.fn();
+    const { items } = sources({ start: { folder: { cwd: "/home/me/work/web-api", name: "web-api" }, launch } });
+    const start = items.filter(i => i.section === "start");
+    expect(start.map(i => [i.title, i.subtitle])).toEqual([
+      ["New Claude session", "in web-api, ~/work/web-api"],
+      ["New Codex session", "in web-api, ~/work/web-api"],
+    ]);
+    start[1].run();
+    expect(launch).toHaveBeenCalledWith("codex", "/home/me/work/web-api");
+    const app = sourceOf("App.tsx");
+    expect(app).toMatch(/const quickStart = \(\) => \{\s*if \(!stage\.enabled\) return undefined;/);
+    expect(app).toContain("folder ? { folder, launch: stage.launch } : undefined");
+  });
+
+  it("pick the Start folder as the New session popover does: the focused session's, else the latest", () => {
+    const root = (sessionId: string, cwd: string, at: number) => ({ id: sessionId, sessionId, kind: "root", cwd, startedAt: at }) as unknown as AgentNodeData;
+    const agents = [root("a", "/home/me/work/web-api", 10), root("b", "/home/me/work/infra", 20), root("c", "relative/path", 30)];
+    expect(startFolder(agents, null)).toEqual({ cwd: "/home/me/work/infra", name: "infra" });
+    expect(startFolder(agents, "a")).toEqual({ cwd: "/home/me/work/web-api", name: "web-api" });
+    expect(startFolder([], null)).toBeNull();
+    expect(startFolder([root("r", "relative/path", 1)], "r")).toBeNull();
+    expect(startFolder([root("w", "C:\\Users\\me\\proj", 1)], null)).toEqual({ cwd: "C:\\Users\\me\\proj", name: "proj" });
+  });
+
+  it("offers no Board pause or resume action", () => {
+    expect(byId(sources().items, "action:pause")).toBeUndefined();
+    expect(byId(sources({ paused: true }).items, "action:pause")).toBeUndefined();
   });
 });
 
+// CHANGED ON PURPOSE (owner's critique, 2026-11-11): the line said the ask, the
+// turn's time or the summary, then the folder. A session is named one way on
+// every surface now: its title, then folder · task (rail-row-copy.ts namesLine),
+// and when it started with its id's tail in the hover.
 describe("a session's line", () => {
-  const row = (o: Partial<Row>) => ({ state: "active" as const, label: "fix login", cwdBasename: "api", waiting: null, ...o });
+  const row = (o: Partial<Row>) => ({ state: "active" as const, label: "fix login", sessionId: "s1", waiting: null, startedAt: 0, ...o }) as Row;
 
-  it("says who needs you first, in the words its card uses, and where it runs", () => {
-    expect(sessionLine(row({ waiting: { kind: "permission", since: 40_000 } as Row["waiting"] }), 100_000)).toEqual({ line: "Needs you · 1m · api", tone: "waiting" });
-    expect(sessionLine(row({}), 100_000)).toEqual({ line: "Working · api", tone: "active" });
-    expect(sessionLine(row({ state: "err" }), 100_000)).toEqual({ line: "Failed · api", tone: "err" });
-    expect(sessionLine(row({ state: "done", waiting: { kind: "idle", since: 0 } as Row["waiting"] }), 100_000)).toEqual({ line: "Done · api", tone: "done" });
+  it("says folder · task under a title of its own, the task alone under a title that is the folder", () => {
+    expect(sessionLine(row({ folder: "api", task: "rotate the deploy keys" }))).toEqual({ line: "api · rotate the deploy keys", tone: "working" });
+    expect(sessionLine(row({ label: "api", task: "rotate the deploy keys" })).line).toBe("rotate the deploy keys");
+    expect(sessionLine(row({ folder: "api" })).line).toBe("api");
   });
 
-  it("does not repeat a folder that is the session's own name", () => {
-    expect(sessionLine(row({ label: "api" }), 0).line).toBe("Working");
+  it("has no line when there is neither, and keeps the rail's glyph as its tone", () => {
+    expect(sessionLine(row({ label: "api" })).line).toBe("");
+    expect(sessionLine(row({ neverPrompted: true })).tone).toBe("idle");
+    expect(sessionLine(row({ state: "err" })).tone).toBe("error");
+    expect(sessionLine(row({ waiting: { kind: "permission", since: 1 } as Row["waiting"] })).tone).toBe("waiting");
+  });
+
+  it("puts the line under the title, and when it started in the hover, never on the row", () => {
+    const hover = "Started 14:32 · 4efa";
+    const items = sources({ sessions: [row({ folder: "api", task: "rotate the deploy keys", hover })] }).items;
+    const item = items.find(i => i.title === "fix login")!;
+    expect(item.subtitle).toBe("api · rotate the deploy keys");
+    expect(item.hint).toBe(hover);
+    expect(JSON.stringify({ title: item.title, subtitle: item.subtitle })).not.toContain("4efa");
+    const bare = sources({ sessions: [row({ label: "api" })] }).items.find(i => i.title === "api")!;
+    expect(bare).not.toHaveProperty("subtitle");
   });
 });
 
@@ -330,7 +448,9 @@ describe("a session's line", () => {
 describe("where the deck draws it", () => {
   it("is a door on the bar ahead of Settings, and the first row under the phone's More", () => {
     const app = sourceOf("App.tsx");
-    expect(app).toContain("<UtilityRun items={[rails.search, ...rails.utilities]} />");
+    // CHANGED ON PURPOSE (V4): Search ends the bar's end group; Feedback has
+    // the corner cell after it.
+    expect(app).toContain("<UtilityRun items={[rails.search]} />");
     expect(app).toMatch(/more=\{\[rails\.search, /);
     expect(app).toMatch(/\{quickOpenOpen && \(\s*<QuickOpen /);
   });

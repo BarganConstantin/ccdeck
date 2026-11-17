@@ -11,10 +11,14 @@ describe('native Codex quota coverage', () => {
     expect(html).not.toContain('up-quota-hint');
     expect(html).not.toContain('Standard Codex limits');
     expect(html).not.toContain("returned limits this build");
+    // A plain footnote, not the partial-data box.
+    expect(html).not.toContain('up-quota-note');
   });
   it('retains the mapping warning for unrecognized direct endpoint data', () => {
     const html = renderToStaticMarkup(<CodexQuotaSection codexQuota={{ ok: true, partial: true, windows: [] }} codexLoading={false} codexUsage={null} nowSec={0} />);
     expect(html).toContain("returned limits this build");
+    // The partial-data note is the box.
+    expect(html).toContain('up-quota-sub up-quota-note');
   });
   it.each([1, 3])('shows %s available reset grants and their nearest expiry with native limits', count => {
     const html = renderToStaticMarkup(<CodexQuotaSection codexQuota={{ ok: true, partial: true, coverage: 'standard_limits', windows: [],

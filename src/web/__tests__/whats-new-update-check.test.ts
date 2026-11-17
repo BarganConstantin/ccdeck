@@ -21,9 +21,14 @@ import { fileURLToPath } from "node:url";
 import { rmTempDir } from "./rm-temp-dir";
 
 import {
-  CHECK_MIN_BUSY_MS, CHECKS_OFF, deckUnreachable, npmUnreachable, runUpdateCheck, runDesktopUpdateCheck, updateCheckState,
+  CHECK_MIN_BUSY_MS, CHECKS_OFF_MSG, checksOff, deckUnreachable, npmUnreachable, runUpdateCheck, runDesktopUpdateCheck, updateCheckState,
   type UpdateCheckFacts,
 } from "../update-check";
+import { en } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): the line is a key now, read
+// here through the English catalog.
+const CHECKS_OFF = en[CHECKS_OFF_MSG];
 import * as useNowClock from "../use-now";
 import type { VersionInfo } from "../use-version-check";
 import { UPGRADE_BLOCK_TEXT } from "../components/VersionBanner";
@@ -187,6 +192,7 @@ describe("where no check can run, the line says why instead of offering a button
     expect(stateOf({ version: version({ latest: null, checkedAt: null, checkDisabled: true }) }))
       .toEqual({ canCheck: false, checking: false, line: { said: CHECKS_OFF, tone: "note", age: null, command: null, action: null } });
     expect(CHECKS_OFF).toBe("Update checks are off on this deck (AGENTS_DECK_NO_UPDATE_CHECK or AGENTS_DECK_NO_INSTALL).");
+    expect(checksOff()).toBe(CHECKS_OFF);
   });
 
   it("the desktop app's own deck, which leaves updates to the app: its updater's state, and the menu that can check", () => {
@@ -220,9 +226,11 @@ describe("the press is the chip's own check, under the same rules", () => {
     expect(await runUpdateCheck(async () => null, async () => {})).toBe("unreachable");
   });
 
-  it("is the same loadVersion the chip calls, from the same version check", () => {
-    // The chip's healthy branch forces the check as it opens the dialog.
-    expect(read("../components/VersionChip.tsx")).toContain("onClick={() => { openReleaseNotes(); loadVersion(true); }}");
+  it("is the same loadVersion the bar's version check hands out, from the same version check", () => {
+    // The plain chip, whose click forced the check as it opened the dialog, left
+    // the bar (V4's Figma: the version chip only when needed); this press is
+    // where the forced check lives now, and the bar's chip no longer calls it.
+    expect(read("../components/VersionChip.tsx")).not.toContain("loadVersion(true)");
     // The button runs the press over the dialog's versionCheck…
     expect(read("../components/ReleaseActions.tsx")).toContain("await runUpdateCheck(versionCheck.loadVersion);");
     // …which is the one App.tsx hands the topbar, where the chip is.

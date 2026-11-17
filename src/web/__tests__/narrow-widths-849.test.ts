@@ -47,10 +47,10 @@ describe("the topbar keeps its controls on screen (#849)", () => {
     // and has no run of controls left to tighten. The pixel on top stays at
     // every width: it is what puts every height on the bar on whole pixels
     // under its 1px rule.
-    expect(narrow).toMatch(/\.topbar\s*\{[^}]*padding:\s*1px 10px 0/);
+    expect(narrow).toMatch(/\.topbar\s*\{[^}]*padding:\s*1px 12px 0/); // V4: 12 both sides
     expect(narrow).toMatch(/\.topbar\s*\{[^}]*gap:\s*12px/);
     expect(narrow).toMatch(/\.topbar \.readout\s*\{[^}]*gap:\s*12px/);
-    expect(rule(".topbar")).toMatch(/padding:\s*1px 6px 0 18px/);
+    expect(rule(".topbar")).toMatch(/padding:\s*1px 8px 0 12px/); // V4: 12 start, 8 end
     expect(narrow).not.toMatch(/\.topbar \.actions|action-run/);
   });
 });
@@ -60,6 +60,9 @@ describe("the rail panels at phone widths (#849)", () => {
     // They stay side by side on a desktop (the owner's call after #847 stacked
     // them); only below 640px, where the shifted machine panel sat at -199,
     // does each of them take the window's width.
-    expect(narrow).toMatch(/\.app \.usage-panel,\s*\.app \.sysdetail\s*\{[^}]*left:\s*8px[^}]*right:\s*8px[^}]*width:\s*auto/);
+    // CHANGED ON PURPOSE (the owner's phone layout): each is a bottom sheet the
+    // window's whole width (phone-sheet.css), not 8px in from each edge.
+    const sheet = readFileSync(fileURLToPath(new URL("../styles/phone-sheet.css", import.meta.url)), "utf8");
+    expect(sheet).toMatch(/\.app\.app\.app \.usage-panel,\s*\.app\.app\.app \.sysdetail,[^{]*\{[^}]*left:\s*0;[^}]*right:\s*0;[^}]*width:\s*100%/);
   });
 });

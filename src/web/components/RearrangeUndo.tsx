@@ -1,6 +1,6 @@
 // The strip that offers a re-arranged board back, for a few seconds after R.
 //
-// The auto-fit chip's shape, beside it at the bottom of the canvas: a status in
+// A strip at the bottom of the canvas, in its notices row: a status in
 // words that is not a control, and one action that is. What it offers and for
 // how long is use-board-layout.ts's (rearrange-undo.ts holds the rules); this is
 // the strip, the polite region that says it arrived, and the three things a
@@ -14,6 +14,7 @@ import { isMounted, usePanelPresence } from "../panel-exit";
 import { platformName } from "../platform";
 import { REARRANGE_UNDO_EXIT_MS, rearrangeUndoText, undoChordLabel } from "../rearrange-undo";
 import { useT } from "../i18n";
+import { Kbd } from "./Kbd";
 import type { useBoardLayout } from "../use-board-layout";
 
 type RearrangeUndoState = ReturnType<typeof useBoardLayout>["rearrangeUndo"];
@@ -65,8 +66,10 @@ export default function RearrangeUndo({ undo }: { undo: RearrangeUndoState }) {
             aria-keyshortcuts="Meta+Z Control+Z"
           >
             {t("board.rearrange.undo")}
-            <span className="rearrange-undo-key" aria-hidden="true">{undoChordLabel(platformName())}</span>
           </button>
+          {/* The key, as the deck's key cap beside the word it presses. The
+              button already carries it as aria-keyshortcuts. */}
+          <span className="rearrange-undo-key" aria-hidden="true"><Kbd>{undoChordLabel(platformName())}</Kbd></span>
         </div>
       )}
     </>

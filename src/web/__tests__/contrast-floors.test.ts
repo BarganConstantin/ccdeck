@@ -24,8 +24,11 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import QuotaBar from "../components/QuotaBar";
 import { gradientStops as readStops } from "./gradient-stops";
-import { defaultReadingSheetText as sheetText } from "./sheet-source";
+import { MOUSE_MEDIA, defaultReadingSheetText as sheetText } from "./sheet-source";
 
 const css = sheetText();
 const agentNode = readFileSync(fileURLToPath(new URL("../components/AgentNode.tsx", import.meta.url)), "utf8");
@@ -305,7 +308,12 @@ describe("--text-dim, the token the annotation rules now read from (#262)", () =
 
   it("is the only dim tier that text is allowed to use — no rule sets --muted-dim as a colour", () => {
     // `border-color:` keeps it; a bare `color:` is the regression.
-    const offenders = [...css.matchAll(/(^|[^-\w])color:\s*var\(--muted-dim\)/g)];
+    // One scoped exception: a DISABLED field or select takes V4's --muted-dim ink.
+    // WCAG 1.4.3 exempts inactive controls from the contrast minimum, so only a
+    // rule whose every selector is a :disabled one is let through.
+    const withoutDisabled = css.replace(/\/\*[\s\S]*?\*\//g, "").replace(/([^{}]+)\{([^{}]*)\}/g, (all, sel: string) =>
+      sel.split(",").every(part => /:disabled/.test(part.replace(/:not\([^)]*\)/g, ""))) ? "" : all);
+    const offenders = [...withoutDisabled.matchAll(/(^|[^-\w])color:\s*var\(--muted-dim\)/g)];
     expect(offenders.map(m => m[0].trim())).toEqual([]);
     // Fifteen, down from the seventeen #262 converted: .chips-empty went with
     // #243 as unreachable, and .ap-manage-label went when the manage block's
@@ -317,30 +325,22 @@ describe("--text-dim, the token the annotation rules now read from (#262)", () =
 });
 
 describe("agent-node state rings (#268)", () => {
-  const ringOf = (state: string, theme: Theme) => {
-    const base = decl(rule(`.agent-node.state-${state}`), "border-color")!;
-    const light = decl(rule(`:root[data-color-scheme="light"] .agent-node.state-${state}`), "border-color");
-    return resolve(theme === "light" && light ? light : base, theme);
-  };
+  // CHANGED ON PURPOSE (V4's Figma, Agent / Card): a card's edge is --line in
+  // every state but Waiting, so there is no per-state ring to measure any more;
+  // the state is carried by its word and glyph (the next tests). What stays a
+  // ring is the Waiting edge, --warn, measured here on the same beds.
+  const alarmRing = (theme: Theme) => resolve(decl(rule(".agent-node[data-alarm]"), "border-color")!, theme);
 
-  it("draws every state's ring at 3:1 or better against the node it outlines", () => {
+  it("draws the Waiting ring at 3:1 or better against the node it outlines", () => {
     for (const theme of themes) {
       const node = nodeBeds(theme);
-      // The floor, and it sits OUTSIDE the quantification it is the floor for
-      // (#627's lesson, applied here by #649). gradientStops already refuses an
-      // unreadable --node-grad, so this is the second line rather than the
-      // first: it is what still fails if that reader is ever softened back to a
-      // `?? []`, or if the label these beds are filtered by is renamed on one
-      // side only. Both ends of the gradient, because a node's top and bottom
-      // differ and a ring is drawn across the whole of it.
-      expect(node.map(([n]) => n), `${theme}: no node beds — every ring below would be measured against nothing`)
+      // The floor sits OUTSIDE the quantification it is the floor for (#627's
+      // lesson, applied here by #649): both ends of the gradient.
+      expect(node.map(([n]) => n), `${theme}: no node beds — the ring below would be measured against nothing`)
         .toEqual([`${NODE_BED} 0`, `${NODE_BED} 1`]);
-      for (const state of ["active", "done", "err"]) {
-        const ring = ringOf(state, theme);
-        for (const [name, bg] of node) {
-          expect(contrastRatio(over(ring, bg), bg), `${theme} ${state} ring on ${name}`)
-            .toBeGreaterThanOrEqual(NON_TEXT);
-        }
+      const ring = alarmRing(theme);
+      for (const [name, bg] of node) {
+        expect(contrastRatio(over(ring, bg), bg), `${theme} alarm ring on ${name}`).toBeGreaterThanOrEqual(NON_TEXT);
       }
     }
   });
@@ -348,38 +348,20 @@ describe("agent-node state rings (#268)", () => {
   it("holds that 3:1 against the canvas too, since the ring is the node's edge", () => {
     for (const theme of themes) {
       const canvas = parseColor(TOK[theme]["--bg"]);
-      for (const state of ["active", "done", "err"]) {
-        expect(contrastRatio(over(ringOf(state, theme), canvas), canvas), `${theme} ${state} ring on --bg`)
-          .toBeGreaterThanOrEqual(NON_TEXT);
-      }
+      expect(contrastRatio(over(alarmRing(theme), canvas), canvas), `${theme} alarm ring on --bg`).toBeGreaterThanOrEqual(NON_TEXT);
     }
   });
 
-  it("keeps the light rings opaque — an alpha tuned for #14161b vanishes on white", () => {
-    for (const state of ["done", "err"]) {
-      const light = decl(rule(`:root[data-color-scheme="light"] .agent-node.state-${state}`), "border-color");
-      expect(light, state).not.toMatch(/rgba\(/);
+  it("gives no other state an edge of its own, in either theme", () => {
+    for (const state of ["active", "done", "err"]) {
+      expect(css, state).not.toMatch(new RegExp(`\\.agent-node\\.state-${state}\\s*\\{[^}]*border-color`));
     }
   });
 
-  it("reads every state pill's own label at 4.5:1 over its own wash", () => {
-    for (const theme of themes) {
-      const node = nodeBeds(theme);
-      // The same floor, for the same reason, on the file's other node sweep.
-      expect(node.map(([n]) => n), `${theme}: no node beds — every pill label below would be measured against nothing`)
-        .toEqual([`${NODE_BED} 0`, `${NODE_BED} 1`]);
-      for (const state of ["active", "done", "err"]) {
-        const base = rule(`.state-pill.state-${state}`);
-        const light = rule(`:root[data-color-scheme="light"] .state-pill.state-${state}`);
-        const pick = (p: string) => (theme === "light" ? decl(light, p) ?? decl(base, p) : decl(base, p))!;
-        const fg = resolve(pick("color"), theme);
-        const wash = resolve(pick("background"), theme);
-        for (const [name, bg] of node) {
-          expect(contrastRatio(fg, over(wash, bg)), `${theme} ${state} pill text on ${name}`)
-            .toBeGreaterThanOrEqual(BODY);
-        }
-      }
-    }
+  // CHANGED ON PURPOSE (V4's Figma): the state pill was the recap's last use of that class; the recap
+  // names its session with the done mark now, so no pill rule is left to measure.
+  it("has no state pill left in the sheet to read at 4.5:1", () => {
+    expect(css).not.toMatch(/\.state-pill/);
   });
 
   it("never leans on the ring alone — every node spells its state out in words", () => {
@@ -390,7 +372,18 @@ describe("agent-node state rings (#268)", () => {
     // The state the card draws (drawnState): a root whose turn stopped on an
     // error (#2185) spells "err" there, beside the row that says which error.
     expect(agentNode).toMatch(/const shown = drawnState\(data\);/);
-    expect(agentNode).toMatch(/<StatePill state=\{shown\} \/>/);
+    // V4's card says it as a mark and a sentence-case word (StateLine), from the
+    // same cardState the faces at a distance take their mark from.
+    expect(agentNode).toMatch(/<StateLine state=\{state\} under=\{stateMarkKind\(shown\)\} \/>/);
+    // And that state is drawnState's: the word cannot drift from the stopped-on-
+    // an-error state the old pill was handed directly. CHANGED ON PURPOSE (V4
+    // critique round 3, one state on every surface): the head takes the faces'
+    // faceStatus, which starts from cardState and only adds "1 failed" beside
+    // the partial mark on a finished card whose calls failed.
+    expect(agentNode).toMatch(/const state = faceStatus\(data, t\);/);
+    const nodeFace = readFileSync(fileURLToPath(new URL("../node-face.ts", import.meta.url)), "utf8");
+    expect(nodeFace).toMatch(/export function faceStatus\([^]*?\): CardState \{\s*const state = cardState\(data\);/);
+    expect(nodeFace).toMatch(/export function cardState\([^)]*\): CardState \{[\s\S]*?const shown = drawnState\(data\);/);
   });
 
   it("keeps the three state hues from collapsing into each other", () => {
@@ -410,27 +403,20 @@ describe("version-drift banner (#272)", () => {
     expect(decl(rule(".ver-banner.done"), "color")).toBeNull();
   });
 
-  it("clears 4.5:1 at both ends of the wash, in both themes and both states", () => {
-    const wash = /(color-mix\(in srgb,\s*var\(--[\w-]+\)\s*[\d.]+%,\s*transparent\))/;
-    const gradients = [
-      decl(banner, "background")!,
-      decl(rule(".ver-banner.done"), "background")!,
-    ];
+  it("clears 4.5:1 on its flat --panel fill, in both themes", () => {
+    // V4's banner: no wash any more, so there is one bed, not two ends of a gradient.
+    expect(decl(banner, "background")).toBe("var(--panel)");
     for (const theme of themes) {
       const fg = resolve(decl(banner, "color")!, theme);
-      const canvas = parseColor(TOK[theme]["--bg"]);
-      for (const g of gradients) {
-        const tint = resolve(wash.exec(g)![1], theme);
-        expect(contrastRatio(fg, over(tint, canvas)), `${theme} tinted end of ${g.slice(0, 40)}`)
-          .toBeGreaterThanOrEqual(BODY);
-      }
-      expect(contrastRatio(fg, canvas), `${theme} transparent end`).toBeGreaterThanOrEqual(BODY);
+      const panel = parseColor(TOK[theme]["--panel"]);
+      expect(contrastRatio(fg, panel), `${theme} on --panel`).toBeGreaterThanOrEqual(BODY);
     }
   });
 
   it("leaves the accent where it is decoration — the dot still pulses in --warn", () => {
-    expect(decl(rule(".ver-banner .ver-dot"), "background")).toBe("var(--warn)");
-    expect(decl(rule(".ver-banner.done .ver-dot"), "background")).toBe("var(--ok)");
+    // CHANGED ON PURPOSE (V4's Figma): the tone is the colour of a 14px kit icon (currentColor), not the background of a dot.
+    expect(decl(rule(":is(.ver-banner, .conn-banner) .banner-mark.warn"), "color")).toBe("var(--warn)");
+    expect(decl(rule(":is(.ver-banner, .conn-banner) .banner-mark.ok"), "color")).toBe("var(--ok)");
   });
 });
 
@@ -541,12 +527,14 @@ describe("the stacked cost bar and the key that reads it (#619)", () => {
    *  legend. */
   function beds(theme: Theme): Array<[string, Rgba]> {
     const panel = parseColor(TOK[theme]["--panel"]);
-    const heroWash = /rgba\([^)]*\)/.exec(decl(rule(".session-summary .ss-hero"), "background")!)![0];
+    // CHANGED ON PURPOSE (V4's Figma): the recap's cost split lies on the bare panel
+    // now, with no green wash under it, so that fourth bed is no longer drawn and
+    // the sweep keeps the three that are.
+    expect(decl(rule(".session-summary .ss-hero"), "background")).toBeNull();
     return [
       ["--panel", panel],
       ["--bg-soft", parseColor(TOK[theme]["--bg-soft"])],
       ["the bar's own track", resolve(decl(rule(".cost-bar"), "background")!, theme)],
-      ["the summary hero's wash", over(parseColor(heroWash), panel)],
     ];
   }
 
@@ -660,28 +648,35 @@ describe("the stacked cost bar and the key that reads it (#619)", () => {
 
 describe("the category filter bar when a card drifts under it (#622)", () => {
   const FADED = ".cat-filter-bar.occluded:not(:hover):not(:focus-within)";
-  const fillOf = (selector: string, theme: Theme) => {
-    const light = decl(rule(`:root[data-color-scheme="light"] ${selector}`), "background");
-    const base = decl(rule(selector), "background");
-    const value = theme === "light" && light ? light : base;
-    // A missing fill here does not mean "no fill", it means the yielding is
-    // being done by something other than the fill — which is the whole defect.
-    if (value === null) {
-      throw new Error(`${theme}: no background on ${selector} — the bar is yielding by some channel other than its own fill, and #622 is about what that costs the labels`);
-    }
-    return resolve(value, theme);
-  };
+  /** CHANGED ON PURPOSE (V4's legend): the bar is a legend with no box at
+   *  rest. It lays a bed under its words only while something is under it —
+   *  solid while a reader is at it (ENGAGED), thinned while they are not
+   *  (FADED) — so those two are the fills this block measures. */
+  const ENGAGED = ".cat-filter-bar.occluded";
+  /** The slab the bar was when #622 was measured, a solid --panel. The first
+   *  two tests reproduce that history on it. */
+  const SLAB = "var(--panel)";
+  // (fillOf, which read the bar's engaged and thinned beds, went with them:
+  // V4 top-10 #5. The rows are measured on the menu's surface, MENU, below.)
   /** The bar goes occluded only because something is under it, so a node card is
    *  the backdrop that matters; the empty canvas is given too. */
   const backdrops = (theme: Theme): Array<[string, Rgba]> =>
     [["a card", parseColor(TOK[theme]["--panel"])], ["the canvas", parseColor(TOK[theme]["--bg"])]];
-  const labels = { on: ".cat-filter", off: ".cat-filter.off" } as const;
+  /** CHANGED ON PURPOSE: the legend's items ("on" and "off") are gone; the one
+   *  label in the bar is the Tools button's word. Measured against the bar's
+   *  bed rather than the button's own --bg-soft, the stricter of the two. */
+  /** CHANGED ON PURPOSE (V4 top-10 #5): the Tools button's word → the words of the
+   *  filter's rows in the canvas bar's ⋯ menu, a shown kind and a hidden one, and
+   *  the group's heading, because the button is gone and the rows are what is read. */
+  const labels = { shown: ".ap-menu-item", hidden: ".cat-tools-item.off", heading: ".cat-tools-head" } as const;
+  /** The menu's own surface, solid, which no card ever drifts under. */
+  const MENU = ".anchored-popover";
 
   it("reproduces what `opacity: 0.2` on the group was worth, in both themes", () => {
     // Group opacity composites the label AND the fill it sits on, which is why
     // the numbers land so far under: both ends of the ratio collapse together.
     const was = (theme: Theme, fg: string, backdrop: Rgba) => {
-      const fill = fillOf(".cat-filter-bar", theme);
+      const fill = resolve(SLAB, theme);
       const bed = over([fill[0], fill[1], fill[2], fill[3] * 0.2], backdrop);
       const text = resolve(fg, theme);
       return contrastRatio(over([text[0], text[1], text[2], 0.2], backdrop), bed);
@@ -699,7 +694,7 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
     // fill by 0.20 at full strength, so there is no alpha left to spend. A lower
     // floor was never an available fix, which is why the fill fades and not the
     // group.
-    const fill = fillOf(".cat-filter-bar", "dark");
+    const fill = resolve(SLAB, "dark");
     const card = parseColor(TOK.dark["--panel"]);
     const muted = resolve("var(--muted)", "dark");
     const at = (o: number) => contrastRatio(
@@ -711,12 +706,16 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
   });
 
   it("spends no opacity anywhere on the bar or its occluded state", () => {
-    // The bar is written as two rules six thousand lines apart — the slab up
-    // with the chips, the yielding down with the canvas motion — so this reads
+    // The bar is written as two rules six thousand lines apart — the legend up
+    // with the items, the yielding down with the canvas motion — so this reads
     // every body either of them or their occluded states declare, not the first
     // one a selector match happens to land on.
-    const bodies = [...bare.matchAll(/^[^\n{}]*\.cat-filter-bar[^\n{}]*\{([^}]*)\}/gm)].map(m => m[1]);
-    expect(bodies.length, "no .cat-filter-bar rules found — the scan is reading nothing")
+    // CHANGED ON PURPOSE (V4 top-10 #5): four .cat-filter-bar rules or more → none,
+    // because the filter is a group of the canvas bar's ⋯ menu and nothing floats
+    // over the cards; the same promise is held of the rows that replaced it.
+    expect([...bare.matchAll(/^[^\n{}]*\.cat-filter-bar[^\n{}]*\{/gm)], "a .cat-filter-bar rule is back").toEqual([]);
+    const bodies = [...bare.matchAll(/^[^\n{}]*\.cat-tools-[^\n{}]*\{([^}]*)\}/gm)].map(m => m[1]);
+    expect(bodies.length, "no .cat-tools rules found — the scan is reading nothing")
       .toBeGreaterThanOrEqual(4);
     for (const body of bodies) {
       expect(body.replace(/\s+/g, " ").trim(),
@@ -731,46 +730,67 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
     }
   });
 
-  it("fades the slab instead — a thinner fill, no blur, no border, no shadow", () => {
+  it("draws no box at rest, and thins the bed it lays under its words while nobody is at it", () => {
+    // CHANGED ON PURPOSE (V4's legend): "fades the slab" was the shape while
+    // the bar was a slab. With no slab at rest, the same yielding is a bed that
+    // exists only while something is under the legend: solid while a reader
+    // is at it, thinner while they are not, never a border, a shadow or a blur.
+    // CHANGED ON PURPOSE (V4 top-10 #5): a boxless bar with a bed that thinned while
+    // a card was under it → no bar and no yielding; the rows sit on the menu's
+    // solid --panel, which nothing drifts under, because the filter is a group of
+    // the canvas bar's ⋯ menu. A fill that thins is what #622 was about, so none is
+    // declared anywhere.
+    expect(rule(".cat-filter-bar")).toBeNull();
+    expect(rule(ENGAGED)).toBeNull();
+    expect(rule(FADED)).toBeNull();
+    expect(rule(`:root[data-color-scheme="light"] ${FADED}`)).toBeNull();
+    expect(decl(rule(MENU), "background")).toBe("var(--panel)");
     for (const theme of themes) {
-      const rest = fillOf(".cat-filter-bar", theme);
-      const faded = fillOf(FADED, theme);
-      expect(faded[3], `${theme} occluded fill`).toBeLessThan(rest[3]);
-      // Some fill is left on purpose: it beds the labels rather than floating
-      // them over whatever drifted under, which is what keeps the floor below a
-      // floor and not a coincidence of what happened to be there.
-      expect(faded[3], `${theme} occluded fill`).toBeGreaterThan(0);
+      expect(resolve(decl(rule(MENU), "background")!, theme)[3], `${theme} menu surface`).toBe(1);
     }
-    expect(decl(rule(FADED), "box-shadow")).toBe("none");
-    expect(decl(rule(FADED), "border-color")).toBe("transparent");
-    expect(decl(rule(FADED), "backdrop-filter")).toBe("none");
-    expect(decl(rule(FADED), "-webkit-backdrop-filter")).toBe("none");
+    for (const selector of [".cat-tools-group", ".cat-tools-head", ".cat-tools-item.off"]) {
+      for (const prop of ["backdrop-filter", "-webkit-backdrop-filter", "opacity"]) {
+        expect(decl(rule(selector), prop), `${selector} ${prop}`).toBeNull();
+      }
+    }
+    // The history the first two tests reproduce stays measurable on its slab.
+    expect(resolve(SLAB, "dark")[3]).toBe(1);
   });
 
-  it("reads every chip label at 4.5:1 while the bar is yielding, in both themes", () => {
+  it("reads the bar's label at 4.5:1 while the bar is yielding, in both themes", () => {
+    // CHANGED ON PURPOSE (V4 top-10 #5): the Tools word over a thinned bed on a card
+    // or the canvas → every word of the filter's rows on the menu's --panel, because
+    // the rows never yield: the menu is opaque and on top.
     for (const theme of themes) {
-      const fill = fillOf(FADED, theme);
+      const fill = resolve(decl(rule(MENU), "background")!, theme);
       for (const [state, selector] of Object.entries(labels)) {
         const fg = resolve(decl(rule(selector), "color")!, theme);
         for (const [where, backdrop] of backdrops(theme)) {
           const ratio = contrastRatio(fg, over(fill, backdrop));
-          expect(ratio, `${theme} ${state} chip over ${where} while occluded — ${ratio.toFixed(2)}:1, 1.4.3 asks ${BODY} of 11px text`)
+          expect(ratio, `${theme} ${state} row over ${where} — ${ratio.toFixed(2)}:1, 1.4.3 asks ${BODY} of 12px text`)
             .toBeGreaterThanOrEqual(BODY);
         }
       }
     }
   });
 
-  it("costs the bar nothing at rest — the faded state is the only thing that changed", () => {
+  it("costs the filter nothing at rest or while a reader is at it", () => {
+    // CHANGED ON PURPOSE (V4's legend): at rest nothing is under the words but
+    // the canvas; engaged over a card, the bed IS the canvas's ground.
+    // CHANGED ON PURPOSE (V4 top-10 #5): at rest on the canvas, engaged on its bed →
+    // at rest on the menu, and under the pointer or the keyboard on the row's
+    // --selected fill, where a hidden kind's word lifts to --text-secondary.
     for (const theme of themes) {
-      const fill = fillOf(".cat-filter-bar", theme);
+      const menu = resolve(decl(rule(MENU), "background")!, theme);
+      const picked = over(resolve("var(--selected)", theme), menu);
       for (const [state, selector] of Object.entries(labels)) {
         const fg = resolve(decl(rule(selector), "color")!, theme);
-        for (const [where, backdrop] of backdrops(theme)) {
-          expect(contrastRatio(fg, over(fill, backdrop)), `${theme} ${state} chip over ${where} at rest`)
-            .toBeGreaterThanOrEqual(BODY);
-        }
+        expect(contrastRatio(fg, menu), `${theme} ${state} row on the menu at rest`).toBeGreaterThanOrEqual(BODY);
       }
+      const shownWord = resolve(decl(rule(labels.shown), "color")!, theme);
+      expect(contrastRatio(shownWord, picked), `${theme} shown row under the pointer`).toBeGreaterThanOrEqual(BODY);
+      const hiddenHover = resolve(decl(rule(".cat-tools-item.off:hover"), "color")!, theme);
+      expect(contrastRatio(hiddenHover, picked), `${theme} hidden row under the pointer`).toBeGreaterThanOrEqual(BODY);
     }
   });
 
@@ -788,17 +808,28 @@ describe("the category filter bar when a card drifts under it (#622)", () => {
     }
     const rules = [...bare.matchAll(/^([^\n{}]*\.cat-filter-bar\.occluded[^\n{}]*?)\s*\{/gm)]
       .map(m => m[1].trim());
-    expect(rules,
-      "the occluded state should be one rule per theme carrying both restore paths in its own selector")
-      .toEqual([FADED, `:root[data-color-scheme="light"] ${FADED}`]);
-    for (const selector of rules) {
-      expect(selector, "restores on a pointer of any kind").toContain(":not(:hover)");
-      expect(selector, "restores once focus is inside").toContain(":not(:focus-within)");
-    }
+    // CHANGED ON PURPOSE (V4's legend): the engaged bed is a rule of its own
+    // now, ahead of the two thinned ones it is restored from.
+    // CHANGED ON PURPOSE (V4 top-10 #5): three occluded rules → none, because there
+    // is nothing to restore: the rows are read in a menu any pointer opens with
+    // one press of ⋯, and the hook that measured the occlusion is gone.
+    expect(rules, "an occluded state is back, for a filter that no longer floats").toEqual([]);
+    const hook = readFileSync(fileURLToPath(new URL("../use-category-filter-bar.ts", import.meta.url)), "utf8");
+    expect(hook).not.toMatch(/occluded|anyTouches|setInterval/);
   });
 
-  it("keeps the strike, which is the channel that never depended on any of this", () => {
-    expect(decl(rule(".cat-filter.off .cat-name"), "text-decoration")).toBe("line-through");
+  it("keeps the hollow dot, which is the channel that never depended on any of this", () => {
+    // CHANGED ON PURPOSE (V4's legend): it was the strike through the name.
+    // CHANGED ON PURPOSE: the dot lives in the Tools menu's rows now, on the
+    // popover's --panel, not on the canvas under the bar.
+    expect(decl(rule(".cat-tools-item.off .cat-dot"), "background")).toBe("transparent");
+    expect(decl(rule(".cat-tools-item.off .cat-dot"), "border")).toBe("1.5px solid var(--text-dim)");
+    expect(decl(rule(".anchored-popover"), "background")).toBe("var(--panel)");
+    // A ring is a graphic that carries the state, so 1.4.11's 3:1 applies to it.
+    for (const theme of themes) {
+      const ring = resolve("var(--text-dim)", theme);
+      expect(contrastRatio(ring, parseColor(TOK[theme]["--panel"])), `${theme} ring on the menu`).toBeGreaterThanOrEqual(NON_TEXT);
+    }
   });
 });
 
@@ -880,9 +911,10 @@ describe("the machine panel's process door, on the bed it is actually drawn on (
     }
   });
 
-  it("sets the panel's sentences at 11px, not 10", () => {
-    expect(decl(sub, "font-size")).toBe("11px");
-    expect(decl(rule(".sd-note"), "font-size")).toBe("11px");
+  it("sets the panel's sentences at 12px, not 10", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the panel's sentences are 12/16.
+    expect(decl(sub, "font-size")).toBe("12px");
+    expect(decl(rule(".sd-note"), "font-size")).toBe("12px");
   });
 });
 
@@ -945,7 +977,7 @@ describe("one reader for every gradient this suite measures against (#664, #665)
    *  ends in `?? []` and answers nothing rather than failing. */
   const PRIVATE_SCRAPE = /\.match\(\s*\/[^\n]*var\\\(--/;
 
-  const GRADIENT_TOKEN = /--(?:node|topbar)-grad/;
+  const GRADIENT_TOKEN = /--node-grad/;
 
   const FILES: Array<[string, string]> = readdirSync(testDir)
     .filter((name: string) => name.endsWith(".test.ts"))
@@ -961,7 +993,7 @@ describe("one reader for every gradient this suite measures against (#664, #665)
       .filter(([, text]) => !/from "\.\/gradient-stops"/.test(text))
       .map(([name]) => name);
     expect(offenders,
-      "a file measuring against --node-grad or --topbar-grad without the shared reader is a file with its own grammar, and so with its own blind spot")
+      "a file measuring against --node-grad without the shared reader is a file with its own grammar, and so with its own blind spot")
       .toEqual([]);
   });
 
@@ -985,10 +1017,10 @@ describe("one reader for every gradient this suite measures against (#664, #665)
     // sweep two cases up.
     expect(FILES.length, "there are test files to sweep at all").toBeGreaterThan(200);
     expect(READERS.map(([name]) => name).sort(),
-      "the five files that read a gradient token, which both sweeps above are quantified over")
+      "the four files that read a gradient token (the topbar gradient is gone; toggle-state.test.ts read only that one), which both sweeps above are quantified over")
       .toEqual([
         "contrast-floors.test.ts", "control-edges.test.ts", "quiet-signals.test.ts",
-        "session-hue.test.ts", "toggle-state.test.ts",
+        "session-hue.test.ts",
       ]);
     expect(PRIVATE_SCRAPE.test("const stops = value" + ".match(/var" + "\\(--[\\w-]+\\)|#[0-9a-f]{3,6}/gi) ?? [];")).toBe(true);
     expect(PRIVATE_SCRAPE.test("const stops = gradientStops(token, theme, TOK[theme]);")).toBe(false);
@@ -1026,20 +1058,24 @@ function sheetRules(src: string, at = ""): SheetRule[] {
       else if (src[end] === "}" && --depth === 0) break;
     }
     const inner = src.slice(open + 1, end);
-    if (prelude.startsWith("@")) out.push(...sheetRules(inner, prelude));
+    if (prelude.startsWith("@")) out.push(...sheetRules(inner, at ? `${at} ${prelude}` : prelude));
     else out.push({ selectors: prelude.split(",").map(s => s.trim()).filter(Boolean), body: inner, at });
     i = end + 1;
   }
   return out;
 }
 const SHEET = sheetRules(bare);
+/** A rule a desktop pointer meets at the top level: written outside any media,
+ *  or under the mouse query alone, where every :hover rule stands (hover is for
+ *  mice). A rule in any other media, or nested in one, is not the resting look. */
+const onDesktop = (r: { at: string }) => !r.at || r.at === `@media ${MOUSE_MEDIA}`;
 
 /** The last value `prop` is given by a top-level rule listing `selector`, which
  *  is the one the cascade keeps at equal specificity. */
 function declFor(selector: string, prop: string): string | null {
   let found: string | null = null;
   for (const r of SHEET) {
-    if (r.at || !r.selectors.includes(selector)) continue;
+    if (!onDesktop(r) || !r.selectors.includes(selector)) continue;
     const v = decl(r.body, prop);
     if (v !== null) found = v;
   }
@@ -1070,10 +1106,17 @@ describe("the scrollbar thumb, in every state it has (#1290)", () => {
   it("reads all four states out of the sheet, so the sweeps below measure something", () => {
     expect(THUMB.rest).toBe("transparent");
     for (const [state, value] of Object.entries(THUMB)) expect(value, state).not.toBeNull();
+    // The two hover reveals are the mouse's: they stand under the mouse query.
+    for (const sel of [":hover::-webkit-scrollbar-thumb", "*::-webkit-scrollbar-thumb:hover"])
+      expect(SHEET.find(r => r.selectors.includes(sel))?.at, sel).toBe(`@media ${MOUSE_MEDIA}`);
   });
 
   it("reproduces what the keyboard was shown — --line, at the ratios #1290 measured", () => {
-    const line = (theme: Theme) => contrastRatio(parseColor(TOK[theme]["--line"]), parseColor(TOK[theme]["--panel"]));
+    // V4 aligned the live light --line to Figma (#d5d9e0) on 2026-10-31, so the
+    // history is held to the value that shipped when #1290 measured: #c8cdd6.
+    const SHIPPED_LIGHT_LINE = "#c8cdd6";
+    const line = (theme: Theme) => contrastRatio(
+      parseColor(theme === "light" ? SHIPPED_LIGHT_LINE : TOK[theme]["--line"]), parseColor(TOK[theme]["--panel"]));
     expect(line("dark")).toBeCloseTo(1.14, 2);
     expect(line("light")).toBeCloseTo(1.60, 2);
   });
@@ -1097,7 +1140,7 @@ describe("the scrollbar thumb, in every state it has (#1290)", () => {
     }
     // Equal specificity, so source order is what makes it win: it has to come
     // after both reveals.
-    const at = (sel: string) => SHEET.findIndex(r => !r.at && r.selectors.includes(sel));
+    const at = (sel: string) => SHEET.findIndex(r => onDesktop(r) && r.selectors.includes(sel));
     expect(at("*::-webkit-scrollbar-thumb:hover")).toBeGreaterThan(at(":focus-within::-webkit-scrollbar-thumb"));
     expect(at(":focus-within::-webkit-scrollbar-thumb")).toBeGreaterThan(at(":hover::-webkit-scrollbar-thumb"));
   });
@@ -1244,8 +1287,10 @@ describe("an opacity over text is a contrast ratio too (#1289)", () => {
   });
 
   it("tells a mark from a box that can hold a word, so the sweep below means something", () => {
-    // Childless: the day bar's segments, the legend swatch, the meter fill.
-    for (const mark of [".uh-bar-seg", ".uh-legend-dot", ".uh-model-bar-fill", ".uh-agent-seg"]) {
+    // Childless: the day bar's segments, the legend swatch, the split bar's segment.
+    // CHANGED ON PURPOSE (V4's Figma): a day is a table now, so its model meter fill
+    // (.uh-model-bar-fill) is gone from the sheet and from this list.
+    for (const mark of [".uh-bar-seg", ".uh-legend-dot", ".uh-agent-seg"]) {
       expect(dimsOnlyMarks(mark), mark).toBe(true);
     }
     // Word-bearing: the status line, a share's text, the modal's own wrapper.
@@ -1277,11 +1322,13 @@ describe("an opacity over text is a contrast ratio too (#1289)", () => {
     const src = (file: string) => MARKUP.find(m => m.file === file)!.src;
     // The history modal: the subtitle says what is running while a re-run is out.
     expect(src("components/UsageHistoryModal.tsx"))
-      .toContain('<div className="uh-sub">{view.stale ? t("insights.usage.running") : usageSubtitle(');
-    expect(declFor(".uh-sub", "color")).toBe("var(--text-dim)");
+      .toContain('<span className="uh-sub">{view.stale ? t("insights.usage.running") : usageSubtitle(');
+    // CHANGED ON PURPOSE (V4's Figma): the line is a span in the toolbar, in the muted step.
+    expect(declFor(".uh-sub", "color")).toBe("var(--muted)");
     // The usage panel: the headline names the period its figures are from.
+    // CHANGED ON PURPOSE (owner 2026-11-10): no board headline; chips from first paint; logs-unread sentence.
     expect(src("components/UsagePanel.tsx"))
-      .toContain('<span className="up-total-label">{fromRange ? periodWord : boardSpendLabel()}</span>');
+      .toContain('<span className="up-total-label">{periodWord}</span>');
     // The share dialog's heading, and the popover's countdown.
     expect(src("components/ShareAccountsDialog.tsx")).toContain('t("accounts.sd.expired")');
     expect(src("components/AccountMenuPopover.tsx")).toContain("<span className={`ap-share-expiry ${exp.tone}`}>{exp.text}</span>");
@@ -1419,11 +1466,13 @@ describe("nothing at rest paints --inflight itself (#1649)", () => {
     }
   };
 
-  it("fills the context meter and the summary's tool bars off it", () => {
+  it("fills the context meter, in the panel and in the modal, off it", () => {
     // A fill level is a quantity, and it is the same quantity whether or not
     // the session is still running.
+    // CHANGED ON PURPOSE (V4's Figma): the recap draws its most-used tools as chips,
+    // not bars, so its bar fill is gone; the modal's own meter fill takes its place.
     for (const theme of themes) {
-      for (const sel of [".ctx-window-fill", ".session-summary .ss-tt-bar-fill"]) far(sel, paintsOf(sel, theme), theme);
+      for (const sel of [".ctx-window-fill", ".ctx-modal .ctx-window-fill"]) far(sel, paintsOf(sel, theme), theme);
     }
   });
 
@@ -1450,7 +1499,7 @@ describe("nothing at rest paints --inflight itself (#1649)", () => {
   });
 
   it("draws the empty canvas, which only shows when nothing runs, in neither theme's --inflight", () => {
-    const hero = SHEET.filter(r => !r.at).flatMap(r => r.selectors).filter(s => s.startsWith(".empty-hero"));
+    const hero = SHEET.filter(onDesktop).flatMap(r => r.selectors).filter(s => s.startsWith(".empty-hero"));
     // The static terminal symbol must be included in the palette sweep.
     for (const s of [".empty-hero .empty-symbol"]) expect(hero, s).toContain(s);
     for (const theme of themes) {
@@ -1509,7 +1558,7 @@ const bedOf = (selector: string, theme: Theme, under: Rgba) => {
 
 describe("words quietened with an opacity, measured as what they composite to (#1787)", () => {
   const HINT = ".empty-hero .hint-row";
-  const TOOL = ".session-list .sl-waiting-tool";
+  const TOOL = ".session-list .sl-tool";
   const RELOADING = ".ap-proj-body.refreshing > *";
   const canvas = (theme: Theme) => bedOf(".canvas-wrap", theme, parseColor(TOK[theme]["--bg"]));
 
@@ -1518,7 +1567,10 @@ describe("words quietened with an opacity, measured as what they composite to (#
     const panel = (theme: Theme) => parseColor(TOK[theme]["--panel"]);
     expect(through(tier("--muted", "dark"), 0.75, canvas("dark"))).toBeCloseTo(3.33, 2);
     expect(through(tier("--muted", "light"), 0.75, canvas("light"))).toBeCloseTo(3.83, 2);
-    expect(through(tier("--warn", "light"), 0.75, panel("light"))).toBeCloseTo(3.41, 2);
+    // V4 aligned the live light --warn to Figma (#9c5600) on 2026-10-31; this
+    // line is held to the value that shipped when #1787 measured: #ad4e08.
+    const SHIPPED_LIGHT_WARN = parseColor("#ad4e08");
+    expect(through(SHIPPED_LIGHT_WARN, 0.75, panel("light"))).toBeCloseTo(3.41, 2);
     expect(through(tier("--muted", "dark"), 0.55, panel("dark"))).toBeCloseTo(2.29, 2);
     expect(through(tier("--muted", "light"), 0.55, panel("light"))).toBeCloseTo(2.63, 2);
     expect(through(tier("--text", "light"), 0.55, panel("light"))).toBeCloseTo(4.18, 2);
@@ -1531,32 +1583,42 @@ describe("words quietened with an opacity, measured as what they composite to (#
     }
   });
 
-  it("reads the waiting tool at 4.5:1 on a row at rest, hovered and selected, in both themes", () => {
+  it("reads the rail's blocked tool, wait and note at 4.5:1 on a row at rest, hovered and selected, in both themes", () => {
+    // V4's Attention rail: the tool name is --text-secondary, the wait --warn
+    // and the second line --muted, none of them under an opacity any more.
     for (const theme of themes) {
       const list = bedOf(".session-list", theme, parseColor(TOK[theme]["--bg"]));
-      const beds: Array<[string, Rgba]> = [
-        ["at rest", list],
-        ["hovered", bedOf(".session-list .sl-row:hover", theme, list)],
-        ["selected", bedOf(".session-list .sl-row.selected", theme, list)],
+      // The second line and the model are --muted at rest and step up a tier
+      // under the pointer and on the chosen row: --muted on the row's fill is
+      // 4.05:1 in dark (#1789), the same reason the Tool activity rows do.
+      const beds: Array<[string, Rgba, string]> = [
+        ["at rest", list, ""],
+        ["hovered", bedOf(".session-list .sl-row:hover", theme, list), ".sl-row:hover "],
+        ["selected", bedOf(".session-list .sl-row.selected", theme, list), ".sl-row.selected "],
       ];
-      const ink = inkOf(theme, TOOL, ".session-list .sl-waiting");
-      for (const [state, bed] of beds) {
-        const r = through(ink, opacityOf(TOOL), bed);
-        expect(r, `${theme} ${TOOL} ${state} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+      // CHANGED ON PURPOSE (V4 top-10 #5): .sl-model was measured with the line → the
+      // row draws no model any more, so the name has no rule left to measure.
+      // CHANGED ON PURPOSE (#2591): the row draws the provider and the model
+      // again, on a meta line under the title, so .sl-model is measured with
+      // the line once more, at rest, hovered and selected.
+      for (const sel of [TOOL, ".session-list .sl-time.warn", ".session-list .sl-line2", ".session-list .sl-model"]) {
+        for (const [state, bed, within] of beds) {
+          const ink = inkOf(theme, sel.replace(".session-list ", `.session-list ${within}`), sel);
+          const r = through(ink, opacityOf(sel), bed);
+          expect(r, `${theme} ${sel} ${state} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+        }
       }
     }
   });
 
-  it("still sets the guessed tool quieter than the duration it qualifies", () => {
-    // The duration is measured and the tool is inferred (BlockedTool in
-    // types.ts), so the two must not read with the same confidence.
-    const weight = (sel: string) => Number(declFor(sel, "font-weight"));
-    expect(weight(TOOL)).toBeLessThan(weight(".session-list .sl-waiting"));
+  it("still sets the guessed tool apart from the line it leads by weight, and under the wait by tier", () => {
+    // The wait is measured and the tool is inferred (BlockedTool in types.ts):
+    // the tool is the heavier word of a line that is otherwise --muted, and
+    // never the loud --warn the wait owns.
+    expect(Number(declFor(TOOL, "font-weight"))).toBeGreaterThan(Number(declFor(".session-list .sl-line2", "font-weight") ?? "400"));
     for (const theme of themes) {
-      const panel = parseColor(TOK[theme]["--panel"]);
-      const tool = through(inkOf(theme, TOOL, ".session-list .sl-waiting"), opacityOf(TOOL), panel);
-      const duration = through(inkOf(theme, ".session-list .sl-waiting"), opacityOf(".session-list .sl-waiting"), panel);
-      expect(tool, theme).toBeLessThanOrEqual(duration);
+      expect(themed(TOOL, "color", theme), theme).toBe("var(--text-secondary)");
+      expect(themed(".session-list .sl-time.warn", "color", theme), theme).toBe("var(--warn)");
     }
   });
 
@@ -1564,7 +1626,7 @@ describe("words quietened with an opacity, measured as what they composite to (#
     // Every ink a rule of the report writes, since a group opacity takes all of
     // them down at once.
     const inks = new Set(SHEET
-      .filter(r => !r.at && r.selectors.some(s => s.startsWith(".ap-proj-")))
+      .filter(r => onDesktop(r) && r.selectors.some(s => s.startsWith(".ap-proj-")))
       .map(r => decl(r.body, "color"))
       .filter((v): v is string => v !== null && v.startsWith("var(")));
     expect([...inks], "the report's inks").toEqual(expect.arrayContaining(["var(--text)", "var(--muted)", "var(--text-dim)"]));
@@ -1581,7 +1643,7 @@ describe("words quietened with an opacity, measured as what they composite to (#
 
   it("fades only the report's marks while it reloads — the bar, the meters, the day columns and the dots", () => {
     const fading = SHEET
-      .filter(r => !r.at && decl(r.body, "opacity") !== null)
+      .filter(r => onDesktop(r) && decl(r.body, "opacity") !== null)
       .flatMap(r => r.selectors)
       .filter(s => s.startsWith(".ap-proj-body.refreshing"));
     for (const mark of [".ap-proj-seg", ".ap-proj-fill", ".ap-proj-colseg", ".ap-proj-dot"]) {
@@ -1619,9 +1681,9 @@ describe("small secondary text on the beds it is drawn on (#1788)", () => {
     // the quietest readable tier — in Settings, the one place it is drawn.
     ["the key note under the Sounds switch, in Settings", [".sm-key-note", ".sm-note", ".settings-modal"], settings],
     // The custom-sound cards went into Settings' one list (#2176): what each
-    // way of adding takes is a row's note now, on the list's lifted ground.
-    ["a setting row's note, on its list", [".settings-row-note", ".settings-modal"],
-      theme => bedOf(".settings-list", theme, settings(theme))],
+    // way of adding takes is a row's note now. V4's list has no ground of its
+    // own, so the note sits on the dialog's fill, in --muted.
+    ["a setting row's note, on the dialog", [".settings-row-note", ".settings-modal"], settings],
     ["the Projects report's Copy and Show buttons", [".ap-proj-copy"],
       theme => bedOf(".ap-proj-copy", theme, bedOf(".modal", theme, panel(theme)))],
     ["the trash zone's hint", [".drag-trash-hint", ".drag-trash-zone"],
@@ -1687,8 +1749,16 @@ describe("the placeholder in the deck's shared text field (#1789)", () => {
   const bed = (theme: Theme) => bedOf(FIELD, theme, parseColor(TOK[theme]["--panel"]));
 
   it("reproduces the ratios #1789 measured for the browser's grey on the field", () => {
-    expect(contrastRatio(parseColor(CHROMIUM), bed("dark"))).toBeCloseTo(3.38, 2);
-    expect(contrastRatio(parseColor(CHROMIUM), bed("light"))).toBeCloseTo(3.98, 2);
+    // V4's field moved the live fill to --bg-soft, so the dark figure is held
+    // to the field that shipped when #1789 measured: --ctl-fill over --panel.
+    const shippedDarkField = over(resolve("var(--ctl-fill)", "dark"), parseColor(TOK.dark["--panel"]));
+    expect(contrastRatio(parseColor(CHROMIUM), shippedDarkField)).toBeCloseTo(3.38, 2);
+    // V4 raised the live light --ctl-fill from 7% to 8% of --text on 2026-10-31,
+    // so the light figure is held to the field that shipped when #1789
+    // measured: --text at 7% over the white --panel.
+    const text = parseColor(TOK.light["--text"]);
+    const shippedLightField = over([text[0], text[1], text[2], 0.07], parseColor(TOK.light["--panel"]));
+    expect(contrastRatio(parseColor(CHROMIUM), shippedLightField)).toBeCloseTo(3.98, 2);
   });
 
   it("reads the placeholder at 4.5:1 on the field's own fill, in both themes", () => {
@@ -1712,5 +1782,136 @@ describe("the placeholder in the deck's shared text field (#1789)", () => {
       // that --text-secondary keeps over --muted, at least.
       expect(value / hint, `${theme} placeholder vs value`).toBeGreaterThanOrEqual(1.47);
     }
+  });
+});
+
+// ── the light theme's frames, the quota sliver and the hover bands ─────────
+//
+// Measured on the light board: Usage's floating frame was --line-soft, 1.09:1
+// on the canvas; the "< 1%" quota sliver was its fill at 0.4 opacity, 1.8:1
+// against its track in light and 2.7:1 in dark; the notes under the machine
+// panel's 6% hover band were --muted, 4.15:1 in dark; and the "By session"
+// hover band was --bg-soft on the white panel, 1.06:1.
+
+describe("the light theme's frames, the quota sliver and the hover bands", () => {
+  const panel = (theme: Theme) => parseColor(TOK[theme]["--panel"]);
+  const canvas = (theme: Theme) => bedOf(".canvas-wrap", theme, parseColor(TOK[theme]["--bg"]));
+  /** A 1px line in `value`, as it composites on `bed`, against that bed. */
+  const lineOn = (value: string, theme: Theme, bed: Rgba) => contrastRatio(over(resolve(value, theme), bed), bed);
+
+  describe("the floating panels' frame in light", () => {
+    const FRAME = ':root[data-color-scheme="light"] :is(.usage-panel, .sysdetail)';
+
+    it("reproduces the 1.09:1 --line-soft frame on the light canvas", () => {
+      expect(declFor(".usage-panel", "border")).toBe("1px solid var(--line-soft)");
+      expect(declFor(".sysdetail", "border")).toBe("1px solid var(--line-soft)");
+      expect(lineOn("var(--line-soft)", "light", canvas("light"))).toBeCloseTo(1.09, 2);
+    });
+
+    it("draws the frame in the strong line, at 3:1 or better on the light canvas", () => {
+      const edge = decl(rule(FRAME), "border-color");
+      expect(edge).toBe("var(--ctl-edge)");
+      const r = lineOn(edge!, "light", canvas("light"));
+      expect(r, `light frame — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(NON_TEXT);
+    });
+  });
+
+  describe("the quota bar's '< 1%' sliver", () => {
+    const sliver = renderToStaticMarkup(createElement(QuotaBar, { pct: 0.5, label: "Week", nowSec: 0 }));
+    const style = /class="qb-fill"[^>]*style="([^"]*)"/.exec(sliver)?.[1] ?? "";
+    const track = (theme: Theme) => over(resolve(decl(rule(".qb-track"), "background")!, theme), panel(theme));
+
+    it("is drawn at full strength, with no fade over it", () => {
+      expect(style).toContain("transform:scaleX(0.02)");
+      expect(style).not.toContain("opacity");
+      expect(decl(rule(".qb-fill"), "opacity")).toBeNull();
+    });
+
+    it("reproduces what the old 0.4 fade was worth against the track", () => {
+      const fadedOn = (theme: Theme) => contrastRatio(over([...resolve("var(--accent)", theme).slice(0, 3), 0.4] as Rgba, track(theme)), track(theme));
+      expect(fadedOn("light")).toBeCloseTo(1.8, 1);
+      expect(fadedOn("dark")).toBeCloseTo(2.68, 1);
+    });
+
+    it("holds 3:1 against its track in every fill colour, in both themes", () => {
+      const fill = /background:([^;]+)/.exec(style)?.[1];
+      expect(fill).toBe("var(--accent)");
+      for (const theme of themes) {
+        for (const ink of [fill!, "var(--warn)", "var(--err)"]) {
+          const r = contrastRatio(resolve(ink, theme), track(theme));
+          expect(r, `${theme} sliver ${ink} on its track — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(NON_TEXT);
+        }
+      }
+    });
+
+    it("is at least 3px wide on the narrowest track the bar is drawn in", () => {
+      // The panel's width, less its two borders and the body's padding each side.
+      const width = Number(declFor(".usage-panel", "width")!.replace("px", ""));
+      const border = Number(/^(\d+)px/.exec(declFor(".usage-panel", "border")!)![1]);
+      const pad = Number(decl(rule(".up-body"), "padding")!.replace("px", ""));
+      const trackPx = width - 2 * border - 2 * pad;
+      expect(trackPx).toBe(294);
+      expect(trackPx * 0.02).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  describe("notes under the machine panel's hover band", () => {
+    const BAND = ".sysdetail .sd-reading:hover";
+    const NOTES = `${BAND} :is(.sd-note:not(.sd-note-err), .sd-plain-note, .sd-fig-cap)`;
+    const bandOn = (theme: Theme) => over(resolve(decl(rule(BAND), "background")!, theme), panel(theme));
+
+    it("reproduces the 4.15:1 --muted read on the band in dark", () => {
+      expect(decl(rule(".sd-note"), "color")).toBe("var(--muted)");
+      expect(contrastRatio(resolve("var(--muted)", "dark"), bandOn("dark"))).toBeCloseTo(4.15, 2);
+    });
+
+    it("steps the notes up a tier while the band is under them, at 4.5:1 in both themes", () => {
+      const ink = decl(rule(NOTES), "color");
+      expect(ink).toBe("var(--text-secondary)");
+      for (const theme of themes) {
+        const r = contrastRatio(resolve(ink!, theme), bandOn(theme));
+        expect(r, `${theme} note on the hover band — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+      }
+    });
+
+    it("does it for a mouse only, as every hover in the deck", () => {
+      const hover = SHEET.find(r => r.selectors.join(",").includes(".sd-reading:hover :is(.sd-note"));
+      expect(hover?.at).toBe(`@media ${MOUSE_MEDIA}`);
+    });
+  });
+
+  describe("the 'By session' row under the pointer", () => {
+    const HOVER = ".up-session-open:hover";
+
+    it("reproduces the 1.06:1 band on the light panel", () => {
+      expect(decl(rule(HOVER), "background")).toBe("var(--bg-soft)");
+      expect(contrastRatio(resolve("var(--bg-soft)", "light"), panel("light"))).toBeCloseTo(1.06, 2);
+    });
+
+    it("adds a 2px edge in the strong line, at 3:1 on the band in both themes", () => {
+      const shadow = decl(rule(HOVER), "box-shadow");
+      expect(shadow).toBe("inset 2px 0 0 var(--ctl-edge)");
+      for (const theme of themes) {
+        const band = over(resolve("var(--bg-soft)", theme), panel(theme));
+        const r = lineOn("var(--ctl-edge)", theme, band);
+        expect(r, `${theme} By session hover edge — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(NON_TEXT);
+      }
+    });
+  });
+
+  describe("the warning mark and word, in the tone they are drawn in", () => {
+    it("reads --warn and --err at 4.5:1 on every panel bed they sit on, in both themes", () => {
+      expect(decl(rule('.level-mark[data-tone="warn"]'), "color")).toBe("var(--warn)");
+      expect(decl(rule('.level-mark[data-tone="err"]'), "color")).toBe("var(--err)");
+      for (const theme of themes) {
+        const beds: Array<[string, Rgba]> = [["--panel", panel(theme)], ["machine hover band", over(resolve(decl(rule(".sysdetail .sd-reading:hover"), "background")!, theme), panel(theme))]];
+        for (const ink of ["var(--warn)", "var(--err)"]) {
+          for (const [name, bed] of beds) {
+            const r = contrastRatio(resolve(ink, theme), bed);
+            expect(r, `${theme} ${ink} on ${name} — ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(BODY);
+          }
+        }
+      }
+    });
   });
 });

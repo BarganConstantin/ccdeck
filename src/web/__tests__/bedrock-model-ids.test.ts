@@ -323,16 +323,18 @@ describe("the context window follows the same id", () => {
 });
 
 describe("the model chip", () => {
+  // CHANGED ON PURPOSE (V4's Agent / Card): the Claude family is written in
+  // lowercase; the family and version each id reads as are unchanged.
   it("labels a Bedrock id by its model, not its ARN-ish shape", () => {
-    expect(shortModel("us.anthropic.claude-sonnet-4-5-20250929-v1:0")).toBe("Sonnet 4.5");
-    expect(shortModel("eu.anthropic.claude-haiku-4-5-20251001-v1:0")).toBe("Haiku 4.5");
-    expect(shortModel("us-gov.anthropic.claude-opus-5")).toBe("Opus 5");
-    expect(shortModel("anthropic.claude-mythos-5")).toBe("Mythos 5");
+    expect(shortModel("us.anthropic.claude-sonnet-4-5-20250929-v1:0")).toBe("sonnet 4.5");
+    expect(shortModel("eu.anthropic.claude-haiku-4-5-20251001-v1:0")).toBe("haiku 4.5");
+    expect(shortModel("us-gov.anthropic.claude-opus-5")).toBe("opus 5");
+    expect(shortModel("anthropic.claude-mythos-5")).toBe("mythos 5");
   });
 
   it("prints what it always printed for the ids it already handled", () => {
-    expect(shortModel("anthropic.claude-sonnet-4-5-20250929-v1:0")).toBe("Sonnet 4.5");
-    expect(shortModel("claude-opus-4-7-20250101")).toBe("Opus 4.7");
+    expect(shortModel("anthropic.claude-sonnet-4-5-20250929-v1:0")).toBe("sonnet 4.5");
+    expect(shortModel("claude-opus-4-7-20250101")).toBe("opus 4.7");
     expect(shortModel("gpt-5.3-codex-spark")).toBe("GPT-5.3 Codex Spark");
     expect(shortModel("o3-mini")).toBe("o3-mini");
     expect(shortModel("gpt-4o")).toBe("gpt-4o");

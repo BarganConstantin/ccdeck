@@ -11,7 +11,7 @@
 // the tooltip rather than by any assertion, which is the argument for having
 // looked.
 import { describe, it, expect } from "vitest";
-import { salientInput } from "../tool-input";
+import { salientField, salientInput } from "../tool-input";
 
 describe("what a person is shown", () => {
   it("takes the command out of a Bash input", () => {
@@ -69,5 +69,39 @@ describe("what a person is NOT shown", () => {
     const got = salientInput({ command: long })!;
     expect(got.length).toBeLessThanOrEqual(120);
     expect(got.endsWith("…")).toBe(true);
+  });
+});
+
+// Design recommendations (2026-11-09): a row shortens a path from the front
+// (rail-row-copy.ts rowPath), so the path is kept whole and said to be one. A
+// path clipped at its end, like a command, lost the file's name, the one part
+// that tells two calls apart.
+describe("a path, said to be one and kept whole", () => {
+  it("marks the three path keys as paths, and a command, a URL or a pattern as not", () => {
+    expect(salientField({ file_path: "/etc/hosts" })).toEqual({ text: "/etc/hosts", path: true });
+    expect(salientField({ path: "src" })).toEqual({ text: "src", path: true });
+    expect(salientField({ notebook_path: "/n/a.ipynb" })).toEqual({ text: "/n/a.ipynb", path: true });
+    expect(salientField({ command: "ls", file_path: "/x" })).toEqual({ text: "ls", path: false });
+    expect(salientField({ url: "https://example.com/a/b" })).toEqual({ text: "https://example.com/a/b", path: false });
+    expect(salientField({ pattern: "src/**/*.ts" })).toEqual({ text: "src/**/*.ts", path: false });
+    expect(salientField({ command: ["git", "status"] })).toEqual({ text: "git status", path: false });
+    expect(salientField("npm test")).toEqual({ text: "npm test", path: false });
+    expect(salientField({ depth: 3 })).toBeNull();
+  });
+
+  it("keeps a long path whole, to its file's name, where a command is clipped", () => {
+    const long = `/home/me/${"deep/".repeat(40)}install.md`;
+    expect(long.length).toBeGreaterThan(120);
+    expect(salientField({ file_path: long })).toEqual({ text: long, path: true });
+    expect(salientInput({ file_path: long })).toBe(long);
+    expect(salientField({ command: "x".repeat(500) })!.text).toHaveLength(120);
+  });
+
+  it("bounds a path past 512 characters from its start, keeping the file's name", () => {
+    const huge = `/${"d/".repeat(400)}install.md`;
+    const text = salientField({ file_path: huge })!.text;
+    expect(text).toHaveLength(512);
+    expect(text.startsWith("…")).toBe(true);
+    expect(text.endsWith("/install.md")).toBe(true);
   });
 });

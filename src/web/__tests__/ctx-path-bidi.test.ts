@@ -5,72 +5,57 @@
 // it the paragraph's level and reorders it to the far end —
 // /Users/consultant/project/CLAUDE.md drew as Users/consultant/project/CLAUDE.md/
 // on every mac and Linux box, and correctly on Windows, where the drive letter
-// gives the line a strong-LTR first character. The head is cut in TypeScript
-// now, so the rendered string is a literal suffix of the real path in every
-// engine. These pin the cut, and pin the CSS rule against the trick coming back.
+// gives the line a strong-LTR first character.
+//
+// CHANGED ON PURPOSE: the head was cut in TypeScript (truncatePathStart) to a
+// character budget; the list now draws each path with PathText, read from the
+// session's folder or from "~", and CSS cuts its middle, keeping the file and
+// the folder above it (every file here has one name). These pin that the drawn
+// text is still the path in order, left to right, and pin the CSS rule against
+// the trick coming back. path-display.test.ts pins the display itself.
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { truncatePathStart } from "../components/ContextModal";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import PathText from "../components/PathText";
+import { displayPath } from "../path-display";
 import { sheetText } from "./sheet-source";
 
-const POSIX = "/Users/consultant/Desktop/agents-deck/src/web/components/CLAUDE.md";
-const WINDOWS = "C:\\Users\\consultant\\Desktop\\agents-deck\\src\\web\\CLAUDE.md";
+const POSIX = "/opt/consultant/Desktop/agents-deck/src/web/components/CLAUDE.md";
+const WINDOWS = "D:\\consultant\\Desktop\\agents-deck\\src\\web\\CLAUDE.md";
 
-describe("truncatePathStart", () => {
-  it("leaves a path that already fits exactly as it was written", () => {
-    expect(truncatePathStart("/Users/c/proj/CLAUDE.md")).toBe("/Users/c/proj/CLAUDE.md");
-    expect(truncatePathStart("C:\\proj\\CLAUDE.md")).toBe("C:\\proj\\CLAUDE.md");
-  });
+/** A memory row as ContextView draws it, and the text it shows, in order. */
+const row = (path: string, cwd?: string) => renderToStaticMarkup(createElement(PathText, { className: "ctx-md-path", path, cwd, keep: 2 }));
+const shown = (markup: string) => markup.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&");
 
+describe("a memory file's path", () => {
   it("keeps the leading slash of a POSIX path at the front, never at the end", () => {
-    // The regression, stated the way it looked on screen.
-    const short = truncatePathStart("/Users/c/CLAUDE.md");
-    expect(short.startsWith("/")).toBe(true);
-    expect(short.endsWith("/")).toBe(false);
-    expect(truncatePathStart(POSIX).endsWith("/")).toBe(false);
+    const text = shown(row("/opt/c/CLAUDE.md"));
+    expect(text.startsWith("/")).toBe(true);
+    expect(text.endsWith("/")).toBe(false);
+    expect(shown(row(POSIX)).endsWith("/")).toBe(false);
   });
 
-  it("drops the head and keeps the tail, because every file here is CLAUDE.md", () => {
-    const out = truncatePathStart(POSIX);
-    expect(out.startsWith("…")).toBe(true);
-    expect(out.endsWith("/components/CLAUDE.md")).toBe(true);
-    expect(POSIX.endsWith(out.slice(1))).toBe(true);
+  it("is drawn left to right whatever the language around it", () => {
+    expect(row(POSIX)).toMatch(/^<span class="path-text ctx-md-path" dir="ltr"/);
   });
 
-  it("cuts a Windows path on a backslash, so the drive-letter form works too", () => {
-    const out = truncatePathStart(WINDOWS, 30);
-    expect(out).toBe("…\\src\\web\\CLAUDE.md");
-    expect(WINDOWS.endsWith(out.slice(1))).toBe(true);
+  it("keeps the file and the folder above it whole, because every file here is CLAUDE.md", () => {
+    expect(row(POSIX)).toContain('<span class="path-tail">/components/CLAUDE.md</span>');
+    expect(row(WINDOWS)).toContain('<span class="path-tail">\\web\\CLAUDE.md</span>');
   });
 
-  it("never shows half a directory name — the cut lands on a separator", () => {
-    const out = truncatePathStart(POSIX, 40);
-    expect(out.slice(1).startsWith("/")).toBe(true);
-    expect(out).toBe("…/src/web/components/CLAUDE.md");
-  });
-
-  it("stays inside the character budget it was given", () => {
-    for (const max of [12, 20, 40, 60]) {
-      expect(truncatePathStart(POSIX, max).length).toBeLessThanOrEqual(max);
-      expect(truncatePathStart(WINDOWS, max).length).toBeLessThanOrEqual(max);
-    }
-  });
-
-  it("falls back to a hard cut when nothing in the window is a separator", () => {
-    const flat = "a".repeat(80);
-    expect(truncatePathStart(flat, 20)).toBe("…" + "a".repeat(19));
-  });
-
-  it("renders a suffix of the input and nothing else — no character is moved", () => {
+  it("renders the path it shows and nothing else, no character moved", () => {
     const paths = [POSIX, WINDOWS, "/CLAUDE.md", "/" + "d/".repeat(60) + "CLAUDE.md",
-                   "/Users/x/" + "n".repeat(90) + "/CLAUDE.md", "relative/CLAUDE.md"];
+                   "/home/x/" + "n".repeat(90) + "/CLAUDE.md", "relative/CLAUDE.md"];
     for (const p of paths) {
-      const out = truncatePathStart(p);
-      const shown = out.startsWith("…") ? out.slice(1) : out;
-      expect(p.endsWith(shown)).toBe(true);
-      expect(shown.length).toBeGreaterThan(0);
+      const text = shown(row(p, "/home/x/work"));
+      expect(text).toBe(displayPath(p, "/home/x/work"));
+      expect(text.length).toBeGreaterThan(0);
     }
+  });
+
+  it("puts the whole path in the hover", () => {
+    expect(row(POSIX)).toContain(`title="${POSIX}"`);
   });
 });
 
@@ -80,7 +65,7 @@ describe(".ctx-md-path", () => {
     const rule = /\.ctx-md-path\s*\{([^}]*)\}/.exec(css);
     expect(rule).not.toBeNull();
     expect(rule![1]).not.toMatch(/(^|[^-])direction\s*:/);
-    // The ellipsis stays: it is the backstop for a modal narrower than the budget.
+    // The ellipsis stays: it is the backstop where the row is not PathText's flex box.
     expect(rule![1]).toMatch(/text-overflow\s*:\s*ellipsis/);
   });
 });

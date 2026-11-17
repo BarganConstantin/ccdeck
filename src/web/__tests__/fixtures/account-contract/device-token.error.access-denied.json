@@ -1,0 +1,2 @@
+{ "type": "https://api.ccdeck.dev/problems/device-token", "title": "Cancelled in the browser", "status": 400,
+  "error": "access_denied" }

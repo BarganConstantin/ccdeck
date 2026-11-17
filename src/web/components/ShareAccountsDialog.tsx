@@ -13,11 +13,13 @@
 // untick — see shareCountLine. The envelope holds each account's OAuth login in
 // the clear, so five boxes is five live logins on the clipboard, and that is a
 // fact the user should meet before the copy rather than after it.
+import Checkbox from "./Checkbox";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { explainFailure } from "../admin-failure";
 import { PRODUCT } from "../brand";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
+import { Dialog, DialogClose } from "./Dialog";
 import { useFocusRescue } from "./use-focus-rescue";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { type NamedAccount, pickedAccounts, pickerRows, shareCountLine, shareExpiry, shareRequest, toggleUnpicked } from "../share-bundle";
@@ -154,14 +156,11 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
   // child of the accounts panel, whose `.accounts-panel > *` gave the fixed
   // backdrop the panel's 288px width.
   return createPortal(
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal sa-modal" onClick={e => e.stopPropagation()}
-        role="dialog" aria-modal="true" aria-label={t("accounts.header.share")}>
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="sa-modal" aria-label={t("accounts.header.share")}>
         <header className="modal-head">
           <div className="modal-title"><h3>{t("accounts.sd.title")}</h3></div>
           <div className="modal-actions">
-            <button type="button" className="glyph-btn" onClick={onClose}
-              aria-label={t("accounts.closeEsc")} title={t("accounts.closeEsc")}>×</button>
+            <DialogClose onClick={onClose} label={t("accounts.closeEsc")} />
           </div>
         </header>
 
@@ -277,8 +276,7 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
                 {rows.map(r => (
                   <li key={r.num}>
                     <label className="sa-row">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={picked.includes(r.num)}
                         onChange={() => toggle(r.num)}
                       />
@@ -315,8 +313,7 @@ export default function ShareAccountsDialog({ accounts, onClose, copyText }: Pro
             </div>
           )}
         </section>
-      </div>
-    </div>,
+    </Dialog>,
     document.body,
   );
 }

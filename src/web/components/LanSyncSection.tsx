@@ -43,6 +43,7 @@ import type { LanAccount } from "../lan-types";
 import { useHoverPeek } from "../use-hover-peek";
 import { useLanSection } from "../use-lan-section";
 import { useRowUnpair } from "../use-row-unpair";
+import { DialogPresence } from "./Dialog";
 import FilmLink from "./FilmLink";
 import GuideModal from "./GuideModal";
 import { LAN_STEPS, LanIntroArt } from "./guide-art";
@@ -171,7 +172,7 @@ export default function LanSyncSection({
     if (peerOpen && status && !openRow) setPeerOpen(null);
   }, [peerOpen, status, openRow]);
   // The requests, and the rest split at the fold — see viewRows.
-  const { asks, rest, live, folded, troubled, shown, paired } = viewRows(rows, foldOpen);
+  const { asks, rest, folded, troubled, foldable, shown, paired } = viewRows(rows, foldOpen);
   const state = sectionState(status, now);
   // What the way in says, from the same rows the list is drawn from.
   const entry = entryLine(status, rows);
@@ -179,17 +180,20 @@ export default function LanSyncSection({
   // The dialogs this section owns, which outlive either presentation of it.
   const modals = (
     <>
-      {addOpen && status && (
-        <LanAddDeckModal
-          status={status}
-          manual={manual}
-          startWith={addOpen === "invite" ? "invite" : undefined}
-          onClose={() => setAddOpen(false)}
-          onChanged={() => { void load(); onChanged(); }}
-        />
-      )}
+      <DialogPresence when={addOpen && status ? { status, addOpen } : null}>
+        {({ status: s, addOpen: a }) => (
+          <LanAddDeckModal
+            status={s}
+            manual={manual}
+            startWith={a === "invite" ? "invite" : undefined}
+            onClose={() => setAddOpen(false)}
+            onChanged={() => { void load(); onChanged(); }}
+          />
+        )}
+      </DialogPresence>
 
-      {guideOpen && (
+      <DialogPresence when={guideOpen}>
+        {() => (
         <GuideModal
           title={t("lan.sync.guideTitle")}
           steps={LAN_STEPS}
@@ -199,19 +203,23 @@ export default function LanSyncSection({
           finish={on ? undefined : { label: t("lan.sync.turnOn"), act: () => { setGuideOpen(false); void toggle(); } }}
           onClose={() => setGuideOpen(false)}
         />
-      )}
+        )}
+      </DialogPresence>
 
-      {setupOpen && status && (
-        <LanSetupModal
-          status={{ ...status, manualRows: manual }}
-          accounts={accounts}
-          manual={manual}
-          onClose={() => setSetupOpen(false)}
-          onChanged={() => { void load(); onChanged(); }}
-        />
-      )}
+      <DialogPresence when={setupOpen && status ? status : null}>
+        {s => (
+          <LanSetupModal
+            status={{ ...s, manualRows: manual }}
+            accounts={accounts}
+            manual={manual}
+            onClose={() => setSetupOpen(false)}
+            onChanged={() => { void load(); onChanged(); }}
+          />
+        )}
+      </DialogPresence>
 
-      {mapOpen && (
+      <DialogPresence when={mapOpen}>
+        {() => (
         <LanNetworkMap
           status={status}
           rows={rows}
@@ -221,26 +229,28 @@ export default function LanSyncSection({
           onOpenDeck={setPeerOpen}
           onClose={() => setMapOpen(false)}
         />
-      )}
+        )}
+      </DialogPresence>
 
-      {openRow && status && (
+      <DialogPresence when={openRow && status ? { openRow, status } : null}>
+        {({ openRow: row, status: s }) => (
         <LanPeerModal
-          row={openRow}
-          source={rowSource(status, openRow)}
-          status={status}
+          row={row}
+          source={rowSource(s, row)}
+          status={s}
           accounts={accounts}
           now={now}
           busy={busy}
           onClose={() => setPeerOpen(null)}
-          onRename={name => rename(openRow.fp, name)}
-          onCheck={() => checkOne(openRow.fp)}
+          onRename={name => rename(row.fp, name)}
+          onCheck={() => checkOne(row.fp)}
           // The row's own verb, through the row's own call — see LanDeckList.
           onVerb={() => {
-            switch (openRow.kind) {
-              case "paired": return answer("unpair", openRow.fp, "unpair that deck");
-              case "nearby": return answer("accept", openRow.fp, "reach that deck");
-              case "declined": return answer("allow", openRow.fp, "let that deck ask again");
-              case "dialling": return dropAddress(openRow.fp);
+            switch (row.kind) {
+              case "paired": return answer("unpair", row.fp, "unpair that deck");
+              case "nearby": return answer("accept", row.fp, "reach that deck");
+              case "declined": return answer("allow", row.fp, "let that deck ask again");
+              case "dialling": return dropAddress(row.fp);
               default: return Promise.resolve(null);
             }
           }}
@@ -250,10 +260,11 @@ export default function LanSyncSection({
           // The same door for an invite-only deck's one way to pair a nearby
           // machine: out of this dialog and into the add dialog, invite made.
           onInvite={() => { setPeerOpen(null); setAddOpen("invite"); }}
-          twins={(openRow.twins ?? []).map(t => ({ row: t, peer: rowSource(status, t).peer ?? null }))}
+          twins={(row.twins ?? []).map(t => ({ row: t, peer: rowSource(s, t).peer ?? null }))}
           onUnpair={fp => answer("unpair", fp, "unpair that deck")}
         />
-      )}
+        )}
+      </DialogPresence>
     </>
   );
 
@@ -401,12 +412,12 @@ export default function LanSyncSection({
                     boundary apart, each alone on its own row — one word on the left,
                     one figure below it, and nothing between them but sixteen pixels.
                     One row, two ends, and the section stops there. */}
-                {((live.length > 0 && folded.length > 0) || (on && paired > 0)) && (
+                {(foldable || (on && paired > 0)) && (
                 <div className="ap-lan-tail">
                 {/* The count of what is not on, in the ink that says whether any of it
                     matters. A chevron rather than a plus: this is one list with a
                     part of it folded, not a second thing to open. */}
-                {live.length > 0 && folded.length > 0 && (
+                {foldable && (
                   <button type="button" className="ap-lan-word ap-lan-more" aria-expanded={foldOpen}
                     onClick={() => setFoldOpen(v => !v)}
                     title={foldOpen
@@ -435,13 +446,14 @@ export default function LanSyncSection({
                     the network for the line above it. */}
                 {rest.length === 0 && asks.length === 0 && !status?.stalled && !status?.deaf && !status?.lanTunneled && (
                   <>
-                    <p className="ap-lan-fine">
+                    <p className="ap-lan-nothing">{t("lan.sync.emptyLead")}</p>
+                    <p className="ap-lan-nothing">
                       {t("lan.sync.empty")}
                     </p>
                     {/* The moment somebody has switched this on and is waiting for a
                         first machine is the moment they most want to know what the
                         other machine has to do. */}
-                    <button type="button" className="ap-lan-word ap-lan-how" onClick={() => setGuideOpen(true)}>
+                    <button type="button" className="btn ap-lan-how" onClick={() => setGuideOpen(true)}>
                       {t("lan.sync.how")}
                     </button>
                     <FilmLink film="localNetwork" />

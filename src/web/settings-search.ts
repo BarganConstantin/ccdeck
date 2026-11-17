@@ -66,7 +66,7 @@ export function isSectionEntry(entry: SettingsEntry): boolean {
 
 
 
-const sectionLabel = (section: SettingsSection) => t(`settings.section.${section}.label`);
+const sectionLabel = (section: SettingsSection) => SETTINGS_SECTIONS.find(s => s.id === section)?.label ?? section;
 
 /** The words people type for an entry, in English (always: the product is
  *  documented in English, and many people type the English word whatever their
@@ -112,6 +112,9 @@ function entryOf(spec: Spec): SettingsEntry {
   return Object.defineProperty(base, "group", { get: () => spec.group?.(), enumerable: true });
 }
 
+/** The words people type for the Experimental group (no catalog entry yet). */
+const EXPERIMENTAL_WORDS = ["beta", "labs", "preview", "early access"];
+
 function sectionEntry(section: SettingsSection): SettingsEntry {
   return entryOf({
     id: `${SECTION_PREFIX}${section}`, section, label: () => sectionLabel(section), kw: `section-${section}`,
@@ -124,18 +127,29 @@ const CHARACTER_WORDS = ["deck companion", "fox", "penguin"];
 
 /** Every entry, in nav order, each section's own entry first in its block. */
 function buildIndex(): SettingsEntry[] {
-  const recover = (provider: "Claude" | "Codex") => L("settings.recover.group", { provider });
-  const rows: Record<SettingsSection, SettingsEntry[]> = {
+  const sessions = L("settings.sessions.group");
+  // Account is a hidden section (settings.ts ACCOUNT_SECTION) and is never in
+  // the index: the walk below is over the released SETTINGS_SECTIONS.
+  const rows: Record<Exclude<SettingsSection, "account">, SettingsEntry[]> = {
     general: [
-      entryOf({ id: "claude-session-recovery", claudeOnly: true, section: "general", group: recover("Claude"), label: L("settings.recover.name") }),
-      entryOf({ id: "claude-continue-stopped", claudeOnly: true, section: "general", group: recover("Claude"), label: L("settings.recover.continueName") }),
-      entryOf({ id: "codex-session-recovery", section: "general", group: recover("Codex"), label: L("settings.recover.name") }),
-      entryOf({ id: "language", section: "general", group: L("settings.language.group"), label: L("settings.language.name") }),
-      entryOf({ id: "hide-finished", section: "general", group: L("settings.board.title"), label: L("settings.board.hideLabel") }),
+      entryOf({ id: "claude-session-recovery", claudeOnly: true, section: "general", group: sessions, label: L("settings.recover.claudeName") }),
+      entryOf({ id: "claude-continue-stopped", claudeOnly: true, section: "general", group: sessions, label: L("settings.recover.continueName") }),
+      entryOf({ id: "codex-session-recovery", section: "general", group: sessions, label: L("settings.recover.codexName") }),
+      // No group: the row stands under no caption of its own (LanguageSection.tsx).
+      entryOf({ id: "language", section: "general", label: L("settings.language.name") }),
+      entryOf({ id: "hide-finished", section: "general", group: sessions, label: L("settings.board.hideLabel") }),
       entryOf({ id: "auto-update", section: "general", group: L("settings.updates.title"), label: L("settings.updates.label") }),
       entryOf({ id: "accounts", section: "general", group: L("settings.search.group.elsewhere"), label: L("settings.search.accounts"), claudeOnly: true }),
       entryOf({ id: "local-network", section: "general", group: L("settings.search.group.elsewhere"), label: L("settings.search.localNetwork"), claudeOnly: true }),
       entryOf({ id: "browser-watch", section: "general", group: L("settings.search.group.elsewhere"), label: L("settings.search.browserWatch") }),
+      { id: "terminal", section: "general", get group() { return t("settings.experimental.group"); }, get label() { return t("settings.search.commandPanel"); },
+        keywords: ["terminal", "tmux", "shell", "console", "command line", "cli", "pane", "attach", "type", "beta", "experimental", ...EXPERIMENTAL_WORDS] },
+      // The engine's rows under the switch (TerminalSection's EngineRows),
+      // drawn while the Command Panel is on.
+      entryOf({ id: "terminal-engine", section: "general", group: L("settings.experimental.group"), label: L("settings.terminal.engine.name"),
+        words: ["engine", "install", "update", "version", "download", "terminal", "native", ...EXPERIMENTAL_WORDS] }),
+      entryOf({ id: "terminal-engine-remove", section: "general", group: L("settings.experimental.group"), label: L("settings.terminal.engine.removeName"),
+        words: ["engine", "remove", "uninstall", "delete", "free space", "disk"] }),
     ],
     appearance: [
       entryOf({ id: "theme", section: "appearance", label: L("settings.theme.title") }),
@@ -169,9 +183,9 @@ function buildIndex(): SettingsEntry[] {
       ...CHIME_ORDER.map((chime): SettingsEntry => entryOf({
         id: `tone-${chime}`, section: "sounds", label: L(chime === "done" ? "settings.sounds.tone.done" : "settings.sounds.tone.needsInput"),
       })),
-      entryOf({ id: "custom-sounds", section: "sounds", label: L("settings.sounds.custom.title") }),
-      entryOf({ id: "custom-import", section: "sounds", group: L("settings.sounds.custom.title"), label: L("settings.sounds.custom.import") }),
-      entryOf({ id: "custom-record", section: "sounds", group: L("settings.sounds.custom.title"), label: L("settings.sounds.custom.record") }),
+      entryOf({ id: "custom-sounds", section: "sounds", label: L("settings.sounds.custom.group") }),
+      entryOf({ id: "custom-import", section: "sounds", group: L("settings.sounds.custom.group"), label: L("settings.sounds.custom.import") }),
+      entryOf({ id: "custom-record", section: "sounds", group: L("settings.sounds.custom.group"), label: L("settings.sounds.custom.record") }),
     ],
     integrations: [
       // The names of the tools are the tools'.
@@ -200,15 +214,15 @@ function buildIndex(): SettingsEntry[] {
       entryOf({ id: "radar-open", section: "radar", label: L("settings.section.radar.label") }),
     ],
     about: [
-      entryOf({ id: "version", section: "about", group: () => "ccdeck", label: L("settings.about.version") }),
-      entryOf({ id: "whats-new", section: "about", group: () => "ccdeck", label: L("settings.about.whatsNew") }),
-      entryOf({ id: "licence", section: "about", group: () => "ccdeck", label: L("settings.about.licence") }),
-      entryOf({ id: "sponsor", section: "about", group: () => "ccdeck", label: L("settings.about.sponsor") }),
+      entryOf({ id: "version", section: "about", group: L("settings.about.version"), label: L("settings.about.version") }),
+      entryOf({ id: "whats-new", section: "about", group: L("settings.about.version"), label: L("settings.about.whatsNew") }),
+      entryOf({ id: "licence", section: "about", group: L("settings.about.projectGroup"), label: L("settings.about.licence") }),
+      entryOf({ id: "sponsor", section: "about", group: L("settings.about.projectGroup"), label: L("settings.about.sponsor") }),
       entryOf({ id: "tour", section: "about", group: L("settings.about.helpGroup"), label: L("settings.about.tour") }),
       entryOf({ id: "feedback", section: "about", group: L("settings.about.helpGroup"), label: L("settings.about.feedback") }),
     ],
   };
-  return SETTINGS_SECTIONS.flatMap(({ id }) => [sectionEntry(id), ...rows[id]]);
+  return SETTINGS_SECTIONS.flatMap(({ id }) => [sectionEntry(id), ...rows[id as Exclude<SettingsSection, "account">]]);
 }
 
 export const SETTINGS_INDEX: readonly SettingsEntry[] = buildIndex();

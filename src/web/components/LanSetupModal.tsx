@@ -63,8 +63,10 @@
 // account's machines count, and how many are there — and that is a quiet line
 // under the switch's own label. The heading already says Tailscale, so the
 // labels do not say it again.
+import Checkbox from "./Checkbox";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Dialog, DialogClose } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { useFocusRescue } from "./use-focus-rescue";
 import { pressState } from "../panel-press";
@@ -250,15 +252,13 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
   // Portalled like every dialog opened from inside the accounts panel: the
   // panel's layout rules are not a modal's to inherit — see AddAccountDialog.
   return createPortal(
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal lan-modal" onClick={e => e.stopPropagation()}
-        role="dialog" aria-modal="true" aria-labelledby="lan-modal-title">
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="lan-modal" labelledBy="lan-modal-title">
         <header className="modal-head">
           <div className="modal-title">
             <span id="lan-modal-title" className="modal-tool-name">{t("lan.setup.title")}</span>
           </div>
           <div className="modal-actions">
-            <button className="glyph-btn" onClick={onClose} aria-label={t("lan.closeEsc")} title={t("lan.closeEsc")}>×</button>
+            <DialogClose onClick={onClose} label={t("lan.closeEsc")} />
           </div>
         </header>
 
@@ -325,8 +325,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
                   : a.inUse
                     ? t("lan.setup.shareInUse")
                     : t("lan.setup.shareOffer")}>
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={shared.has(a.key)}
                     onChange={e => {
                       const next = nextShared(pending.current, status.shared ?? [], a.key, e.target.checked);
@@ -658,8 +657,7 @@ export default function LanSetupModal({ status, accounts, onClose, onChanged }: 
             {t("lan.setup.done")}
           </button>
         </footer>
-      </div>
-    </div>,
+    </Dialog>,
     document.body,
   );
 }

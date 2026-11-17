@@ -47,13 +47,12 @@ import { sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
-// The detail panel moved to components/Detail.tsx, the selected ribbon to
-// components/SelectedRibbon.tsx, and focusing and stepping between cards to
+// The detail panel moved to components/Detail.tsx (the selected ribbon that was
+// in components/SelectedRibbon.tsx is gone, V4's top bar), and focusing and stepping between cards to
 // use-agent-focus.ts, and the <ReactFlow> element to components/BoardFlow.tsx;
 // App.tsx and they are read as one.
 const app = readFileSync(join(web, "App.tsx"), "utf8") + "\n" + readFileSync(join(web, "use-deck-shortcuts.ts"), "utf8")
   + "\n" + readFileSync(join(web, "components/Detail.tsx"), "utf8")
-  + "\n" + readFileSync(join(web, "components/SelectedRibbon.tsx"), "utf8")
   + "\n" + readFileSync(join(web, "use-agent-focus.ts"), "utf8")
   + "\n" + readFileSync(join(web, "use-canvas-clicks.ts"), "utf8")
   + "\n" + readFileSync(join(web, "components/BoardFlow.tsx"), "utf8");
@@ -213,13 +212,10 @@ describe("what a keystroke means on a focused card (#367, finding 2)", () => {
     expect(gate).toBeGreaterThan(card);
   });
 
-  it("takes Space away from pause only while a card is focused", () => {
-    // Space is `activate` on a card and reaches togglePause everywhere else,
-    // which is the same trade a focused <button> already makes.
+  it("keeps Space as card activation without a global pause action", () => {
     expect(canvasKeyIntent({ key: " ", shiftKey: false }, null)).toEqual({ kind: "deck", nodeId: null });
-    // Once per press: a held Space's repeats are cancelled and pause nothing
-    // (held-shortcut-repeat.test.ts).
-    expect(app).toMatch(/if \(e\.key === " "\) \{ e\.preventDefault\(\); if \(!e\.repeat\) togglePause\(\); \}/);
+    expect(canvasKeyIntent({ key: " ", shiftKey: false }, "main")).toEqual({ kind: "activate", nodeId: "main", additive: false });
+    expect(app).not.toMatch(/if \(e\.key === " "\).*togglePause/);
   });
 
   it("reads the id off the wrapper React Flow focuses, not off the card inside it", () => {
@@ -370,16 +366,25 @@ describe("nothing else in the deck invents a focus stop", () => {
     // `tabIndex={0}`, `tabIndex="0"`, `tabIndex={2}` — anything whose value
     // starts with a digit. A leading `-` is not a digit, which is the whole
     // distinction this regex is drawn to make.
+    //
+    // Revisited a second time, by the terminal stage's divider, and allowed
+    // once more by name rather than by widening the rule. A window splitter
+    // (the WAI-ARIA pattern) is a focusable separator: ← and → resize the
+    // stage a detent at a time, Home and End run to the ends, and its value is
+    // read out in columns. No native element is one, so it has to be given
+    // its stop — and only the element with role="separator" gets it.
+    const SPLITTER = "components/terminal/Divider.tsx";
     const offenders = components(web)
       .filter(p => /tabIndex=\{?["']?\d/.test(code(readFileSync(p, "utf8"))))
-      .map(p => p.slice(web.length).replaceAll("\\", "/"));
+      .map(p => p.slice(web.length).replaceAll("\\", "/"))
+      .filter(p => p !== SPLITTER);
     // Radio results is a focusable tabpanel, allowing keyboard scrolling.
     // Tool activity's details splitter is the ARIA window splitter: a focusable
     // separator whose value is the panel's width, moved with the arrow keys.
     // Radar's activity list splitter is the same widget, its value the list's
     // share of the workspace.
     // The integrations modal's splitter, between a tracker's list and its
-    // detail (#2178), is the same widget, its value the list's share.
+    // detail (#2178), is the same widget, its value the list's width.
     // A Jira issue's code block and wide table, the GitHub and GitLab panel's
     // job log and a description's code block (#2178, #2179) scroll sideways
     // inside their own frame, as Radio's results scroll, so each is a stop
@@ -387,12 +392,33 @@ describe("nothing else in the deck invents a focus stop", () => {
     // scrollable-region-focusable); the log and the table are named regions.
     // What's new's body is the same: the one scroller of a reading sheet, mostly
     // prose between its few controls, a named region the keyboard can scroll.
+    // Chat's conversation scrolls inside its own frame, the same way: a named
+    // region the keyboard can reach and scroll (WCAG 2.1.1).
+    // The card's cost chip is the one stop of V4's cost tooltip: the tooltip
+    // opens on keyboard focus, so the chip it explains has to be reachable (the
+    // native title it replaces was not).
+    // Workspace's side column has two window splitters: its left edge, whose
+    // value is the column's width, and the split between Usage and This
+    // machine, whose value is Usage's share; the arrow keys move each.
+    // CHANGED ON PURPOSE (internal #103): the Sessions list's right edge is the
+    // same widget, a window splitter whose value is the list's width.
+    // CHANGED ON PURPOSE (internal #102): the line between two panes of a split
+    // Workspace is the same widget too, its value the first pane's share; the
+    // arrow keys move it, Home and End run it to the ends.
     // Sorted, so the order is the paths' and not the file system's.
     expect([...offenders].sort()).toEqual([
-      "components/ForgeHtml.tsx", "components/IntegrationSplit.tsx", "components/RadarSplitter.tsx", "components/RadioMap.tsx",
-      "components/RadioPanel.tsx", "components/ReleaseNotesModal.tsx", "components/ToolAuditSplitter.tsx",
-      "components/forge/DetailJobs.tsx", "jira-html.tsx",
+      "components/CostTip.tsx", "components/ForgeHtml.tsx", "components/IntegrationSplit.tsx", "components/RadarSplitter.tsx", "components/RadioMap.tsx",
+      "components/RadioPanel.tsx", "components/RailEdge.tsx", "components/ReleaseNotesModal.tsx", "components/SideColumn.tsx", "components/ToolAuditSplitter.tsx",
+      "components/chat/ChatView.tsx", "components/forge/DetailJobs.tsx", "components/terminal/SplitDivider.tsx", "jira-html.tsx",
     ]);
+    const paneLine = code(readFileSync(`${web}components/terminal/SplitDivider.tsx`, "utf8"));
+    expect([...paneLine.matchAll(/tabIndex=/g)], "one stop, on the separator").toHaveLength(1);
+    expect(paneLine).toMatch(/role="separator"\s+tabIndex=\{0\}/);
+    const side = code(readFileSync(`${web}components/SideColumn.tsx`, "utf8"));
+    expect([...side.matchAll(/tabIndex=/g)], "two stops, one on each separator").toHaveLength(2);
+    expect([...side.matchAll(/role="separator" tabIndex=\{0\}/g)]).toHaveLength(2);
+    // CHANGED ON PURPOSE: the region's name now comes from the catalog (board.chat.conversation), not a literal.
+    expect(code(readFileSync(`${web}components/chat/ChatView.tsx`, "utf8"))).toMatch(/className="chat-body"\s+role="region"\s+aria-label=\{t\("board\.chat\.conversation"\)\}\s+tabIndex=\{0\}/);
     expect(code(readFileSync(`${web}components/ReleaseNotesModal.tsx`, "utf8"))).toMatch(/<section className="modal-body" role="region" aria-label=\{t\("shell\.notes\.region"\)\} tabIndex=\{0\}>/);
     expect(code(readFileSync(`${web}jira-html.tsx`, "utf8"))).toMatch(/tabIndex=\{0\} role="region" aria-label=\{translateNow\("integrations\.html\.table"\)\}/);
     expect(code(readFileSync(`${web}components/forge/DetailJobs.tsx`, "utf8"))).toMatch(/<pre[^>]*className="fd-log" tabIndex=\{0\} role="region" aria-label=/);
@@ -402,6 +428,9 @@ describe("nothing else in the deck invents a focus stop", () => {
     const map = code(readFileSync(`${web}components/RadioMap.tsx`, "utf8"));
     expect(map).toContain("tabIndex={0}");
     expect(map).not.toMatch(/tabIndex=\{[1-9]/);
+    const splitter = code(readFileSync(join(web, SPLITTER), "utf8"));
+    expect([...splitter.matchAll(/tabIndex=/g)], "one stop, on the separator").toHaveLength(1);
+    expect(splitter).toMatch(/role="separator"[^>]*?tabIndex=\{0\}/);
   });
 
   it("keeps negative tabIndex only on deliberate programmatic focus targets", () => {
@@ -437,7 +466,11 @@ describe("nothing else in the deck invents a focus stop", () => {
     // item page takes focus when the row that opened it goes out of sight —
     // behind the drill-in screen, or on the page a link replaced
     // (forge/DetailParts.tsx).
-    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/IntegrationConnectionDetails.tsx", "components/IntegrationsSection.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/QuickOpen.tsx", "components/RadioFilter.tsx", "components/SettingsSearch.tsx", "components/SkillInspector.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/forge/DetailParts.tsx", "components/forge/RepoPicker.tsx"]);
+    // CHANGED ON PURPOSE: a tracker dialog's keyboard resize band
+    // (DialogResize.tsx) is a destination too. The Size menu's "Resize with the
+    // keyboard" moves focus onto it so the arrows reach it; it is never a Tab
+    // stop, and leaving it ends the mode.
+    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/DialogResize.tsx", "components/IntegrationConnectionDetails.tsx", "components/IntegrationsSection.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/QuickOpen.tsx", "components/RadioFilter.tsx", "components/SettingsSearch.tsx", "components/SkillInspector.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/forge/DetailParts.tsx", "components/forge/RepoPicker.tsx"]);
     expect(code(readFileSync(join(web, "components/forge/RepoPicker.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/forge/DetailParts.tsx"), "utf8"))).toMatch(/<article ref=\{ref\} className="fd"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/JiraIssueDetail.tsx"), "utf8"))).toMatch(/<h2 id="jira-detail-title" tabIndex=\{-1\}/);
@@ -446,16 +479,15 @@ describe("nothing else in the deck invents a focus stop", () => {
     expect(code(readFileSync(join(web, "components/QuickOpen.tsx"), "utf8"))).toMatch(/role="listbox"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/CanvasMain.tsx"), "utf8"))).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/TelemetryCapture.tsx"), "utf8"))).toMatch(/<section className="tr-inspector"[^>]*tabIndex=\{-1\}/);
+    expect(code(readFileSync(join(web, "components/DialogResize.tsx"), "utf8"))).toMatch(/className="ig-rs-keys"[^>]*tabIndex=\{-1\}/);
   });
 
   it("has no role=\"button\" left that a keyboard cannot operate", () => {
-    // The ribbon's × was one: a role="button" labelled "Deselect", nested
-    // inside the ribbon's own <button> — where a button may not go — and with
-    // no tabIndex, so no keyboard could ever reach it. Escape carries the same
-    // verb from anywhere, so the × is decoration with a click on it.
+    // The ribbon's × was one (a role="button" nested in a button, with no
+    // tabIndex). The ribbon is gone with its × (V4's Figma);
+    // Escape carries the same verb from anywhere.
     // The topbar's readout group moved out of App.tsx, so the sweep reads it too.
     expect(code(app) + "\n" + code(readFileSync(join(web, "components/TopbarReadouts.tsx"), "utf8"))).not.toMatch(/role="button"/);
-    expect(app).toMatch(/aria-hidden\s*\n\s*className="selected-close"/);
   });
 });
 

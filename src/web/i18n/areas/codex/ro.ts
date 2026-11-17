@@ -33,19 +33,21 @@ const catalog: Catalog = {
 
   // The row's voice (codex-accounts.ts CODEX_VOICE)
   "codex.row.liveTitle": "Contul implicit pentru sesiunile noi",
+  "codex.row.defaultWord": "implicit",
+  "codex.row.notChecked": "Cota nu a fost verificată încă",
   "codex.row.liveSpoken": "Cont implicit:",
   "codex.row.readBy": "Când a citit ccdeck ultima oară utilizarea acestui cont",
   "codex.row.readPlan": "Când a citit ccdeck ultima oară utilizarea acestui cont și când plănuiește s-o citească din nou: în fiecare minut pentru contul implicit și la cinci minute pentru celelalte, cât timp acest panou este deschis. Sunt limitele raportate de Codex pentru cont, deci un plan cu o singură fereastră arată o singură bară.",
   "codex.row.readPlanNamed": "Plan {plan}. {rest}",
   "codex.row.neverRead": "ccdeck nu a citit încă acest cont",
   "codex.row.switchWaiting": "Așteptăm uneltele în desfășurare sau răspunsul necesar înainte de schimbarea contului.",
+  "codex.row.switchWaitingUsing": "Se folosește încă {account}. Contul se schimbă după ce se termină uneltele în desfășurare sau răspunsul necesar.",
   "codex.row.childrenResuming": "Contul a fost schimbat. Așteptăm reluarea subagenților.",
   "codex.row.continueUnconfirmed": "Reluarea automată nu a putut fi confirmată; verifică conversația înainte să continui.",
   "codex.row.reading": "Se citește utilizarea…",
   "codex.lane.limit": "limită",
   "codex.peer.account": "contul {n}",
   "codex.peer.heldOut": "scos din rotație",
-  "codex.order.added": "Ordinea adăugării",
 
   // What can be wrong with an account (codexIssue)
   "codex.issue.notSignedIn": "Neautentificat",

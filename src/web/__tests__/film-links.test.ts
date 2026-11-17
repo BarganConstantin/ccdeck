@@ -52,15 +52,16 @@ describe("the link itself", () => {
   const html = renderToStaticMarkup(createElement(FilmLink, { film: "usage" }));
 
   it("is a plain link to a new tab, holding nothing of this page", () => {
-    expect(html).toMatch(/^<a class="film-link" /);
+    expect(html).toMatch(/^<a class="film-link film-icon" /);
     expect(html).toContain(linkTo("usage"));
     expect(html).toContain('target="_blank"');
     expect(html).toContain('rel="noopener noreferrer"');
   });
 
-  it("starts its name with the words on screen and says where the press goes", () => {
-    const name = html.replace(/<[^>]+>/g, "");
-    expect(name.startsWith("Watch · 30 s")).toBe(true);
+  it("uses an icon with a full accessible name and destination", () => {
+    const name = /aria-label="([^"]+)"/.exec(html)![1];
+    expect(html).toContain("<svg");
+    expect(html).not.toContain("Watch · 30 s");
     expect(name).toContain("ccdeck.dev");
     expect(name).toContain("opens in your browser");
   });
@@ -82,17 +83,34 @@ describe("each place draws its film", () => {
     expect(html).not.toContain("film-link");
   });
 
-  it("the Usage panel, on its last line", () => {
+  // CHANGED ON PURPOSE (critique 3, one meaning per glyph): a panel header
+  // draws no ▷ any more, which read as "run" beside + and ↻. The film is the
+  // ⓘ's menu item there (v4-panel-info.test.tsx opens it), so these two pin
+  // the ⓘ in the header and the film it is handed.
+  it("the Usage panel, in its header, behind ⓘ", () => {
     const html = renderToStaticMarkup(createElement(UsagePanel, {
       state: initialState(), now: 0, providers: ASSUMED, onClose: noop,
     }));
-    expect(html).toContain(linkTo("usage"));
-    expect(html.indexOf(linkTo("usage"))).toBeGreaterThan(html.indexOf('class="up-empty"'));
+    const info = html.indexOf('class="glyph-btn panel-info"');
+    expect(info).toBeGreaterThan(-1);
+    expect(info).toBeLessThan(html.indexOf('class="up-body"'));
+    expect(html).toMatch(/class="glyph-btn panel-info" aria-label="About Usage" title="About Usage" aria-haspopup="menu" aria-expanded="false"/);
+    expect(html).not.toContain("film-icon");
+    expect(read("../components/UsagePanel.tsx")).toMatch(/<PanelInfo film="usage" panel=\{t\("usage\.title"\)\} \/>/);
   });
 
-  it("the Claude accounts column, before any roster has arrived", () => {
+  // CHANGED ON PURPOSE (V4 top-10 #10): the Claude accounts film was the ⓘ's
+  // menu item → it is an item of the header's ⋯ "More actions" menu, because
+  // the ⓘ was one of five icons that wrapped the header onto two lines. The
+  // menu is opened, and its film item followed, in v4-read-less-accounts.test.ts.
+  it("the Claude accounts column, behind ⋯, before any roster has arrived", () => {
     const html = renderToStaticMarkup(createElement(AccountsPanel, { onClose: noop }));
-    expect(html).toContain(linkTo("claudeAccounts"));
+    expect(html).not.toContain("panel-info");
+    expect(html).toMatch(/aria-label="More actions" title="More actions" aria-haspopup="menu" aria-expanded="false"/);
+    expect(html).not.toContain("film-icon");
+    const header = read("../components/AccountsHeader.tsx");
+    expect(header).toContain("href={FILMS.claudeAccounts.href}");
+    expect(header).toContain('t("shell.film.watchMenu", { duration: t("shell.film.duration") })');
   });
 
   it("Local network while it is off, beside `See how it works`", () => {
@@ -106,6 +124,9 @@ describe("each place draws its film", () => {
 
   it("Local network while it is on with no other deck, beside `How it works`", () => {
     expect(read("../components/LanSyncSection.tsx"))
-      .toMatch(/className="ap-lan-word ap-lan-how"[^\n]*\n\s*\{t\("lan\.sync\.how"\)\}\s*<\/button>\s*<FilmLink film="localNetwork" \/>/);
+      // CHANGED ON PURPOSE (V4's Figma): `How it works` is the kit's outlined
+      // button now, not a bare word; where it opens and the film beside it
+      // are unchanged.
+      .toMatch(/className="btn ap-lan-how"[^\n]*\n\s*\{t\("lan\.sync\.how"\)\}\s*<\/button>\s*<FilmLink film="localNetwork" \/>/);
   });
 });

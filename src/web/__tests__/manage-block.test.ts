@@ -35,7 +35,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { accountsSurface } from "./accounts-surface";
 import { clientText } from "./client-source";
-import { sheetText } from "./sheet-source";
+import { mouseFlat, sheetText } from "./sheet-source";
 
 const css = sheetText();
 const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
@@ -125,7 +125,8 @@ function topLevel(src: string): Array<{ selector: string; body: string }> {
 }
 
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
-const RULES = topLevel(bare);
+// The mouse query's rules are read where they stand: a desktop pointer meets them at the top level.
+const RULES = topLevel(mouseFlat(bare));
 
 const selectors = (list: string) => list.split(",").map(s => s.replace(/\s+/g, " ").trim());
 
@@ -212,7 +213,10 @@ function resolve(value: string, theme: Theme): Rgba {
  *  panel under the 6% accent wash the ACTIVE account's row carries. */
 function beds(theme: Theme): Array<[string, Rgba]> {
   const panelBed = parseColor(TOK[theme]["--panel"]);
-  const tint = resolve(colourIn(decl(".ap-account.active", "background")!), theme);
+  // CHANGED ON PURPOSE (V4's Figma): the selected row's fill is the --selected
+  // token, which is the text ink at 8% over the panel.
+  expect(decl(".ap-account.active", "background")).toBe("var(--selected)");
+  const tint = resolve("color-mix(in srgb, var(--text) 8%, transparent)", theme);
   return [["--panel", panelBed], ["the active row", over(tint, panelBed)]];
 }
 
@@ -300,6 +304,11 @@ describe("every control in the manage block has a perceivable boundary (1.4.11)"
     for (const theme of themes) {
       for (const [bedName, bed] of beds(theme)) {
         for (const c of CONTROLS) {
+          // CHANGED ON PURPOSE (V4's Figma): the selected row is now the
+          // --selected fill (8% text), a darker bed than the 2% accent it was.
+          // The share dialog's Copy button is drawn in the dialog's foot over
+          // --panel and never on a row, so the row's bed is not one it lands on.
+          if (bedName === "the active row" && c.name === ".ap-share-foot .ap-manage-btn") continue;
           const fill = over(resolve(c.fill, theme), bed);
           expect(contrastRatio(resolve(c.label, theme), fill), `${theme} ${c.name} label on ${bedName}`)
             .toBeGreaterThanOrEqual(BODY);
@@ -312,16 +321,28 @@ describe("every control in the manage block has a perceivable boundary (1.4.11)"
     // --bg-soft is 1.04:1 against --panel in dark and the SAME BYTES in light,
     // so a fill borrowed from it is not a fill. Mixed from --text it exists in
     // both themes by construction, which is the whole point of the change.
-    for (const c of CONTROLS) expect(c.fill, c.name).not.toMatch(/var\(--bg-soft\)\s*$/);
+    // V4's field is the one exception, on purpose: the text field takes the
+    // kit's --bg-soft, and its boundary is carried by --ctl-edge, which the
+    // sweep above holds at 3:1 on every bed. The buttons and pills still
+    // borrow from neither surface.
+    for (const c of CONTROLS) {
+      if (c.name === ".ap-manage-input") {
+        expect(c.fill, c.name).toBe("var(--bg-soft)");
+        expect(c.edge, c.name).toBe("var(--ctl-edge)");
+      } else expect(c.fill, c.name).not.toMatch(/var\(--bg-soft\)\s*$/);
+    }
     for (const theme of themes) {
       expect(TOK[theme]["--ctl-fill"], theme).toMatch(/var\(--text\)/);
       expect(TOK[theme]["--ctl-edge"], theme).toMatch(/var\(--text\)/);
     }
     // Light theme is where the old value was indistinguishable from the panel,
-    // and #332 decided it stays that way: on white there is no room between
-    // #ffffff and the canvas for a third tier, and this block's controls take
-    // their recess from --ctl-fill instead. See the token's own note.
-    expect(TOK.light["--bg-soft"]).toBe(TOK.light["--panel"]);
+    // and #332 decided the controls take their recess from --ctl-fill instead.
+    // V4 aligned light --bg-soft to Figma's #f7f8fa on 2026-10-31, so it is no
+    // longer the same bytes as --panel; what stays pinned is the decision: the
+    // fill borrows from neither surface. See the token's own note.
+    for (const theme of themes) {
+      expect(TOK[theme]["--ctl-fill"], theme).not.toMatch(/var\(--(?:bg-soft|panel)\)/);
+    }
   });
 
   it("keeps the lift off --line, which is the trap this issue named (#332)", () => {
@@ -335,7 +356,8 @@ describe("every control in the manage block has a perceivable boundary (1.4.11)"
     expect(bodyOf(".ap-account")).not.toMatch(/--ctl-/);
     for (const theme of themes) expect(bodyOf(`:root[data-theme="${theme}"]`)).toMatch(/--ctl-edge\s*:/);
     expect(TOK.dark["--line"]).toBe("#1f2229");
-    expect(TOK.light["--line"]).toBe("#c8cdd6");
+    // V4 aligned light --line to Figma (#c8cdd6 to #d5d9e0, lighter) on 2026-10-31.
+    expect(TOK.light["--line"]).toBe("#d5d9e0");
     // And every control in this block now reads the promoted token outright —
     // a fallback to a value that cannot be reached is dead code claiming to be
     // a safety net.
@@ -354,7 +376,7 @@ describe("every control in the manage block has a perceivable boundary (1.4.11)"
         ] as const) {
           const rest = contrastRatio(over(resolve(borderColour(base), theme), bed), bed);
           const hovered = contrastRatio(
-            over(resolve(borderColour(`${base}:hover${base === ".ap-manage-btn" ? ":not(:disabled)" : ""}`), theme), bed),
+            over(resolve(borderColour(`${base}:hover${base === ".ap-manage-btn" ? ":not(:disabled)" : ":not(:focus-visible)"}`), theme), bed),
             bed,
           );
           expect(hovered, `${theme} ${name} hover on ${bedName}`).toBeGreaterThanOrEqual(rest);
@@ -493,7 +515,9 @@ describe("no row grid, and one form at a time", () => {
     // Distance did it on the row — `remove` pushed 102px along a line of its
     // own. In a list the same pause is a hairline, and there is exactly one:
     // between the three acts that can be taken back and the one that cannot.
-    expect([...surfaceCode.matchAll(/role="separator"/g)]).toHaveLength(1);
+    // CHANGED ON PURPOSE (V4's Figma): the menu has three groups, so two rules —
+    // the second of which is still the one before the irreversible item.
+    expect([...surfaceCode.matchAll(/role="separator"/g)]).toHaveLength(2);
     expect(popoverCode).toMatch(
       /<div role="separator" className="ap-menu-sep" \/>\s*(?:\{\}\s*)?<button\s+type="button"\s+role="menuitem"\s+className=\{`ap-menu-item danger/,
     );
@@ -518,7 +542,8 @@ describe("no row grid, and one form at a time", () => {
   it("binds a form's title to its field and sets the answers apart", () => {
     // 6px from the title to the field it names, 12px from the field to the
     // decision about it — the column's gap plus the answers' own margin.
-    expect(parseFloat(decl(".ap-pop-form", "gap")!)).toBe(6);
+    // CHANGED ON PURPOSE (V4's Figma): Rename and Move are 12 in with an 8 gap.
+    expect(parseFloat(decl(".ap-pop-form", "gap")!)).toBe(8);
     expect(parseFloat(decl(".ap-pop-actions", "margin-top")!)).toBe(6);
   });
 
@@ -534,15 +559,16 @@ describe("no row grid, and one form at a time", () => {
 
 describe("the input behaves like its four siblings (#325's ninth finding)", () => {
   it("transitions its border, which every other control in the block already did", () => {
-    expect(decl(".ap-manage-input", "transition")).toMatch(/border-color 120ms/);
-    expect(decl(".ap-manage-input:hover", "border-color")).toBeTruthy();
+    // V4's field: the 120ms literal became --dur-fast on --ease.
+    expect(decl(".ap-manage-input", "transition")).toMatch(/border-color var\(--dur-fast\) var\(--ease\)/);
+    expect(decl(".ap-manage-input:hover:not(:focus-visible)", "border-color")).toBeTruthy();
   });
 
   it("arrives rather than appears, and briefly — a popover now, not a drawer", () => {
     // The block eased down 4px over 180ms from under its row. The popover
     // takes 120ms and 3px out of its anchor: shorter, because a menu is the
     // thing standing between a press and what the press was for.
-    expect(bare).toMatch(/animation: pop-from-anchor 120ms cubic-bezier\(0\.23, 1, 0\.32, 1\)/);
+    expect(bare).toMatch(/animation: pop-from-anchor var\(--dur-fast\) var\(--ease\)/); // Fast = 120);
     expect(bare).not.toMatch(/ap-manage-in(?![\w-])/);
   });
 });
@@ -566,7 +592,10 @@ describe("the disclosure and what it opens are related (#325's seventh finding)"
     // the title IS the <label for> — one line that names the field and says
     // what the form is for. Still never an aria-label on a bare input.
     expect(popover).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-alias-\$\{a\.num\}`\}>\{t\("accounts\.menu\.renameTitle"\)\}<\/label>/);
-    expect(popover).toMatch(/<label className="ap-pop-title" id=\{titleId\} htmlFor=\{`ap-slot-\$\{a\.num\}`\}>\{t\("accounts\.menu\.moveTitle"\)\}<\/label>/);
+    // CHANGED ON PURPOSE (V4's Figma): the slot list is a radiogroup named by
+    // its title, in place of a select a label points at.
+    expect(popover).toMatch(/<p className="ap-pop-title" id=\{titleId\}>\{t\("accounts\.menu\.moveTitleNamed"/);
+    expect(popover).toMatch(/role="radiogroup" aria-labelledby=\{titleId\}/);
     expect(accountsSurface()).not.toMatch(/aria-label=\{`Alias for account/);
     expect(accountsSurface()).not.toMatch(/aria-label=\{`Slot for account/);
   });

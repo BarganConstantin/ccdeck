@@ -1,57 +1,61 @@
-// The words on a session's cluster header: the workspace it runs in, what
-// Claude Code calls it, and — when two sessions share a workspace — four
-// characters of its id, each cut to the column the card beside it cuts at.
+// The words on a session's cluster header: the folder it runs in and what the
+// session is called when that is something else, each cut to the column the
+// card beside it cuts at, with when it started and its id's tail kept for the
+// tooltip.
 //
-// Lifted out of components/SessionClusters.tsx unchanged. None of it touches
-// React or the canvas: clusterBounds asks clusterHeader for the three fields
-// when it builds a cluster, and the component draws them with SEP.
+// Lifted out of components/SessionClusters.tsx. None of it touches React or
+// the canvas: clusterBounds asks clusterHeader for the fields when it builds a
+// cluster, and the component draws them with SEP.
 import { distinctIdTail } from "./session-id-tail";
 import { t, type TFunction } from "./i18n";
+import { sameWords, startedLine } from "./rail-row-copy";
 
 /**
- * The three fields a cluster header draws, kept apart rather than joined into
- * one string, because they are not three things of one kind.
+ * The two fields a cluster header draws, kept apart rather than joined into
+ * one string, because they are not two things of one kind.
  *
- * `label` and `shortId` are the session ADDRESS: the workspace it runs in and,
- * when two sessions share that workspace, four characters of its id. `name` is
- * a DESCRIPTION — Claude Code rewrites it as the conversation moves and two
- * sessions may hold the same one, which is exactly why it cannot take the id
- * over. The sheet draws the two address fields uppercase and the name in its
- * own case, and it can only do that if they arrive here separately.
+ * `label` is the session's ADDRESS, the folder it runs in; `name` is its title
+ * (rail-row-copy.ts sessionNames), the name the user gave it or Claude Code's.
+ * The sheet draws the folder uppercase and the name in its own case, and it can
+ * only do that if they arrive here separately.
+ *
+ * CHANGED ON PURPOSE (owner's critique, 2026-11-11): two sessions in one folder
+ * were told apart by four characters of the id on the pill ("CCDECK · 2886"),
+ * which no other surface said. The id and the start time are in the tooltip.
  */
 export interface ClusterHeader {
   /** Workspace basename. Always present, always drawn first. */
   label: string;
-  /** What Claude Code calls the session — its `agent-name` when it has one and
-   *  its `ai-title` when it does not, the same choice the card makes, truncated
-   *  to NAME_COLUMNS. Absent when there is neither: a Codex session, or a Claude
-   *  one too young to have been named. */
+  /** What the session is called — the user's name for it, else Claude Code's
+   *  title — truncated to NAME_COLUMNS. Absent when there is neither, or when
+   *  it only says the folder again. */
   name?: string;
-  /** The last four characters of the session id, or as many more as it takes
-   *  to differ from the other sessions under the label. Present ONLY when
-   *  another cluster carries the same workspace label; a name never replaces
-   *  it. */
-  shortId?: string;
-  /** The same three fields on one line with nothing truncated — the line the
-   *  tooltip is built on, which is where a cut name is recovered. */
+  /** The two fields on one line with nothing truncated — the line the tooltip
+   *  is built on, which is where a cut name is recovered. */
   fullLabel: string;
   /** The pill's tooltip: everything the pill says, whole and in the order it
    *  draws it — the words a screen reader hears for a session waiting on you,
-   *  the workspace, the plan, the subagents' summary, the name, the id — and
-   *  then what a press does. The pill ellipsises at its gutter and at the
-   *  pane's edge, and this is where the cut part is read back. */
+   *  the workspace, the plan, the subagents' summary, the name — then when the
+   *  session started with its id's tail, and what a press does. The pill
+   *  ellipsises at its gutter and at the pane's edge, and this is where the cut
+   *  part is read back. */
   title: string;
-  /** The whole workspace, and the fields after the plan (branch, name, id)
-   *  already joined: what `clusterTooltip` needs to word the tooltip again in
-   *  the language on show without rebuilding the header. */
+  /** The whole workspace, and the fields after the plan (branch, name) already
+   *  joined: what `clusterTooltip` needs to word the tooltip again in the
+   *  language on show without rebuilding the header. */
   tipWorkspace: string;
   tipRest: string;
+  /** When the session started, and as much of its id's tail as tells it from
+   *  every other session on the board: the tooltip's second line. */
+  startedAt?: number;
+  idTail: string;
 }
 
 /** The pill's tooltip for a header, in the language `tr` speaks. */
-export function clusterTooltip(h: { alarm?: boolean; tipWorkspace: string; tipRest: string; planLine?: string }, tr: TFunction = t): string {
+export function clusterTooltip(h: { alarm?: boolean; tipWorkspace: string; tipRest: string; planLine?: string; startedAt?: number; idTail?: string }, tr: TFunction = t): string {
   const whole = [h.tipWorkspace, h.planLine ? tr("board.cluster.plan", { plan: h.planLine }) : undefined, h.tipRest || undefined].filter(Boolean).join(SEP);
-  return `${h.alarm ? tr("board.cluster.waitingOnYou") : ""}${whole}\n${tr("board.cluster.zoomTo")}\n${tr("board.cluster.dragWrapper")}`;
+  const started = h.startedAt != null && h.idTail ? `${startedLine(h.startedAt, h.idTail, Date.now(), tr)}\n` : "";
+  return `${h.alarm ? tr("board.cluster.waitingOnYou") : ""}${whole}\n${started}${tr("board.cluster.zoomTo")}\n${tr("board.cluster.dragWrapper")}`;
 }
 
 /** The separator between two header fields. One glyph for all of them — see
@@ -152,42 +156,33 @@ export function truncateName(name: string, budget = NAME_COLUMNS): string {
 }
 
 /**
- * The header, as three fields rather than as one string.
- *
- * Pure, and separately testable, because there are four shapes it has to draw
- * deliberately and only one of them is the common case:
+ * The header, as two fields rather than as one string: the folder, and the
+ * session's title when it is not the folder.
  *
  *     VCRM-CORE
  *     VCRM-CORE · account-management-oauth-flow
- *     VCRM-CORE · 4EFA
- *     VCRM-CORE · account-management-oauth-flow · 4EFA
  *
- * The id keeps the condition it has always had — it appears when a second
- * cluster carries the same workspace label, and not otherwise. A name does not
- * earn it and does not excuse it: two sessions in one workspace can be named
- * the same thing, so the name cannot do the job the id is there to do.
- *
- * It is the id's last four characters, and more when one of `peers` — the
- * other sessions under this workspace label — ends the same way. It used to be
- * the first four, and a Codex id is a UUIDv7 that opens with its timestamp, so
- * two Codex sessions in one repo both read `· 01A0` for seven weeks at a time
- * (#1732). See session-id-tail.ts.
+ * Two sessions in one folder with no title of their own read alike on the pill
+ * and apart in its tooltip: when each started and the tail of its id, as much
+ * of it as `peers` (the other sessions on the board) leave it needing. The
+ * tail, because a Codex id is a UUIDv7 that opens with its timestamp (#1732;
+ * see session-id-tail.ts).
  */
 export function clusterHeader(
   workspace: string,
   name: string | undefined,
   sessionId: string,
-  collides: boolean,
   peers: readonly string[] = [],
-  { branch, plan, alarm = false }: { branch?: string; plan?: string; alarm?: boolean } = {},
+  { branch, plan, alarm = false, startedAt }: { branch?: string; plan?: string; alarm?: boolean; startedAt?: number } = {},
 ): ClusterHeader {
-  const named = name?.trim() ?? "";
-  const id = collides ? distinctIdTail(sessionId, peers) : undefined;
-  const fields = [workspace, named || undefined, id].filter(Boolean) as string[];
+  const trimmed = name?.trim() ?? "";
+  const named = trimmed && !sameWords(trimmed, workspace) ? trimmed : "";
+  const idTail = distinctIdTail(sessionId, peers);
+  const fields = [workspace, named || undefined].filter(Boolean) as string[];
   // The pill draws the plan and the subagents' summary between the workspace
   // and the name, and says "waiting on you: " first for a screen reader; the
   // tooltip reads the same run, with the plan's step whole.
-  const tipRest = [branch, named || undefined, id].filter(Boolean).join(SEP);
+  const tipRest = [branch, named || undefined].filter(Boolean).join(SEP);
   return {
     // THE LAST UNBOUNDED STRING ON THE HEADER, and it is capped by the same
     // ruler as the name beside it. The note above records that a long
@@ -202,11 +197,12 @@ export function clusterHeader(
     // in `fullLabel` and in the tooltip built on it.
     label: truncateName(workspace),
     name: named ? truncateName(named) : undefined,
-    shortId: id,
     fullLabel: fields.join(SEP),
-    title: clusterTooltip({ alarm, tipWorkspace: workspace, tipRest, planLine: plan }),
+    title: clusterTooltip({ alarm, tipWorkspace: workspace, tipRest, planLine: plan, startedAt, idTail }),
     tipWorkspace: workspace,
     tipRest,
+    ...(startedAt != null ? { startedAt } : null),
+    idTail,
   };
 }
 

@@ -15,8 +15,8 @@
      camera at all and every child folded the viewport into its own left, top,
      width and height instead — four properties .cluster-card eases over 320ms,
      so a pan or a zoom put four eased layout properties through 60 rewrites a
-     second and the tinted box arrived a third of a second after the nodes it is
-     drawn around. One transform on the parent cannot drift from the one React
+     second and the box arrived a third of a second after the nodes it is drawn
+     around. One transform on the parent cannot drift from the one React
      Flow writes to its own viewport, because both are the same three numbers —
      x, y and zoom — applied once. On a live deck the two now read back as the
      same matrix to three decimal places.
@@ -42,8 +42,8 @@
    nodes, so at the same -1 it is drawn and hit above the handle and below
    every card, and a card a name overlaps still takes its own click. The layer
    lets the pointer through to the pane around the names, and .cluster-label
-   takes it back on the pill alone. No transform: the viewport's own is the
-   camera, so the pills sit where they sat in .session-clusters. */
+   takes it back on the label alone. No transform: the viewport's own is the
+   camera, so the labels sit where they sat in .session-clusters. */
 .cluster-labels {
   position: absolute;
   top: 0;
@@ -51,42 +51,28 @@
   z-index: -1;
   pointer-events: none;
 }
-/* --session-hue is the only thing SessionClusters still sets on these two: the
-   fallback exists so a card that somehow renders without one paints a colour
-   rather than dropping the declaration on the floor as invalid-at-computed-
-   value-time. The 4% wash keeps a single lightness in both themes on purpose —
-   at that alpha it composites to 1.01:1 either way, so a light tier would be
-   arithmetic with nothing on the other side of it. */
+/* A SESSION'S BOX IS A QUIET GROUP, NOT A FRAME (V4 top-10 #1). A card is
+   framed once, by its own edge. The box drew a second frame round it, a rim
+   and a wash in the session's hashed hue, a colour that said nothing; it is a
+   3% wash of the reading ink now, with no border, so it groups a session's
+   cards without competing with them, on the dark canvas and the light one
+   alike. Its geometry is the layout's (session-chrome.ts) and does not move. */
 .cluster-card {
   position: absolute;
   border-radius: var(--r-cluster);
-  border: 1px solid hsl(var(--session-hue, 200) 65% var(--session-rim-l) / 0.32);
-  background: hsl(var(--session-hue, 200) 70% 50% / 0.04);
-  /* All four are kept, and all four are now worth keeping, because since #353
-     they are layout coordinates rather than screen coordinates: the camera is
-     applied once by .session-clusters above and never reaches these numbers, so
-     the only thing that can change one of them is the layout changing — a
-     session gaining a node, losing one, or being pushed aside by a neighbour
-     that grew. That is the move this easing was written for. It is also the one
-     move the box cannot make on its own account: SessionClusters reads each
-     node's FINAL position out of the React Flow store the frame the layout
-     changes, while the nodes themselves are still easing their transform over
-     the 320ms .react-flow__node gives them, so without a matching 320ms on the
-     same curve the box would snap to the new bounding box a third of a second
-     ahead of the cards inside it. Deleting these four would have cured a lag by
-     introducing a lead. The curve and the duration are .react-flow__node's, on
-     purpose — the box and its nodes are one movement or they are two.
-
-     The drag case is the exception and it is answered by
-     .canvas-wrap.dragging-any below, next to the identical answer the nodes
-     get, because a gesture that follows the cursor must not ease at all. */
-  /* The position rides the compositor since #864: SessionClusters writes it
-     as a translate in layout space, so the same 320ms move no longer runs
-     through left and top. The size stays width and height, which change only
-     when a session gains or loses a node. */
-  transition: opacity 200ms ease, transform 320ms cubic-bezier(0.22,1,0.36,1),
-              width 320ms cubic-bezier(0.22,1,0.36,1),
-              height 320ms cubic-bezier(0.22,1,0.36,1);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+  /* THE BOX MOVES WITH ITS CARDS, AND ONLY MOVES (V4's motion rule 4: transform
+     and opacity). Since #353 the box's numbers are layout coordinates, and since
+     #864 its position is a translate in layout space, so a session pushed aside
+     or re-arranged carries its box on the same Slow, stage-curve transform its
+     cards take (react-flow.css), armed the same way, held the same way when a
+     neighbour has just left (canvas-motion.css). The size is width and height,
+     which are not animated: the box takes its new size at once, which is what
+     it does when a session gains or loses a card, and the cards glide to
+     their places inside it. It used to ease both over 320ms. */
+  --node-armed: 0;
+  transition: opacity var(--dur-base) var(--ease), transform calc(var(--node-armed) * var(--dur-slow)) var(--ease-stage);
+  animation: node-arm 1ms steps(1, end) 600ms forwards;
   overflow: visible;
   /* The wrapper itself is a drag handle — grab the background behind the nodes
      to move the whole session. Nodes sit above this layer, so clicking/dragging
@@ -94,7 +80,7 @@
   pointer-events: auto;
   cursor: grab;
 }
-/* A button, and only a button (#546). This pill used to declare `cursor: grab`
+/* A button, and only a button (#546). This label used to declare `cursor: grab`
    and `touch-action: none` — the two halves of a drag affordance — over an
    element that has never had a drag: SessionClusters renders it as a plain
    <button> whose one handler is onClick={() => focusSession(...)}, and the
@@ -110,25 +96,24 @@
    `user-select: none` stays and is not part of that story: it keeps a
    double-click on a button from selecting the workspace name instead of
    pressing it, which is true of every button here whether or not anything
-   drags. */
+   drags.
+
+   PLAIN TEXT, NOT A PILL (V4 top-10 #1): the folder as it is written, in the
+   UI face at 12px and --muted, with no border, no plate and no capitals. It
+   was an uppercase mono pill in the session's hue, a third frame over the box
+   and the card. 2px at its sides, so its words start where the cards below
+   them start (LABEL_INDENT 16 + 2 = PAD 18). */
 .cluster-label {
-  font-family: var(--font-mono);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 3px 10px;
-  border-radius: 999px;
-  /* NO PLATE. It filled itself with --bg — a colour DARKER than the canvas it
-     floats on — so a caption for a frame was punched out as a solid object in
-     front of it. A hue-bordered pill on a hue-washed card does not need to be
-     opaque to be found, and the shadow that went with it is gone for the same
-     reason: this labels the quietest object in the cluster. */
+  font-family: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  padding: 3px 2px;
+  border: 0;
+  border-radius: var(--r-ctl);
   background: transparent;
-  color: hsl(var(--session-hue, 200) 70% var(--session-label-l));
-  border: 1px solid hsl(var(--session-hue, 200) 65% var(--session-rim-l) / 0.5);
+  color: var(--muted);
   white-space: nowrap;
-  /* The other half of `max-width` (#977). SessionClusters caps the pill at its
+  /* The other half of `max-width` (#977). SessionClusters caps the label at its
      own box plus one card width of the gutter, in screen px, so that its HIT
      BOX cannot leave the session it names — `pointer-events: auto` in a layer
      that clips nothing put a click on the neighbouring cluster through to this
@@ -141,55 +126,23 @@
   cursor: pointer;
   pointer-events: auto;
   user-select: none;
-  /* Don't transition transform — it's used inline for viewport scale. */
-  transition: box-shadow 120ms ease, filter 120ms ease;
+  /* No transition: the hover below changes a colour and an underline, so a
+     pointer coming in is answered at once, as a row's is. And never on
+     transform — it is used inline for the viewport scale. */
 }
-/* The session name, between the workspace and the short id inside the same
-   pill. Same family, same size, same hue, same --session-label-l — this is
-   deliberately NOT a second text tier. The header carries two kinds of field,
-   an address (the workspace, and the four id characters that appear when two
-   sessions share it) and a description (this), and the thing that separates
-   them here is CASE: the address is drawn uppercase by .cluster-label above and
-   the name is handed back its own. A colour or an opacity would have had to
-   clear 4.5:1 again at every one of 360 hues in both themes to say what case
-   says for nothing, and the light theme has 0.07 of a point of headroom over AA
-   to spend (--session-label-l 26%, 4.57:1 worst hue). Case also survives what a
-   tier would not: half the session names measured on this machine are sentences
-   rather than kebab slugs, and a sentence uppercased beside a workspace is one
-   unreadable run.
-
-   0.02em rather than the 0.08em above, because tracking that opens uppercase
-   loosens lowercase, and it buys back 1.7px per ten characters of a field that
-   is already the widest thing in the pill. */
-/* The two qualifiers, a tier down from the workspace beside them. Weight and
-   ink carry the rank; the capitals already separated the KINDS of field, and
-   now something separates their importance too. */
+/* The qualifiers after the folder — the session's name, its plan and its
+   branch — a step down from it by weight alone, in the same --muted ink. */
 .cluster-label-name {
-  text-transform: none;
-  letter-spacing: 0.02em;
   font-weight: 400;
-  color: var(--muted);
 }
-.cluster-label-id {
-  font-weight: 400;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-}
-/* The name is the pill's only when the card cannot say it. At `detail` the
-   root card prints the same name on a row of its own, and the pill — held at
+/* The name is the label's only when the card cannot say it. At `detail` the
+   root card prints the same name on a row of its own, and the label — held at
    its own size since #846 while the cards shrink — drew the second copy larger
    than the first. At `compact` and `overview` the card is a face that gives the
-   title up first, and the pill is where the name is read. See
+   title up first, and the label is where the name is read. See
    SessionClusters.tsx. */
 .canvas-wrap[data-lod="detail"] .cluster-label-name {
   display: none;
-}
-/* A session stopped until a human answers says so on the one thing a cluster
-   draws at 1× at every zoom. The edge takes --warn, the app's "this one is on
-   you", and the triangle the faces use leads; the words are for a screen
-   reader, which cannot see either. */
-.cluster-label[data-alarm] {
-  border-color: var(--warn);
 }
 .cluster-label .alert-mark {
   width: 10px;
@@ -199,25 +152,19 @@
 }
 .cluster-label-branch {
   display: none;
-  text-transform: none;
-  letter-spacing: 0.02em;
   font-weight: 400;
   font-variant-numeric: tabular-nums;
-  color: var(--muted);
 }
 .canvas-wrap[data-lod="overview"] .cluster-label-branch { display: inline; }
 /* The plan's count (#2157), wherever the root card is a face: at `detail` the
    card draws a plan row of its own, and below it nothing else on the board
    says how far the session has got. */
 .cluster-label-plan {
-  text-transform: none;
-  letter-spacing: 0.02em;
   font-weight: 400;
   font-variant-numeric: tabular-nums;
-  color: var(--muted);
 }
 .canvas-wrap[data-lod="detail"] .cluster-label-plan { display: none; }
-/* A pill with no room to be drawn whole — above the canvas's top edge, under
+/* A label with no room to be drawn whole — above the canvas's top edge, under
    the category filter bar or the canvas's other chrome, past a side of the
    pane — is not drawn (SessionClusters, cluster-label-room.ts). Under the top
    bar it was cut through its words, and under the filter bar it was covered;
@@ -236,13 +183,27 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+/* Under the pointer the folder steps up to the reading ink and is underlined,
+   the plain-text answer to a pointer, the same in both themes. */
+@media (hover: hover) and (pointer: fine) {
 .cluster-label:hover {
-  filter: brightness(1.25);
-  box-shadow: 0 4px 14px rgba(0,0,0,0.45), 0 0 0 1px currentColor;
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
-/* `.cluster-label.dragging` used to sit here, and its light-theme twin below
-   `:root[data-color-scheme="light"] .cluster-label:hover`. Both are gone with the grab
-   cursor above, because nothing in the app has ever put `dragging` on this
+}
+/* A session stopped until a human answers says so on the one thing a cluster
+   draws at 1× at every zoom: the triangle the faces use leads, and the folder
+   takes --warn, the app's "this one is on you" (it was the pill's edge, which
+   is gone). The words are for a screen reader, which cannot see either. After
+   the hover in the sheet, so a session waiting on you keeps its --warn under
+   the pointer and gains the underline. */
+.cluster-label[data-alarm] {
+  color: var(--warn);
+}
+/* `.cluster-label.dragging` used to sit here, with a light-theme twin. Both
+   are gone with the grab cursor above, because nothing in the app has ever put
+   `dragging` on this
    element: React Flow writes that class onto `.react-flow__node-*`, and App.tsx
    writes `dragging-any` onto `.canvas-wrap`. dead-css.test.ts could not have
    told us — its class half is a fixed watchlist of retired names, so a rule
@@ -261,24 +222,4 @@
 .react-flow__node-sessionGroup:active { cursor: grabbing; }
 /* The handle is a backing node — never let it show selection/hover chrome. */
 .react-flow__node-sessionGroup.selected { box-shadow: none; }
-:root[data-color-scheme="light"] .cluster-label {
-  background: var(--bg-soft);
-  box-shadow: 0 1px 4px rgba(15,23,42,0.08);
-}
-/* brightness() above 1 is what "emphasis" means on a dark canvas and the exact
-   opposite of it here: the pill is already white so its background cannot
-   brighten, while the label — dark since #330 — walks toward the paper it sits
-   on. brightness(1.25) took the worst hue from 5.18:1 to 3.53:1, so a hover
-   would have dropped the only text in this layer under AA. Same gesture,
-   mirrored: the pill deepens instead, and the ratio goes up rather than down.
-   A hover that lowers a contrast is not a hover. */
-:root[data-color-scheme="light"] .cluster-label:hover {
-  filter: brightness(0.9);
-  /* The ring had to come back with it. `:root[data-color-scheme="light"]
-     .cluster-label` is (0,3,0) against the hover's (0,2,0), so this theme kept
-     the resting 1px/4px shadow under the pointer and the currentColor outline
-     the dark hover draws never appeared. Measured, light theme, hovered:
-     `rgba(15,23,42,0.08) 0 1px 4px` — the resting value. */
-  box-shadow: 0 4px 14px rgba(15,23,42,0.16), 0 0 0 1px currentColor;
-}
 

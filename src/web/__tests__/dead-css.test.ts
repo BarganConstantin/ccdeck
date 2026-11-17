@@ -64,6 +64,39 @@ const readInCss = new Set([...rules.matchAll(/var\(\s*(--[\w-]+)/g)].map(m => m[
  *  a comment about a rule is not a rule. */
 const readInTsx = new Set([...withoutComments(tsx).matchAll(/var\(\s*(--[\w-]+)/g)].map(m => m[1]));
 
+/** V4's tokens (its Figma variables, text styles and overlay shadow) that
+ *  Phase 1's first two PRs declare ahead of the components that read them: the
+ *  build order lands the whole ladder first, and the button, field, menu,
+ *  dialog, bars and Settings rows of the PRs after them read it. Only these
+ *  names, and only while nothing reads them — a name that gains a reader fails
+ *  the check below until it leaves this list, so the list only shrinks, to
+ *  nothing once every one has its reader. --ease, --ease-stage and --dur-move
+ *  are not here: the curves and the left column read them already. */
+const V4_AHEAD_OF_READERS = [
+  "--muted-30", "--secondary-30", "--warn-35", "--inflight-30",
+  // V4's menu: --selected and --row-table are read by .ap-menu-item now.
+  // V4's Settings: --dock (the nav column) and --row-settings (a row's height) are read now.
+  // V4's Term pane states: --sunken is read now (the pane body in Workspace, the install line).
+  "--your-message",
+  // V4's rail: --rail-w, --pane-head-h, --row-rail and --row-group are read now.
+  // V4's Inspector: --inspector-w is the detail column's width now.
+  "--row-tool", "--row-option",
+  // V4's banner: --ctl-h-lg is read now (the banner strip's min-height).
+  // V4's bars: --r-pill is read now (the top bar's chips).
+  // V4's category filter: --ctl-h-sm is read now (the pills' height).
+  // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): --fs-title is read now, by --fs-card-title, which is a title at 16.
+  "--fs-hero", "--lh-hero", "--lh-title", "--fs-card-title",
+  "--fs-body", "--fs-small", "--lh-small", "--fs-code", "--lh-code", "--fs-meta", "--lh-meta",
+  // V4's motion rules: --dur-stage-in, --dur-slow, --delay-step and --press-small are read now.
+  // --dur-stage-out is read by Zoom's fold now (workspace.css).
+  // --dur-stage-in is read in JS now (navigator-flip.ts mirrors it as FLIP_OPEN_MS); the
+  // row fold that read it in CSS moved to --dur-base / --dur-exit.
+  // CHANGED ON PURPOSE (the owner's phone layout): the phone sheet reads it in CSS again,
+  // for its 280ms open (phone-sheet.css), so it leaves this list.
+  // V4's Loader: --delay-loader, --loop-loader and --loop-loader-person are read by loader.css now.
+  "--delay-tooltip",
+];
+
 describe("custom properties have both a writer and a reader", () => {
   it("reads no property from the stylesheet that nothing anywhere writes", () => {
     expect([...readInCss].filter(t => !declared.has(t) && !namedInJs.has(t))).toEqual([]);
@@ -84,7 +117,11 @@ describe("custom properties have both a writer and a reader", () => {
     // makes a component's var() the ONLY reader either one has. Reading a
     // property from markup is not the same defect as declaring one nobody
     // reads, and this check is for the second.
-    expect([...declared].filter(t => !readInCss.has(t) && !namedInJs.has(t) && !readInTsx.has(t))).toEqual([]);
+    const unread = [...declared].filter(t => !readInCss.has(t) && !namedInJs.has(t) && !readInTsx.has(t));
+    expect(unread.filter(t => !V4_AHEAD_OF_READERS.includes(t))).toEqual([]);
+    // A V4 token that is read now leaves the list, so nothing it names can
+    // hide a property that has gone dead since.
+    expect(V4_AHEAD_OF_READERS.filter(t => !unread.includes(t)), "read now: take it off V4_AHEAD_OF_READERS").toEqual([]);
   });
 
   it("still sees the properties JS owns, so the writer side is not vacuous", () => {

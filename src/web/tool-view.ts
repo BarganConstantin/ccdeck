@@ -24,6 +24,8 @@ export interface Block {
   lines?: Line[];
   /** A single value (a path, a range) drawn on one line rather than as a block. */
   inline?: boolean;
+  /** The value is a file's path: drawn from the session's folder, cut in the middle (PathText). */
+  path?: boolean;
   /** Text that reports a failure: a command's stderr. */
   err?: boolean;
 }
@@ -146,6 +148,7 @@ const labelOf = (label: BlockLabel): string => tr(`insights.tv.label.${label}`);
 const text = (label: BlockLabel | undefined, t: string, err = false): Block =>
   ({ ...(label ? { label: labelOf(label) } : {}), text: t, ...(err ? { err: true } : {}) });
 const inline = (label: BlockLabel, t: string): Block => ({ label: labelOf(label), text: t, inline: true });
+const filePath = (t: string): Block => ({ ...inline("file", t), path: true });
 const diff = (label: string, lines: Line[]): Block => ({ label, text: lines.map(l => l.text).join("\n"), lines });
 
 /** Before and after, each line marked with its side in a character as well as
@@ -236,7 +239,7 @@ export function toolView(name: string, rawInput: unknown, rawResponse: unknown):
       .filter(isRec)
       .filter(e => str(e.old_string) != null && str(e.new_string) != null);
     if (file && edits.length) {
-      const blocks: Block[] = [inline("file", file)];
+      const blocks: Block[] = [filePath(file)];
       edits.forEach((e, n) => {
         const every = e.replace_all === true;
         blocks.push(diff(tr(edits.length > 1 ? (every ? "insights.tv.changeNEvery" : "insights.tv.changeN") : (every ? "insights.tv.changeEvery" : "insights.tv.change"), { n: n + 1 }),
@@ -247,13 +250,13 @@ export function toolView(name: string, rawInput: unknown, rawResponse: unknown):
   }
   if (i && name === "Write") {
     const file = str(i.file_path), content = str(i.content);
-    if (file && content != null) return { input: [inline("file", file), text("content", content)], response: writeResponse(response) };
+    if (file && content != null) return { input: [filePath(file), text("content", content)], response: writeResponse(response) };
   }
   if (i && name === "Read") {
     const file = str(i.file_path);
     if (file) {
       const range = rangeOf(i);
-      return { input: range ? [inline("file", file), inline("lines", range)] : [inline("file", file)], response: readResponse(response) };
+      return { input: range ? [filePath(file), inline("lines", range)] : [filePath(file)], response: readResponse(response) };
     }
   }
   if (i && name === "Bash") {

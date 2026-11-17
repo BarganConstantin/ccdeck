@@ -40,6 +40,7 @@ export const ACCOUNTS_FILES = [
   "account-fold.ts",
   "account-lan.ts",
   "use-threshold-draft.ts",
+  "use-setting-post.ts",
   "use-roster-focus.ts",
   "account-refocus.ts",
   "use-panel-clock.ts",

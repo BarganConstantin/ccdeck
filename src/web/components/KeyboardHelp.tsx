@@ -13,8 +13,8 @@
 // It is the deck's seventh modal and it is deliberately built out of the six
 // others' parts: `.modal-backdrop` and `.modal` carry the entrance
 // (fadeIn/popIn, and the fade alone under reduced motion), `useModalDismiss`
-// carries Escape, the focus trap and the focus hand-back, and `.shortcuts` is
-// the same two-column grid the rail has always drawn. Nothing here is a fourth
+// carries Escape, the focus trap and the focus hand-back, and `.kh-cols` is
+// V4's two columns of groups. Nothing here is a fourth
 // spelling of anything.
 //
 // The rows come from key-help.ts rather than from this file, for the reason
@@ -30,9 +30,10 @@
 // its keys (#852), and Esc is the documented way back.
 import { Fragment } from "react";
 import { kindOffered, useIntegrations } from "../integrations/client";
-import { keyHelpFor } from "../key-help";
+import { keyHelpFor, type KeyHelpGroup } from "../key-help";
 import { isApplePlatform, platformName } from "../platform";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
+import { Dialog, DialogClose } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { useT } from "../i18n";
 import { richText } from "./settings-rich";
@@ -44,28 +45,58 @@ interface Props {
   onTour?: () => void;
   /** Close this and open Settings at Keyboard, where the single-key switch is. */
   onSettings?: () => void;
+  /** The Command Panel is on, so Ctrl + backtick has a row (key-help.ts). */
+  workspace?: boolean;
+  /** Groups a screen adds while it is on (the Decision card's keys). Passed by
+   *  the caller, never named here, so with no screen the sheet is key-help.ts's
+   *  table and nothing else. */
+  extraGroups?: readonly KeyHelpGroup[];
 }
 
-export default function KeyboardHelp({ onClose, onTour, onSettings }: Props) {
+/** V4's left column: what acts on the deck and the questions waiting on you.
+ *  Every other group, and any a screen adds, is the right column's. */
+const LEFT_GROUPS: readonly string[] = ["deck", "question"];
+const RIGHT_GROUPS: readonly string[] = ["terminal", "canvas", "panels"];
+
+/** The groups in V4's two columns. A group a screen adds goes where there are
+ *  fewer rows, so neither column runs away. */
+export function splitColumns(groups: readonly KeyHelpGroup[]): KeyHelpGroup[][] {
+  const left: KeyHelpGroup[] = [];
+  const right: KeyHelpGroup[] = [];
+  const size = (column: KeyHelpGroup[]) => column.reduce((n, g) => n + g.rows.length + 1, 0);
+  for (const group of groups) {
+    const known = LEFT_GROUPS.includes(group.id) || RIGHT_GROUPS.includes(group.id);
+    const toLeft = known ? LEFT_GROUPS.includes(group.id) : size(left) < size(right);
+    (toLeft ? left : right).push(group);
+  }
+  return [left, right].filter(column => column.length > 0);
+}
+
+/** A cap as V4's key chips: one chip to a key ("Ctrl + K" is Ctrl and K, a
+ *  Mac's "⌘ K" is ⌘ and K); a mouse word stays one chip. */
+export function capChips(cap: string): string[] {
+  if (cap.includes(" + ")) return cap.split(" + ");
+  if (cap.startsWith("⌘ ")) return cap.split(" ");
+  return [cap];
+}
+export default function KeyboardHelp({ onClose, onTour, onSettings, workspace = false, extraGroups }: Props) {
   const t = useT();
   const dialogRef = useModalDismiss(onClose);
   const scrimPress = useScrimDismiss(onClose);
   const apple = isApplePlatform(platformName());
   const singleKeys = useSingleKeyShortcuts();
   const integrations = useIntegrations();
-  const groups = keyHelpFor(singleKeys, kind => kindOffered(integrations, kind));
+  const base = keyHelpFor(singleKeys, kind => kindOffered(integrations, kind), workspace);
+  const groups = extraGroups?.length ? [...base, ...extraGroups] : base;
 
   return (
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div
-        ref={dialogRef}
-        className="modal key-help"
-        onClick={e => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="key-help-title"
-        aria-describedby={singleKeys ? undefined : "key-help-off"}
-      >
+    <Dialog
+      scrim={scrimPress}
+      dialogRef={dialogRef}
+      className="key-help"
+      labelledBy="key-help-title"
+      aria-describedby={singleKeys ? undefined : "key-help-off"}
+    >
         <header className="modal-head">
           <div className="modal-title">
             {/* Named by its own visible title, the way the tool modal and the
@@ -78,13 +109,7 @@ export default function KeyboardHelp({ onClose, onTour, onSettings }: Props) {
             <span id="key-help-title" className="modal-tool-name">{t("settings.key.title")}</span>
           </div>
           <div className="modal-actions">
-            <button
-              type="button"
-              className="glyph-btn"
-              onClick={onClose}
-              aria-label={t("settings.key.close")}
-              title={t("settings.key.close")}
-            >×</button>
+            <DialogClose onClick={onClose} label={t("settings.key.close")} />
           </div>
         </header>
 
@@ -109,32 +134,36 @@ export default function KeyboardHelp({ onClose, onTour, onSettings }: Props) {
               {onSettings && <button type="button" className="btn" onClick={onSettings}>{t("settings.key.openSettings")}</button>}
             </div>
           )}
-          {/* The tour's permanent door, beside the other kind of help. Above
-              the grid, so it is found before the reader starts scanning keys;
-              after the ×, so the × stays the first stop. */}
-          {onTour && (
-            <div className="guide-door">
-              <span>{t("settings.key.tourText")}</span>
-              <button type="button" className="btn" onClick={onTour}>{t("settings.key.tour")}</button>
-            </div>
-          )}
-          {/* One grid for the whole sheet rather than one per group, and the
-              captions span it. A grid each would have measured its own key
-              column, so `Shift + Enter` would have pushed one group's caps
-              wider than the four around it and the eye would have five left
-              edges to follow down a list whose whole job is to be scanned. */}
-          <div className="shortcuts">
-            {groups.map(group => (
-              <Fragment key={group.id}>
-                <h3 className="kh-group">{group.title}</h3>
-                {group.rows.map(row => (
-                  <div className="sc" key={`${group.id}:${row.cap}:${row.action}`}>
-                    <kbd>{apple && row.macCap ? row.macCap : row.cap}</kbd><span>{row.action}</span>
-                  </div>
+          {/* The tour's intro line, above the keys; the door itself is the
+              footer's link (V4's Figma). */}
+          {onTour && <p className="kh-intro">{t("settings.key.tourText")}</p>}
+          {/* V4's two columns, the Deck and The question on the left and the
+              rest on the right, one row to a shortcut: the action on the left
+              and its keys as chips on the right. */}
+          <div className="kh-cols">
+            {splitColumns(groups).map((column, i) => (
+              <div className="kh-col" key={i}>
+                {column.map(group => (
+                  <section className="kh-block" key={group.id}>
+                    <h3 className="kh-group">{group.title}</h3>
+                    {group.rows.map(row => (
+                      <div className="sc" key={`${group.id}:${row.cap}:${row.action}`}>
+                        <span className="kh-action">{row.action}</span>
+                        <span className="kh-keys">
+                          {capChips(apple && row.macCap ? row.macCap : row.cap).map((chip, n) => (
+                            <Fragment key={n}>{n > 0 && <span className="kh-plus">+</span>}<kbd>{chip}</kbd></Fragment>
+                          ))}
+                        </span>
+                      </div>
+                    ))}
+                  </section>
                 ))}
-              </Fragment>
+              </div>
             ))}
           </div>
+        </section>
+
+        <footer className="modal-foot kh-bottom">
           {/* Under the keys, not over them (#852): the reference comes first,
               and what to do when a key does nothing is a footnote to it, with
               where to turn the letters off for whoever opened the sheet
@@ -142,8 +171,8 @@ export default function KeyboardHelp({ onClose, onTour, onSettings }: Props) {
               when Esc is no answer to a letter doing nothing and the note
               above has said why. */}
           {singleKeys && <p className="kh-foot">{t("settings.key.note")} {t("settings.key.switchNote", { place: t("settings.key.place") })}</p>}
-        </section>
-      </div>
-    </div>
+          {onTour && <button type="button" className="kh-tour" onClick={onTour}>{t("settings.key.tour")}</button>}
+        </footer>
+    </Dialog>
   );
 }

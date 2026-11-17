@@ -35,8 +35,10 @@ describe("Explore's native catalog", () => {
     expect(html.match(/Not connected/g)).toHaveLength(3);
     // Jira also moves issues (3.48.0); GitHub and GitLab only read.
     expect(html.match(/Read only/g)).toHaveLength(2);
-    expect(html.match(/Can move issues/g)).toHaveLength(1);
-    expect(html).toContain("Browsing only reads · Tokens stay on this machine");
+    // CHANGED ON PURPOSE (V4's Figma): Jira's tag reads "Read and write" and the
+    // footnote is the frame's sentence.
+    expect(html.match(/Read and write/g)).toHaveLength(1);
+    expect(html).toContain("You choose what each token may do. Tokens stay on this machine.");
     expect(html).toContain('aria-modal="true"');
     expect(html).toContain('aria-labelledby="explore-integrations-title"');
     expect(html).not.toMatch(/input|Show in sidebar|Hide|localStorage/);
@@ -44,15 +46,42 @@ describe("Explore's native catalog", () => {
   it("closes before handing off Connect, Open and Manage to their existing owners", () => {
     const { tree, props } = catalog(state([connection("jira-1", "jira"), connection("jira-2", "jira")]));
     for (const [label, callback, arg] of [
-      ["Connect GitHub", props.onConnect, "github"], ["Open Jira", props.onOpen, "jira"], ["Manage Jira", props.onManage, "jira-1"],
+      ["Connect GitHub", props.onConnect, "github"], ["Open Jira", props.onOpen, "jira"],
     ] as const) {
       (one(tree, e => e.props["aria-label"] === label)!.props.onClick as () => void)();
       expect(callback).toHaveBeenLastCalledWith(arg);
       expect(props.onClose.mock.invocationCallOrder.at(-1)).toBeLessThan(callback.mock.invocationCallOrder.at(-1)!);
     }
+    // CHANGED ON PURPOSE (V4's Figma): a connected row has Open only; managing
+    // it is the foot's Manage in Settings. A row the deck can no longer open
+    // keeps its own Manage, for its first connection.
+    expect(one(tree, e => e.props["aria-label"] === "Manage Jira")).toBeNull();
     const footer = all(tree, e => e.type === "button" && !e.props["aria-label"])[0];
     (footer.props.onClick as () => void)();
     expect(props.onManage).toHaveBeenLastCalledWith();
+    const stranded = catalog({ ...state([connection("jira-1", "jira"), connection("jira-2", "jira")]), providers: [{ kind: "jira" as const, label: "Jira", available: false }] });
+    const manage = one(stranded.tree, e => e.props["aria-label"] === "Manage Jira")!;
+    expect(manage.props.className).toBe("explore-text-action");
+    (manage.props.onClick as () => void)();
+    expect(stranded.props.onManage).toHaveBeenLastCalledWith("jira-1");
+    expect(stranded.props.onClose.mock.invocationCallOrder.at(-1)).toBeLessThan(stranded.props.onManage.mock.invocationCallOrder.at(-1)!);
+  });
+
+  it("draws its notes as bands, one sentence each, the failures in the error tone", () => {
+    const reading = catalog(state(null)).tree;
+    const note = one(reading, e => e.type === "p" && e.props.className === "explore-status")!;
+    expect(note.props.role).toBe("status");
+    expect(note.props["data-tone"]).toBeUndefined();
+    const unavailable = catalog({ ...state(null), error: "Cannot reach the deck." });
+    const notes = all(unavailable.tree, e => e.type === "p" && e.props.className === "explore-status");
+    expect(notes).toHaveLength(1);
+    expect(notes[0].props).toMatchObject({ role: "alert", "data-tone": "err", title: "Cannot reach the deck." });
+    expect(unavailable.html).toContain(">Connection status is unavailable.</p>");
+    expect(unavailable.html).not.toContain("may be out of date");
+    const stale = catalog({ ...state([connection("jira-1", "jira")]), error: "Cannot reach the deck." });
+    const staleNotes = all(stale.tree, e => e.type === "p" && e.props.className === "explore-status");
+    expect(staleNotes).toHaveLength(1);
+    expect(staleNotes[0].props).toMatchObject({ role: "alert", "data-tone": "err" });
   });
   it("updates status from the shared snapshot, including the last disconnection", () => {
     const snapshot = state([connection("j1", "jira"), connection("j2", "jira")]);
@@ -92,14 +121,24 @@ describe("permanent discovery inside the roving rail", () => {
     return { ...r, ...native };
   };
   for (const kinds of [[], ["jira"], ["jira", "github", "gitlab"]] as IntegrationKind[][]) {
-    it(`keeps Explore last with ${kinds.length} connected kinds and one toolbar Tab stop`, () => {
+    // CHANGED ON PURPOSE (V4 top-10 #4): Explore was the last door on the left
+    // stripe → it is a row of the left stripe's More, and the connected
+    // trackers are the stripe's last doors, because discovery is occasional and
+    // a tracker someone connected is used every day.
+    it(`keeps Explore in the left stripe's More, behind the trackers' doors, with ${kinds.length} connected kinds and one toolbar Tab stop`, () => {
       const rails = make(kinds);
-      const html = draw(createElement(EdgeRail, { side: "left", label: "Left column", groups: [...rails.leftStripe, rails.integrations, rails.explore] }));
+      const html = draw(createElement(EdgeRail, { side: "left", label: "Panels and tools", groups: rails.leftStripe, more: rails.leftMore }));
       const tags = buttons(html);
-      expect([...tags.keys()].at(-1)).toBe("explore-integrations");
+      // CHANGED ON PURPOSE (stripe words): the left stripe's foot ends in the
+      // switch between words and icons, which is not a door.
+      const doors = [...tags.keys()].filter(id => id !== "stripe-words" && id !== "more");
+      expect(doors).toEqual(rails.leftStripe.flat().map(i => i.id));
+      expect(doors).not.toContain("explore-integrations");
+      expect(doors.slice(2)).toEqual(kinds.map(kind => `integration-${kind}`));
+      expect(rails.leftMore.flat().map(i => i.id)).toContain("explore-integrations");
+      expect(attr(tags.get("more")!, "data-more-holds")!.split(" ")).toContain("explore-integrations");
       expect([...tags.values()].filter(tag => attr(tag, "tabindex") === "0")).toHaveLength(1);
-      expect(html).toContain('data-rail-group="explore"');
-      expect(tags.size).toBe(rails.leftStripe.flat().length + kinds.length + 1);
+      expect([...tags.keys()].at(-1)).toBe("stripe-words");
     });
   }
   it("adds discovery to More without replacing the other mobile actions", () => {

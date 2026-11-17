@@ -154,7 +154,8 @@ describe("Usage history's Try again", () => {
   const modal = sourceOf("components/UsageHistoryModal.tsx");
 
   it("arms the hand-off on its press", () => {
-    expect(modal).toMatch(/<button className="btn uh-retry" onClick=\{\(\) => \{ rescueRetry\(\); reload\(\); \}\} \{\.\.\.selfPressProps\(loading\)\}>/);
+    // CHANGED ON PURPOSE (V4's Figma): Try again is the footer's primary button.
+    expect(modal).toMatch(/<button className="btn primary uh-retry" onClick=\{\(\) => \{ rescueRetry\(\); reload\(\); \}\} \{\.\.\.selfPressProps\(loading\)\}>/);
   });
 
   it("hands focus to ↻ once a retry that worked takes the error branch away", () => {

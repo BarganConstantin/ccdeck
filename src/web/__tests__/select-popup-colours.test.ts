@@ -58,47 +58,59 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
   "components/RadarSelect.tsx": [{ name: "Radar filter", chain: [el("body"), el("div", ["modal", "tr-modal"]), el("div", ["tr-body"]), el("span", ["tr-select-wrap"]), el("select", ["tr-select"])] }],
   "components/ToneSection.tsx": [{
     name: "a tone's figure",
-    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("div", ["sm-sounds"]), el("div", ["sm-tones"]), el("section", ["sm-tone"]), el("div", ["sm-row"]), el("select", ["sm-select"])],
+    // CHANGED ON PURPOSE (V4 Figma): the select now sits in the Select shell, span.v4-select.
+    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("div", ["sm-sounds"]), el("div", ["sm-tones"]), el("section", ["sm-tone"]), el("div", ["sm-row"]), el("span", ["v4-select"]), el("select", ["sm-select"])],
   }],
   "components/SpokenVoiceForm.tsx": [{
     name: "a spoken voice",
-    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("div", ["sm-sounds"]), el("section", ["sm-custom"]), el("details", ["sm-voice"]), el("div", ["sm-voice-fields"]), el("label"), el("select", ["sm-select"])],
+    // CHANGED ON PURPOSE (V4 Figma): the select now sits in the Select shell, span.v4-select.
+    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("div", ["sm-sounds"]), el("section", ["sm-custom"]), el("details", ["sm-voice"]), el("div", ["sm-voice-fields"]), el("label"), el("span", ["v4-select"]), el("select", ["sm-select"])],
   }],
   "components/ToolAuditSettings.tsx": [{
     name: "how long tool history is kept",
-    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group", "ta-settings"]), el("div", ["ta-storage-row"]), el("label"), el("select", ["sm-select"])],
+    // CHANGED ON PURPOSE (V4 Figma): the select now sits in the Select shell, span.v4-select.
+    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group", "ta-settings"]), el("div", ["ta-storage-row"]), el("label"), el("span", ["v4-select"]), el("select", ["sm-select"])],
   }],
   "components/IntegrationModal.tsx": [{
     name: "which tracker connection is on show",
     chain: [el("body"), el("div", ["modal-backdrop"]), el("div", ["modal", "ig-modal"]), el("div", ["ig-head"]), el("label", ["ig-conn-select"]), el("select", ["sm-select"])],
   }],
-  "components/BoardSection.tsx": [{
+  "components/SessionsSection.tsx": [{
     name: "how long a finished session stays on the board",
-    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group"]), el("div", ["appearance-controls"]), el("label", ["appearance-row"]), el("select", ["sm-select"])],
+    // CHANGED ON PURPOSE: the row moved into General's Sessions group, a
+    // settings row with Details, and the select sits in the Select shell.
+    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group"]), el("div", ["settings-list"]), el("div", ["settings-row-with-details"]), el("label", ["settings-row"]), el("span", ["settings-row-control"]), el("span", ["v4-select"]), el("select", ["sm-select"])],
   }],
   "components/LanguageSection.tsx": [{
     name: "the interface language",
-    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group"]), el("div", ["settings-list"]), el("label", ["settings-row"]), el("span", ["settings-row-control"]), el("select", ["sm-select"])],
+    // CHANGED ON PURPOSE (V4 Figma): the select now sits in the Select shell, span.v4-select.
+    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group"]), el("div", ["settings-list"]), el("label", ["settings-row"]), el("span", ["settings-row-control"]), el("span", ["v4-select"]), el("select", ["sm-select"])],
   }],
   "components/BrowserWatchSettings.tsx": [
     { name: "Browser Watch's quiet time", chain: [el("body"), el("div", ["bw-settings"]), el("label"), el("select")] },
     { name: "Browser Watch's reaction", chain: [el("body"), el("div", ["bw-settings"]), el("label"), el("select")] },
   ],
-  "components/OtherAccounts.tsx": [{
-    name: "the other accounts' order",
-    chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-rest-tools"]), el("span", ["ap-rest-sort"]), el("select")],
-  }],
-  "components/AutoSwitchPolicy.tsx": [{
-    name: "the auto-switch threshold",
-    chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-policy-block"]), el("div", ["ap-policy", "ap-setting"]), el("span", ["ap-field"]), el("select")],
-  }, {
-    name: "how auto-switch picks the next account",
-    chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-policy-block"]), el("div", ["ap-policy", "ap-setting", "ap-next"]), el("span", ["ap-field"]), el("select")],
-  }],
+  // CHANGED ON PURPOSE (V4's Figma): the other accounts' order is a menu
+  // button in the group's head now (OtherAccounts.tsx), not a select.
+  // CHANGED ON PURPOSE (V4's Figma): the Auto-switch settings are chips and
+  // options now, and the Move list is a list of rows; neither renders a select.
+  // ADDED ON PURPOSE (V4's Figma): Text & density's two scales are selects now,
+  // in the kit's Select, and held to the same rules as every other one.
+  "components/ReadingSection.tsx": [
+    { name: "the text size", chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group"]), el("div", ["settings-list"]), el("label", ["settings-row"]), el("span", ["settings-row-control"]), el("span", ["v4-select"]), el("select", ["sm-select"])] },
+    { name: "the density", chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group"]), el("div", ["settings-list"]), el("label", ["settings-row"]), el("span", ["settings-row-control"]), el("span", ["v4-select"]), el("select", ["sm-select"])] },
+  ],
   "components/ClaudeCodeSettings.tsx": [{
     name: "a Claude Code setting's value",
-    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group"]), el("div", ["settings-list"]), el("label", ["settings-row"]), el("span", ["settings-row-control"]), el("select", ["sm-select"])],
+    // CHANGED ON PURPOSE (V4 Figma): the select now sits in the Select shell, span.v4-select.
+    chain: [el("body"), el("div", ["modal", "settings-modal"]), el("div", ["settings-body"]), el("div", ["settings-pane"]), el("section", ["settings-group"]), el("div", ["settings-list"]), el("label", ["settings-row"]), el("span", ["settings-row-control"]), el("span", ["v4-select"]), el("select", ["sm-select"])],
   }],
+  // CHANGED ON PURPOSE (#2591): New session's model and permission strips
+  // became the kit's select, folded under "Session options".
+  "components/terminal/NewSessionPopover.tsx": [
+    { name: "the new session's model", chain: [el("body"), el("div", ["anchored-popover", "ns-pop"]), el("div", ["ns-form"]), el("details", ["ns-options"]), el("div", ["ns-options-fields"]), el("label", ["ns-setting"]), el("span", ["v4-select"]), el("select", ["sm-select"])] },
+    { name: "the new session's permissions", chain: [el("body"), el("div", ["anchored-popover", "ns-pop"]), el("div", ["ns-form"]), el("details", ["ns-options"]), el("div", ["ns-options-fields"]), el("label", ["ns-setting"]), el("span", ["v4-select"]), el("select", ["sm-select"])] },
+  ],
   "components/JiraMovePopover.tsx": [{
     name: "where a Jira move sends the issues",
     chain: [el("body"), el("div", ["modal-backdrop"]), el("div", ["modal", "ig-modal"]), el("div", ["ig-body"]), el("div", ["jr-panel"]), el("div", ["ig-split"]), el("div", ["ig-list"]), el("div", ["jr-list-scroll"]), el("div", ["jr-board"]), el("div", ["anchored-popover", "jr-move-pop"]), el("form"), el("select")],
@@ -106,10 +118,6 @@ const SELECTS: Record<string, Array<{ name: string; chain: El[] }>> = {
   "components/JiraTransition.tsx": [{
     name: "the Jira workflow action",
     chain: [el("body"), el("div", ["modal-backdrop"]), el("div", ["modal", "ig-modal"]), el("div", ["ig-body"]), el("div", ["jr-panel"]), el("div", ["ig-split"]), el("div", ["ig-detail"]), el("article", ["jr-detail"]), el("header", ["jr-detail-head"]), el("p", ["jr-detail-state"]), el("span", ["jr-transition"]), el("span", ["jr-transition-controls"]), el("select")],
-  }],
-  "components/AccountMenuPopover.tsx": [{
-    name: "an account's slot",
-    chain: [el("body"), el("aside", ["accounts-panel"]), el("div", ["ap-pop"]), el("div", ["ap-pop-form"]), el("span", ["ap-field"]), el("select")],
   }],
 };
 

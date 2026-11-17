@@ -9,14 +9,20 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 
 import type { Viewport } from "reactflow";
 import { hidePeek } from "./components/SessionPeek";
 import { loadViewport, saveViewport } from "./layout-storage";
+import { zoomFocus } from "./packed-board";
 import type { useCamera } from "./use-camera";
+import type { ZoomFocus } from "./use-repack-anchor";
 import type { useZoomLod } from "./use-zoom-lod";
-import { isUserViewportGesture } from "./viewport-intent";
+import { DECK_FIT_WINDOW_MS, isUserViewportGesture } from "./viewport-intent";
 
 type Camera = ReturnType<typeof useCamera>;
 
-export function useCanvasViewport({ applyViewport, lastFitTimeRef, cameraEpochRef, disableAutoFit, markInteract, canvasRef, applyZoom }: {
+export function useCanvasViewport({
+  applyViewport, takeOver, lastFitTimeRef, cameraEpochRef, disableAutoFit, markInteract, canvasRef, applyZoom, zoomFocusRef,
+}: {
   applyViewport: Camera["applyViewport"];
+  /** The reader took the wheel or pressed the canvas: a fit still animating stops. */
+  takeOver: Camera["takeOver"];
   lastFitTimeRef: Camera["lastFitTimeRef"];
   cameraEpochRef: Camera["cameraEpochRef"];
   /** The user took the wheel: auto-fit stands down (use-auto-fit-switch.ts). */
@@ -25,6 +31,8 @@ export function useCanvasViewport({ applyViewport, lastFitTimeRef, cameraEpochRe
   markInteract: () => void;
   canvasRef: MutableRefObject<HTMLElement | null>;
   applyZoom: ReturnType<typeof useZoomLod>["applyZoom"];
+  /** Where each zoom holds still, and whether it was the reader's (use-repack-anchor.ts). */
+  zoomFocusRef?: MutableRefObject<ZoomFocus | null>;
 }) {
   const restoredViewport = useState(() => loadViewport())[0];
 
@@ -60,7 +68,15 @@ export function useCanvasViewport({ applyViewport, lastFitTimeRef, cameraEpochRe
   // gesture starts with the user touching something, and no programmatic fit
   // does. See viewport-intent.ts for the rule that reads it.
   const lastCanvasInputRef = useRef(0);
-  const markCanvasInput = useCallback(() => { lastCanvasInputRef.current = Date.now(); }, []);
+  const markCanvasInput = useCallback((e?: { type?: string }) => {
+    // A press or a wheel takes the camera from a fit or a focus that is still
+    // animating (V4's Board camera: wheel, pinch and drag are 1:1 and cancel
+    // the tween at once, and what follows starts from where it stands). The
+    // release does not: a click's pointerup comes after the press that
+    // already took it, and before the click that may start the next one.
+    if (e?.type === "pointerdown" || e?.type === "wheel") takeOver();
+    lastCanvasInputRef.current = Date.now();
+  }, [takeOver]);
   /** Every input the rule in viewport-intent.ts needs, read at the moment a
    *  viewport change arrives. */
   const viewportMove = useCallback((sourceEvent: unknown) => ({
@@ -83,6 +99,8 @@ export function useCanvasViewport({ applyViewport, lastFitTimeRef, cameraEpochRe
     // earlier of the two for a drag that begins on the canvas.
     if (isUserViewportGesture(viewportMove(e))) disableAutoFit();
   };
+  // The last viewport a move arrived at, for the point the next zoom holds still.
+  const lastViewRef = useRef<Viewport | null>(null);
   // Every frame of a move, including the ones that come through the store.
   const onMove = (e: MouseEvent | TouchEvent | null, vp: Viewport) => {
     markInteract();
@@ -94,6 +112,17 @@ export function useCanvasViewport({ applyViewport, lastFitTimeRef, cameraEpochRe
     // the user and which is a fit the deck asked for is the one
     // question viewport-intent.ts answers.
     if (isUserViewportGesture(viewportMove(e))) disableAutoFit();
+    // The point this zoom held still — the pointer, or the pane's middle for
+    // the buttons — and whether it was the reader's: a gesture on the pane, or
+    // any move the deck did not stamp as its own. The switch to and from the
+    // packed board keeps the card nearest it where it is.
+    const prev = lastViewRef.current;
+    lastViewRef.current = vp;
+    const held = prev && zoomFocusRef ? zoomFocus(prev, vp) : null;
+    if (held && zoomFocusRef) {
+      const deck = lastFitTimeRef.current > 0 && Date.now() - lastFitTimeRef.current < DECK_FIT_WINDOW_MS;
+      zoomFocusRef.current = { ...held, reader: !!e || !deck };
+    }
     // Debounce viewport persistence — pan/zoom fires many times
     // per gesture, but we only need the final state.
     // The zoom itself first, for the faces' screen-pixel layout and the

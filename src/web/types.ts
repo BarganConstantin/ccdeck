@@ -140,6 +140,9 @@ export interface BlockedTool {
    *  a sidebar row, a tooltip and an OS notification, none of which can hold a
    *  file's worth of JSON, and two of which are drawn by somebody else. */
   preview: string;
+  /** The preview is a file's path (tool-input.ts salientField), kept whole:
+   *  the session list's row shortens it to fit, the tooltip keeps it whole. */
+  path?: true;
 }
 
 /** Claude Code is blocked on a human, and which chore that is. `Notification`
@@ -267,10 +270,18 @@ export interface AgentNodeData {
   cwd?: string;
   cwdBasename?: string;
   firstPrompt?: string;
-  /** The name Claude Code gave this session, from the transcript's `agent-name`
-   *  records — e.g. "account-management-oauth-flow". Session root only, and
-   *  Claude only: a Codex rollout carries no such record, so the field stays
-   *  undefined there and the card renders exactly what it always did.
+  /** Subagents only: the Task or Agent call that started this one, as the
+   *  reducer paired it when the subagent announced itself, and the call's own
+   *  `description` — "Find every public route" — which the card shows as what
+   *  the subagent is for. Absent when no such call reached the deck; the card
+   *  then says the kind and the folder. See subagent-lifecycle.ts. */
+  spawnCall?: { id: string; description?: string };
+  /** The session's name: the one the user gave it (/rename, `--name`), from
+   *  the transcript's `custom-title` records, else the one Claude Code gave it,
+   *  from its `agent-name` records — e.g. "account-management-oauth-flow". The
+   *  server picks (session-enrichment.mjs). Session root only, and Claude only:
+   *  a Codex rollout carries no such record, so the field stays undefined there
+   *  and the card renders exactly what it always did.
    *
    *  RARE. Present on 18 of the 7,743 transcripts under ~/.claude/projects on
    *  this machine — 0.2%, and 1.1% of the ones over 50 KB. Nothing may be built
@@ -278,8 +289,22 @@ export interface AgentNodeData {
    *
    *  It is a description, not an address. It is rewritten as the session moves
    *  and two sessions may well share one, which is why it is shown NEXT TO the
-   *  session id rather than in place of it. */
+   *  session id rather than in place of it.
+   *
+   *  THE NAME DRAWN (internal #101): the reader's own from the deck,
+   *  `deckName`, when there is one, else the provider's, `providerSessionName`.
+   *  Every surface reads this field, so a name typed in the deck is the one the
+   *  list, the card, the header, the Inspector and quick open all say. */
   sessionName?: string;
+  /** The name the reader typed for this session in the deck — any provider,
+   *  Codex included — kept by the deck and never written to the provider's own
+   *  files (session-deck-names.mjs). Wins over the provider's name until the
+   *  reader clears it. */
+  deckName?: string;
+  /** The provider's own name for the session (/rename, `--name`, Claude
+   *  Code's slug), as the transcript last said it: what `sessionName` reads
+   *  when the deck has no name of its own, and what a cleared name gives back. */
+  providerSessionName?: string;
   /** The session's `ai-title` — a sentence, e.g. "Inspect repository to
    *  understand current state".
    *
@@ -437,6 +462,12 @@ export interface AgentNodeData {
    *  never cleared by a subagent's traffic: a background Task working on does
    *  not run the turn that failed again. Root only. */
   stopFailure?: StopFacts | null;
+  /** The key of the Command Panel launch on this tab that started this
+   *  session, kept for its life (panel-launch.ts). Root only. A session the
+   *  reader started from the panel is never the do-nothing ghost the board
+   *  hides while it runs (visibility.ts), and on Windows the stage says one
+   *  it cannot reach is the deck's own launch (stage-board.ts). */
+  panelLaunch?: string;
   /** When this session was last heard from: the newest `receivedAt` of any
    *  event carrying its session id, whichever agent that event was attributed
    *  to. Only the root carries it, for the same reason only the root carries
@@ -696,6 +727,10 @@ export interface HookPayload {
    *  means the scan has nothing to say, never that the name was cleared. */
   sessionName?: string | null;
   sessionTitle?: string | null;
+  /** On `SessionNamed`, any provider: the name the reader typed in the deck,
+   *  or null once they cleared it (internal #101). Absent says nothing, so the
+   *  transcript's own naming never clears or replaces it. */
+  deckName?: string | null;
   /** Claude-only, on the synthetic `SessionRecapped`: Claude Code's recap as the
    *  transcript last showed it, or null once a later turn has retired it. */
   recap?: SessionRecap | null;

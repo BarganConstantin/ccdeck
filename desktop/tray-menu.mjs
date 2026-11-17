@@ -32,6 +32,22 @@ export function statusLine({ restarting, starting, deck, snapshot, startFailed =
 }
 
 /**
+ * The tray's tooltip: a name, then the status line.
+ *
+ * The name is the tab's title, which says `(2) waiting · ccdeck` while sessions
+ * wait (V4's copy deck), and while the status line says "2 sessions waiting for
+ * you" that put the same count in one line twice. So while the line carries the
+ * count the name is the bare one; while it does not (reconnecting, restarting,
+ * starting), the title keeps it, as the tab does.
+ */
+export function trayTooltip(state) {
+  const { restarting, starting, deck, snapshot } = state;
+  // statusLine's waiting branch: nothing above it in that function applies.
+  const lineCounts = !restarting && !starting && !!deck && snapshot.icon !== "offline" && snapshot.waiting > 0;
+  return `${lineCounts ? "ccdeck" : snapshot.title} — ${statusLine(state)}`;
+}
+
+/**
  * Whether the tray should ask the deck what the status pages say (#1311): only
  * while a session is running or waiting. An app left in the tray with nothing
  * going on is idle, and an idle app asks nobody's server anything — the answer

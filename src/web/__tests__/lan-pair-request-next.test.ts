@@ -50,7 +50,9 @@ describe("the next pairing request after an answer", () => {
     // one. The name is the same sentence for every request, so the deck has to
     // be in the description or the second question sounds like the first.
     const html = renderToStaticMarkup(dialogFor([second]) as ReactElement);
-    const described = /role="dialog"[^>]*aria-describedby="([^"]+)"/.exec(html)?.[1];
+    // Dialog emits aria-describedby (a prop on the surface) before role.
+    const described = /aria-describedby="([^"]+)"[^>]*role="dialog"|role="dialog"[^>]*aria-describedby="([^"]+)"/.exec(html)
+      ?.slice(1).find(Boolean);
     expect(described).toBeTruthy();
     const target = new RegExp(`id="${described}"[^>]*>([\\s\\S]*?)</p>`).exec(html)?.[1] ?? "";
     expect(target).toContain(second.name);

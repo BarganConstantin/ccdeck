@@ -8,12 +8,13 @@ import { run } from "./exec.mjs";
 import { heldPrefs, prefsRead } from "./prefs-state.mjs";
 import { pushEvent } from "./event-sink.mjs";
 import { outputWatch, touchSession } from "./session-tracking.mjs";
-import { maybeResolveContext, maybeResolveModel, maybeResolveUsage } from "./session-enrichment.mjs";
+import { maybeResolveContext, maybeResolveModel, maybeResolveSessionName, maybeResolveUsage } from "./session-enrichment.mjs";
 
 const FILE_LIMIT = 128;
 const REGISTRY_BYTES = 64 * 1024;
 const TRANSCRIPT_BYTES = 256 * 1024;
-const normalizeStart = value => typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+const TASK_NOTICE = /^\s*<task-notification>[\s\S]*?<\/task-notification>/;
+const normalizeStart = value =>typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
 
 /** PID existence alone cannot distinguish a reused PID from the old process. */
 export async function claudeProcessStarts(pids) {
@@ -64,7 +65,9 @@ export async function claudeRecoveryPrompt(path) {
       const content = row.message?.content;
       const value = typeof content === "string" ? content : Array.isArray(content)
         ? content.filter(part => part?.type === "text" && typeof part.text === "string").map(part => part.text).join("\n") : "";
-      if (value) prompt = value;
+      // A background task's notice comes in as a user turn; the prompt is what a
+      // person typed (the deck's injected-prompt.ts reads the same wrapper).
+      if (value && !TASK_NOTICE.test(value)) prompt = value;
     }
     return { prompt, model };
   } catch { return {}; }
@@ -76,7 +79,9 @@ export function createClaudeRecovery({ workspace = "", home = claudeConfigDir(),
   enrich = raw => {
     outputWatch.note(raw.session_id, raw.transcript_path);
     touchSession(raw.session_id);
-    maybeResolveModel(raw); maybeResolveUsage(raw); maybeResolveContext(raw);
+    // The name too: a recovered session sends no hook until its next turn, and
+    // its row would read as its folder until then.
+    maybeResolveModel(raw); maybeResolveUsage(raw); maybeResolveContext(raw); maybeResolveSessionName(raw);
   }, enabled = () => heldPrefs.current().recoverClaudeSessions !== false } = {}) {
   let stopped = false, pending = null, startupEnabled, startupFiles;
   const startupIdentities = new Map();

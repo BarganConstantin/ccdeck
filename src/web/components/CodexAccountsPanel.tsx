@@ -5,6 +5,7 @@ import { useT } from "../i18n";
 import type { LanAccount } from "../lan-types";
 import { withKey } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
+import SheetHandle from "./SheetHandle";
 import CodexProfilesSection from "./CodexProfilesSection";
 import LanSyncSection from "./LanSyncSection";
 
@@ -41,6 +42,10 @@ export default function CodexAccountsPanel({
   // Claude's side, so a row and the setup dialog's ticks never disagree.
   const [shared, setShared] = useState<ReadonlyMap<string, SharedMark>>(() => new Map());
   const shown = side !== "hidden";
+  // Shown again by the Claude | Codex switch after being hidden: a phone's
+  // sheet does not rise again for it (phone-sheet.css).
+  const wasHidden = useRef(false);
+  if (side === "hidden") wasHidden.current = true;
   // Focus follows the view, as on Claude's side: Back on the way in, the row
   // that opened it on the way out. After the frame, once it has mounted.
   const shownView = useRef(view);
@@ -65,7 +70,8 @@ export default function CodexAccountsPanel({
   );
   return (
     <aside className={`accounts-panel codex-accounts-panel${leaving ? " leaving" : ""}`} id="codex-accounts-panel" aria-label={t("codex.panel.title")}
-      hidden={side === "hidden"} data-side={side}>
+      hidden={side === "hidden"} data-side={side} data-switched={wasHidden.current && side !== "hidden" ? "" : undefined}>
+      <SheetHandle />
       <CodexProfilesSection onClose={onClose} switcher={switcher} onNotice={onNotice} away={view === "lan"} onLanAccounts={onLanAccounts} shared={shared} />
       {lanReady && (
         <LanSyncSection

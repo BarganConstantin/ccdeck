@@ -10,13 +10,13 @@
 // macOS System Settings and Windows 11 point at a setting another pane owns
 // rather than copying it.
 //
-// A ROW, NOT A SWITCH. Each is a <div> with a button on the right: there is
-// nothing to set here, only somewhere to go. The button is the panel's own
-// door — its stripe button's toggle, opened and never shut (App.tsx) — and it
-// closes Settings first (settings.ts, doorOut). Beside it, while single-key
-// shortcuts are on, the key that opens the same panel from anywhere, as
-// Appearance draws T beside the themes: a cap for a key that does nothing
-// would be a promise the deck breaks, so it is not drawn while they are off.
+// A ROW, NOT A SWITCH. Each is a <div> with Open on the right, drawn as V4's
+// link (the accent's words, 12/500, no box): there is nothing to set here, only
+// somewhere to go. Open is the panel's own door — its stripe button's toggle,
+// opened and never shut (App.tsx) — and it closes Settings first (settings.ts,
+// doorOut). V4 draws no key cap beside it; the key that opens the same panel
+// from anywhere stays on the button for assistive technology, while single-key
+// shortcuts are on, and in the keyboard sheet.
 //
 // CLAUDE'S ROWS ARE CLAUDE'S. The accounts panel, and Local network inside it,
 // are not drawn on a machine without Claude Code (rail-items.tsx), and A does
@@ -43,7 +43,7 @@ interface Props {
    *  so its door is drawn for either provider. Local network repairs Claude
    *  logins and stays behind `claudeHere`. */
   codexHere?: boolean;
-  /** Whether single keys answer, so whether a cap is drawn. */
+  /** Whether single keys answer, so whether Open names its key. */
   singleKeys: boolean;
   doors: Pick<SettingsDoors, "accounts" | "localNetwork" | "browserWatch">;
 }
@@ -55,28 +55,29 @@ export default function ElsewhereSection({ claudeHere, codexHere = false, single
       {(claudeHere || codexHere) && (
         <DoorRow settingId="accounts" name={claudeHere ? t("lan.ew.accounts") : CODEX_ACCOUNTS_ROW}
           note={claudeHere ? t("lan.ew.accountsNote") : CODEX_ACCOUNTS_ROW_NOTE} onOpen={doors.accounts}
-          cap={singleKeys ? { key: "A", title: t("lan.ew.pressA") } : null} />
+          shortcut={singleKeys ? "A" : null} />
 
       )}
       {claudeHere && (
-        <DoorRow settingId="local-network" name={t("lan.ew.lan")} note={t("lan.ew.lanNote")} onOpen={doors.localNetwork} cap={null} />
+        <DoorRow settingId="local-network" name={t("lan.ew.lan")} note={t("lan.ew.lanNote")} onOpen={doors.localNetwork} shortcut={null} />
       )}
       <DoorRow settingId="browser-watch" name={t("lan.ew.watch")} note={t("lan.ew.watchNote")} onOpen={doors.browserWatch} dialog
-        cap={singleKeys ? { key: "B", title: t("lan.ew.pressB") } : null} />
+        shortcut={singleKeys ? "B" : null} />
     </SettingsGroup>
   );
 }
 
-/** One door: the row's name and note, the key cap, and Open. The button is
- *  named by its own word and the row's name together — "Open Local network"
- *  — so three Opens in one list are three different buttons to a screen
- *  reader, and the name starts with the word printed on it (WCAG 2.5.3). */
-function DoorRow({ settingId, name, note, onOpen, cap, dialog = false }: {
+/** One door: the row's name and note, and Open. The button is named by its
+ *  own word and the row's name together — "Open Local network" — so three
+ *  Opens in one list are three different buttons to a screen reader, and the
+ *  name starts with the word printed on it (WCAG 2.5.3). */
+function DoorRow({ settingId, name, note, onOpen, shortcut, dialog = false }: {
   settingId: string;
   name: string;
   note: string;
   onOpen: () => void;
-  cap: { key: string; title: string } | null;
+  /** The single key that opens the same panel, while single keys answer. */
+  shortcut: string | null;
   /** Browser Watch opens as a dialog; the accounts panel beside the canvas. */
   dialog?: boolean;
 }) {
@@ -92,18 +93,15 @@ function DoorRow({ settingId, name, note, onOpen, cap, dialog = false }: {
       nameId={`${id}-name`}
       note={note}
       control={
-        <>
-          {cap && <kbd className="settings-key" aria-hidden title={cap.title}>{cap.key}</kbd>}
-          <button
-            type="button"
-            className="btn"
-            id={`${id}-open`}
-            aria-labelledby={`${id}-open ${id}-name`}
-            aria-haspopup={dialog ? "dialog" : undefined}
-            aria-keyshortcuts={cap ? cap.key : undefined}
-            onClick={onOpen}
-          >{t("lan.ew.open")}</button>
-        </>
+        <button
+          type="button"
+          className="settings-link"
+          id={`${id}-open`}
+          aria-labelledby={`${id}-open ${id}-name`}
+          aria-haspopup={dialog ? "dialog" : undefined}
+          aria-keyshortcuts={shortcut ?? undefined}
+          onClick={onOpen}
+        >{t("lan.ew.open")}</button>
       }
     />
   );

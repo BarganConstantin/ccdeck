@@ -155,9 +155,13 @@ describe("the register of conditionally-skipped cases", () => {
     expect(expectedSkips("darwin")).toEqual(expected);
   });
 
-  it("expects the registered platform-gated cases to skip on Windows, file by file", () => {
-    // Fifty-seven behind `process.platform === "win32"`, eight behind the posix
-    // runIf family, and the three read-only-directory cases — sound-hook-park's,
+  it("expects the two hundred and twelve platform-gated cases to skip on Windows, file by file", () => {
+    // One hundred and four behind `process.platform === "win32"`, twenty-nine behind
+    // development's Codex probes (the same gate written with single quotes),
+    // sixty-five behind the optional engine's macOS-and-Linux gate, eight
+    // behind the posix runIf family, three behind the non-root posix
+    // permission probe (boot-lock-recovery's and the integrations store's
+    // quarantine pair), and the three read-only-directory cases — sound-hook-park's,
     // the swap script's in desktop-updater and the macOS updater's in
     // desktop-update-unreplaceable-app — whose probe reports false on
     // Windows because chmod there toggles a read-only bit that does not stop a
@@ -165,7 +169,7 @@ describe("the register of conditionally-skipped cases", () => {
     // than as a total, so a change that moves a case from one gate to another is
     // a mismatch rather than an arithmetic coincidence.
     expect(expectedSkips("win32")).toEqual({
-      total: 109,
+      total: 212,
       byFile: {
         "append-deadline.test.ts": 1,
         "backup-root-shared.test.ts": 1,
@@ -176,6 +180,7 @@ describe("the register of conditionally-skipped cases", () => {
         "codex-live-credentials.test.ts": 6,
         "codex-live-rpc.test.ts": 21,
         "codex-auth-temp-collision.test.ts": 3,
+        "command-panel-windows-preview.test.ts": 1,
         "codex-terminal-selection.test.ts": 1,
         "desktop-appimage-relaunch-1630.test.ts": 2,
         "desktop-release-prerelease-1756.test.ts": 2,
@@ -187,17 +192,24 @@ describe("the register of conditionally-skipped cases", () => {
         "exec-descendants.test.ts": 7,
         "exec-timeout.test.ts": 2,
         "exec-windows.test.ts": 3,
+        "engine-package.test.ts": 26,
+        "engine-install.test.ts": 10,
         "hangup-shuts-down.test.ts": 5,
         "hook-command-node-fallback.test.ts": 3,
         "integrations-store-quarantine.test.ts": 2,
         "no-shell-hook-commands.test.ts": 2,
         "prefs-corrupt-1002.test.ts": 2,
+        "pro-engine-client.test.ts": 21,
+        "pro-engine-routes.test.ts": 10,
+        "pro-engine-terminal.test.ts": 27,
         "relay-guard.test.ts": 6,
+        "session-transcript-route.test.ts": 6,
         "settings-atomic-write.test.ts": 1,
         "settings-symlink-target.test.ts": 7,
         "sound-hook-park.test.ts": 1,
         "supervisor-exit.test.ts": 3,
         "terminal-cli.test.ts": 2,
+        "terminal-utf8-tmux.test.ts": 2,
         "traffic-radar-permission.test.ts": 1,
         "uninstall-codex-terminal.test.ts": 1,
         "uv-bootstrap-atomic.test.ts": 1,
@@ -223,7 +235,14 @@ describe("the register of conditionally-skipped cases", () => {
     // Eight since #1168 added a fourth — guarded-reads.test.ts's static-serving
     // block, which asks serveStatic for the built files through the socket.
     const always = gates().filter((g) => PLATFORMS.every((p) => !skipsOn(g, p)));
-    expect(always.reduce((n, g) => n + g.sites, 0)).toBe(8);
+    // Nine since V4's Chat and Decision card: v4-screens-bundle.test.ts reads
+    // the built entry chunk and stylesheets for any trace of them.
+    // CHANGED ON PURPOSE: ten since the desktop app carries the engine —
+    // desktop-engine-packaging.test.ts unpacks a real npm tarball with the
+    // system tar, behind a `!hasTar` probe that holds on no runner. This is the
+    // acknowledgement the comment above asks for, not a loosening: the new
+    // gate is held to "always runs" like the other nine.
+    expect(always.reduce((n, g) => n + g.sites, 0)).toBe(10);
     for (const g of always) for (const platform of PLATFORMS) expect(skipsOn(g, platform)).toBe(false);
 
     // The remaining probe sites are the read-only-directory ones, the only probe
@@ -413,7 +432,7 @@ describe("the workflow the register is enforced from", () => {
     const win32Sites = gates()
       .filter((g) => g.condition === 'process.platform === "win32"')
       .reduce((n, g) => n + g.sites, 0);
-    expect(win32Sites).toBe(35);
+    expect(win32Sites).toBe(43);
 
     const stated = publishYml().match(/the (\d+) sites gated `skipIf\(process\.platform === "win32"\)`/);
     expect(stated, "publish.yml no longer states the win32 gate count in the form this reads").not.toBeNull();

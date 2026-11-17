@@ -1,7 +1,7 @@
 // What a click, a double-click and a hover on the canvas do: select the card
-// (or its session, from a recap note) and bring it into view, clear the
-// selection on the empty canvas, and open the peek where a card is too small
-// to say it itself.
+// (or its session, from a recap note) and bring it into view at the zoom the
+// reader is at, frame it on a double-click, clear the selection on the empty
+// canvas, and open the peek where a card is too small to say it itself.
 //
 // Moved out of App.tsx's markup. The handlers are rebuilt every render, as the
 // inline arrows on <ReactFlow> they replace were; the one thing they keep
@@ -15,7 +15,7 @@ import { prefersReducedMotion } from "./viewport-motion";
 import type { useSelection } from "./use-selection";
 import type { useZoomLod } from "./use-zoom-lod";
 
-export function useCanvasClicks({ clearSelection, selectAgent, detailOpen, setDetailOpen, detailShown, focusAgent, draggingRef, lodRef }: {
+export function useCanvasClicks({ clearSelection, selectAgent, detailOpen, setDetailOpen, detailShown, focusAgent, revealAgent, draggingRef, lodRef, stage }: {
   clearSelection: () => void;
   selectAgent: ReturnType<typeof useSelection>["selectAgent"];
   /** The stored flag: whether the detail panel is meant to be open. */
@@ -23,17 +23,23 @@ export function useCanvasClicks({ clearSelection, selectAgent, detailOpen, setDe
   setDetailOpen: (open: boolean) => void;
   /** Whether the detail panel is on screen now, which narrows the canvas. */
   detailShown: boolean;
+  /** The double-click's: the card and its session framed at a readable zoom. */
   focusAgent: (id: string) => void;
+  /** The click's: the card brought into view at the zoom the reader is at. */
+  revealAgent: (id: string) => void;
   draggingRef: MutableRefObject<boolean>;
   lodRef: ReturnType<typeof useZoomLod>["lodRef"];
+  /** The terminal stage (use-stage.ts). Its answer is false whenever the
+   *  terminal flag is off, and the click is then exactly what it was. */
+  stage?: { onNodeClick: (id: string, el: Element | null) => boolean };
 }) {
   // Under reduced motion a click's camera jump waits out the double-click —
   // see focus-hold.ts. Made once, lazily (a useRef argument is evaluated on
-  // every render, #612), and reading the newest focusAgent when it fires.
-  const focusRef = useRef(focusAgent);
-  focusRef.current = focusAgent;
+  // every render, #612), and reading the newest revealAgent when it fires.
+  const revealRef = useRef(revealAgent);
+  revealRef.current = revealAgent;
   const [focusHold] = useState(() => createFocusHold({
-    focus: id => focusRef.current(id),
+    focus: id => revealRef.current(id),
     setTimeout: (fn, ms) => window.setTimeout(fn, ms),
     clearTimeout: handle => window.clearTimeout(handle),
   }));
@@ -41,15 +47,25 @@ export function useCanvasClicks({ clearSelection, selectAgent, detailOpen, setDe
 
   const onNodeClick = (e: React.MouseEvent, n: Node) => {
     if (n.type === "sessionGroup") { focusHold.cancel(); clearSelection(); return; }
-    // A click on a card SELECTS it and GOES TO its session — the frame
-    // focusAgent builds, the card and its session at a readable zoom —
-    // and leaves the detail panel shut: that is the double-click's, one
-    // press further in. Shift+click only widens the selection, as ever.
+    // A click on a card SELECTS it and BRINGS IT INTO VIEW at the zoom the
+    // reader is at (revealAgent): the least pan that puts it, and its note,
+    // clear of the panels, and none when it is already there. It used to go
+    // to its session at a readable zoom, so every click on a board seen
+    // whole zoomed it away; a selection pans, never zooms (Figma, tldraw),
+    // and the zoom to the session is the double-click's, one press further
+    // in, with the detail panel. Shift+click only widens the selection.
     // A recap note speaks for its session, so a click on it is a click
     // on the root.
     const id = n.type === "recapNote" ? (n.data as { parentId: string }).parentId : n.id;
     selectAgent(id, e.shiftKey, false);
     if (e.shiftKey) return;
+    // WITH THE TERMINAL ON, the card's session goes on the stage instead —
+    // or the stage moves to it — and the camera stays put: the card is what
+    // the stage grows out of, and the board it sits on is about to be folded
+    // away, so there is no frame worth travelling to.
+    // The stage evicts the detail panel itself. A held jump from an earlier
+    // click is dropped with the camera it was for.
+    if (stage?.onNodeClick(id, e.currentTarget as Element)) { focusHold.cancel(); return; }
     // AND SHUTS THE PANEL, whether or not it is showing. `detailOpen` is
     // persisted, so every deck that clicked a card under #814 has it
     // stored open — and after a reload nothing is selected, so nothing
@@ -65,9 +81,9 @@ export function useCanvasClicks({ clearSelection, selectAgent, detailOpen, setDe
     if (prefersReducedMotion()) {
       focusHold.hold(id);
     } else if (detailShown) {
-      window.setTimeout(() => { try { focusAgent(id); } catch {} }, 80);
+      window.setTimeout(() => { try { revealAgent(id); } catch {} }, 80);
     } else {
-      focusAgent(id);
+      revealAgent(id);
     }
   };
   // A click on the empty canvas clears the selection a held jump was for.

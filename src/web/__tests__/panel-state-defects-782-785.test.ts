@@ -112,9 +112,20 @@ describe("#783 — the tool-category filter", () => {
     // on a timer — and the bar was gone while the filter was still applied.
     // Every bubble suppressed, no chip to press, and Clear does not reset it:
     // a page reload was the only way back.
-    expect(app).toContain("{(presentCats.length > 1 || hiddenCats.size > 0) && (");
-    expect(app, "the bar is gated on what is present alone again")
-      .not.toContain("{presentCats.length > 1 && (");
+    // CHANGED ON PURPOSE (critique 3, point 7): not on a phone, whose Board is a
+    // stack of cards with no bubbles to filter.
+    // CHANGED ON PURPOSE (V4 top-10 #5): App's floating bar gated on
+    // `presentCats.length > 1 || hiddenCats.size > 0` → the same gate on the filter's
+    // group in the canvas bar's ⋯ menu (toolFilterShown), handed the state through
+    // BoardFlow, because the filter moved into that menu; a phone draws no canvas
+    // bar, so the phone half holds as it did. ⋯ carries a dot while a kind is hidden.
+    const controls = read("../components/CanvasControls.tsx");
+    expect(controls).toContain("return presentCats.length > 1 || hiddenCats.size > 0;");
+    expect(controls, "the group is gated on what is present alone again")
+      .not.toMatch(/presentCats\.length > 1 &&/);
+    expect(app).toContain("presentCats={presentCats} toggleCat={toggleCat}");
+    expect(read("../components/BoardFlow.tsx")).toContain("presentCats={presentCats} hiddenCats={hiddenCats} toggleCat={toggleCat}");
+    expect(controls).toContain('{filtered && <span className="canvas-more-dot" aria-hidden />}');
   });
 
   it("still applies the filter downstream, so the bar is not merely decorative", () => {
@@ -149,7 +160,7 @@ describe("#785 — a camera move the deck made itself", () => {
     expect(clusters).toContain("onFocusSession?.(sessionId)");
     // App.tsx hands BoardFlow focusAgent, and BoardFlow mounts the labels on it.
     expect(app).toMatch(/<BoardFlow\b[^>]*\bfocusAgent=\{focusAgent\}/);
-    expect(board).toContain("<SessionClusters onFocusSession={focusAgent} />");
+    expect(board).toContain("<SessionClusters onFocusSession={focusAgent} notes={notesDrawn} />");
   });
 
   it("stamps the move before synchronous callbacks can report it", () => {

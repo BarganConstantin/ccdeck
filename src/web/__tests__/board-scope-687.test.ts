@@ -52,13 +52,14 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import {
   boardTotals,
-  BOARD_SCOPE_LABEL,
-  BOARD_SCOPE_TITLE,
+  BOARD_SCOPE_LABEL_MSG,
   boardScopeTitle,
-  BOARD_SPEND_LABEL,
-  SESSION_SPEND_LABEL,
+  BOARD_SPEND_LABEL_MSG,
+  SESSION_SPEND_LABEL_MSG,
+  sessionSpendLabel,
   type Billable,
 } from "../board-usage";
+import { en } from "../i18n/en";
 import { costForUsage, fmtCost } from "../pricing";
 import { fmtTokens } from "../token-format";
 import { applyEvent, initialState, pruneDoneSessions, pruneOldAgents, type GraphState } from "../reducer";
@@ -73,6 +74,14 @@ import { sheetText } from "./sheet-source";
 // and ccusage-bin-escape do it. Nothing under test here touches the filesystem
 // — `boardTotals`, the reducer and the pricing table are pure — but a client
 // suite that assumes so is one import away from being wrong.
+// CHANGED ON PURPOSE (the UI in every language): the labels are keys now, so
+// these read each one through the English catalog; the scope sentence is
+// boardScopeTitle's output with the single-key shortcuts on.
+const BOARD_SPEND_LABEL = en[BOARD_SPEND_LABEL_MSG];
+const BOARD_SCOPE_LABEL = en[BOARD_SCOPE_LABEL_MSG];
+const SESSION_SPEND_LABEL = en[SESSION_SPEND_LABEL_MSG];
+const BOARD_SCOPE_TITLE = boardScopeTitle(true);
+
 const SANDBOX = join(
   process.env.TMPDIR ?? process.env.TEMP ?? "/tmp",
   "ccdeck-687-sandbox",
@@ -326,8 +335,9 @@ describe("the label lives in the same module as the sum", () => {
     const declared = code(boardUsage);
     expect(declared).toContain("export function boardTotals(");
     for (const name of [
-      "BOARD_SPEND_LABEL", "BOARD_SCOPE_LABEL",
-      "BOARD_SCOPE_TITLE", "SESSION_SPEND_LABEL",
+      // CHANGED ON PURPOSE (the UI in every language): the labels are keys now, so the
+      // module declares the key constants and the scope sentence is a function.
+      "BOARD_SPEND_LABEL_MSG", "BOARD_SCOPE_LABEL_MSG", "SESSION_SPEND_LABEL_MSG",
     ]) {
       expect(declared, `${name} is not declared beside the sum`).toContain(`export const ${name}`);
     }
@@ -335,6 +345,8 @@ describe("the label lives in the same module as the sum", () => {
   });
 
   it("says board of the board figures and session of the session ones", () => {
+    expect([BOARD_SPEND_LABEL_MSG, BOARD_SCOPE_LABEL_MSG, SESSION_SPEND_LABEL_MSG])
+      .toEqual(["insights.board.spend", "insights.board.scope", "insights.board.sessionSpend"]);
     expect(BOARD_SPEND_LABEL).toBe("spend on this board");
     expect(BOARD_SCOPE_LABEL).toBe("on this board");
     expect(SESSION_SPEND_LABEL).toBe("session spend");
@@ -390,28 +402,20 @@ describe("every surface that prints one of these figures prints the shared label
     expect(offenders).toEqual([]);
   });
 
-  it("labels the usage panel's headline and its token strip", () => {
-    // The panel has two sources now — ccusage for a period, the canvas when
-    // ccusage did not answer — and only the second one is a board figure. So
-    // the label and the sentence are on the board BRANCH of each conditional
-    // rather than unconditional: `fromRange ? <period word> : <board word>`.
-    // Asserted as the whole expression, because the half that matters is the
-    // one after the colon and a bare `toContain(BOARD_SPEND_LABEL)` would pass
-    // on a panel that had stopped rendering it at all.
-    expect(panel).toContain(`<span className="up-total-label">{fromRange ? periodWord : boardSpendLabel()}</span>`);
-    // The title is what this issue is about — asserted as the whole attribute
-    // so the board branch cannot quietly lose its sentence. (The class carried
-    // a stale dim as a template literal until #1289 took the dim off words.)
-    // Through boardScopeTitle since Settings › General's single-key switch: the
-    // same sentence, pointing at Usage history by name rather than by H while
-    // the letters are off (WCAG 2.1.4).
-    expect(panel).toContain('<div className="up-total" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>');
-    expect(panel).toContain('<div className="up-tokens-row" title={fromRange ? undefined : boardScopeTitle(singleKeys)}>');
-    // The unpriced deck: no headline renders there, so the strip says it itself
-    // — on the same rule, the board word on the board branch only. Under
-    // ccusage it said "on this board" of the period's reading until
-    // usage-token-strip-scope.test.ts, which checks the rendered caption.
-    expect(panel).toContain(`{!hasCost && <span className="up-tok up-scope">{fromRange ? periodWord : boardScopeLabel()}</span>}`);
+  it("labels the usage panel's headline and its token strip with the period only", () => {
+    // CHANGED ON PURPOSE (owner 2026-11-10): no board headline; chips from first paint; logs-unread sentence.
+    // The panel had two sources — ccusage for a period, the canvas when ccusage
+    // had not answered — and the second opened the panel on "$1150 spend on this
+    // board" before it jumped to "$29.25 today". The board branch is gone: the
+    // figures here come from the logs or not at all, so the label is the period
+    // word on every branch and no board sentence hangs on the headline.
+    expect(panel).toContain(`<span className="up-total-label">{periodWord}</span>`);
+    expect(panel).toContain('<div className="up-total">');
+    expect(panel).toContain('<div className="up-tokens-row">');
+    // The unpriced deck: no headline renders there, so the strip says the period itself.
+    expect(panel).toContain(`{!hasCost && <span className="up-tok up-scope">{periodWord}</span>}`);
+    // And no board word anywhere in the panel's markup.
+    expect(panel).not.toMatch(/boardSpendLabel\(|boardScopeLabel\(|boardScopeTitle\(/);
   });
 
   it("prints no board figure at all under a ccusage headline", () => {
@@ -424,8 +428,8 @@ describe("every surface that prints one of these figures prints the shared label
     // as a contradiction until you have opened a tooltip.
     //
     // So the line is gone, and this is what keeps it gone. The board figures
-    // are still on the topbar, with the sentence, and the board BRANCH below
-    // still prints them when ccusage has not answered at all.
+    // are still on the topbar, with the sentence; since 2026-11-10 the panel
+    // has no board branch either (the case above).
     expect(panelSurface).not.toContain('className="up-live"');
     expect(panelSurface).not.toMatch(/\{BOARD_SCOPE_LABEL\} now/);
     // And the sheet lost its rules with it — a selector nothing emits is the
@@ -445,7 +449,7 @@ describe("every surface that prints one of these figures prints the shared label
     // The strip is components/TopbarReadouts.tsx's; it ends where the next
     // component there starts.
     const readouts = code(read("components/TopbarReadouts.tsx"));
-    const opens = readouts.indexOf(`<span className="status">`);
+    const opens = readouts.indexOf(`className="status"`);
     expect(opens, "the .status strip is gone from components/TopbarReadouts.tsx").toBeGreaterThan(-1);
     const next = readouts.indexOf("export function", opens);
     const strip = readouts.slice(opens, next === -1 ? undefined : next);
@@ -455,8 +459,19 @@ describe("every surface that prints one of these figures prints the shared label
   });
 
   it("labels the sidebar row and the end-of-session recap", () => {
-    expect(sessionList).toContain(`title={t("insights.board.sessionSpend")}`);
-    expect(sessionSummary).toContain(`<div className="ss-cost-label">{sessionSpendLabel()}</div>`);
+    // The rail's row folded its cost into the row's tooltip (rail-row-copy.ts),
+    // where it still wears the label.
+    // CHANGED ON PURPOSE (the UI in every language): the label is the shared
+    // sessionSpendLabel() (the key, read when the line is made), in both lines.
+    const rowCopy = code(read("rail-row-copy.ts"));
+    expect(rowCopy).toContain("cost: fmtCost(r.cost), label: sessionSpendLabel()");
+    expect(rowCopy.match(/label: sessionSpendLabel\(\)/g)).toHaveLength(2);
+    expect(sessionSpendLabel()).toBe(SESSION_SPEND_LABEL);
+    // CHANGED ON PURPOSE (V4's Figma): the recap's figure wears the word "spend" under
+    // its value, and the shared label stays on the stat as its title.
+    expect(sessionSummary).toContain('<Stat label={t("insights.summary.spend")} value={fmtCost(summary.cost.total)} title={sessionSpendLabel()} />');
+    // The words behind the call are the shared label.
+    expect(sessionSpendLabel()).toBe(SESSION_SPEND_LABEL);
   });
 });
 

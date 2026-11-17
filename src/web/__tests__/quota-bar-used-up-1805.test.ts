@@ -14,7 +14,11 @@ const WINDOW = 18_000;           // five hours
 const RESET = 18_000;
 const HOUR_LEFT = RESET - 3600;  // four hours in, one to go
 
-const paceText = (html: string) => /class="qb-pace"[^>]*>(?:<i [^>]*><\/i>)?([^<]*)</.exec(html)?.[1];
+// CHANGED ON PURPOSE (V4 top-10 #10): the note's text up to the first tag →
+// its whole text with the tags taken out, because a warning's figure ("2m" in
+// "runs out in 2m") is its own span now, carrying the colour the sentence lost.
+const paceText = (html: string) =>
+  /class="qb-pace"[^>]*>(?:<i [^>]*><\/i>)?([\s\S]*?)<\/button>/.exec(html)?.[1].replace(/<[^>]*>/g, "");
 const bar = (props: { pct: number; nowSec: number; limitReached?: boolean }) =>
   renderToStaticMarkup(createElement(QuotaBar, { label: "5-hour window", resetAt: RESET, windowSec: WINDOW, ...props }));
 

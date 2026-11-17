@@ -32,8 +32,7 @@ export interface RemoveAnswer {
 
 /** Said at the foot of the panel when nothing could take over, because the
  *  live account is no longer in the list to say it on its own row. */
-export const STILL_EXPIRED =
-  "Removed. Claude Code is still signed in with that expired login, and no other account here was ready to take over — sign in to one from +";
+export const STILL_EXPIRED_MSG = "accounts.expiredSwitch.stillExpired";
 
 /**
  * What the panel says after such a removal: the switch that took, on the row it
@@ -45,6 +44,6 @@ export function afterRemoval(out: RemoveAnswer | null | undefined, t: TFunction 
   if (!out?.ok) return null;
   const to = out.movedTo;
   if (to && Number.isInteger(to.num)) return { switched: { num: to.num, name: to.alias ?? to.email ?? t("accounts.accountNLower", { n: to.num }) } };
-  if (out.stillExpired) return { failure: { text: t("accounts.expiredSwitch.stillExpired") } };
+  if (out.stillExpired) return { failure: { text: t(STILL_EXPIRED_MSG) } };
   return null;
 }

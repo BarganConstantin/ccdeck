@@ -33,19 +33,21 @@ const catalog: Catalog = {
 
   // The row's voice (codex-accounts.ts CODEX_VOICE)
   "codex.row.liveTitle": "Default account for new sessions",
+  "codex.row.defaultWord": "default",
+  "codex.row.notChecked": "Quota not checked yet",
   "codex.row.liveSpoken": "Default account:",
   "codex.row.readBy": "When the deck last read this account's usage",
   "codex.row.readPlan": "When the deck last read this account's usage, and when it plans to read it again: each minute for the default account and every five for the others, while this panel is open. These are the limits Codex reports for the account, so a plan with one window shows one bar.",
   "codex.row.readPlanNamed": "{plan} plan. {rest}",
   "codex.row.neverRead": "The deck has not read this account yet",
   "codex.row.switchWaiting": "Waiting for running tools or pending input before switching accounts.",
+  "codex.row.switchWaitingUsing": "Still using {account}. The account will switch when running tools or pending input finish.",
   "codex.row.childrenResuming": "Account switched. Waiting for subagents to resume.",
   "codex.row.continueUnconfirmed": "Automatic continuation could not be confirmed; check the conversation before continuing.",
   "codex.row.reading": "Reading usage…",
   "codex.lane.limit": "limit",
   "codex.peer.account": "account {n}",
   "codex.peer.heldOut": "held out",
-  "codex.order.added": "Order added",
 
   // What can be wrong with an account (codexIssue)
   "codex.issue.notSignedIn": "Not signed in",

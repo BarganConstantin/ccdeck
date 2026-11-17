@@ -21,8 +21,11 @@ import { describe, expect, it } from "vitest";
 import { sourceOf } from "./client-source";
 
 const add = sourceOf("components/LanAddDeckModal.tsx");
-/** The make button's opening tag, up to its handler. */
-const make = /<button type="button" className="ap-lan-word lan-h-act"[\s\S]*?onClick=\{\(\) => void invite\("make"\)\}/.exec(add)?.[0] ?? "";
+/** The make button's opening tag, up to its handler.
+ *  CHANGED ON PURPOSE (V4's Figma): it is the outlined `btn lan-make` under
+ *  the paste field now, not the word on the heading's row; the ref, the press
+ *  and the focus hand-back this file pins are the same. */
+const make = /<button type="button" className="btn lan-make"[\s\S]*?onClick=\{\(\) => void invite\("make"\)\}/.exec(add)?.[0] ?? "";
 /** The invite request, from its declaration to the end of its body. */
 const invite = /const invite = useCallback\(async \(action: "make" \| "withdraw"\) => \{[\s\S]*?\n {2}\}, \[/.exec(add)?.[0] ?? "";
 /** The effect that follows a press here to the control that replaced it. */

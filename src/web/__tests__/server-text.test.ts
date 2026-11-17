@@ -72,7 +72,8 @@ describe("the table of the deck's sentences", () => {
     const sentences = [...table.matchAll(/^  "(.+)": "[\w.]+",$/gm)].map(row => row[1]);
     expect(sentences.length).toBeGreaterThan(50);
     // Built on the server from a field's label or a version, so not one literal.
-    const composed = /^Enter your |^Your .+ is not a valid URL\.$|^This server runs Jira of an unknown version/;
+    // Also built from the integration's name (write-guard.mjs: `${name} writes are unavailable ...`).
+    const composed = /^Enter your |^Your .+ is not a valid URL\.$|^This server runs Jira of an unknown version|^Jira writes are unavailable because this system cannot safely coordinate them\.$/;
     expect(sentences.filter(sentence => !composed.test(sentence) && !routes.includes(sentence))).toEqual([]);
   });
 });

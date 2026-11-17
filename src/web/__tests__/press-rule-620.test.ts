@@ -291,14 +291,16 @@ const SITES: Array<[name: string, rel: string, anchor: RegExp, spread: RegExp]> 
   ["the version banner's Update & restart", "components/VersionBanner.tsx",
     /onClick=\{\(\) => askRestart\(\{ upgrade: true \}\)\}/,
     /\{\.\.\.selfPressProps\(restarting\)\}/],
+  // CHANGED ON PURPOSE (V4's Figma): the refresh is a quiet text button in the panel's foot now.
   ["the usage panel's ↻", "components/UsagePanel.tsx",
-    /className="glyph-btn up-refresh-btn"/,
+    /className="up-quiet up-refresh-btn"/,
     /\{\.\.\.selfPressProps\(anyLoading\)\}/],
   ["the usage-history ↻", "components/UsageHistoryModal.tsx",
     /className="glyph-btn uh-reload"/,
     /\{\.\.\.selfPressProps\(loading\)\}/],
   ["the usage-history Try again", "components/UsageHistoryModal.tsx",
-    /className="btn uh-retry"/,
+    // CHANGED ON PURPOSE (V4's Figma): the footer's primary button.
+    /className="btn primary uh-retry"/,
     /\{\.\.\.selfPressProps\(loading\)\}/],
   ["the add-account Continue", "components/AddAccountDialog.tsx",
     /onClick=\{submitCode\}/,

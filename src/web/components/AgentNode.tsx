@@ -1,22 +1,17 @@
 import React, { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { Handle, Position, type NodeProps } from "reactflow";
-import { sessionHue } from "../reducer";
 import { fmtCost } from "../pricing";
-import { otherModelIds } from "../usage-models";
 // What the cost chip holds, and its tooltip with the multiplication written
 // out. See card-cost.ts.
 import { costChip } from "../card-cost";
 import { codexApprovalTell } from "../codex-approval";
-// The chip's labeller, which used to be declared in this file and moved out in
-// #462 so that a pure matcher and a bare-node suite could reach it without a
-// React component behind it. See model-label.ts for why the move happened with
-// that fix rather than with #374's wider consolidation.
-import { modelChipText, modelChipTitle as chipTitle, modelFamily } from "../model-label";
-import { maxSqueeze, nextSqueeze, rowAt } from "../card-row-squeeze";
+// The provider's printed name, the one the usage panels already print.
+import { agentLabel } from "../provider-copy";
+import { footDropped, footDroppable, footNotchOnResize, nextFootNotch } from "../card-row-squeeze";
 // The card's words — its state, a block's sentence and label — which the
 // session list, the peek and the topbar say too. See agent-copy.ts.
-import { agentKindLabel, spawnBadgeTitle, stateLabel, subRowTitle, waitingLabel, waitingSentence } from "../agent-copy";
+import { agentKindLabel, blockedToolTooltip, categoryLabel, spawnBadgeTitle, subRowTitle, waitingLabel, waitingSentence } from "../agent-copy";
 import { isAlarming } from "../ambient-counts";
 // The card's token count, which used to be a private three-tier `fmtTok` here —
 // byte-identical to the two copies #323 deleted, and the fourth one it missed
@@ -25,24 +20,20 @@ import { fmtTokens } from "../token-format";
 // The card's elapsed clock, which used to be declared in this file and which
 // the detail panel wrote out again, one tier short. See duration.ts.
 import { elapsed } from "../duration";
-// Which naming record reaches the face of the card and which stays in the
-// tooltip. Shared with the cluster header rather than decided twice, because
-// the column cap in #521 is only sound while both surfaces show the same field.
-import { sessionDisplay } from "../session-display";
 import { ContextDonut } from "./ContextModal";
-import type { AgentNodeData, PlanItem, ToolCall, WaitingBlock } from "../types";
+import { contextFill } from "../context-figure";
+import type { AgentNodeData, PlanItem, WaitingBlock } from "../types";
 import { useNow } from "../use-now";
 import { useLanguage, useT } from "../i18n";
-import { boardNote, noteTag } from "../session-note";
-import { toggleRecapDismissed, useRecapDismissed } from "../recap-note";
-import { drawnState, faceSignal, stateMarkKind, type BranchSummary } from "../node-face";
+import { drawnState, faceStatus, stateMarkKind, type BranchSummary, type CardState, type StateMarkKind } from "../node-face";
+import { faceTask, lastTypedPrompt, sessionNames, twinStart, type TwinClock } from "../rail-row-copy";
 // The agent's own checklist, as one line (#2157). See agent-plan.ts.
 import { planSummary, planTitle, type PlanSummary } from "../agent-plan";
-import { primaryDisplayFor, toolSubject } from "../tool-skin";
-// The activity chart's counting and its scale. See tool-spark.ts.
-import { barHeight, BUCKETS, SPARK_H, SPARK_W, sparkWindow } from "../tool-spark";
+// The tool kinds the foot draws as icons, from the calls the card holds.
+import { recentToolKinds, TOOL_KIT_ICON } from "../card-tool-icons";
 import { AlertMark, StateMark } from "./StateMark";
-import { NoteMark } from "./RecapMark";
+import { KitIcon, KitStateGlyph, type KitStateName } from "./kit-icons";
+import { CostChipTip } from "./CostTip";
 // The words for a turn that stopped on an error. See stop-failure-copy.ts.
 import { stopRowLabel, stopTooltip } from "../stop-failure-copy";
 import type { StopFacts } from "../../server/stop-failure.mjs";
@@ -59,18 +50,37 @@ import { CardContinue, ContinuedRow } from "./StopContinue";
  *  draws cards to markup and a layout effect only warns (as use-count-up.ts). */
 const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
-function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary }>) {
+type CardData = AgentNodeData & { onOpenContext?: (sessionId: string) => void; branch?: BranchSummary; twin?: TwinClock };
+
+/** The board's node: the card, with the connection handles React Flow needs. */
+function AgentNode({ data }: NodeProps<CardData>) {
+  return <AgentCard data={data} handles />;
+}
+
+/** The agent card itself, so the Inspector's tree draws the very card the board
+ *  does (V4: the Inspector's cards are the Agent / Card). `handles` is the one
+ *  difference: React Flow's handles only exist inside a flow, and the tree is
+ *  not one. */
+export function AgentCard({ data, handles = false }: { data: CardData; handles?: boolean }) {
   const t = useT();
   const language = useLanguage();
   // No `selected` here. React Flow's prop is never true on this canvas, so the
   // class it set matched nothing; the frame marks a selected card's wrapper
   // with `rf-selected` instead (canvas-flow.ts) and the ring is drawn from that.
   // The state the card draws: a turn that stopped on an error rings as a
-  // failure, as its pill and mark say (drawnState, #2185).
+  // failure, as its word and mark say (drawnState, #2185).
   const shown = drawnState(data);
+  // The word and glyph beside the name: the faces' own status at a distance
+  // (node-face.ts faceStatus), so a finished card whose calls failed wears the
+  // partial mark here too, and says "Done · 1 failed" (StateLine), as its row in
+  // the Sessions list does.
+  const state = faceStatus(data, t);
   const cls = [
     "agent-node",
     `state-${shown}`,
+    // Ready for a first prompt: the reducer's state is active, but nothing is
+    // at work, so the edge is the quiet one and not Working's (agent-node.css).
+    state.tone === "ready" ? "ready" : "",
     data.synthetic ? "synthetic" : "",
   ].filter(Boolean).join(" ");
 
@@ -81,10 +91,10 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   // nowhere on the canvas. The card counts them instead, and the count does not
   // expire: the lifetime count (#1809) the detail panel reads, not the failures
   // still inside the 200-call window `tools` keeps, which forgot a long
-  // session's early ones. Silent at zero, like the in-flight count: a session
-  // with nothing wrong says nothing.
+  // session's early ones. V4's foot has no words for it, so the count is said
+  // where the foot's tool icons are hovered, beside the call count, and in the
+  // card's accessible name; the Inspector prints both.
   const failed = data.toolErrorCount ?? 0;
-  const hue = sessionHue(data.canvasSessionId ?? data.sessionId);
   const currentContextTokens = data.context?.currentContextTokens ?? 0;
   const hasContextSignal = data.kind === "root" && currentContextTokens > 0;
   // The sentence Claude Code titles the session with, in the tooltip the card
@@ -97,219 +107,167 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
   const cardTooltip = data.sessionTitle
     ? (data.cwd ? `${data.cwd}\n${data.sessionTitle}` : data.sessionTitle)
     : data.cwd;
-  // What the model chip says when this session's money came from more than one
-  // model (#686). The chip keeps naming the CURRENT model, because that is the
-  // question it has always answered and the only one that is about what happens
-  // next — `/model` changes what the next turn runs on, not what the last twenty
-  // ran on. What it could not say before is that the dollars beside it are not
-  // all that model's: `+1` says so on the face of the card, and the tooltip
-  // names the others, so a reader who sees $7.50 under a Sonnet chip is not left
-  // to conclude the deck priced a million Opus tokens at Sonnet's rate.
-  const otherModels = otherModelIds(data);
-  // WHAT GIVES WAY ON A TIGHT ROW (#2155, #2169): the kind word, then the
-  // effort, and a subagent's folder is cut short on its own — never the model.
-  // The order and why are card-row-squeeze.ts's. MEASURED, not reserved: the
-  // row is drawn whole and steps down one notch per paint while it overflows
-  // or the folder is cut, and starts again from the top whenever what it holds
-  // changes, or its width does (a text-size change, a clock that gained a
-  // digit).
-  const detailsRef = useRef<HTMLSpanElement>(null);
-  const folderRef = useRef<HTMLSpanElement>(null);
-  const squeezeMax = maxSqueeze(data);
-  const [squeeze, setSqueeze] = useState(0);
-  // The row's width as last observed: a change in it starts the squeeze again
-  // like a change in what the row holds does. A state, not a reset alone — a
-  // row still at the top notch that has narrowed must be measured again too.
-  const [rowWidth, setRowWidth] = useState<number | null>(null);
-  useBeforePaint(() => { setSqueeze(0); }, [data.effort, data.model, otherModels.length, data.cwdBasename, data.childCount, data.kind, squeezeMax, rowWidth]);
-  useBeforePaint(() => {
-    const el = detailsRef.current;
-    // No layout read once there is nothing left to give up.
-    if (!el || squeeze >= squeezeMax) return;
-    const folder = folderRef.current;
-    const next = nextSqueeze(squeeze, {
-      overflowing: el.scrollWidth > el.clientWidth,
-      folderCut: !!folder && folder.scrollWidth > folder.clientWidth,
-      max: squeezeMax,
-    });
-    if (next !== squeeze) setSqueeze(next);
-  });
-  useEffect(() => {
-    const el = detailsRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    let width = el.clientWidth;
-    // Synchronously, so the row is measured again before the frame is painted
-    // rather than drawn once at its old notch.
-    const ro = new ResizeObserver(() => {
-      if (el.clientWidth === width) return;
-      width = el.clientWidth;
-      flushSync(() => setRowWidth(width));
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  const row = rowAt(squeeze);
-  const modelChipTitle = data.model && (otherModels.length > 0
-    ? `${chipTitle(data.model, data.effort)}\n${t("board.node.modelCovers")}\n${otherModels.join("\n")}`
-    : chipTitle(data.model, data.effort));
-  // Two strings for the name row, chosen once. `face` is the name when the
-  // session has one and the sentence when it does not, which is the common
-  // case rather than the fallback: 0.2% of the transcripts on this machine
-  // carry an agent-name and 4.1% carry an ai-title, and not one of them
-  // carries a name without a title. See session-display.ts for the sweep.
-  const naming = sessionDisplay(data.sessionName, data.sessionTitle);
-  // What the session's note says — what it is doing, what came of it, or
-  // Claude Code's recap once that arrives — and the plan on it, or null when it
-  // says nothing. A note can hold the plan alone. See session-note.ts for the
-  // whole rule.
-  const board = boardNote(data);
-  const note = board?.note ?? null;
-  // The note opens by itself the moment there is one, and stays shut once it
-  // has been closed — for THAT note: a recap, or one turn's line of one kind;
-  // the next one opens again. Asked of every card, because a hook cannot wait
-  // for the note (recap-note.ts).
-  const noteKey = board ? board.key : null;
-  const noteDismissed = useRecapDismissed(noteKey);
-  const noteOpen = board != null && !noteDismissed;
-  const isRecap = note?.kind === "recap";
+  // NO MODEL ON THE CARD (V4 top-10 #2): the head is the name and the state
+  // (and "Codex" on a Codex card, below), and the task line says what the
+  // session is for. The model and its effort
+  // were mono text after the name, the machinery rather than the work, and
+  // they cut the name on every busy card; the Inspector, the Sessions list and
+  // the peek still say both, with the other models a session's money came from.
+  // A root's two lines keep the one name rule every surface keeps (owner's
+  // critique, 2026-11-11, point 2; rail-row-copy.ts sessionNames): the head is
+  // the session's name — the name it was given, else Claude Code's title, else
+  // the folder — and the task line is what a person last asked it, the
+  // Sessions list's second line. The card had the folder in its head and the
+  // name or title on its task line, so one session read "api / retention job"
+  // here and "retention job / api · Add a retention job…" in the list beside
+  // it. Most sessions have no name or title (0.2% and 4.1% of the transcripts
+  // on this machine, session-display.ts): their head is still the folder.
+  const names = data.kind === "root" ? sessionNames(data) : null;
+  const headName = names ? names.title : data.label;
+  // When it started, on a card another reads like (canvas-flow.ts nodeDataFor).
+  const twin = names && data.twin ? twinStart(data.startedAt, data.twin) : null;
+  // The prompt's first line on the face, the whole prompt on hover. Absent
+  // rather than empty when nothing was asked, or when the task is the name.
+  const rootTask = names?.task ? { face: names.task, tooltip: lastTypedPrompt(data) } : null;
+  // What the call that started a subagent said it is for (subagent-lifecycle.ts).
+  const spawnTask = data.spawnCall?.description;
   // The cost slot at the end of the meta row, decided once (card-cost.ts).
   const cost = costChip(data);
+  // The kinds of tool the session used, for the foot's icons.
+  const toolKinds = recentToolKinds(data.tools);
+
+  // THE FOOT STAYS ONE LINE (V4): while it overflows, meta items drop in a
+  // fixed order (card-row-squeeze.ts). Measured after layout; reset when what
+  // the foot holds changes or the card gets wider.
+  const footRef = useRef<HTMLDivElement>(null);
+  const timeRef = useRef<HTMLSpanElement>(null);
+  const [footNotch, setFootNotch] = useState(0);
+  // Bumped when the clock's width changes, which re-renders only the leaf: the
+  // foot has to be measured again by the card itself.
+  const [, setFootBeat] = useState(0);
+  const tokenTotal = data.usage.inputTokens + data.usage.outputTokens;
+  const present = { tokens: tokenTotal > 0, inflight: inflight > 0 };
+  const footMax = footDroppable(present).length;
+  const dropped = footDropped(footNotch, present);
+  const showTokens = tokenTotal > 0 && !dropped.has("tokens");
+  // HOW FULL ITS CONTEXT IS, in the foot beside the token figure with its
+  // percent: in the head it was a second circle beside the state mark, two
+  // circles with two meanings. It stays when the squeeze drops the
+  // token figure, so the warning tones never leave the card.
+  const ring: React.ReactElement | false = hasContextSignal && !!data.onOpenContext && (
+    <ContextDonut
+      key="context"
+      currentContextTokens={currentContextTokens}
+      modelId={data.model}
+      contextWindow={data.contextWindow}
+      onClick={() => data.onOpenContext!(data.sessionId)}
+    />
+  );
+  const footKey = [
+    cost ? `${cost.kind}:${cost.kind === "spent" ? fmtCost(cost.total) + (cost.floor ? "+" : "") : ""}` : "",
+    toolKinds.join(","), inflight, fmtTokens(tokenTotal), data.childCount, data.synthetic ? 1 : 0,
+    ring ? Math.round(contextFill(data).pct) : "",
+  ].join("|");
+  useBeforePaint(() => { setFootNotch(0); }, [footKey]);
+  useBeforePaint(() => {
+    const el = footRef.current;
+    if (!el || footNotch >= footMax) return;
+    const overflow = el.scrollWidth - el.clientWidth;
+    // Functional, so a reset queued by the effect above is not overwritten.
+    setFootNotch(n => nextFootNotch(n, { overflow, max: footMax }));
+  });
+  useEffect(() => {
+    const el = footRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let width = el.clientWidth;
+    let clock = timeRef.current?.offsetWidth ?? 0;
+    const ro = new ResizeObserver(() => {
+      const to = el.clientWidth;
+      const now = timeRef.current?.offsetWidth ?? 0;
+      const from = width;
+      width = to;
+      const clockMoved = now !== clock;
+      clock = now;
+      if (to === from && !clockMoved) return;
+      flushSync(() => {
+        setFootNotch(n => footNotchOnResize(n, { from, to }));
+        if (clockMoved) setFootBeat(b => b + 1);
+      });
+    });
+    ro.observe(el);
+    if (timeRef.current) ro.observe(timeRef.current);
+    return () => ro.disconnect();
+  }, []);
 
   return (
-    // --accent itself is built in styles.css from this hue: the token that
-    // reads well on a #14161b node is not the one that reads on a white one,
-    // and .tokens-meta / .spawn-badge are text.
-    <div className={cls} style={{ "--session-hue": hue } as React.CSSProperties}>
-      <span className="accent-stripe" />
-      <Handle type="target" position={Position.Left} style={{ background: "transparent", border: "none" }} />
+    // No colour of its own (V4 top-10 #1): the card wore its session's hashed
+    // hue, a colour that said nothing. Its edge is --line, and --warn while it
+    // waits on you; its rings are the deck's own --accent.
+    <div className={cls} data-alarm={state.tone === "waiting" ? "" : undefined}>
+      {handles && <Handle type="target" position={Position.Left} style={{ background: "transparent", border: "none" }} />}
 
       <div className="head">
         <div className="title">
-          <StatePill state={shown} />
-          <span className="label" title={cardTooltip}>{data.label}</span>
-          {data.restoredFromLog && <span className="synth-tag" title={data.provider === "claude" ? t("board.node.restoredRegistry") : t("board.node.restoredLog")}>{t("board.node.restored")}</span>}
+          <span className="label" title={cardTooltip}>{headName}</span>
+          {/* WHICH CLI, FOR CODEX ONLY (V4 top-10 #2). With the model text gone
+              this word is the board's one way to tell a Codex card from a
+              Claude one, in the place the model sat: muted, no pill. A Claude
+              card, the default provider, says nothing: the reducer stamps
+              "claude" on any event that names no provider, so a word for it
+              would print an assumption as an observation. */}
+          {data.provider === "codex" && <span className="provider-word">{agentLabel("codex")}</span>}
+          {data.restoredFromLog &&<span className="synth-tag" title={data.provider === "claude" ? t("board.node.restoredRegistry") : t("board.node.restoredLog")}>{t("board.node.restored")}</span>}
           {data.synthetic && <span className="synth-tag" title={t("board.node.synthesised")}>?</span>}
-          {/* Claude Code's ※, in the session's colour, beside the name: the
-              card's own mark that a recap is there, and the switch for its
-              note. The note opens by itself, so this is how it is put away
-              and brought back. The click stops here, so it does not also
-              select the card. */}
-          {board && noteKey && (
-            <button
-              type="button"
-              className="glyph-btn recap-pin"
-              aria-label={isRecap ? t("board.node.recapLabel") : note ? t("board.node.noteLabel", { tag: noteTag(note.kind) }) : t("board.node.notePlan")}
-              aria-expanded={noteOpen}
-              title={isRecap
-                ? (noteOpen ? t("board.node.hideRecap") : t("board.node.showRecap"))
-                : note
-                  ? (noteOpen ? t("board.node.hideNote") : t("board.node.showNote"))
-                  : (noteOpen ? t("board.node.hidePlan") : t("board.node.showPlan"))}
-              onClick={e => { e.stopPropagation(); toggleRecapDismissed(noteKey); }}
-            ><NoteMark recap={isRecap} /></button>
-          )}
         </div>
+        {/* One circle here, the state's: the context ring is in the foot. */}
         <div className="head-right">
-          {hasContextSignal && data.onOpenContext && (
-            <ContextDonut
-              currentContextTokens={currentContextTokens}
-              modelId={data.model}
-              contextWindow={data.contextWindow}
-              onClick={() => data.onOpenContext!(data.sessionId)}
-            />
-          )}
+          <StateLine state={state} under={stateMarkKind(shown)} />
         </div>
       </div>
 
-      {/* The row gives way in order (squeeze, above), so a subagent's folder
-          is cut short rather than the model chip; its tooltip says the row
-          whole. The badge and the chip keep their own, which the browser
-          prefers over this one under the pointer. */}
-      <div className="sub" title={subRowTitle(data, t)}>
-        <span className="sub-details" ref={detailsRef}>
-          {row.kind && <span>{agentKindLabel(data, t)}</span>}
-          {data.childCount > 0 && (
-            <span className="spawn-badge" title={spawnBadgeTitle(data.childCount, t)}>→ {data.childCount}</span>
-          )}
-          {data.cwdBasename && data.kind === "subagent" && (
-            <span className="sub-folder" ref={folderRef}>{row.kind ? "· " : ""}{data.cwdBasename}</span>
-          )}
-          {/* The chip README.md names as how the two CLIs are told apart, on the
-              nodes that have no model to put in it (#404). `provider` has been
-              carried on every node since Codex support landed and read by nothing
-              in the UI, so a Claude and a Codex session in one repo were two cards
-              separated by a session-id suffix and nothing else — and the model
-              chip, the documented workaround, is absent on synthetic nodes, on
-              subagents with no model event, and on every root before its first
-              ModelObserved.
+      {/* THE TASK LINE (V4's Agent / Card): what the card is for, in the
+          secondary ink, on up to two lines and cut with an ellipsis after the
+          second, carrying its whole text on hover. CHANGED ON PURPOSE (V4
+          top-10 #2): it was one line, which cut most prompts after four words.
 
-              Only "codex" falls back, deliberately. The reducer stamps "claude" as
-              the DEFAULT for any event that names no provider — that is how events
-              recorded before the field existed replay — so a "Claude Code" chip
-              would print an assumption as an observation, on every model-less node
-              of the commonest deck. A "codex" stamp is only ever set from a rollout
-              this deck actually read. */}
-          {data.model
-            /* TINTED FROM THE MODEL, NOT FROM THE TOOLTIP. The sheet used to
-               match `[title*="opus"]`, and since #686 this tooltip lists every
-               model the card's spend covers — so a session that switched from
-               Sonnet to Opus matched two equal-specificity rules and took the
-               last one, drawing "Opus 5 +1" in Sonnet blue. */
-            ? <span className="model-chip" data-family={modelFamily(data.model)} title={modelChipTitle}>
-                {modelChipText(data.model, row.effort ? data.effort : undefined)}{otherModels.length > 0 ? ` +${otherModels.length}` : ""}
-              </span>
-            : data.provider === "codex"
-              ? <span className="model-chip" title={t("board.node.codexNoModel")}>Codex</span>
-              : null}
-        </span>
-        {/* A floor, and marked as one, when the deck did not see this session
-            start (#822). `startedAt` is the first event THIS page applied, and
-            a page opened late is built from the bounded replay ring, so for a
-            long session the clock started partway in — one tab read 118m
-            beside another's 12m for the same session. `synthetic` is how the
-            reducer already knows; it is the "?" beside the name. */}
-        <span className="time" title={data.synthetic
-          ? t("board.node.joinedLate", { time: new Date(data.startedAt).toLocaleTimeString(language) })
-          : t("board.node.started", { time: new Date(data.startedAt).toLocaleTimeString(language) })}>
-          {data.synthetic ? "≥ " : ""}<Elapsed start={data.startedAt} end={data.endedAt} />
-        </span>
-      </div>
+          A root says what a person last asked it, the task line the Sessions
+          list draws under the same name (rail-row-copy.ts sessionTask). The
+          session's NAME or TITLE is the head's word, not this line's (owner's
+          critique, 2026-11-11, point 2). Neither is an address: both records
+          are rewritten as the session moves and two sessions can hold the same
+          one, so the short id stays in the cluster header's hover. ABSENT
+          rather than empty when nothing was asked, or when the task is the
+          name itself.
 
-      {/* What Claude Code calls this session, on a row of its own for the
-          reason the row below restates: the header is full at 260px, and the
-          meta row above would have to ellipsis the model chip away to fit a
-          slug that runs to 29 characters.
-
-          The NAME when the session has one, the TITLE when it does not, and the
-          same row either way. #520 drew the name alone, which measured across
-          every transcript on this machine renders for 0.2% of them; the title
-          reaches 4.1%, and 25.3% of the transcripts big enough to be a real
-          session. There is no transcript here with a name and no title, so the
-          title is not the degraded mode — for 96% of the sessions with anything
-          to say at all it is the only record there is.
-
-          Root only. Both records name a SESSION; a subagent has neither, and
-          copying the parent naming onto every child would print the same string
-          five times on one canvas.
-
-          It does NOT replace the id. Both records are rewritten as the session
-          moves and two sessions can hold the same one, so this is a
-          description, not an address — the short id in the cluster header stays
-          the thing that still means this node in five minutes. Mutable fact on
-          the card, stable one on the frame around it.
-
-          ABSENT rather than empty when there is neither: a Codex rollout
-          carries no such record and a young Claude session has not been given
-          one yet, so this row does not render for either and both keep exactly
-          the shape they have today. */}
-      {data.kind === "root" && naming.face && (
-        <div className="session-name" title={naming.tooltip}>
-          {naming.face}
+          A subagent has neither record (copying the parent's naming onto every
+          child would print the same string five times on one canvas), so it
+          says what the call that started it said it is for: the Task or Agent
+          call's description. When no such call reached the deck it says what
+          it is, the kind word and the folder it works in. The whole row — kind,
+          count, folder and model — is on hover either way. A Codex child
+          session is a root with a parent, and agentKindLabel names it "child
+          session": it draws that word the same way. The kind word of an
+          ordinary root is not drawn (its edge, its tooltip and the card's
+          accessible name already say it). */}
+      {/* A card that reads like another on the board, name and task
+          (twinClocks), leads this line with when it started: in the head it
+          cut the name to a letter. Only then: a card that reads like no other
+          draws no clock (twinStart is null). */}
+      {data.kind === "root" && (rootTask || twin) && (
+        <div className="task-line" title={rootTask?.tooltip}>
+          {twin && <span className="twin-start" title={t("board.node.started", { time: twin })}>{twin}</span>}
+          {twin && rootTask ? " · " : ""}
+          {rootTask?.face}
+        </div>
+      )}
+      {!(data.kind === "root" && (rootTask || twin)) && agentKindLabel(data, t) !== "session" && (
+        <div className="task-line" title={spawnTask ? `${spawnTask}\n${subRowTitle(data, t)}` : subRowTitle(data, t)}>
+          {spawnTask || `${agentKindLabel(data, t)}${data.cwdBasename ? ` · ${data.cwdBasename}` : ""}`}
         </div>
       )}
 
       {/* The turn ended on an error and has to be run again by hand (#2185):
-          the state pill says "done", and this says what that done is not. Above
+          the head says "Failed", and this says which failure it was. Above
           the waiting row, which a stopped turn makes redundant when it is only
           the idle "your turn" — Claude Code's idle reminder a minute later is
           about the same turn. */}
@@ -318,10 +276,10 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
           "Continued automatically 2m ago", for half an hour. */}
       {data.kind === "root" && !data.stopFailure && <ContinuedRow data={data} />}
 
-      {/* A row of its own rather than a chip in the title. The card is 260px
-          wide and the header already spends it on the state pill, the workspace
-          name and the elapsed clock; a fourth item there pushed the label to an
-          ellipsis and still overflowed. A blocked session has earned a line. */}
+      {/* A row of its own rather than a chip in the head. The card is 256px
+          wide and the head already spends it on the name and the state word;
+          a third item there pushed the name to an ellipsis and still
+          overflowed. A blocked session has earned a line. */}
       {data.waiting && !(data.stopFailure && data.waiting.kind === "idle") && <WaitingRow waiting={data.waiting} />}
 
       {/* The same slot, for the sessions that can never fill it (#398). A Codex
@@ -360,40 +318,66 @@ function AgentNode({ data }: NodeProps<AgentNodeData & { onOpenContext?: (sessio
         return plan && data.plan ? <PlanRow plan={plan} items={data.plan.items} /> : null;
       })()}
 
-      {(data.tools.length > 0 || (data.outputs?.length ?? 0) > 0) && (
-        <ToolRateSpark tools={data.tools} outputs={data.outputs} />
-      )}
-
-      <div className="meta">
-        {/* One tool, as the session list and the card's own label say it
-            (#1842). */}
-        <span><b>{data.toolCount}</b> {t("board.meta.tools", { count: data.toolCount })}</span>
-        {failed > 0 && (
-          <span className="failed-meta" title={t("board.meta.errTitle", { count: failed })}>
-            <b>{failed}</b> {t("board.meta.err")}
+      {/* THE FOOT (V4): up to three icons for the tool kinds the session used,
+          latest first, then cost · time, then the figures that stay (in-flight,
+          tokens and, on a root, the context ring with its percent), a spacer,
+          and at the end the sub-agent count with its icon.
+          Items are separated by a dot, and the row stays one line by dropping
+          meta items (see .foot). The icons replace the activity sparkline: same
+          calls, said as kinds, and their tooltip says how many calls and how
+          many failed, which the foot no longer prints. No recap pin: the note
+          opens by itself, its × puts it away, and the Inspector's Recap section
+          reads it whole. */}
+      <div className="foot" ref={footRef}>
+        {toolKinds.length > 0 && (
+          <span className="foot-tools" title={[
+            toolKinds.map(k => categoryLabel(k, t)).join(" · "),
+            t("board.toolCount", { count: data.toolCount }) + (failed > 0 ? t("board.listSep") + t("board.failedCount", { n: failed }) : ""),
+          ].join("\n")}>
+            {toolKinds.map(k => <KitIcon key={k} name={TOOL_KIT_ICON[k]} />)}
           </span>
         )}
-        {inflight > 0 && <span className="inflight-meta"><b>{inflight}</b> {t("board.meta.inflight")}</span>}
-        {(data.usage.inputTokens + data.usage.outputTokens) > 0 && (
-          <span className="tokens-meta" title={`${t("board.meta.tokensTitle", { input: data.usage.inputTokens, output: data.usage.outputTokens, cacheR: data.usage.cacheReadTokens, cacheC: data.usage.cacheCreateTokens })}${(data.usage.reasoningOutputTokens ?? 0) > 0 ? `  ${t("board.meta.reasoning", { n: data.usage.reasoningOutputTokens ?? 0 })}` : ""}`}>
-            <b>{fmtTokens(data.usage.inputTokens + data.usage.outputTokens)}</b> {t("board.meta.tok")}
-          </span>
-        )}
-        {cost?.kind === "unpriced" && (
-          <span className="cost-unpriced" title={cost.tt}>
-            {t("insights.cost.notPriced")}
-          </span>
-        )}
-        {cost?.kind === "spent" && (
-          <span className="cost-meta" title={cost.tt}>
-            <b>{fmtCost(cost.total)}{cost.floor ? "+" : ""}</b>
+        {interleave([
+          cost?.kind === "unpriced" && (
+            <CostChipTip key="cost" className="cost-unpriced" tip={cost.tip}>{t("insights.cost.notPriced")}</CostChipTip>
+          ),
+          cost?.kind === "spent" && (
+            <CostChipTip key="cost" className="cost-meta" tip={cost.tip}>
+              <b>{fmtCost(cost.total)}{cost.floor ? "+" : ""}</b>
+            </CostChipTip>
+          ),
+          // A floor, and marked as one, when the deck did not see this session
+          // start (#822). `startedAt` is the first event THIS page applied, and
+          // a page opened late is built from the bounded replay ring, so for a
+          // long session the clock started partway in — one tab read 118m
+          // beside another's 12m for the same session. `synthetic` is how the
+          // reducer already knows; it is the "?" beside the name.
+          <span key="time" className="time" ref={timeRef} title={data.synthetic
+            ? t("board.node.joinedLate", { time: new Date(data.startedAt).toLocaleTimeString(language) })
+            : t("board.node.started", { time: new Date(data.startedAt).toLocaleTimeString(language) })}>
+            {data.synthetic ? "≥ " : ""}<Elapsed start={data.startedAt} end={data.endedAt} />
+          </span>,
+          inflight > 0 && !dropped.has("inflight") && <span key="inflight" className="inflight-meta"><b>{inflight}</b> {t("board.meta.inflight")}</span>,
+          showTokens && (
+            <span key="tokens" className="tokens-meta" title={`${t("board.meta.tokensTitle", { input: data.usage.inputTokens, output: data.usage.outputTokens, cacheR: data.usage.cacheReadTokens, cacheC: data.usage.cacheCreateTokens })}${(data.usage.reasoningOutputTokens ?? 0) > 0 ? `  ${t("board.meta.reasoning", { n: data.usage.reasoningOutputTokens ?? 0 })}` : ""}`}>
+              <b>{fmtTokens(data.usage.inputTokens + data.usage.outputTokens)}</b> {t("board.meta.tok")}
+            </span>
+          ),
+          // With the token figure dropped, the ring is an item of its own.
+          !showTokens && ring,
+        ])}
+        {/* Right after the token figure, with no dot: "34k tok ◔ 17%". */}
+        {showTokens && ring}
+        {data.childCount > 0 && (
+          <span className="foot-end">
+            <span className="spawn-badge" title={spawnBadgeTitle(data.childCount, t)}>{data.childCount}<KitIcon name="agents" /></span>
           </span>
         )}
       </div>
 
-      <NodeFace data={data} title={data.kind === "root" ? naming.face : undefined} />
+      <NodeFace data={data} task={faceTask(data)} />
 
-      <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none" }} />
+      {handles && <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none" }} />}
     </div>
   );
 }
@@ -437,44 +421,63 @@ function PlanRow({ plan, items }: { plan: PlanSummary; items: readonly PlanItem[
  *
  * Always in the tree, and `display: none` at the detail tier: the mode is an
  * attribute on the canvas, so changing it re-renders no card. What it draws is
- * the card's own data, picked down — the name, a state MARK, and the one line
- * faceSignal decides is worth an interruption. Which lines fit is the sheet's
- * call, per card, by container query against the face's own on-screen size.
+ * one task line and the card's status (owner's critique, 2026-11-11): what a
+ * person last asked the session (the Sessions list's task), else its name or
+ * title, never the folder the cluster's label above already names
+ * (rail-row-copy.ts faceTask); a subagent's own task, else its name. Then the
+ * mark and the word, Working, Done, Waiting or, beside the partial mark,
+ * "1 failed" (faceStatus).
+ * Compact and overview draw the same face. A card that reads like another on
+ * the board (twinClocks) adds when it started, after the word where the face
+ * has two lines; never below 40%.
+ *
+ * The word is never cut: where it does not fit whole, the sheet lets it wrap
+ * to a line the face clips, and the mark says the state alone, by its shape
+ * and its colour. Where the face is tall enough the task has a line of its
+ * own and the status the one under it.
+ *
+ * Below 40% the face is a pill (V4's Figma): the start of the same task line
+ * at its left, cut with an ellipsis, and the mark at its right. The word moves
+ * to the peek. CHANGED ON PURPOSE (owner's critique, round 3): the pill said
+ * the card's label, which for a root is the folder its tag says right above.
  *
  * Hidden from assistive technology like the rows it stands in for: the node's
  * accessible name is agentAriaLabel, composed from the data, and says all of
- * this at every zoom.
+ * this at every zoom. The peek beside the pointer says the word too.
  */
-function NodeFace({ data, title }: { data: AgentNodeData & { branch?: BranchSummary }; title?: string }) {
+function NodeFace({ data, task }: { data: AgentNodeData & { branch?: BranchSummary; twin?: TwinClock }; task: string }) {
   const tr = useT();
   const alarm = data.kind === "root" && isAlarming(data.waiting);
-  const signal = faceSignal(data, data.branch, {
-    sayWaiting: w => waitingLabel(w, tr),
-    describeCall: call => ({ name: primaryDisplayFor(call.name).label, subject: toolSubject(call.name, call.input) }),
-  }, tr);
+  const status = faceStatus(data, tr);
+  const twin = data.kind === "root" && data.twin ? twinStart(data.startedAt, data.twin) : null;
   return (
     <div
       className="lod-face"
       data-kind={data.kind}
       data-alarm={alarm ? "" : undefined}
-      data-signal={signal ? "" : undefined}
       aria-hidden
     >
-      <div className="lod-id">
-        <StateMark kind={stateMarkKind(drawnState(data))} />
-        <span className="lod-name">{data.label}</span>
-        {signal && <span className="lod-inline" data-tone={signal.tone}>{signal.short}</span>}
-        {alarm && <AlertMark />}
+      <div className="lod-line" data-status={status.tone}>
+        {status.mark === "alert" ? <AlertMark /> : <StateMark kind={status.mark} />}
+        {task && <span className="lod-name">{task}</span>}
+        {twin && <span className="lod-start">{twin}</span>}
+        <span className="lod-state">{status.word}</span>
       </div>
-      {title && <div className="lod-title">{title}</div>}
-      {signal && (
-        <div className="lod-signal" data-tone={signal.tone}>
-          <span className="lod-long">{signal.long}</span>
-          <span className="lod-short">{signal.short}</span>
-        </div>
-      )}
     </div>
   );
+}
+
+/** The foot's items with the dot between them, none before the first or after
+ *  the last, and none for an item that is absent. The dot is decoration: the
+ *  items are words of their own. */
+function interleave(items: (React.ReactElement | false)[]): React.ReactNode[] {
+  const out: React.ReactNode[] = [];
+  for (const item of items) {
+    if (!item) continue;
+    if (out.length > 0) out.push(<span key={`sep-${out.length}`} className="foot-sep" aria-hidden>·</span>);
+    out.push(item);
+  }
+  return out;
 }
 
 /** The card's clock, on its own beat (#873): the one piece of the header that
@@ -484,100 +487,72 @@ function Elapsed({ start, end }: { start: number; end?: number }) {
   return <>{elapsed(start, end, now)}</>;
 }
 
-function StatePill({ state }: { state: AgentNodeData["state"] }) {
+/** The card's state: the face's own mark, then a sentence-case word, both in
+ *  the state's token (V4). The mark is decoration beside the word, so the word
+ *  is the channel that carries the state to a reader (1.4.1) and to the card's
+ *  accessible name (agentAriaLabel).
+ *
+ *  A turn that finished with failed calls (the partial tone) has room here for
+ *  both facts: Done in done's ink, then the face's "3 failed" in the warning's,
+ *  each its own span for the sheet. The face at a distance says the count alone. */
+const STATE_GLYPH: Record<CardState["tone"], KitStateName> = { active: "working", waiting: "waiting", done: "done", partial: "partial", err: "error", ready: "idle" };
+
+function StateLine({ state, under }: { state: CardState; under: StateMarkKind }) {
   const t = useT();
-  return <span className={`state-pill state-${state}`}>{stateLabel(state, t)}</span>;
+  return (
+    <span className="state-line" data-tone={state.tone}>
+      <KitStateGlyph name={STATE_GLYPH[state.tone]} className="state-mark" kind={state.mark === "alert" ? under : state.mark} />
+      {state.tone === "partial"
+        ? <span className="state-word"><span className="state-done">{t("board.card.stateDone")}</span>{" · "}<span className="state-failed">{state.word}</span></span>
+        : <span className="state-word">{state.word}</span>}
+    </span>
+  );
 }
 
 /** The turn stopped on an error: which one, in the row's words, with what
  *  Claude Code said and what to do in the tooltip. The card's accessible name
  *  carries the same (agentAriaLabel), which is where a reader on the node hears
- *  it — a title is not announced there. The still dot is the waiting row's:
- *  nothing here is still happening. A background session's row carries its
- *  Continue button at the end (#2193); an interactive one's says to type
- *  "continue" in its terminal. */
+ *  it — a title is not announced there. Text alone in the failure's hue, with
+ *  no dot (V4's Agent / Card): the head's Failed mark already marks it. A
+ *  background session's row carries its Continue button at the end (#2193); an
+ *  interactive one's says to type "continue" in its terminal. */
 function StopRow({ data, stop }: { data: AgentNodeData; stop: StopFacts }) {
   const t = useT();
   return (
     <div className="stop-row" title={stopTooltip(stop, data.job != null, t)} data-kind={stop.kind}>
-      <span className="waiting-dot" aria-hidden />
       <span className="stop-said">{stopRowLabel(stop, t)}</span>
       <CardContinue data={data} />
     </div>
   );
 }
 
-/** The session is blocked on a human — and on which of the two chores that is.
- *  A dot alone would not carry it: a permission prompt is a decision a session
- *  cannot proceed without, an idle prompt is a finished turn waiting for your
- *  next instruction, and those are not the same errand. So the sentence carries
- *  it and the hue and the dot reinforce it — and only the permission variant
- *  pings: a stalled session is interrupt-driven and rare, which is the case a
- *  pulse is for, and a session that finished and is resting is neither. The
- *  ping is .ap-pulse, the emitter the accounts panel
- *  already uses, so the app keeps one idiom for "still asking" and one
- *  reduced-motion answer for it. */
+/** What the session is waiting on, as V4's Agent / Card draws it: one line
+ *  in the Waiting colour, with no dot and no clock (the head's alert mark says
+ *  it is waiting, the foot's clock says for how long). A permission prompt reads
+ *  as the call it is most likely about — "Bash · npm test -- rate-limit", the
+ *  same line the session list draws, and in mono as it does, because it is a
+ *  call (V4 top-10 #8) — and as Claude Code's sentence when the stream implied
+ *  no call. A question reads as the question, and an idle prompt as "Your
+ *  turn", both in the sans: they are words, not something to type. The tooltip
+ *  keeps Claude Code's own sentence, the hedge on the guess
+ *  (blockedToolTooltip) and how long it has been blocked. */
 function WaitingRow({ waiting }: { waiting: WaitingBlock }) {
   const t = useT();
-  // Its own beat (#873): "blocked for 3m" counts up while the card sits still.
+  // Its own beat (#873): the tooltip's "blocked for 3m" counts up while the
+  // card sits still.
   const now = useNow(1000);
-  // The pulse and the amber belong to a session that is STOPPED until a human
-  // answers, which is both `permission` and `asked` — the same set `isAlarming`
-  // names, and it has to stay the same set or the card would contradict the
-  // topbar chip beside it. Idle keeps the quiet dot: a finished turn is not an
-  // interruption.
-  const alarming = isAlarming(waiting);
   const said = waitingSentence(waiting, t);
+  const tool = waiting.kind === "asked" ? undefined : waiting.tool;
+  const title = [
+    said,
+    blockedToolTooltip(waiting, said, t),
+    t("board.node.blockedFor", { time: elapsed(waiting.since, undefined, now) }),
+  ].filter(Boolean).join("\n");
   return (
-    <div
-      className={alarming ? "waiting-row permission" : "waiting-row idle"}
-      title={`${said}\n${t("board.node.blockedFor", { time: elapsed(waiting.since, undefined, now) })}`}
-    >
-      {alarming
-        ? <span className="ap-pulse" aria-hidden />
-        : <span className="waiting-dot" aria-hidden />}
-      <span className="waiting-said">{waitingLabel(waiting, t)}</span>
-      <b>{elapsed(waiting.since, undefined, now)}</b>
-    </div>
-  );
-}
-
-/** Sparkline of tool starts per bucket over the last 60s. Most-recent
- *  bucket lives on the right and is highlighted while it's the active one. */
-function ToolRateSpark({ tools, outputs }: { tools: ToolCall[]; outputs?: number[] }) {
-  // Its own beat (#873): the window slides under a card that has not changed.
-  const t = useT();
-  const now = useNow(1000);
-  const { counts, title } = sparkWindow(tools, outputs, now, t);
-  const barW = SPARK_W / BUCKETS;
-  return (
-    <div className="tool-spark-row" title={title}>
-      <svg className="tool-spark" width={SPARK_W} height={SPARK_H} viewBox={`0 0 ${SPARK_W} ${SPARK_H}`} aria-hidden>
-        {counts.map((c, i) => {
-          const h = barHeight(c);
-          const isLatest = i === BUCKETS - 1 && c > 0;
-          const isActive = c > 0;
-          const cls = `tool-spark-bar${isActive ? " active" : ""}${isLatest ? " latest" : ""}`;
-          return (
-            <rect
-              // THE LEADING BAR IS KEYED BY WHAT IT COUNTS, so React remounts
-              // it the moment that count changes and the rise below plays on
-              // exactly the event it is reporting. Everything behind it keeps
-              // its index: those buckets are time slices sliding leftwards, and
-              // remounting them would restart an animation for the passage of
-              // time rather than for anything that happened.
-              key={isLatest ? `landed:${c}` : i}
-              x={i * barW + 0.4}
-              y={SPARK_H - h}
-              width={Math.max(0.5, barW - 1)}
-              height={h}
-              rx={0.8}
-              className={cls}
-            />
-          );
-        })}
-      </svg>
-      <span className="tool-spark-label">60s</span>
+    <div className="waiting-row" title={title}>
+      <span className={`waiting-said${tool ? " mono" : ""}`}>
+        {tool ? (tool.preview ? `${tool.name} · ${tool.preview}` : tool.name) : waitingLabel(waiting, t)}
+      </span>
     </div>
   );
 }

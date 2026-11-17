@@ -199,6 +199,7 @@ const catalog: Catalog = {
   "radio.rec.denied": "L'accès au microphone a été refusé ou n'est pas disponible.",
   "radio.rec.failed": "Échec de l'enregistrement. Veuillez réessayer.",
   "radio.rec.format": "Ce navigateur ne peut pas enregistrer dans un format audio pris en charge.",
+  "radio.directory.source": "Radio Browser",
 };
 
 export default catalog;

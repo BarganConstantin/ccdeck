@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CLAUDE_SETTINGS } from "../../server/claude-settings-catalog.mjs";
-import { CLAUDE_NO_FILE, CLAUDE_UNDONE, ClaudeCodeSettingsView, claudeFoot, commonReason, overrideLine } from "../components/ClaudeCodeSettings";
+import { CLAUDE_NO_FILE, CLAUDE_UNDONE, ClaudeCodeSettingsView, claudeFoot, commonReason, groupVersionNote, overrideLine } from "../components/ClaudeCodeSettings";
 import type { ClaudeSettingRow, ClaudeSettingsReading, ClaudeSettingsState, ClaudeUserFile } from "../use-claude-settings";
 
 const defaults = (): ClaudeSettingRow[] => CLAUDE_SETTINGS.map(entry => ({
@@ -65,6 +65,48 @@ describe("Settings › Claude Code", () => {
     expect(commonReason(reading(rows))).toBe(reason);
     const html = draw(rows);
     expect(html.split(reason)).toHaveLength(2);
+  });
+
+  it("says a version every row of a group waits for once, under the group's caption with the info icon, and the rows keep their note height", () => {
+    const sessions = CLAUDE_SETTINGS.filter(entry => entry.group === "sessions");
+    expect(sessions.length).toBeGreaterThan(1);
+    const unread = (since: string) => `Needs Claude Code ${since} or newer, and the version installed here could not be read.`;
+    const rows = defaults().map(r => {
+      const entry = sessions.find(e => e.id === r.id);
+      return entry ? { ...r, editable: false, reason: unread(entry.since as string) } : r;
+    });
+    const html = draw(rows);
+    const said = "Needs Claude Code 2.1.224 or newer. The version here could not be read, so these wait.";
+    expect(groupVersionNote(rows.filter(r => sessions.some(e => e.id === r.id)))).toBe(said);
+    expect(html.split(said)).toHaveLength(2);
+    const group = html.slice(html.indexOf('id="claude-group-sessions"'), html.indexOf('id="claude-group-memory"'));
+    // Under the caption's title, with the kit's info mark, and read by none of
+    // the rows' own lines.
+    expect(group).toMatch(/^id="claude-group-sessions">Your sessions<\/h3><span class="settings-info" id="claude-group-sessions-info"><svg[\s\S]*?<\/svg><span>Needs Claude Code 2\.1\.224 or newer\. The version here could not be read, so these wait\.<\/span><\/span><\/div>/);
+    for (const entry of sessions) {
+      expect(rowHtml(html, entry.id)).toContain("disabled");
+      expect(rowHtml(html, entry.id)).toMatch(/<span class="settings-row-said settings-row-said-quiet" role="status"><\/span>/);
+    }
+    // When the version could be read, the shorter sentence.
+    const known = rows.map(r => r.reason ? { ...r, reason: "Needs Claude Code 2.1.224 or newer." } : r);
+    expect(draw(known).split("Needs Claude Code 2.1.224 or newer, so these wait.")).toHaveLength(2);
+  });
+
+  it("keeps a row's own reason under it when the group's rows do not all wait for the same version", () => {
+    const rows = defaults().map(r => r.id === "listAgents" ? { ...r, editable: false, reason: "Needs Claude Code 2.1.224 or newer." } : r);
+    expect(groupVersionNote(rows)).toBeNull();
+    const html = draw(rows);
+    expect(html).not.toContain("so these wait");
+    expect(rowHtml(html, "listAgents")).toContain("Needs Claude Code 2.1.224 or newer.");
+    // A reason that is not a version is never folded into the caption.
+    const locked = defaults().map(r => ({ ...r, editable: false, reason: "Set by your organization. Ask your administrator to change it." }));
+    expect(groupVersionNote(locked.slice(0, 3))).toBeNull();
+    // A group of one row keeps the reason under its row: nothing repeats.
+    const git = CLAUDE_SETTINGS.filter(entry => entry.group === "git");
+    expect(git).toHaveLength(1);
+    const attribution = defaults().map(r => r.id === git[0].id ? { ...r, editable: false, reason: "Needs Claude Code 2.1.281 or newer." } : r);
+    expect(groupVersionNote(attribution.filter(r => r.id === git[0].id))).toBeNull();
+    expect(rowHtml(draw(attribution), git[0].id)).toContain("Needs Claude Code 2.1.281 or newer.");
   });
 
   it("says under a row that a running session wrote back over it", () => {

@@ -59,6 +59,10 @@ export function useUsageRange(
   // whatever is in flight. The pressed chip still shows the reader's intent.
   const [landed, setLanded] = useState<Landed | null>(null);
   const [loading, setLoading] = useState(false);
+  // Whether any read has come back, answered or not. Until one has, the panel
+  // shows that it is reading rather than any other figure; once one has and
+  // nothing landed, the reading failed and the panel says so.
+  const [tried, setTried] = useState(false);
   // A panel left open must not freeze at the figure it opened on, and must not
   // become a background job either. Once a minute, which is the rate a reader
   // watching a total actually notices — and it is a real minute: the server's
@@ -118,7 +122,7 @@ export function useUsageRange(
       // still has — and a failure leaves the last good reading standing rather
       // than blanking a panel that was correct a moment ago.
       .catch(() => {})
-      .finally(() => { if (alive) setLoading(false); });
+      .finally(() => { if (alive) { setLoading(false); setTried(true); } });
     return () => { alive = false; };
   }, [period, refreshKey, tick]);
 
@@ -127,5 +131,5 @@ export function useUsageRange(
   // a test can hand it a landed reading and a pressed chip. `loading` is the
   // one thing here that is not a function of those two, and the panel does not
   // read it (see the note at the call site).
-  return { ...rangeView(landed, period), loading };
+  return { ...rangeView(landed, period), loading, tried };
 }

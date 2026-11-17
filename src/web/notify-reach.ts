@@ -29,45 +29,47 @@ import { t as tNow, type TFunction } from "./i18n";
  *  typechecks in the bare-node suite. */
 export type NotifyPermission = "default" | "granted" | "denied" | "unsupported";
 
-/** What the switch itself covers. Says WHEN, because that is the only thing
- *  separating it from the Sound switch above it — the two fire on the same
- *  moments, sound while a tab is open and this once none is (block-notify.mjs
- *  `isChimeEvent`). */
-export const NOTIFY_NOTE = "With no deck tab open, get a notification wherever a sound would have played.";
+/** What the switch itself covers, under its name ("While the deck is closed"),
+ *  which says WHEN: that is the only thing separating it from the Sound
+ *  switch — the two fire on the same moments, sound while a tab is open and
+ *  this once none is (block-notify.mjs `isChimeEvent`). */
+export const NOTIFY_NOTE_MSG = "settings.notify.note";
 
 /** The same promise inside the desktop app, where what closes is its window. */
-export const NOTIFY_NOTE_APP = "With the ccdeck window closed, get a notification wherever a sound would have played.";
+export const NOTIFY_NOTE_APP_MSG = "settings.notify.noteApp";
 
 /** The note under the switch, for where the page is running. */
 export function notifyNote(inApp: boolean, t: TFunction = tNow): string {
-  return inApp ? t("settings.notify.noteApp") : t("settings.notify.note");
+  return inApp ? t(NOTIFY_NOTE_APP_MSG) : t(NOTIFY_NOTE_MSG);
 }
 
 /** AGENTS_DECK_NO_NOTIFY=1 at launch. Not the same as the switch being off:
  *  somebody else decided it, the press cannot undo it until the next start, and
  *  it silences BOTH notifiers — which is more than any browser setting can do.
- *  So it replaces the note above and hides the channel below: there is nothing
- *  to say about a channel when the whole feature is held. */
-export const NOTIFY_VETO_NOTE =
-  "Held off for this run — the deck was started with alerts disabled. Your choice is saved for the next start.";
+ *  So it is said under the note above, with the info icon, and hides the
+ *  channel below: there is nothing to say about a channel when the whole
+ *  feature is held. */
+export const NOTIFY_VETO_NOTE_MSG = "settings.notify.veto";
 
 /** The four account notifications, in the order the menu draws them: what
- *  each switch is called, and the line its tooltip adds about when it fires.
+ *  each switch is called, and the line under it about when it fires — or null
+ *  where the name already says it (V4 top-10 #10): "Quota at 90% and 100%" is
+ *  its own rule, and the group's note says whose accounts.
  *  The rules are src/server/account-notify.mjs's; this is only their names. */
 export const ACCOUNT_NOTIFY_SWITCHES = [
   // label and title read the language on show each time they are read.
   { kind: "notifySwap", get label() { return tNow("settings.notify.swap.label"); }, get title() { return tNow("settings.notify.swap.title"); } },
-  { kind: "notifyQuota", get label() { return tNow("settings.notify.quota.label"); }, get title() { return tNow("settings.notify.quota.title"); } },
+  { kind: "notifyQuota", get label() { return tNow("settings.notify.quota.label"); }, title: null },
   { kind: "notifyReset", get label() { return tNow("settings.notify.reset.label"); }, get title() { return tNow("settings.notify.reset.title"); } },
   { kind: "notifyStopped", get label() { return tNow("settings.notify.stopped.label"); }, get title() { return tNow("settings.notify.stopped.title"); } },
 ] as const;
 
 /** Under the four: whose accounts, and that a closed deck is not required —
  *  the one way they differ from the switch above them. */
-export const ACCOUNT_NOTIFY_NOTE = "For the Claude and Codex accounts you're on, whether or not the deck is open.";
+export const ACCOUNT_NOTIFY_NOTE_MSG = "settings.notify.accountsNote";
 
 /** The same launch veto, under the four it also silences. */
-export const ACCOUNT_NOTIFY_VETO_NOTE = "Held off for this run too.";
+export const ACCOUNT_NOTIFY_VETO_NOTE_MSG = "settings.notify.accountsVeto";
 
 export interface Channel {
   /** Right of the heading: a word when there is nothing to do, and `null` when

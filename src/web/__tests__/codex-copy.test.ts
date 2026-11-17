@@ -152,7 +152,7 @@ describe("the topbar readouts", () => {
   // as wrong there as it was in the counters.
   // The strip is components/TopbarReadouts.tsx's; it ends where the next
   // component there starts.
-  const stripAt = readoutsCode.indexOf(`<span className="status">`);
+  const stripAt = readoutsCode.indexOf(`className="status"`);
   const stripEnd = readoutsCode.indexOf("export function", stripAt);
   const strip = stripAt === -1 ? "" : readoutsCode.slice(stripAt, stripEnd === -1 ? undefined : stripEnd);
   const readouts = strip
@@ -302,18 +302,27 @@ describe("the README tagline, which is the npm page", () => {
 });
 
 describe("the provider a node carries", () => {
-  it("reaches a pixel on the cards that have no model to name it", () => {
-    // README.md documents the model chip as how the two CLIs are told apart,
-    // and it does not render on a synthetic node, a subagent with no model
-    // event, or a root before its first ModelObserved.
-    expect(nodeCode).toContain('data.provider === "codex"');
-    expect(nodeCode).toContain(">Codex<");
+  it("names Codex on every Codex card, where the model text sat", () => {
+    // This pinned the model chip's fallback: the chip told the two CLIs apart
+    // (README.md said so), and a Codex card with no model yet said "Codex" in
+    // its place, since a synthetic node, a subagent with no model event and a
+    // root before its first ModelObserved have no model to name.
+    // CHANGED ON PURPOSE (V4 top-10 #2): the card draws no model at all, so
+    // "Codex" is no longer a fallback but the provider's own mark, on every
+    // Codex card with or without a model, from the name the usage panels print
+    // (provider-copy.ts agentLabel). The Inspector's chip shows the model.
+    expect(nodeCode).toContain('data.provider === "codex" && <span className="provider-word">{agentLabel("codex")}</span>');
+    expect(nodeCode).not.toContain("model-text");
+    expect(readme).toContain("The card names a Codex session, and the Inspector shows each session's model");
+    expect(readme).not.toContain("The model chip (`Opus 5`, `GPT-5.5`) tells them apart.");
   });
 
   it("does not print the reducer's default as if it were an observation", () => {
     // The reducer stamps "claude" on any event that names no provider, which is
     // how pre-multi-provider events replay — so it is an assumption, and the
-    // card must not chip every model-less Claude node with it.
+    // card must not chip every model-less Claude node with it. Nor may the
+    // provider word print whatever provider the card carries.
     expect(nodeCode).not.toContain(">Claude Code<");
+    expect(nodeCode).not.toMatch(/agentLabel\((?:"claude"|data\.provider)/);
   });
 });

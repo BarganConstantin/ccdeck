@@ -29,16 +29,18 @@ describe("the session box moves by translate (#864)", () => {
   });
 
   it("eases that translate on the nodes' own curve, and no longer left or top", () => {
-    expect(transition).toContain("transform 320ms cubic-bezier(0.22,1,0.36,1)");
+    // The nodes' curve is V4's stage curve now, in Slow, armed 600ms after the
+    // box mounts like the nodes (react-flow.css), so first paint is still.
+    expect(transition).toContain("transform calc(var(--node-armed) * var(--dur-slow)) var(--ease-stage)");
     expect(transition).not.toMatch(/\b(left|top) \d+ms/);
-    // The size still eases with it, and the fade is not travel.
-    expect(transition).toMatch(/width 320ms/);
-    expect(transition).toMatch(/height 320ms/);
-    expect(transition).toMatch(/opacity 200ms/);
+    // The size no longer eases (V4's motion rule 4: only transform and opacity
+    // animate), and the fade is not travel.
+    expect(transition).not.toMatch(/\b(width|height)\b/);
+    expect(transition).toMatch(/opacity var\(--dur-base\)/); // --dur-base is 200
   });
 
   it("still keeps only the fade during a drag and under reduced motion", () => {
-    expect(css).toMatch(/\.canvas-wrap\.dragging-any \.cluster-card\s*\{\s*transition: opacity 200ms ease;\s*\}/);
-    expect(raw).toContain("  .cluster-card { transition: opacity 200ms ease; }");
+    expect(css).toMatch(/\.canvas-wrap\.dragging-any \.cluster-card\s*\{\s*transition: opacity var\(--dur-base\) var\(--ease\);\s*\}/);
+    expect(raw).toContain("  .cluster-card { transition: opacity var(--dur-base) var(--ease); }");
   });
 });

@@ -222,7 +222,7 @@ describe("the panel's reload path", () => {
     // What has to hold either way is that the control shows its own in-flight
     // state, which is the half of this assertion that was never about
     // `disabled`.
-    expect(header).toMatch(/className="glyph-btn ap-refresh"[\s\S]{0,900}<svg/);
+    expect(header).toMatch(/className="glyph-btn ap-refresh"[\s\S]{0,900}(?:<svg|<KitIcon)/);
     expect(css).toMatch(/\.ap-refresh\[aria-busy="true"\][^}]*animation:\s*spin/);
     expect(accountsSurface()).not.toContain('"↻"');
     // Only the forced half: a poll blinking the button every 15 seconds would

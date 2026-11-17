@@ -6,12 +6,34 @@
 // sessions only.
 import type { Node } from "reactflow";
 import {
-  cardSize, columnGap, CROSS_SESSION_Y, footprint, FULL_SIZE, groupBySession, RECAP_NOTE_GAP, RECAP_NOTE_H, RECAP_NOTE_W,
-  SESSION_CHROME, sessionOfNode, TOOL_LANE_W, type Lanes,
+  cardSize, COLUMN_GAP, CROSS_SESSION_Y, footprint, FULL_SIZE, groupBySession, MAX_COLUMNS, RECAP_NOTE_GAP, RECAP_NOTE_H,
+  RECAP_NOTE_W, SESSION_CHROME, sessionOfNode, TOOL_LANE_W, type Lanes,
 } from "./layout-geometry";
+import { fitZoomForDrawnLanes } from "./semantic-zoom";
 
 /** A session's note, which stands to the left of its root card. */
 const isNote = (n: Node) => n.type === "recapNote";
+
+/**
+ * How many columns the board stands in: runs of sessions whose cards overlap
+ * side to side. Not one per distinct left edge — a session with a note has its
+ * root card a note's room further in than one without, in the same column.
+ */
+function columnCount(settled: ReadonlyArray<{ sid: string; x: number; cw: number; note: boolean }>): number {
+  const spans = new Map<string, { l: number; r: number }>();
+  for (const s of settled) {
+    if (s.note) continue;
+    const span = spans.get(s.sid);
+    if (span) { span.l = Math.min(span.l, s.x); span.r = Math.max(span.r, s.x + s.cw); }
+    else spans.set(s.sid, { l: s.x, r: s.x + s.cw });
+  }
+  let count = 0, reach = -Infinity;
+  for (const { l, r } of [...spans.values()].sort((a, b) => a.l - b.l)) {
+    if (l >= reach) count++;
+    reach = Math.max(reach, r);
+  }
+  return count;
+}
 
 /**
  * Drop newly-arrived sessions into the gaps left by ones that finished.
@@ -44,6 +66,13 @@ const isNote = (n: Node) => n.type === "recapNote";
  * the most room on the tighter axis wins, then the most on the other, then the
  * leftmost and topmost. When nothing is settled yet the whole board is
  * arriving at once, and autoLayout's arrangement of it stands.
+ *
+ * The board is scored the way autoLayout scores its columns: the burst lane
+ * past the rightmost card counts only at a zoom where the fit draws bubbles
+ * (fitZoomForDrawnLanes), a new column stands one column pitch — card, lane at
+ * full size, COLUMN_GAP — past the rightmost card, and there are never more
+ * than MAX_COLUMNS of them. This is how a session joins the board after its
+ * first flow, without moving any other card.
  *
  * A COLUMN IS WHERE ITS CARDS STAND, NOT ITS NOTES. A session's note stands to
  * the left of its root card, so a column's left edge measured from everything
@@ -125,7 +154,7 @@ export function fillGapsWithNewSessions(
     settled.some(r =>
       x < r.x + r.w + SESSION_CHROME && r.x < x + w + SESSION_CHROME &&
       y < r.y + r.h + PADDING        && r.y < y + h + PADDING);
-  const gap = columnGap(nodes, measured);
+  const gap = COLUMN_GAP;
 
   const moved: string[] = [];
   // Id order, the same order autoLayout packs sessions in, so gap placement is
@@ -181,11 +210,12 @@ export function fillGapsWithNewSessions(
       // the other. Without that second look the leftmost column's foot won
       // every tie, however much taller than its neighbour it already was.
       const scoreAt = (x: number, y: number) => {
-        const across = frame!.width /
-          (Math.max(right, x + cardRight - minX) - Math.min(left, x - noteRoom) + TOOL_LANE_W);
+        const wide = Math.max(right, x + cardRight - minX) - Math.min(left, x - noteRoom);
+        const across = frame!.width / (wide + TOOL_LANE_W);
         const down = frame!.height /
           (Math.max(bottom, y + cardBottom - minY) - Math.min(top, y));
-        return [Math.min(FULL_SIZE, across, down), Math.min(across, down), Math.max(across, down)];
+        const shows = fitZoomForDrawnLanes(Math.min(FULL_SIZE, across, down), Math.min(FULL_SIZE, frame!.width / wide, down));
+        return [shows, Math.min(across, down), Math.max(across, down)];
       };
       const beats = (s: number[], t: number[]) => {
         for (let i = 0; i < s.length; i++) {
@@ -197,10 +227,12 @@ export function fillGapsWithNewSessions(
       // A new column starts a burst lane and a column gap past the rightmost
       // card — the pitch autoLayout packs its columns at — level with the top
       // of the board, and its card a note's room further in.
+      // Only while the board has fewer than MAX_COLUMNS: past that it grows
+      // down its columns.
       const fresh = Math.round(right + TOOL_LANE_W + gap + noteRoom);
       const tops = [...new Set([...ys, top])].sort((a, b) => a - b);
       let best: number[] | null = null;
-      for (const x of [...xs, fresh]) {
+      for (const x of columnCount(settled) < MAX_COLUMNS ? [...xs, fresh] : xs) {
         for (const y of tops) {
           if (!clear(x, y)) continue;
           const score = scoreAt(x, y);

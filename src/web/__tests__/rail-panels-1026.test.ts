@@ -81,32 +81,32 @@ function decl(selector: string, prop: string, body = css): string | null {
   return out;
 }
 
-describe("below 640px the two rail panels stack rather than share a rectangle (#1026)", () => {
-  it("gives the machine panel the bottom of the window, not the same top", () => {
-    // `top: auto` is the load-bearing half: without it, `bottom` joins the
-    // desktop `top` and the panel stretches over the other one rather than
-    // moving.
-    expect(decl(".app .sysdetail", "top", narrow)).toBe("auto");
+// CHANGED ON PURPOSE (the owner's phone layout): below 640px the two rail panels
+// are bottom sheets, one at a time (phone-sheet.ts), so they cannot share a
+// rectangle: the one opened last is the only one drawn. What was pinned here is
+// the rule of the stacked layout (the machine panel at the bottom, the two
+// capped to half the viewport each); what is pinned now is the sheet's.
+describe("below 640px the two rail panels are sheets that stand clear of the dock (#1026)", () => {
+  const sheet = at("../styles/phone-sheet.css").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\s+/g, " ");
+  const rule = /\.app\.app\.app \.usage-panel, \.app\.app\.app \.sysdetail, \.app\.app\.app \.detail, \.app\.app\.app \.accounts-panel \{([^}]*)\}/.exec(sheet)?.[1] ?? "";
+
+  it("hangs both from the dock, not from a top the two would share", () => {
+    expect(rule).not.toBe("");
+    expect(rule).toContain("top: auto;");
+    expect(rule).toContain("bottom: var(--sheet-bottom);");
   });
 
-  it("stands the machine panel 8px clear of the dock along the bottom, safe area and all", () => {
-    // Its foot was 8px off the window's edge. Under 641px the controls stand in
-    // a dock along the bottom (edge-rails.css), fixed over the panel, so the
-    // same 8px of daylight is kept above the dock instead — the dock's own
-    // height, the phone's safe area, then the 8.
-    expect(decl(".app .sysdetail", "bottom", narrow)).toBe("calc(var(--dock-h) + env(safe-area-inset-bottom) + 8px)");
+  it("stands both clear of the dock along the bottom, safe area and all", () => {
+    // Under 641px the controls stand in a dock along the bottom
+    // (edge-rails.css), fixed over the sheet's foot: the sheet ends where the
+    // dock starts, by the dock's own height and the phone's safe area.
+    expect(rule).toContain("--sheet-bottom: calc(var(--dock-h) + env(safe-area-inset-bottom));");
     expect(decl(".edge-dock", "height", narrow)).toBe("calc(var(--dock-h) + env(safe-area-inset-bottom))");
   });
 
-  it("caps both so they cannot grow into each other, whatever they contain", () => {
-    // Half the viewport each, less the chrome at either end — measured at 8px
-    // of daylight with both panels overflowing — and less half the dock each,
-    // which takes its height out of the column the two share.
-    const cap = decl(".app .usage-panel", "max-height", narrow);
-    expect(cap, "the usage panel keeps the full-height cap and can reach the other").not.toBeNull();
-    expect(cap).toBe(decl(".app .sysdetail", "max-height", narrow));
-    expect(cap).toMatch(/50vh/);
-    expect(cap).toMatch(/var\(--dock-h\) \/ 2/);
+  it("caps both under the top bar, whatever they contain", () => {
+    expect(rule).toContain("--sheet-room: calc(100dvh - var(--topbar-h) - var(--sheet-bottom) - 16px);");
+    expect(rule).toContain("max-height: min(80dvh, var(--sheet-room));");
   });
 
   it("leaves the desktop layout alone, which is the one the owner chose (#847)", () => {
@@ -116,10 +116,10 @@ describe("below 640px the two rail panels stack rather than share a rectangle (#
     // different heights and neither can slide under a bar that changes.
     expect(decl(".usage-panel", "top")).toBe("calc(var(--topbar-h) + 8px)");
     expect(decl(".sysdetail", "top")).toBe("calc(var(--topbar-h) + 8px)");
-    expect(decl(".usage-panel", "max-height")).toBe("calc(100vh - var(--topbar-h) - 24px)");
-    expect(decl(".sysdetail", "max-height")).toBe("calc(100vh - var(--topbar-h) - 24px)");
+    expect(decl(".usage-panel", "max-height")).toBe("calc(100vh - var(--topbar-h) - 24px - var(--status-room, 0px))");
+    expect(decl(".sysdetail", "max-height")).toBe("calc(100vh - var(--topbar-h) - 24px - var(--status-room, 0px))");
     expect(decl(".sysdetail", "bottom")).toBeNull();
-    expect(decl(".sysdetail.shifted", "right")).toBe("calc(var(--rail-r) + 280px + 20px)");
+    expect(decl(".sysdetail.shifted", "right")).toBe("calc(var(--rail-r) + 320px + 20px)");
   });
 });
 
@@ -136,7 +136,12 @@ describe("--rail-r is read by both panels it was introduced to hold together (#1
     // moved to the window's edges (edge-rails.css): the rail starts inside the
     // stripe, by the stripe's own token, which is nothing on a phone.
     const defs = [...css.matchAll(/--rail-r\s*:\s*([^;]+);/g)].map(m => m[1].trim());
-    expect(defs).toEqual(["calc(368px + var(--edge-w))", "calc(8px + var(--edge-w))"]);
+    // CHANGED ON PURPOSE (V4's motion spec): Workspace had a third definition
+    // (0px, from 1320 up) that nothing read once its panels were placed by their
+    // own rules (workspace.css: top and right 0 in the Inspector's column), so it
+    // is gone and the two are the Board's.
+    // CHANGED ON PURPOSE (V4's Figma): the right stripe is back, so both carry its width again.
+    expect(defs).toEqual(["calc(var(--inspector-w) + 8px + var(--edge-w))", "calc(8px + var(--edge-w))"]);
     expect(css).not.toMatch(/\.usage-panel\s*\{[^}]*right:\s*368px/);
     // And the duplicate override is gone with it.
     expect(css).not.toMatch(/:not\(:has\(\.detail\)\)\s+\.usage-panel/);
@@ -159,14 +164,21 @@ describe("the per-core strip keeps a column wide enough to be a bar (#1026)", ()
     // A grid rather than the wrapped flex row that first fixed this: flex
     // distributes each LINE's own leftover, so 64 threads came out as fifty
     // 3px columns above fourteen 14px ones — one reading drawn in two widths.
-    // Grid tracks are shared by every row, `minmax(3px, 1fr)` is the same
-    // floor, and `auto-fit` is what lets a 16-thread machine collapse the
-    // tracks it does not use and keep the full width.
+    // Grid tracks are shared by every row, the minimum is the same floor on
+    // each of them, and `auto-fit` is what lets a machine with few threads
+    // collapse the tracks it does not use and keep the full width.
     expect(decl(".sd-cores", "display")).toBe("grid");
-    expect(decl(".sd-cores", "grid-template-columns")).toBe("repeat(auto-fit, minmax(3px, 1fr))");
+    // CHANGED ON PURPOSE (the owner prefers main's columns): one row of columns
+    // up to 32 cores, each at most 24 wide, then 32 explicit tracks shared by
+    // every row. The floor is the row of 32 itself: a column is never narrower
+    // than a 32nd of the panel, at 64 threads or at 128.
+    expect(decl(".sd-cores", "grid-auto-flow")).toBe("column");
+    expect(decl(".sd-cores", "grid-auto-columns")).toBe("minmax(0, 24px)");
+    const many = ".sd-cores:has(> .sd-core:nth-child(33))";
+    expect(decl(many, "grid-auto-flow")).toBe("row");
+    expect(decl(many, "grid-template-columns")).toBe("repeat(32, minmax(0, 24px))");
     expect(decl(".sd-cores", "flex-wrap")).toBeNull();
-    expect(decl(".sd-cores .sd-core", "min-width")).toBe("3px");
-    expect(decl(".sd-cores .sd-core", "height")).toBe("26px");
+    expect(decl(".sd-core", "height")).toBe("28px");
   });
 
   it("stops counting its own columns through a custom property", () => {
@@ -187,9 +199,10 @@ describe("the sound menu's reading is described once (#1026)", () => {
     expect(decl(".sm-read", "color")).toBeNull();
     expect(decl(".sound-menu .sm-read", "color")).toBeNull();
     expect(decl(".settings-modal .sm-read", "color")).toBe("var(--muted)");
-    // A value, so monospaced, at the 11px label tier (it was 10px in sans).
+    // A value, at the 11px label tier (it was 10px in sans), with tabular figures.
     expect(decl(".settings-modal .sm-read", "font-size")).toBe("11px");
-    expect(decl(".settings-modal .sm-read", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a volume reading is a figure, not code.
+    expect(decl(".settings-modal .sm-read", "font-family")).toBe("var(--font-sans)");
     // The geometry the dead rule also carried has to survive the merge.
     expect(decl(".settings-modal .sm-read", "min-width")).toBe("34px");
     expect(decl(".settings-modal .sm-read", "text-align")).toBe("right");
@@ -209,11 +222,13 @@ describe("the sound menu's reading is described once (#1026)", () => {
       .filter(f => /\.tsx$/.test(f) && /<VolumeRow\b/.test(at(`../components/${f}`)));
     expect(callers.sort()).toEqual(["RadioPanel.tsx", "ToneSection.tsx"]);
     expect(decl(".radio-controls .sm-read", "color")).toBe("var(--muted)");
-    expect(decl(".radio-controls .sm-read", "font-family")).toBe("var(--font-mono)");
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a volume reading is a figure, not code.
+    expect(decl(".radio-controls .sm-read", "font-family")).toBe("var(--font-sans)");
     const settings = at("../components/SettingsModal.tsx");
     expect(at("../components/SoundsSection.tsx")).toMatch(/<ToneSection\b/);
     expect(settings).toMatch(/<SoundsSection\b/);
-    expect(settings).toMatch(/className="modal settings-modal"/);
+    expect(settings).toMatch(/<Dialog\b[^>]*\bclassName="settings-modal"/);
+    expect(at("../components/Dialog.tsx")).toMatch(/`modal \$\{className\}`/);
     expect(decl(".settings-modal .sm-read", "color")).toBe("var(--muted)");
     const others = ["../App.tsx", "../components/MachinePanel.tsx", "../components/ProcessListModal.tsx"];
     for (const f of others) expect(at(f), f).not.toMatch(/className="[^"]*\bsm-read\b/);
@@ -229,7 +244,11 @@ describe("the process table's column geometry does not rest on source order (#10
     const rule = /\.pl-pid-h\s*\{([^}]*)\}/.exec(css)![1];
     expect(rule).not.toMatch(/padding-right/);
     // Still only the two that do something, and no more than that.
-    expect(css.match(/!important/g)!.length).toBe(2);
+    // (Four since V4's motion rules: tokens.css's catch-all for a surface that
+    // carries data-motion=instant adds two, transition-duration and animation.
+    // Five since critique 2: context-modal.css hides the board's "• now" note
+    // below the full card, against the visibility React Flow writes inline.)
+    expect(css.match(/!important/g)!.length).toBe(5);
   });
 
   it("pins the pid column at the index its neighbours' rules assume", () => {

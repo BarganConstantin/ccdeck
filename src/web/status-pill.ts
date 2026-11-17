@@ -70,7 +70,7 @@ export interface StatusPill {
    * The pill is the leftmost thing in the readout run and it was on screen every
    * second of every session — 49.89px plus a 14px gap — to report that nothing
    * was wrong. The argument against that is already in this codebase, one
-   * surface over: `ambient.ts` refuses to write `(0) ccdeck` because "a badge
+   * surface over: `ambient.ts` refuses to write `(0) waiting · ccdeck` because "a badge
    * that reports nothing is wrong is a badge that gets ignored — and a badge
    * that gets ignored is ignored at (1) too." A pill that never leaves says the
    * same thing at the same cost, and the two states worth reading were paying
@@ -140,11 +140,17 @@ export function heldShort(held: number): string {
  *  pressed" is a sentence; "Resume the canvas, toggle button, pressed" is two
  *  contradictory halves. The same rule the sound switch in the bar above
  *  follows: a stable name, the state in the attribute the tree reads. What flips
- *  is `pauseTitle` below, which is a description and is allowed to be one. */
-export const PAUSE_LABEL = "Pause the canvas";
+ *  is `pauseTitle` below, which is a description and is allowed to be one.
+ *
+ *  No control wears this name or that tooltip since V4 top-10 #5: the canvas
+ *  bar's Pause became a row of its ⋯ menu, whose words follow the state (a
+ *  menu row has no pressed state to report), and the held and dropped counts
+ *  are the top bar's paused pill's (statusPill). Both helpers are kept, with
+ *  the tests that hold them, until a separate change retires them. */
+export const PAUSE_LABEL_MSG = "board.pill.pause";
 
-/** PAUSE_LABEL in the language on show; the constant stays the English one. */
-export const pauseLabel = (tr: TFunction = t): string => tr("board.pill.pause");
+/** The pause control's name in the language on show. */
+export const pauseLabel = (tr: TFunction = t): string => tr(PAUSE_LABEL_MSG);
 
 /** The pause control's tooltip. The half that does flip.
  *

@@ -18,7 +18,10 @@
 //   END-ALIGNED. The popover's right edge sits under the anchor's right edge,
 //   so it reads as coming out of the control rather than as something placed
 //   beside it — and a trigger near the right end of a row opens into the row
-//   it belongs to instead of out over the canvas.
+//   it belongs to instead of out over the canvas. START-ALIGNED when asked:
+//   a trigger at the LEFT end of the surface it belongs to — the empty
+//   terminal stage's New session, with the board's navigator just left of it
+//   — opens into that surface the same way, its left edge under the anchor's.
 //
 //   BELOW, unless it does not fit there and there is more room above. A
 //   popover that flips for no reason moves the thing the reader just aimed at;
@@ -98,6 +101,9 @@ export function placeBeside(anchor: Edges, size: Size, viewport: Size): BesidePl
   return { top, left: start, side, maxHeight: fits ? null : height };
 }
 
+/** Which edge of the popover lines up with the same edge of its anchor. */
+export type PopoverAlign = "end" | "start";
+
 /** A reading preview must leave the following row available to the pointer.
  * Use a side only when the whole width fits outside the anchor; otherwise
  * scroll above it. At the top edge, omit a preview with no readable space. */
@@ -116,7 +122,7 @@ export function placeReadingHint(anchor: Edges, size: Size, viewport: Size, mini
   };
 }
 
-export function placePopover(anchor: Edges, size: Size, viewport: Size, align: "start" | "end" = "end"): Placement {
+export function placePopover(anchor: Edges, size: Size, viewport: Size, align: PopoverAlign = "end"): Placement {
   const below = viewport.height - POPOVER_MARGIN - (anchor.bottom + POPOVER_GAP);
   const above = anchor.top - POPOVER_GAP - POPOVER_MARGIN;
   const side = size.height <= below || below >= above ? "below" : "above";
@@ -124,9 +130,11 @@ export function placePopover(anchor: Edges, size: Size, viewport: Size, align: "
   const fits = size.height <= room;
   const height = fits ? size.height : Math.max(0, room);
   const top = side === "below" ? anchor.bottom + POPOVER_GAP : anchor.top - POPOVER_GAP - height;
-  // Right edge under the anchor's, then pulled back inside the window. The left
-  // clamp is applied last so that a window narrower than the popover keeps its
-  // start edge — the words — on screen and lets the end run off instead.
-  const left = Math.max(POPOVER_MARGIN, Math.min(align === "start" ? anchor.left : anchor.right - size.width, viewport.width - POPOVER_MARGIN - size.width));
+  // Right edge under the anchor's (or left under left), then pulled back inside
+  // the window. The left clamp is applied last so that a window narrower than
+  // the popover keeps its start edge — the words — on screen and lets the end
+  // run off instead.
+  const x = align === "start" ? anchor.left : anchor.right - size.width;
+  const left = Math.max(POPOVER_MARGIN, Math.min(x, viewport.width - POPOVER_MARGIN - size.width));
   return { top: Math.max(POPOVER_MARGIN, top), left, side, maxHeight: fits ? null : height };
 }

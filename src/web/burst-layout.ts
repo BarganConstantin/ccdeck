@@ -9,8 +9,12 @@
 import type { AgentNodeData, ToolCall } from "./types";
 import { categoryFor, type ToolCategory } from "./tool-taxonomy";
 import { cutSubLabel, primaryDisplayFor, skinFor } from "./tool-skin";
+import { EXIT_ANIM_MS } from "./visibility";
 
-const FADE_MS = 600;
+/** How long a retiring agent's bubbles take to go: Exit (--dur-exit), V4's
+ *  motion spec. They are gone from the screen by then and leave the DOM with
+ *  the card, on its own removal timer (EXIT_ANIM_MS, visibility.ts). */
+const FADE_MS = 150;
 const MAX_PER_AGENT = 4;
 const BUBBLE_VERT_GAP = 36;
 // Shared with the rendered pill height, so every connector meets its centre.
@@ -42,6 +46,21 @@ const SUB_GAP = 28;
  *  even when a wide glyph makes the rendered label wider than this estimate. */
 export function primaryBubbleWidth(_toolName: string, label: string): number {
   return Math.max(ESTIMATED_BUBBLE_W, 61 + [...label].length * 6.8);
+}
+
+/** The widest a pill grows, as the sheet caps it (tool-bursts.css: .tool-burst
+ *  and .tool-burst.sub). */
+const PRIMARY_MAX_W = 190;
+const SUB_MAX_W = 140;
+
+/** The box a bubble takes, in world space: its place, the width its label was
+ *  given (no wider than the sheet lets the pill grow) and the pill's height.
+ *  The minimap keeps off these (minimap-place.ts). */
+export function burstBox(b: Pick<Burst, "worldX" | "worldY" | "toolName" | "name" | "isSub">): {
+  left: number; top: number; right: number; bottom: number;
+} {
+  const width = Math.min(b.isSub ? SUB_MAX_W : PRIMARY_MAX_W, primaryBubbleWidth(b.toolName, b.name));
+  return { left: b.worldX, top: b.worldY, right: b.worldX + width, bottom: b.worldY + 2 * BUBBLE_HALF_H };
 }
 
 type Status = "inflight" | "done" | "err";
@@ -145,7 +164,7 @@ export function collectBursts(
     // bursts can never linger after their owning card has been filtered out
     // (the classic "orphan bursts floating with no agent card" bug).
     if (!visibleAgentIds.has(a.id)) continue;
-    if (a.exitAt != null && now - a.exitAt > FADE_MS) continue;
+    if (a.exitAt != null && now - a.exitAt > EXIT_ANIM_MS) continue;
     const pos = pinned.get(a.id) ?? positions.get(a.id);
     if (!pos) continue; // no position yet — agent not laid out
     // Always show the last MAX_PER_AGENT tools' bubbles as a persistent

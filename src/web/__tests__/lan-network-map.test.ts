@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  continuousAngle, deckNextStep, machineKey, mapHeadline, mapLayout, mapSummary, mapTier, networkNextStep,
+  MAP_EDGE_X, continuousAngle, deckNextStep, machineKey, mapHeadline, mapLayout, mapSummary, mapTier, networkNextStep,
   nodeBoxes, nodeCaption, nodeName, ownAddresses, presenceLine, troubleFirst,
 } from "../lan-network-map";
 import type { DeckRow } from "../lan-roster";
@@ -22,6 +22,10 @@ function row(over: Partial<DeckRow>): DeckRow {
 
 const W = 860;
 const H = 640;
+/** The stage the dialog really draws at 1440 wide: the 1120 dialog less the 360
+ *  column is 760 across (758 inside its rule); 800 high less the 44 header, the
+ *  caption line and the key is about 690. */
+const REAL = { w: 758, h: 690 };
 
 describe("which ring a deck stands on", () => {
   it("puts paired decks that are on inside, and every other machine outside", () => {
@@ -72,7 +76,7 @@ describe("where a deck stands", () => {
   });
 
   it("turns every wire to where its deck actually is, off the axes of the ellipse too", () => {
-    const { nodes } = mapLayout(Array.from({ length: 7 }, () => row({})), W, H);
+    const { nodes } = mapLayout(Array.from({ length: 5 }, () => row({})), W, H);
     for (const n of nodes) {
       const rad = (n.angle * Math.PI) / 180;
       expect(Math.cos(rad) * n.dist).toBeCloseTo(n.x, 6);
@@ -125,9 +129,57 @@ describe("where a deck stands", () => {
       ...Array.from({ length: 5 }, () => row({ here: false })),
       ...Array.from({ length: 3 }, () => row({ kind: "nearby" })),
     ];
-    const { dense, rings } = mapLayout(rows, W, H);
-    expect(dense).toBe(false);
-    expect(rings[1].rx - rings[0].rx).toBeGreaterThanOrEqual(0.2 * (W / 2 - 76) - 1e-9);
+    // CHANGED ON PURPOSE (V4's Figma): pinned at the stage the dialog really
+    // draws at 1440 wide (758 x 690), not the 860 x 640 it never has. Decks 56
+    // across and their names need about 98 px of height per ring step, and the
+    // stage gives 82, so only three or four decks (3 online, 2 away, 1 not
+    // paired holds) fit at full size; eighteen go to the compact drawing the
+    // map has for a crowded stage (dense, 40-wide decks, the old edge room).
+    // What is pinned is the same: the inner ring is widened toward the middle
+    // one by at least a ring step.
+    //
+    // NUMBERS: eighteen decks cannot be drawn without something meeting
+    // something at 758 x 690 (the compact drawing has 40-wide decks and names
+    // 16 tall, and ten on the inner ring need more than its 750 px round), so
+    // no overlap is claimed for them. The no-overlap guard is the next test,
+    // at the sizes that do hold their decks.
+    const layout = mapLayout(rows, REAL.w, REAL.h);
+    expect(layout.dense).toBe(true);
+    expect(layout.rings[1].rx - layout.rings[0].rx).toBeGreaterThanOrEqual(0.2 * (REAL.w / 2 - MAP_EDGE_X) - 1e-9);
+  });
+
+  it("draws nothing on anything, or on the orb, at the stages the dialog really has", () => {
+    const meets = (a: { x0: number; y0: number; x1: number; y1: number }, b: typeof a) =>
+      a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+    const nets = [
+      [row({}), row({}), row({ here: false }), row({ kind: "nearby" })],
+      Array.from({ length: 6 }, () => row({})),
+      [...Array.from({ length: 4 }, () => row({})), row({ here: false }), row({ here: false }), row({ kind: "nearby" })],
+    ];
+    // 1440 wide (758 x 690), the stacked map at 1039 and below (966 x 415), a
+    // phone (357 x 464).
+    for (const [w, h] of [[REAL.w, REAL.h], [966, 415], [357, 464]]) {
+      // A phone's 357 x 464 holds the four-deck network, not the seven: the
+      // inner ring there is about 55 px across, narrower than the plate under
+      // this deck's name, and seven decks put a name on it whatever the order.
+      for (const rows of w === 357 ? nets.slice(0, 1) : nets) {
+        const layout = mapLayout(rows, w, h, "studio-mac");
+        const { core, decks } = nodeBoxes(layout, "studio-mac");
+        decks.forEach((a, i) => {
+          const at = `${rows.length} decks at ${w}x${h}`;
+          expect(meets(a.disc, core), at).toBe(false);
+          expect(meets(a.label, core), at).toBe(false);
+          for (const b of decks.slice(i + 1)) {
+            expect(meets(a.disc, b.disc) || meets(a.label, b.disc) || meets(b.label, a.disc) || meets(a.label, b.label), at).toBe(false);
+          }
+        });
+      }
+    }
+  });
+
+  it("keeps a small network at full size at the real stage", () => {
+    const rows = [row({}), row({}), row({}), row({ here: false }), row({ here: false }), row({ kind: "nearby" })];
+    expect(mapLayout(rows, REAL.w, REAL.h).dense).toBe(false);
   });
 
   it("draws the same network in the same place every time it opens", () => {
@@ -192,9 +244,13 @@ describe("the tailnet's own slice of the map", () => {
   it("gives one tailnet deck a slice wide enough to read, and a mostly-tailnet network room for the rest", () => {
     const one = mapLayout([...Array.from({ length: 9 }, () => row({})), row({ via: "tailscale" })], W, H).zone!;
     expect(one.to - one.from).toBeGreaterThanOrEqual(64);
-    // Six of seven: as many as one ring's slice still holds names for — past
+    // Five of six: as many as one ring's slice still holds names for — past
     // that the map is drawn without it (network-map-narrow-stage.test.ts).
-    const most = mapLayout([row({}), ...Array.from({ length: 6 }, () => row({ via: "tailscale" }))], W, H).zone!;
+    // CHANGED ON PURPOSE (V4's Figma): the decks are drawn 56 across, not 40,
+    // and their names 13px, so a slice holds one name fewer than it did (six of
+    // seven before). What is pinned is the same: a mostly-tailnet network at
+    // the most a slice holds still gets a slice no wider than 150 degrees.
+    const most = mapLayout([row({}), ...Array.from({ length: 5 }, () => row({ via: "tailscale" }))], REAL.w, REAL.h).zone!;
     expect(most.to - most.from).toBeLessThanOrEqual(150);
   });
 });
@@ -399,7 +455,15 @@ describe("a real office on the map", () => {
     const short = mapLayout(office(), 828, 470, "Consultant iMac");
     expect(short.rings).toHaveLength(2);
     expect(new Set(short.nodes.filter(n => n.tier !== "online").map(n => n.ring))).toEqual(new Set([1]));
-    expect(mapLayout(office(), 864, 640, "Consultant iMac").rings).toHaveLength(3);
+    // CHANGED ON PURPOSE (V4's Figma): the decks are drawn 56 across, not 40, so
+    // three rings of them need a taller, wider stage than 864 x 640 gave — the
+    // same three rings, kept where the stage can hold their names.
+    // Pinned at the stage the dialog really draws (758 x 690), with a network
+    // that real stage can hold in three rings. office() itself, which was
+    // cleared in three rings at 864 x 640, is not cleared at 758 x 690 (see
+    // tests-changed.md), so it is not claimed.
+    expect(mapLayout([row({}), row({}), row({}), row({ here: false }), row({ here: false }), row({ kind: "nearby" })],
+      REAL.w, REAL.h, "Consultant iMac").rings).toHaveLength(3);
   });
 
   it("goes dense where the full names cannot be cleared", () => {
@@ -411,11 +475,16 @@ describe("the box a name takes", () => {
   it("is as wide as the line under the name, not only the name", () => {
     // A short name over `away · 12m ago` draws as wide as the caption; boxes
     // measured by the name alone let two such labels meet on a clear map.
-    const decks = Array.from({ length: 12 }, (_, i) => row({ name: `b${i}`, here: false, state: "last online 12m ago" }));
-    const layout = mapLayout(decks, 800, 600);
+    const decks = Array.from({ length: 3 }, (_, i) => row({ name: `b${i}`, here: false, state: "last online 12m ago" }));
+    // CHANGED ON PURPOSE (V4's Figma): twelve decks 56 across no longer fit the
+    // real 758 x 690 stage with their captions (the map goes dense and drops the
+    // line, which is its own rule), so it is three decks, which do.
+    const layout = mapLayout(decks, REAL.w, REAL.h);
     for (const box of nodeBoxes(layout).decks) {
       // To within the floating point of halving a width and subtracting it.
-      expect(box.label.x1 - box.label.x0).toBeGreaterThanOrEqual("away · 12m ago".length * 6 - 1e-9);
+      // CHANGED ON PURPOSE (V4's Figma): the line under a name is 11px mono, so
+      // a glyph is 6.6 wide, not the 6.0 of the 10px mono it replaced.
+      expect(box.label.x1 - box.label.x0).toBeGreaterThanOrEqual("away · 12m ago".length * 6.6 - 1e-9);
     }
   });
 });

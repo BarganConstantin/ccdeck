@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useT } from "../i18n";
+import { KitIcon } from "./kit-icons";
 
 export interface DesktopWindow {
   platform: string;
@@ -34,9 +35,7 @@ export default function DesktopTitlebar() {
   return (
     <button type="button" className="desktop-menu btn" aria-label={t("shell.appMenu")} title={t("shell.appMenu")} aria-haspopup="menu"
       onClick={() => { void desktop.menu().catch(() => {}); }}>
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-        <path d="M3 4h10M3 8h10M3 12h10" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
-      </svg>
+      <KitIcon name="more" />
     </button>
   );
 }

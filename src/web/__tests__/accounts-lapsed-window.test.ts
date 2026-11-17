@@ -10,7 +10,8 @@
 // and the live account counted as past the auto-switch threshold on it.
 //
 // A lapsed window says nothing about this window until it is read again: the
-// row says it reset, the orders treat it as unread, and room is measured
+// row says it reset, the order treats it as unread (internal #94: below the
+// accounts read as usable, never among the full ones), and room is measured
 // against the windows still running.
 //
 // And the Usage panel's own answer carries `stale` when the server is holding
@@ -22,7 +23,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import AccountRow from "../components/AccountRow";
 import { ClaudeQuotaSection } from "../components/QuotaSections";
 import { pastThreshold, peersOf } from "../account-fold";
-import { sortAccounts } from "../other-accounts-order";
+import { byAvailability } from "../other-accounts-order";
 import { type Account } from "../claude-accounts";
 import { type QuotaData } from "../use-quota";
 
@@ -49,7 +50,7 @@ const shutRow = (a: Account) => renderToStaticMarkup(createElement(AccountRow, {
   a, nowSec: NOW, opened: false, onToggleLanes: () => {}, busy: null, pressProps: () => ({}),
   onSwitch: () => {}, menuOpen: false, onOpenMenu: () => {}, onCloseMenu: () => {}, refusal: null,
   onDismissRefusal: () => {}, switchedHere: false, swapped: null, displaced: undefined,
-  issueExpanded: false, onOpenIssue: () => {}, sortKey: "room",
+  issueExpanded: false, onOpenIssue: () => {},
 } as never));
 
 const lapsed = acct(2, [95, AGO], 20);
@@ -58,28 +59,37 @@ const running = acct(3, [60, NOW + 3600], 10);
 describe("an account whose 5-hour window has reset since it was read", () => {
   it("is not shown at the old window's number on its shut row", () => {
     const html = shutRow(lapsed);
+    // CHANGED ON PURPOSE (V4's Figma): the first window is the row's one figure
+    // beside the name, so "reset" is said there, and the line under the name
+    // carries the other windows.
     const quick = /<p class="ap-quota"[^]*?<\/p>/.exec(html)?.[0] ?? "";
-    expect(text(quick)).not.toContain("95%");
-    expect(text(quick)).toContain("5h reset");
-    expect(quick).not.toContain('data-level="hi"');
-    expect(quick).toContain("5h has reset since this reading");
-    // Under "Most room" the number it was placed by is the window still running.
-    expect(/<span class="ap-q" data-sort-key=""[^]*?<\/span><\/span>/.exec(quick)?.[0]).toContain("7d");
+    const figure = /<span class="ap-value ap-q-pct"[^]*?<\/span>/.exec(html)?.[0] ?? "";
+    expect(text(html)).not.toContain("95%");
+    expect(text(figure)).toBe("reset");
+    // The error level is named "err" since every quota meter shares one level
+    // (V4 top-10 #9); "hi" before. Both stay absent, so this cannot pass by the rename.
+    expect(html).not.toContain('data-level="err"');
+    expect(html).not.toContain('data-level="hi"');
+    expect(figure).toContain("5h has reset since this reading");
+    // The window still running stays the second figure, at the end of the
+    // line under the name.
+    expect(/<span class="ap-fig ap-fig-2"[^]*?<\/span><\/span>/.exec(quick)?.[0]).toContain("7d");
   });
 
   it("keeps a window still running as it was", () => {
-    const quick = /<p class="ap-quota"[^]*?<\/p>/.exec(shutRow(running))?.[0] ?? "";
-    expect(text(quick)).toContain("5h 60%");
+    const html = shutRow(running);
+    const figure = /<span class="ap-value ap-q-pct"[^]*?<\/span>/.exec(html)?.[0] ?? "";
+    expect(text(figure)).toBe("60%");
+    expect(text(/<p class="ap-quota"[^]*?<\/p>/.exec(html)?.[0] ?? "")).toContain("7d 10%");
   });
 
-  it("is ordered as unread by that window, not as the fullest", () => {
-    const order = (o: string) => sortAccounts([lapsed, running], o, () => true, NOW).map(a => a.num);
-    expect(order("5h:full")).toEqual([3, 2]);
-    expect(order("5h:empty")).toEqual([3, 2]);
+  it("is ordered as unread by that window: below a usable account, whatever the old number", () => {
+    const usable = { reachable: true, rateLimited: false };
+    expect(byAvailability([lapsed, running], () => usable, NOW).map(a => a.num)).toEqual([3, 2]);
+    expect(byAvailability([running, lapsed], () => usable, NOW).map(a => a.num)).toEqual([3, 2]);
   });
 
   it("keeps headroom unknown until the elapsed window is observed again", () => {
-    expect(sortAccounts([running, lapsed], "room", () => true, NOW).map(a => a.num)).toEqual([3, 2]);
     expect(peersOf([lapsed], NOW)[0].headroom).toBeNull();
     expect(peersOf([running], NOW)[0].headroom).toBe(40);
   });

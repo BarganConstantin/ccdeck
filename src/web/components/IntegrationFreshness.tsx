@@ -5,8 +5,8 @@
 //
 // One honest line for every panel: "Reading…" before the first answer,
 // "Updating…" while a newer one is out, "Updated 5m ago" after it lands, and
-// after a read that failed "Not updated · last answer 5m ago", the warning
-// mark and its word in --warn and the rest quiet, so the rows still on screen
+// after a read that failed "Not updated · last answer 5m ago", with the mark
+// beside it, in the same pill and never amber, so the rows still on screen
 // are never claimed as fresh. The age keeps time on its own and carries the
 // exact moment in its title. The line is not a live region, since its age
 // changes every minute; a hidden status says only the transitions (updating,
@@ -16,11 +16,19 @@
 // nothing rather than starting a second read.
 // Lay it at the end of a toolbar row: it takes the free space and lets the
 // sentence shorten with an ellipsis before Refresh would move.
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { RefreshGlyph } from "./action-glyphs";
 import { WarnMark } from "./integration-glyphs";
 import { currentLanguage, t as translateNow, useT, type TFunction } from "../i18n";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
+
+/** Where the host wants the line and Refresh drawn (the modal header's end,
+ *  V4's Figma); without one they stay in the row that renders them. */
+export const FreshnessSlot = createContext<HTMLElement | null>(null);
+/** What the host draws between the line and Refresh when they are in its slot:
+ *  the modal's Size button. */
+export const FreshnessTools = createContext<ReactNode>(null);
 
 export interface FreshnessState {
   /** When the answer on screen was read (ms), or null before the first one. */
@@ -55,7 +63,7 @@ export function freshnessWords({ loadedAt, loading, stale }: FreshnessState, now
 }
 
 /** "just now", "5m ago", "3h ago", "2d ago" from an age in milliseconds. */
-function agoText(ms: number, t: TFunction): string {
+export function agoText(ms: number, t: TFunction): string {
   const s = Math.max(0, Math.floor(ms / 1000));
   if (s < 60) return t("integrations.fresh.now");
   if (s < 3600) return t("integrations.fresh.m", { n: Math.floor(s / 60) });
@@ -93,17 +101,20 @@ export default function IntegrationFreshness({ loadedAt, loading, stale = false,
 
   const words = freshnessWords({ loadedAt, loading, stale }, now ?? Date.now(), t);
   const at = loadedAt != null ? new Date(loadedAt) : null;
-  return (
+  const slot = useContext(FreshnessSlot);
+  const tools = useContext(FreshnessTools);
+  const line = (
     <div className="ig-freshness" data-tone={words.tone}>
       {words.tone !== "none" && (
         <span className="ig-fresh">
           {words.tone === "stale" && <WarnMark />}
-          <span className="ig-fresh-word">{words.word}</span>
+          {words.word}
           {words.join}
           {at && words.ago && <time dateTime={at.toISOString()} title={at.toLocaleString(currentLanguage())}>{words.ago}</time>}
         </span>
       )}
       <span className="vis-hidden" role="status">{announcement(words.tone, seenRead, t)}</span>
+      {slot && tools}
       <button type="button" className="glyph-btn ig-refresh" aria-label={label} title={t("integrations.fresh.refresh")}
         {...selfPressProps(loading, disabled)} data-loading={loading || undefined}
         onClick={() => { if (!selfPressAccepted(loadingRef.current)) return; onRefresh(); }}>
@@ -111,4 +122,5 @@ export default function IntegrationFreshness({ loadedAt, loading, stale = false,
       </button>
     </div>
   );
+  return slot ? createPortal(line, slot) : line;
 }

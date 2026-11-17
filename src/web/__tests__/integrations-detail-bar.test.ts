@@ -66,7 +66,8 @@ describe("an item's top line", () => {
   it("sticks to the top of the pane, edge to edge across the panel's padding", () => {
     const b = rule(".ig-detail-bar");
     expect(b).toMatch(/position:\s*sticky/);
-    expect(b).toMatch(/margin-inline:\s*calc\(-1 \* var\(--ig-detail-pad, 20px\)\)/);
+    // CHANGED ON PURPOSE (V4's Figma): the detail's side padding is 16px, not 20.
+    expect(b).toMatch(/margin-inline:\s*calc\(-1 \* var\(--ig-detail-pad, 16px\)\)/);
     expect(b).toMatch(/background:\s*var\(--panel\)/);
   });
 });

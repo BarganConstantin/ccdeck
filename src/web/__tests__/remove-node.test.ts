@@ -8,6 +8,7 @@ import { applyEvent, initialState, pruneDoneSessions, STALE_SESSION_MS, sweepSta
 import { lastWorkedAt, readRemovedNodes, removalHiddenIds, removalsLiftedByWork, removalTimes, saveRemovedNodes, sessionsCalledBack, visibleBoard, withoutRemovals } from "../remove-node";
 import { AUTO_PAN_EDGE_PX, clientPointOf, distanceToRect, pointInRect, trashProximity, TRASH_HIT_SLOP_PX, TRASH_NEAR_PX } from "../trash-zone";
 import { clientPairs, clientText } from "./client-source";
+import { en } from "../i18n/en";
 import { sheetText } from "./sheet-source";
 
 const nodes = [
@@ -531,13 +532,21 @@ describe("where Remove lives and what follows it", () => {
     const detail = /function Detail\([\s\S]*?\n}\n/.exec(panel)?.[0] ?? "";
     expect(detail, "no Detail in components/Detail.tsx").not.toBe("");
     expect(panel).not.toMatch(/>\s*Remove node\s*</);
-    expect(detail).toMatch(/className="btn hero-action-btn"\s+onClick=\{onRemove\}[\s\S]*?>\{t\("board\.detail\.remove"\)\}<\/button>/);
+    // CHANGED ON PURPOSE (V4 top-10 #6): a `.btn` at the foot of the body → an
+    // item of the title block's ⋯ menu (DetailActions), because Export and
+    // Remove were two of three equal buttons under the whole tool-call list.
+    // Detail still hands it onRemove; the item still runs it and says Remove.
+    expect(detail).toMatch(/<DetailActions\b[^>]*\bonRemove=\{onRemove\}/);
+    const actions = /function DetailActions\([\s\S]*?\n}\n/.exec(panel)?.[0] ?? "";
+    expect(actions, "no DetailActions in components/Detail.tsx").not.toBe("");
+    expect(actions).toMatch(/role="menuitem" className="ap-menu-item"[\s\S]*?onClick=\{\(\) => choose\(onRemove\)\}\s*>\{t\("board\.detail\.remove"\)\}<\/button>/);
     expect(app).toMatch(/<DetailAside\b[^>]*\bremoveSelectedNode=\{removeSelectedNode\}/);
     const aside = readFileSync(fileURLToPath(new URL("../components/DetailAside.tsx", import.meta.url)), "utf8");
     expect(aside).toMatch(/onRemove=\{removeSelectedNode\}/);
-    // Reversible from the session list, so not dressed as the one destructive .btn the sheet reserves
-    // red for.
+    // Reversible from the session list, so not dressed as the one destructive
+    // item the sheet reserves red for.
     expect(detail).not.toMatch(/btn danger[^"]*"\s+onClick=\{onRemove\}/);
+    expect(actions).not.toMatch(/ap-menu-item danger/);
   });
 
   it("is one key from a selection, since a plain click shuts the panel it lives in", () => {
@@ -570,10 +579,25 @@ describe("where Remove lives and what follows it", () => {
   it("keeps a removed session in the session list, marked, as the way back", () => {
     // Through pickSession, which closes a phone's drawer after openSession.
     expect(app).toMatch(/onSelect=\{pickSession\}[\s\S]*?removedIds=\{removedAgentIds\}/);
-    expect(app).toMatch(/const pickSession = useCallback\(\(sessionId: string\) => \{\s*openSession\(sessionId\);/);
+    // CHANGED ON PURPOSE (the owner's phone layout): a phone with the Command Panel on
+    // opens the pane first (bringing a removed session back as it does); every other
+    // pick is openSession, as it was.
+    expect(app).toMatch(/const pickSession = useCallback\(\(sessionId: string\) => \{\s*if \(phone && stage\.enabled\) \{\s*if \(removedAgentIds\.has\(sessionId\)\) bringBack\(\[sessionId\]\);[\s\S]*?\}\s*(?:\/\/[^\n]*\s*)?openSession\(sessionId\);/);
     expect(app).toMatch(/if \(removedAgentIds\.has\(sessionId\)\) bringBack\(\[sessionId\]\);\s*focusSession\(sessionId\);/);
-    expect(list).toMatch(/\{removed && <span className="sl-removed">\{t\("board\.list\.offBoard"\)\}<\/span>\}/);
+    // The row (components/RailParts.tsx since V4's Attention rail) says it.
+    // CHANGED ON PURPOSE: the words lead the row's second line rather than
+    // sitting after the model on the first, where they cut the session's name
+    // down to two letters.
+    const rail = readFileSync(fileURLToPath(new URL("../components/RailParts.tsx", import.meta.url)), "utf8");
+    expect(rail).toMatch(/\{removed && <span className="sl-off">\{t\("board\.rail\.offBoard"\)\}<\/span>\}/);
+    expect(rail).not.toMatch(/className="sl-model">\{t\("board\.rail\.offBoard"\)\}/);
+    expect(rail.indexOf('className="sl-off"')).toBeGreaterThan(rail.indexOf("sl-line2"));
+    // CHANGED ON PURPOSE (the UI in every language): the words are behind the key.
+    expect(en["board.rail.offBoard"]).toBe("off the board");
     expect(list).toMatch(/\{t\("board\.list\.bringBack", \{ count \}\)\}/);
+    // The words behind the key are the ones V4 drew: Bring back N removed card(s).
+    expect(en["board.list.bringBack.one"]).toBe("Bring back {count} removed card");
+    expect(en["board.list.bringBack.other"]).toBe("Bring back {count} removed cards");
     expect(css).toMatch(/\.session-list \.sl-row\.removed \.sl-label \{ color: var\(--muted\); \}/);
   });
 

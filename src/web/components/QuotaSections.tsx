@@ -8,6 +8,7 @@
 // panel under the names the markup already used, and whether a section is
 // drawn at all is still the panel's call, from which CLIs the deck watches
 // (#402).
+import { useId } from "react";
 import { PRODUCT } from "../brand";
 import { useT, type TFunction } from "../i18n";
 import { resetCreditsText } from "../reset-credits";
@@ -16,6 +17,9 @@ import type { CodexQuotaData, QuotaData } from "../use-quota";
 import { weekEndsLine, weekEndsTitle, type QuotaClose } from "../quota-closes";
 import { QuotaIncident } from "./ProviderIncidents";
 import QuotaBar from "./QuotaBar";
+import { WaitingLoader } from "./Loader";
+import HoverHint from "./HoverHint";
+import { KitIcon } from "./kit-icons";
 
 /** "just now" / "40s ago" / "17m ago" / "2h ago", or null when never fetched.
  *
@@ -95,6 +99,32 @@ function codexHint(t: TFunction, reason?: string): string {
   }
 }
 
+/**
+ * A quota that is down, said once (owner, 2026-11-11): the bold line, and why
+ * on a small info mark beside it — shown on hover or focus by the hover hint
+ * the accounts panel uses, and handed to a screen reader. No line asks for a
+ * press: the panel's one Refresh, at its foot, reads both quotas and the
+ * period again. A screen with no hover prints the reason under the line
+ * instead (usage-panel.css).
+ */
+function QuotaDown({ headline, why }: { headline: string; why: string }) {
+  const t = useT();
+  const whyId = `${useId()}-why`;
+  return (
+    <div className="up-quota-na">
+      <span className="up-quota-down">
+        {headline}
+        <HoverHint className="ap-peek ap-account-hint" detail={why}>
+          <span className="up-quota-why" role="img" aria-label={t("usage.quota.why")} aria-describedby={whyId}>
+            <KitIcon name="info" />
+          </span>
+        </HoverHint>
+      </span>
+      <span className="up-quota-hint" id={whyId}>{why}</span>
+    </div>
+  );
+}
+
 /** How full the account's last weeks ended, under the bars. A footnote, so it is
  *  absent until a week has ended with a reading near its reset (quota-closes.ts). */
 function WeekEnds({ weeks = [] }: { weeks?: QuotaClose[] }) {
@@ -118,7 +148,7 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
   const claudeAge = ageLabel(t, quota?.fetchedAt, nowSec);
   return (
     <section className="up-section up-quota-section">
-      <h3 className="up-section-title">
+      <h3 className="up-section-title" data-down={quota?.ok === false ? "" : undefined}>
         {t("usage.quota.claude.title")}
         {quota?.ok && quota.planLabel && (
           <span className="up-plan-badge">{quota.planLabel}</span>
@@ -201,12 +231,10 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
           )}
         </div>
       ) : quota?.ok === false ? (
-        <div className="up-quota-na">
-          <span>{quota.reason === "no_subscription" ? t("usage.quota.none") : t("usage.quota.unavailable")}</span>
-          <span className="up-quota-hint">{claudeQuotaHint(t, quota.reason)}</span>
-        </div>
+        <QuotaDown headline={quota.reason === "no_subscription" ? t("usage.quota.none") : t("usage.quota.unavailable")}
+          why={claudeQuotaHint(t, quota.reason)} />
       ) : (
-        <div className="up-quota-na up-quota-loading">{t("usage.quota.checking")}</div>
+        <div className="up-quota-na up-quota-loading loader-line"><WaitingLoader busy /><span role="status">{t("usage.quota.checking")}</span></div>
       )}
     </section>
   );
@@ -228,7 +256,7 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
   const codexAge  = ageLabel(t, codexQuota?.fetchedAt, nowSec);
   return (
     <section className="up-section up-quota-section">
-      <h3 className="up-section-title">
+      <h3 className="up-section-title" data-down={codexQuota?.ok === false ? "" : undefined}>
         {t("usage.quota.codex.title")}
         {codexQuota?.ok && codexQuota.planLabel && (
           <span className="up-plan-badge">{codexQuota.planLabel}</span>
@@ -300,18 +328,16 @@ export function CodexQuotaSection({ codexQuota, codexLoading, nowSec, incident, 
             <div className="up-quota-sub">{codexQuota.promo}</div>
           )}
           {/* Native Codex limits cover only the standard windows; that needs no
-              line under the bars, while limits this build cannot read do. */}
+              line under the bars (owner, #2470), while limits this build cannot
+              read do — in V4's partial-data box. */}
           {codexQuota.partial && codexQuota.coverage !== 'standard_limits' && (
-            <div className="up-quota-sub up-quota-hint">{t("usage.quota.partial")}</div>
+            <div className="up-quota-sub up-quota-note">{t("usage.quota.partial")}</div>
           )}
         </div>
       ) : codexQuota?.ok === false ? (
-        <div className="up-quota-na">
-          <span>{t("usage.quota.unavailable")}</span>
-          <span className="up-quota-hint">{codexHint(t, codexQuota.reason)}</span>
-        </div>
+        <QuotaDown headline={t("usage.quota.unavailable")} why={codexHint(t, codexQuota.reason)} />
       ) : (
-        <div className="up-quota-na up-quota-loading">{t("usage.quota.checking")}</div>
+        <div className="up-quota-na up-quota-loading loader-line"><WaitingLoader busy /><span role="status">{t("usage.quota.checking")}</span></div>
       )}
 
     </section>

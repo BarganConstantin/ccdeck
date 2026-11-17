@@ -31,6 +31,16 @@ export function sheetText(): string {
   return joined;
 }
 
+/** The sheets of the screens that are loaded on demand (Chat and the Decision
+ *  card): not parts of styles.css, imported by their own components so that the
+ *  first-load sheet carries none of them. A sweep that asks "does every class the
+ *  markup hard-codes have a rule" or "does every control have a look" asks of
+ *  the sheet AND of these. */
+export function lazySheetText(): string {
+  return ["components/chat/chat.css", "components/decision/decision.css"]
+    .map(path => readFileSync(`${WEB_DIR}${path}`, "utf8")).join("");
+}
+
 /** Legacy geometry/type checks inspect the Default reading profile, not a
  * browser's computed style. Resolve only our explicitly neutral defaults —
  * the text, panel and card increments (0px), the floored small sizes' `max(-1px, …)`
@@ -46,4 +56,35 @@ export function defaultReadingSheetText(): string {
     "$1",
   ).replace(/calc\((-?\d+(?:\.\d+)?px) \* var\(--ui-space, 1\)\)/g, "$1").replace(/ \+ var\(--ui-panel-increase, 0px\)/g, "")
     .replace(/max\((\d+(?:\.\d+)?px), \1\)/g, "$1");
+}
+
+/** The mouse query every `:hover` rule stands under (V4: hover is for mice). */
+export const MOUSE_MEDIA = "(hover: hover) and (pointer: fine)";
+
+/** `css` as a desktop pointer reads it at the top level: each top-level
+ *  `@media (hover: hover) and (pointer: fine) { ... }` is replaced by its rules,
+ *  in place, so the hover rules keep their order among the rest. A hover rule
+ *  nested in another media (forced colours, reduced motion) stays inside it. */
+export function mouseFlat(css: string): string {
+  const open = `@media ${MOUSE_MEDIA}`;
+  let out = "";
+  let i = 0;
+  let depth = 0;
+  while (i < css.length) {
+    if (depth === 0 && css.startsWith(open, i)) {
+      const brace = css.indexOf("{", i);
+      let d = 1;
+      let j = brace + 1;
+      for (; j < css.length && d > 0; j++) d += css[j] === "{" ? 1 : css[j] === "}" ? -1 : 0;
+      out += css.slice(brace + 1, j - 1);
+      i = j;
+      continue;
+    }
+    const c = css[i];
+    if (c === "{") depth++;
+    else if (c === "}") depth--;
+    out += c;
+    i++;
+  }
+  return out;
 }

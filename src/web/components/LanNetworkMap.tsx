@@ -34,6 +34,7 @@ import { Fill } from "./LanAsks";
 import { rowSource, type DeckRow } from "../lan-roster";
 import type { LanAccount, LanStatus } from "../lan-types";
 import { Machine } from "./LanPeerMap";
+import { Dialog } from "./Dialog";
 import LanKind from "./LanKind";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
@@ -260,14 +261,12 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
   };
 
   return createPortal(
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal nm-modal" onClick={e => e.stopPropagation()}
-        data-paused={covered || hidden || undefined}
-        role="dialog" aria-modal="true" aria-labelledby="nm-title" aria-describedby="nm-sub">
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="nm-modal"
+      data-paused={covered || hidden || undefined}
+      labelledBy="nm-title" aria-describedby="nm-sub">
         <header className="modal-head nm-head">
           <div className="nm-heading">
             <h2 id="nm-title" className="modal-title nm-title">{t("lan.nm.title")}</h2>
-            <p id="nm-sub" className="nm-sub">{headline}</p>
           </div>
           <div className="modal-actions">
             <button ref={closeRef} type="button" className="glyph-btn" onClick={onClose}
@@ -318,6 +317,10 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
               </>
             )}
           </div>
+          {/* THE CAPTION, under the picture and at its left edge, as V4's Figma
+              puts it: what the map says in one line, in the kit's 12. It used to
+              sit under the title; the dialog reads it as its description. */}
+          <p id="nm-sub" className="nm-sub">{headline}</p>
           <Legend slice={layout?.zone != null} />
           </div>
 
@@ -329,8 +332,7 @@ export default function LanNetworkMap({ status, rows, accounts, now, covered, on
               : <NetworkDetails status={status} summary={summary} entrance={entrance} slice={layout?.zone != null} />}
           </aside>
         </div>
-      </div>
-    </div>,
+    </Dialog>,
     document.body,
   );
 }
@@ -478,7 +480,7 @@ function Core({ status }: { status: LanStatus | null }) {
   const listening = status?.enabled === true && status.running;
   return (
     <div className="nm-core" data-listening={listening || undefined}>
-      <span className="nm-core-orb" aria-hidden />
+      <span className="nm-core-orb" aria-hidden><Machine /></span>
       <span className="nm-core-label">
         <span className="nm-core-name">{status?.name ?? "…"}</span>
         <span className="nm-core-what">{t("lan.nm.thisDeck")}</span>

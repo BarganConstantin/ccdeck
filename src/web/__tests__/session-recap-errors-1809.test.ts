@@ -78,14 +78,18 @@ describe("the session recap counts errors over every call (#1809)", () => {
     expect(state.agents.get("s1")!.tools[0].ok).toBe(false);
     expect(recap(state)).toContain(stat("errors", 1));
     state = send(state, { hook_event_name: "PostToolUse", tool_name: "Bash", tool_use_id: "slow", tool_response: "ok" }, T0 + 10 * 60_000 + 1);
-    expect(recap(state)).not.toContain(">errors<");
+    // CHANGED ON PURPOSE (V4's Figma): the errors figure is always drawn ("0 errors"),
+    // so a failure taken back reads as 0 rather than as a missing stat.
+    expect(recap(state)).toContain(stat("errors", 0));
+    expect(recap(state)).not.toContain(stat("errors", 1));
   });
 
   it("ranks the most-used tools over every call too", () => {
     // 60 Greps first, then 190 Reads: the window holds only the last 10 Greps.
     const html = recap(session(() => false, 60));
-    expect(html).toMatch(/<span class="ss-tt-name">Read<\/span>.*?<span class="ss-tt-count">190<\/span>/);
-    expect(html).toMatch(/<span class="ss-tt-name">Grep<\/span>.*?<span class="ss-tt-count">60<\/span>/);
+    // CHANGED ON PURPOSE (V4's Figma): a tool and its count are one chip, "Read 190".
+    expect(html).toMatch(/<span class="ss-tt">Read <b>190<\/b><\/span>/);
+    expect(html).toMatch(/<span class="ss-tt">Grep <b>60<\/b><\/span>/);
   });
 
   it("ranks a call under the name a later copy of its start supplies", () => {
@@ -95,7 +99,7 @@ describe("the session recap counts errors over every call (#1809)", () => {
     state = send(state, { hook_event_name: "PreToolUse", tool_name: "Bash", tool_use_id: "nameless" }, T0 + 11);
     state = send(state, { hook_event_name: "Stop" }, T0 + 1_000);
     const html = recap(state);
-    expect(html).toMatch(/<span class="ss-tt-name">Bash<\/span>.*?<span class="ss-tt-count">1<\/span>/);
-    expect(html).not.toContain('<span class="ss-tt-name">?</span>');
+    expect(html).toMatch(/<span class="ss-tt">Bash <b>1<\/b><\/span>/);
+    expect(html).not.toContain('<span class="ss-tt">? ');
   });
 });
