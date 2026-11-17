@@ -404,9 +404,10 @@ export function claimLaunch(ref: SessionRef, key: string, options: ApiOptions = 
 }
 
 /** Attach to a session: a ticket for the socket, or the reason there is no pane. */
-export function openTerminal(ref: SessionRef, options: ApiOptions = {}): Promise<Ticketed | NotAttachable | ApiFailure> {
+export function openTerminal(ref: SessionRef, options: ApiOptions = {}, size?: PaneSize, colours?: PaneColours): Promise<Ticketed | NotAttachable | ApiFailure> {
   const { sessionId, provider, cwd } = ref;
-  return ask<Ticketed | NotAttachable>(TERMINAL_ROUTES.open, post({ sessionId, provider, cwd }), options, body => {
+  const initial = { ...(size ? { cols: size.cols, rows: size.rows } : {}), ...(colours ? { colours } : {}) };
+  return ask<Ticketed | NotAttachable>(TERMINAL_ROUTES.open, post({ sessionId, provider, cwd, ...initial }), options, body => {
     if (!isObject(body)) return null;
     const target = targetOf(body.target);
     if (!target) return null;

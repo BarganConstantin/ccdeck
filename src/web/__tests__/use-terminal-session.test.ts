@@ -246,7 +246,7 @@ describe("opening a session: write before reveal", () => {
     ctl.show({ kind: "session", ref: REF });
     expect(r.last().phase).toEqual({ kind: "attaching", reconnect: false });
     await flush();
-    expect(r.open).toHaveBeenCalledWith(REF);
+    expect(r.open).toHaveBeenCalledWith(REF, {}, { cols: 120, rows: 40 }, undefined);
     const s = r.sockets[0];
     expect(s.url).toBe("ws://127.0.0.1:4317/api/terminal/attach?ticket=t1");
     s.open();
@@ -1042,6 +1042,7 @@ describe("the theme's colours, for tmux to answer a program's colour question wi
     ctl.mount(HOST, { theme: DARK, fontFamily: "monospace" });
     await flush();
     const s = await attach(r, ctl);
+    expect(r.open).toHaveBeenCalledWith(REF, {}, { cols: 120, rows: 40 }, { fg: "#e6e6e6", bg: "#14161b" });
     expect(s.sentText().slice(0, 2)).toEqual([
       { t: "size", cols: 120, rows: 40 },
       { t: "colours", fg: "#e6e6e6", bg: "#14161b" },
@@ -1565,13 +1566,13 @@ describe("the hook", () => {
     const { r, seen, Probe, props } = hookRig();
     const m = mountComponent(Probe, props({ kind: "session", ref: REF }));
     await flush();
-    expect(r.open).toHaveBeenCalledWith(REF);
+    expect(r.open).toHaveBeenCalledWith(REF, {}, { cols: 120, rows: 40 }, undefined);
     expect(seen.at(-1)!.phase).toEqual({ kind: "attaching", reconnect: false });
     r.sockets[0].open();
     m.rerender(props({ kind: "session", ref: OTHER }));
     await flush();
     expect(r.sockets[0].closedWith).toEqual([1000]);
-    expect(r.open).toHaveBeenLastCalledWith(OTHER);
+    expect(r.open).toHaveBeenLastCalledWith(OTHER, {}, { cols: 120, rows: 40 }, undefined);
     m.unmount();
     expect(r.sockets[1].closedWith, "the stage's socket goes with it; the tmux session does not").toEqual([1000]);
   });

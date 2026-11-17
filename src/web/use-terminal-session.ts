@@ -903,7 +903,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   };
 
   const openFlow = async (ref: SessionRef, my: number, reconnecting: boolean) => {
-    const answer = await deps.api.open(ref);
+    const answer = await deps.api.open(ref, {}, { ...want }, paneColours());
     if (my !== gen) return;
     await landOpen(answer, my, reconnecting);
   };
@@ -928,7 +928,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       const ref = refOf();
       const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
       if (!ref || hidden || now.busy) { watchElsewhere(my); return; }
-      void deps.api.open(ref).then(answer => {
+      void deps.api.open(ref, {}, { ...want }, paneColours()).then(answer => {
         if (my !== gen || disposed) return;
         const still = snap.phase;
         if (still.kind !== "not-attachable" || !still.stillRunning || still.busy) return;
