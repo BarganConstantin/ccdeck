@@ -1601,6 +1601,7 @@ function Inner() {
             selected={selected} now={now} openTool={openTool} setSummaryFor={setSummaryFor}
             stateRef={stateRef} removeSelectedNode={removeSelectedNode}
             onSelectAgent={selectInspected}
+            onOpenSession={stage.enabled ? openSessionWithKeys : undefined} stageSession={stage.enabled && stageClaimsKeys(stage.shell.phase) ? targetSession(stage.shell.target) : null}
             workspace
             onClose={foldInspector}
           />
@@ -1612,6 +1613,7 @@ function Inner() {
           selected={detailOnScreen} now={now} openTool={openTool} setSummaryFor={setSummaryFor}
           stateRef={stateRef} removeSelectedNode={removeSelectedNode}
           onSelectAgent={selectInspected}
+          onOpenSession={stage.enabled ? openSessionWithKeys : undefined} stageSession={stage.enabled && stageClaimsKeys(stage.shell.phase) ? targetSession(stage.shell.target) : null}
           onClose={inWorkspace && (inspectorColumn || inspectorSheet) ? foldInspector : sheetClose("inspector", () => { panelReturn.detail(); setDetailOpen(false); })}
         />
       ) : null}

@@ -15,6 +15,8 @@
   .ap-policy .ap-threshold-input { min-height: 32px; }
   /* The Inspector's Details row: full width already, 28 high under a mouse. */
   .detail-more > summary { min-height: 32px; }
+  /* And its next step (Answer or Open) with Show recap, under the title block. */
+  .detail .hero-actions .btn { min-height: 32px; }
   /* The popover's rows sit flush against each other, so a fingertip gets the
      height a touch list needs rather than the 32px floor; its form controls
      stand at the same height as each other, a step over it. */
