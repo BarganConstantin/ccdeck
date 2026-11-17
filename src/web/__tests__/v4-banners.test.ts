@@ -342,7 +342,13 @@ describe("the two notices on the empty canvas are a 360px block with a 24px icon
     }));
     expect(waiting).not.toContain("empty-notice");
     expect(waiting).toContain("Take the tour");
-    expect(waiting).toContain('width="32" height="32"');
+    // CHANGED ON PURPOSE (V4 top-10 #10): a 32px chevron with a blinking cursor
+    // over the waiting hero's title → no mark, because it had no job between an
+    // empty canvas and the words that say why it is empty. The two notices keep
+    // their 24px one.
+    expect(waiting).not.toContain("empty-symbol");
+    expect(waiting).not.toContain('width="32" height="32"');
+    expect(offline).toContain('width="24" height="24"');
   });
 
   it("writes the 'too many tabs' body as it was and the 'lost' body with full stops", () => {

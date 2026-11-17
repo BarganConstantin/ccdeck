@@ -6,14 +6,16 @@
 //
 // In the shared shape (SettingsParts.tsx, #2176): one row in a group called
 // Experimental, at the foot of Settings › General (V4 draws no tab of its own
-// for it), the row's note saying so again in one line. The switch is the only
-// way off; no launch variable turns it on or off.
+// for it). The note says what the panel is in one line; it no longer opens on
+// "Experimental:", which the caption right above it already says (V4 top-10
+// #10). The switch is the only way off; no launch variable turns it on or off.
 //
 // OFF CLOSES THE PANEL, NOT ITS SESSIONS. A session the panel started keeps
 // running with the switch off — in tmux on Linux and macOS, in the session
-// host in the Windows preview — and is there again once it is on, so the note
-// says that much in plain words: the reader deciding whether to turn it off is
-// deciding about a window, not about their agents.
+// host in the Windows preview — and is there again once it is on, so the row's
+// Details says that much in plain words: the reader deciding whether to turn it
+// off is deciding about a window, not about their agents. A consequence, so a
+// Details and not a second sentence in the note.
 //
 // The panel runs on Linux, macOS and Windows. Where a deck's platform has none
 // the switch is drawn off and fixed, and a note under the row says so — though
@@ -52,10 +54,16 @@ export function offersWorkspace(terminal: TerminalSwitch | undefined): boolean {
 }
 
 /** The note under the row's name, in the reader's language: the platform's
- *  answer when it has no panel, else where the sessions keep running. */
-export function terminalNote(t: TFunction, supported: boolean | null, windows = false): string {
+ *  answer when it has no panel, else what the panel is, in one line. */
+export function terminalNote(t: TFunction, supported: boolean | null): string {
   if (supported === false) return t("settings.terminal.unsupported");
-  return t(windows ? "settings.terminal.noteWindows" : "settings.terminal.note");
+  return t("settings.terminal.short");
+}
+
+/** The row's Details: what turning it off does, and where the sessions keep
+ *  running — the Windows session host, or tmux, which it does not name. */
+export function terminalDetails(t: TFunction, windows = false): string {
+  return t(windows ? "settings.terminal.offDetailsWindows" : "settings.terminal.offDetails");
 }
 
 /**
@@ -149,8 +157,10 @@ export default function TerminalSection({ terminal }: { terminal: TerminalSwitch
           settingId="terminal"
           name={t("settings.search.commandPanel")}
           nameId="settings-terminal-label"
-          note={terminalNote(t, null, terminal.windows)}
+          note={terminalNote(t, null)}
           noteId="settings-terminal-note"
+          // Where the panel is not available there is no "off" to explain.
+          details={unsupported ? undefined : terminalDetails(t, terminal.windows)}
           control={
             <button
               type="button"

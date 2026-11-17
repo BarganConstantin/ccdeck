@@ -6,7 +6,9 @@
 // closed (traffic-radar-service.mjs). The section keeps the door to Radar, a
 // row like General's doors, saying so.
 //
-// In the shared shape (SettingsParts.tsx, #2176): one group, captioned Radar.
+// In the shared shape (SettingsParts.tsx, #2176): one group, uncaptioned (V4
+// top-10 #10) — the page is headed Radar and its one row is named Radar, so a
+// caption saying Radar between them said it a third time.
 import { SettingRow, SettingsGroup } from "./SettingsParts";
 import { useT } from "../i18n";
 
@@ -15,7 +17,7 @@ export const RADAR_NOTE = "Watches the telemetry Claude Code sends to its collec
 export default function RadarSettings({ onOpen }: { onOpen: () => void }) {
   const t = useT();
   return (
-    <SettingsGroup id="settings-radar-caption" title={t("radar.name")}>
+    <SettingsGroup>
       <SettingRow
         as="div"
         settingId="radar-open"

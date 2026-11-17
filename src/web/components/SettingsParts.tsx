@@ -12,6 +12,14 @@
 // line; rows grouped under a caption in one list with hairlines between them,
 // so the eye reads down one edge for names and down the other for values.
 //
+// LESS TO READ (V4 top-10 #10). A row says its name and holds its control on
+// one line. The muted line under the name is there only where the name does not
+// already say what the control does — "Language" needs none — and it is one
+// short sentence. `details` is for what that line cannot carry: a consequence,
+// the full rule, a privacy note. A Details that repeats the line is noise, five
+// of them in a list is a wall, so a row that has nothing more to say has none.
+// A group of one row named as its caption has no caption: the name is said once.
+//
 // A row is a <label> when it holds a control, so a press on its name reaches
 // the control once and the control is the one tab stop. A row that only reads
 // out a value, or holds two buttons, is a <div>: a label wrapped round two
