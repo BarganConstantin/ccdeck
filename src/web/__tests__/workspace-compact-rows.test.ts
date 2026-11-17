@@ -6,7 +6,7 @@ import { RailRow, type RailRowProps } from "../components/RailParts";
 import SessionList, { buildRows, type Row } from "../components/SessionList";
 import StageHeader, { type StageHeaderProps } from "../components/terminal/StageHeader";
 import { ToolRow } from "../components/chat/ChatTurn";
-import { FileGlyph, SearchGlyph, ToolTerminalGlyph } from "../components/chat/chat-icons";
+import { ChevronRightGlyph, FileGlyph, SearchGlyph, ToolTerminalGlyph } from "../components/chat/chat-icons";
 import type { ChatTurn } from "../components/chat/chat-model";
 import { applyEvent, initialState, type GraphState } from "../reducer";
 import type { HookPayload } from "../types";
@@ -103,9 +103,9 @@ describe("compact session rows", () => {
     expect(out).not.toContain('data-one-line="true"');
   });
 
-  it.each([false, true])("gives a waiting twin's command the second line in pane 3 when active=%s", active => {
+  it.each([false, true])("keeps a true waiting twin's clock and command in pane 3 when active=%s", active => {
     const startedAt = NOW - 30 * 60_000;
-    const clock = new Date(startedAt).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" });
+    const clock = new Date(startedAt).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const out = drawRow({ group: 0, pane: { number: 3, active }, row: row({
       provider: "codex", twin: "second", startedAt,
       waiting: {
@@ -115,9 +115,9 @@ describe("compact session rows", () => {
     }) });
     const line2 = out.slice(out.indexOf('<span class="sl-line2'));
     expect(visibleText(line2)).toContain("Bash · npm test -- workspace");
-    expect(out).not.toContain("sl-start");
+    expect(out).toContain("sl-start");
     expect(out).not.toContain("pane-badge");
-    expect(visibleText(out)).not.toContain(clock);
+    expect(visibleText(out)).toContain(clock);
     expect(visibleText(out)).toContain("27m");
     const tooltip = out.match(/\btitle="([^"]*)"/)?.[1];
     expect(tooltip).toContain("Started ");
@@ -174,12 +174,12 @@ describe("compact session rows", () => {
   });
 });
 
-function addSession(state: GraphState, id: string, title: string, prompt: string, provider?: HookPayload["provider"]): void {
+function addSession(state: GraphState, id: string, title: string, prompt: string, provider?: HookPayload["provider"], cwd = "/repo/web-api"): void {
   const send = (payload: HookPayload) => applyEvent(state, {
     seq: state.lastSeq + 1, receivedAt: NOW - 1_000 + state.lastSeq,
     source: "hook", payload: { session_id: id, ...payload },
   });
-  send({ hook_event_name: "SessionStart", cwd: "/repo/web-api", provider });
+  send({ hook_event_name: "SessionStart", cwd, provider });
   send({ hook_event_name: "UserPromptSubmit", prompt });
   send({ hook_event_name: "SessionNamed", sessionName: null, sessionTitle: title });
 }
@@ -254,6 +254,70 @@ describe("compact SessionList title collisions", () => {
     }
   });
 
+  it("uses only the project for cross-project duplicate titles, with the exact clock in the tooltip", () => {
+    const state = initialState();
+    const prompt = "Synthesize the rate limiter\nKeep this complete second line accessible.";
+    addSession(state, "first", "Rate limiter", prompt, "claude", "/repo/web-api");
+    addSession(state, "second", "Rate limiter", prompt, "codex", "/repo/mobile-app");
+    const rows = buildRows(state, NOW);
+    const draw = (workspace: boolean) => renderToStaticMarkup(createElement(SessionList, {
+      state, now: NOW, selectedIds: new Set<string>(), onSelect: noop, onClose: noop,
+      ...(workspace ? { onOpenKeys: noop } : {}),
+    }));
+    for (const r of rows) {
+      const button = rowButton(draw(true), r.sessionId);
+      expect(visibleText(button)).toContain(r.folder);
+      expect(visibleText(button)).not.toContain("Synthesize");
+      expect(button).not.toContain("sl-start");
+      expect(button).not.toContain('data-one-line="true"');
+      expect(button).toContain(`<span class="vis-hidden">${prompt}</span>`);
+      expect(button.match(/\btitle="([^"]*)"/)?.[1]).toContain(r.exactHover);
+      expect(button).toMatch(/title="[^"]*Keep this complete second line accessible/);
+      const board = rowButton(draw(false), r.sessionId);
+      expect(visibleText(board)).toContain(`${r.folder} · Synthesize the rate limiter`);
+      expect(board).toContain("sl-start"); // Legacy grouping stays unchanged.
+    }
+  });
+
+  it("keeps exact clocks on true twins even when one is open in a pane", () => {
+    const state = initialState();
+    addSession(state, "first", "Rate limiter", TASK, "claude");
+    addSession(state, "second", "Rate limiter", TASK, "claude");
+    const out = renderToStaticMarkup(createElement(SessionList, {
+      state, now: NOW, selectedIds: new Set<string>(), onSelect: noop,
+      onClose: noop, onOpenKeys: noop,
+      openPanes: new Map([["first", { number: 1, active: true }]]),
+    }));
+    const starts = [];
+    for (const id of ["first", "second"]) {
+      const button = rowButton(out, id);
+      expect(visibleText(button)).toContain(TASK);
+      const start = button.match(/class="sl-start">([^<]+)</)?.[1];
+      expect(start).toMatch(/\d{2}:\d{2}:\d{2}/);
+      expect(button).toContain(buildRows(state, NOW).find(r => r.sessionId === id)!.exactHover);
+      starts.push(start);
+    }
+    // These fixtures start within the same second; id tails disambiguate them.
+    expect(new Set(starts).size).toBe(2);
+  });
+
+  it("does not treat different providers or full multiline tasks as true twins", () => {
+    const state = initialState();
+    addSession(state, "first", "Rate limiter", "Shared first line\nRepair focus", "claude");
+    addSession(state, "second", "Rate limiter", "Shared first line\nRepair resizing", "claude");
+    addSession(state, "third", "Rate limiter", "Shared first line\nRepair focus", "codex");
+    const out = renderToStaticMarkup(createElement(SessionList, {
+      state, now: NOW, selectedIds: new Set<string>(), onSelect: noop,
+      onClose: noop, onOpenKeys: noop,
+    }));
+    for (const id of ["first", "second", "third"]) {
+      const button = rowButton(out, id);
+      expect(button).not.toContain("sl-start");
+      expect(visibleText(button)).toContain(id === "second" ? "Repair resizing" : "Repair focus");
+      expect(button).toMatch(/class="vis-hidden">Shared first line\nRepair (focus|resizing)</);
+    }
+  });
+
   it("does not expand distinct full titles just because their beginning matches", () => {
     const state = initialState();
     addSession(state, "first", `${title} in the list`, "Repair keyboard focus");
@@ -300,15 +364,20 @@ describe("Chat tool information", () => {
     { name: "Explore", arg: "Find keyboard handlers", note: "4 calls", Mark: SearchGlyph },
     { name: "Bash", arg: "npm test -- workspace", note: "running", running: true, Mark: ToolTerminalGlyph },
     { name: "Custom command", arg: "inspect panes", mark: "terminal" as const, Mark: ToolTerminalGlyph },
-  ])("retains $name's information and mark without promising expansion", ({ Mark, ...tool }) => {
+  ])("retains $name’s information and tool mark inside a native input disclosure", ({ Mark, ...tool }) => {
     const turn: Extract<ChatTurn, { kind: "tool" }> = { kind: "tool", ...tool };
     const out = renderToStaticMarkup(createElement(ToolRow, { turn }));
     expect(visibleText(out)).toContain(tool.name);
     expect(visibleText(out)).toContain(tool.arg);
     if (turn.note) expect(visibleText(out)).toContain(turn.note);
     expect(out).toContain(`<span class="chat-tool-mark">${renderToStaticMarkup(createElement(Mark))}</span>`);
-    expect(out.match(/<svg\b/g)).toHaveLength(1);
+    expect(out).toMatch(/^<details class="chat-tool-call"><summary class="chat-tool"/);
+    const summary = out.match(/<summary\b[^>]*>([\s\S]*?)<\/summary>/)?.[1];
+    expect(summary).toContain(renderToStaticMarkup(createElement(ChevronRightGlyph)));
+    expect(out).toContain(`<pre class="chat-tool-input"><code>${tool.arg}</code></pre></details>`);
+    expect(out).not.toMatch(/<details[^>]*\bopen[=> ]/);
+    expect(out.match(/<svg\b/g)).toHaveLength(2);
     expect(out.includes('data-running="true"')).toBe(!!turn.running);
-    expect(out).not.toMatch(/chev|<button|<details|<summary|role="button"|aria-expanded|aria-controls|tabindex=/i);
+    expect(out).not.toMatch(/<button|role="button"|aria-expanded|aria-controls|tabindex=/i);
   });
 });

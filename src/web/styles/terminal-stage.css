@@ -594,6 +594,47 @@
 .ts-asks.ts-hosts { flex: 0 1 auto; min-width: 0; }
 .ts-hosts-said { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
 
+/* Chat reads here and replies in Term. Let the whole explanation and action
+   wrap within each pane, including a narrow workspace split. Term keeps its
+   existing keys bar; the stage measures this footer's natural height. */
+.ts-bar:has(.ts-chat-handoff) {
+  height: auto;
+  min-height: 40px;
+  padding-block: 6px;
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+.ts-keys.ts-chat-handoff {
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  overflow: visible;
+  white-space: normal;
+}
+.ts-chat-handoff > .ts-chat-reply-note {
+  flex: 1 1 180px;
+  min-width: 0;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.ts-chat-handoff > button.btn {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
+  min-height: 28px;
+  padding-block: 4px;
+  line-height: 16px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.ts-chat-handoff > button.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (pointer: coarse) {
+  .ts-chat-handoff > button.btn { min-height: 44px; }
+}
+
 /* Review (V4's Hosts dialog), inside the shared dialog shell: an intro, one
    44px row per session, the two facts as plain lines, the engine's refusal.
    The body's own gap is 16; V4 spaces these 12 apart. */

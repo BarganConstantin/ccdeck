@@ -394,3 +394,29 @@ An active terminal in another app cannot be transferred by this change.
 The installed terminal engine has not been replaced; do not claim this
 preview resolves every unsupported external-session case. No new changes
 from this work have been pushed, merged, tagged or published.
+
+## Workspace and Chat review — 2026-11-17
+
+The owner's current visual batch lives in worktree `ccdeck-v4-terminal-chat`,
+branch `feature/v4-terminal-chat`, based on `next/v4` at `13d1d45c1`.
+It is a local review branch; the owner requested visual confirmation before
+integration into v4. No public push, pull request or merge is authorized by
+the repeated requests to continue implementing.
+
+The built preview is `http://127.0.0.1:4479/batch1-preview.html`, with six
+synthetic sessions and disposable configuration. Its own backend was restarted
+for the Chat review; recheck its PID and command before touching it. The runtime
+on port 4317 and the owner's personal sessions were left alone. Preview launch
+scripts live outside the checkout in a temporary directory. Rebuilding removes
+the ignored preview HTML; regenerate it with that preview's make-review-page
+script before opening its URL. Transcript mapping now initializes in the
+isolated backend, rather than depending on the earlier separate seeder.
+
+The batch adds compact project context, transparent provider avatars, rotating
+Working indicators, structured Chat responses, native tool disclosures, copy,
+reading-position retention and an explicit handoff to Term. Chat still reads
+Claude only and has no send endpoint; fixture sessions cannot attach a real
+terminal. Details and exact verification are in
+`docs/research/herdr-batch1-verification.md`. The latest revision passed 438
+focused tests, typecheck, build and isolated Chromium interaction/responsive QA.
+Neither live agent typing nor an external telemetry stream was verified.

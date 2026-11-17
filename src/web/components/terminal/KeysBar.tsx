@@ -34,11 +34,9 @@
 // measures it by element (TerminalStage's useDrawnHeight) and a new element
 // would never be measured.
 //
-// CHAT ONLY READS (Figma V4: the conversation is read in Chat and typed into
-// in Term; there is no input under it). With Chat on the pane, "type here" is
-// "type in Term", since that is where the keys go; and a session that cannot
-// take keys, whose card Chat covers, says so here with the way to that card,
-// rather than leaving Chat with nothing to say how to write (internal #99).
+// CHAT ONLY READS. Its reply footer hands off to Term using the stage's
+// existing switch-and-focus callback. A session that cannot take keys offers
+// its terminal card instead. End, notice and ask/host actions keep precedence.
 import { RELEASE_CHORD_SPOKEN_MSG } from "../../terminal-keys";
 import { RECONNECT_NOTE_MSG, type KeysOwner } from "./stage-model";
 import { Kbd } from "../Kbd";
@@ -229,9 +227,16 @@ export default function KeysBar(p: KeysBarProps) {
     );
   } else if (p.chatCannotType) {
     left = (
-      <div className="ts-keys" data-owner="none" data-split>
-        <span className="ts-end">{t("board.chat.cannotType")}</span>
+      <div className="ts-keys ts-chat-handoff" data-owner="none" data-split>
+        <span className="ts-chat-reply-note">{t("board.chat.replyInTerm")}</span>
         <button type="button" className="btn" onClick={p.onShowTerm}>{t("board.chat.showTerm")}</button>
+      </div>
+    );
+  } else if (p.chat && p.canType && !lean) {
+    left = (
+      <div className="ts-keys ts-chat-handoff" data-owner="board" data-split>
+        <span className="ts-chat-reply-note">{t("board.chat.replyInTerm")}</span>
+        <button type="button" className="btn primary" onClick={p.onTypeHere}>{t("board.chat.continueInTerm")}</button>
       </div>
     );
   } else if (p.firstRun && p.canType && !p.chat) {

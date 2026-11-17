@@ -28,7 +28,7 @@ import {
 } from "../rail-model";
 import { leaveHoldMs, useRailFlip, useRailMembership } from "../rail-motion";
 import { prefersReducedMotion } from "../viewport-motion";
-import { runningTool, sessionNames, startedHover, twinClocks, type TwinClock } from "../rail-row-copy";
+import { compactRowContexts, lastTypedPrompt, runningTool, sessionNames, startedHover, twinClocks, type TwinClock } from "../rail-row-copy";
 import { PauseGlyph } from "./rail-glyphs";
 import { CloseGlyph, FoldBody, GroupHead, MoreLine, PlusGlyph, RailRow, RailUsage, type FoldMode } from "./RailParts";
 
@@ -92,6 +92,10 @@ export interface Row {
   /** What a person last asked it, one line (rail-row-copy.ts sessionTask),
    *  when that is not the title again. With the folder, the second line. */
   task?: string;
+  /** Whole human prompt, retained for compact rows’ accessible context. */
+  fullTask?: string;
+  /** Exact start and distinct id tail for compact rows’ tooltip. */
+  exactHover?: string;
   /** When it started and its id's tail (startedHover), for the tooltip: what
    *  tells two rows of one name apart without drawing it. */
   hover?: string;
@@ -203,6 +207,7 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
       tool: inFlightCall(a),
       cwd: a.cwd,
       ...(task ? { task } : null),
+      fullTask: lastTypedPrompt(a),
       ...(folder ? { folder } : null),
       ...(a.toolErrorCount ? { toolErrorCount: a.toolErrorCount } : null),
     });
@@ -231,7 +236,10 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
   });
   // On the row, so a row that leaves keeps saying it while it fades.
   const ids = rows.map(r => r.sessionId);
-  for (const r of rows) r.hover = startedHover(r.startedAt, r.sessionId, ids, now);
+  for (const r of rows) {
+    r.hover = startedHover(r.startedAt, r.sessionId, ids, now);
+    r.exactHover = startedHover(r.startedAt, r.sessionId, ids, now, undefined, true);
+  }
   return rows;
 }
 
@@ -456,19 +464,14 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
 
   // A row's words and glyph follow its own state, not the group a held order
   // keeps it in: they change in place while the row waits for its move.
-  // Compact rows omit the prompt only when their name is enough to tell them apart.
-  const nameCounts = new Map<string, number>();
-  for (const row of rows) {
-    const name = row.label.trim().toLocaleLowerCase();
-    nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
-  }
+  const contexts = compactRowContexts(rows);
   const renderRow = (e: Entry): ReactNode => (
     <RailRow key={e.id} row={e.row} group={rank(e.row)} now={now} leaving={e.ghost}
       selected={selectedIds.has(e.id)} removed={removedIds?.has(e.id) ?? false}
       landNonce={landing?.id === e.id ? landing.nonce : null} onSelect={press} onOpenKeys={e.ghost ? undefined : onOpenKeys}
       onOpenBeside={e.ghost ? undefined : onOpenBeside}
       compact={!!onOpenKeys}
-      showContext={(nameCounts.get(e.row.label.trim().toLocaleLowerCase()) ?? 0) > 1}
+      context={contexts.get(e.row.sessionId)}
       pane={openPanes?.get(e.row.sessionId)}
       // Named in place (internal #101), from the session as the board has it.
       rename={e.ghost ? null : renameFacts(state.agents.get(e.id))} />

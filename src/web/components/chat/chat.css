@@ -11,19 +11,24 @@
   flex-direction: column;
   background: var(--bg);
   color: var(--text);
+  position: relative;
+  container: chat-pane / inline-size;
 }
 .chat-body {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   box-sizing: border-box;
-  padding: 12px 20px;
+  padding: 24px 28px 32px;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
 }
-/* The text column is 776 (a 816 pane less 20 each side) and centres in a wider pane. */
+.chat-reading { position: relative; display: flex; flex: 1 1 0; min-height: 0; }
+/* Keep long lines bounded and centre the reading column in wider panes. */
 .chat-col {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 24px;
   max-width: 776px;
   margin: 0 auto;
   min-width: 0;
@@ -35,11 +40,12 @@
 .chat-since-text { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Your message: right-aligned on its own surface, the bottom-right corner tight. */
-.chat-you { display: flex; justify-content: flex-end; }
+.chat-you { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.chat-author { color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 18px; }
 .chat-you-text {
   margin: 0;
   box-sizing: border-box;
-  max-width: 100%;
+  max-width: min(100%, 640px);
   padding: 8px 12px;
   background: var(--your-message);
   border-radius: var(--r-overlay) var(--r-overlay) var(--r-tag) var(--r-overlay);
@@ -47,11 +53,28 @@
   line-height: 20px;
   color: var(--text);
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 /* The assistant: text, no bubble, and a line that stops at 640. */
-.chat-said { margin: 0; max-width: 640px; font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 20px; color: var(--text); overflow-wrap: anywhere; }
+.chat-said { margin: 0; max-width: 640px; font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 1.65; color: var(--text); overflow-wrap: anywhere; min-width: 0; }
+.chat-response { min-width: 0; }
+.chat-response-author { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 20px; font-weight: 500; }
+.chat-response-content { display: flex; flex-direction: column; gap: 16px; padding-left: 28px; min-width: 0; }
+.chat-response-author .chat-copy { margin-left: auto; color: var(--text-secondary); }
+.chat-markdown > :first-child { margin-top: 0; }
+.chat-markdown > :last-child { margin-bottom: 0; }
+.chat-markdown p { margin: 0 0 12px; white-space: pre-wrap; }
+.chat-markdown h2, .chat-markdown h3, .chat-markdown h4 { margin: 20px 0 8px; font-size: inherit; line-height: 1.5; font-weight: 600; }
+.chat-markdown ul, .chat-markdown ol { margin: 8px 0 12px; padding-left: 22px; }
+.chat-markdown li { margin: 4px 0; }
+.chat-markdown code { font-family: var(--font-mono); font-size: 0.92em; }
+.chat-markdown :not(pre) > code { padding: 1px 4px; border-radius: var(--r-tag); background: var(--ctl-fill); color: var(--text); white-space: break-spaces; }
+.chat-markdown pre { box-sizing: border-box; max-width: 100%; overflow-x: auto; margin: 12px 0; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--sunken); line-height: 1.6; white-space: pre; overflow-wrap: normal; }
+.chat-markdown pre code { white-space: inherit; }
+.chat-markdown blockquote { margin: 12px 0; padding-left: 12px; border-left: 2px solid var(--line); color: var(--text-secondary); }
+.chat-markdown a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 
-/* A tool call: one row, --row-tool high. The tool's name and the note are
+/* A tool call: a readable row at least --row-tool high. The name and note are
    the interface's sans; the argument alone is mono, since it is what was typed
    (a path, a command), as the Inspector's tool rows set it (V4 top-10 #8). */
 .chat-tool {
@@ -59,21 +82,35 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  height: var(--row-tool);
+  min-height: max(var(--row-tool), 32px);
   padding: 0 8px;
   border-radius: var(--r-ctl);
   min-width: 0;
-  font: 400 12px/16px var(--font-sans);
-  color: var(--muted);
+  font: 400 calc(12px + var(--ui-text-increase, 0px))/1.5 var(--font-sans);
+  color: var(--text-secondary);
+  list-style: none;
 }
-/* A run of tool rows is one block: 0 between the rows (the column's 12 is taken
-   back), and the column's 12 after the run. */
-.chat-tool + .chat-tool { margin-top: -12px; }
+.chat-tool-call > .chat-tool { cursor: pointer; }
+.chat-tool-call { min-width: 0; }
+.chat-tool::-webkit-details-marker, .chat-activity-head::-webkit-details-marker { display: none; }
+.chat-disclosure { flex: none; display: inline-flex; color: var(--text-secondary); }
+.chat-tool-call[open] > .chat-tool .chat-disclosure, .chat-activity[open] > .chat-activity-head .chat-disclosure { transform: rotate(90deg); }
+.chat-tool-input { margin: 0 8px 8px 30px; padding: 8px 10px; border-radius: var(--r-ctl); background: var(--sunken); color: var(--text); font: calc(12px + var(--ui-text-increase, 0px))/1.6 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-activity { min-width: 0; border: 1px solid var(--line); border-radius: var(--r-ctl); }
+.chat-activity-head { display: flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 8px; box-sizing: border-box; list-style: none; cursor: pointer; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 20px; }
+.chat-activity-running { margin-left: auto; color: var(--inflight); }
+.chat-activity-calls { padding: 0 4px 4px; }
+.chat-tool:focus-visible, .chat-activity-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-ctl); }
+@media (hover: hover) and (pointer: fine) {
+  .chat-tool:hover, .chat-activity-head:hover { background: var(--ctl-fill); }
+}
 .chat-tool-mark { flex: none; display: inline-flex; color: var(--muted); }
 .chat-tool-name { flex: none; font-weight: 500; color: var(--text-secondary); }
 .chat-tool-arg { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); }
 .chat-tool-note { flex: none; margin-left: auto; padding-left: 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .chat-tool[data-running] .chat-tool-note { color: var(--inflight); }
+.chat-latest { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); background: var(--panel); }
+.chat-empty { margin: 0; color: var(--text-secondary); font-size: calc(13px + var(--ui-text-increase, 0px)); }
 
 /* What you answered and how long it took: the spaces in it are the host's. */
 .chat-record { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); white-space: pre-wrap; }
@@ -86,6 +123,17 @@
 
 /* With a question docked, the chat gives the dock its height. */
 .chat[data-docked] .chat-body { flex: 1 1 0; }
+
+@container chat-pane (max-width: 480px) {
+  .chat-body { padding: 16px 12px 24px; }
+  .chat-response-content { padding-left: 0; }
+  .chat-tool { flex-wrap: wrap; }
+  .chat-tool-note { max-width: 100%; white-space: normal; }
+}
+@media (pointer: coarse) {
+  .chat-tool, .chat-activity-head, .chat-latest { min-height: 44px; }
+  .chat-response-author .chat-copy { min-width: 44px; min-height: 44px; }
+}
 
 /* In the pane: Chat fills the body and the terminal's host stays mounted, hidden
    (the one terminal lives for the stage's whole life; terminal-stage.css). */

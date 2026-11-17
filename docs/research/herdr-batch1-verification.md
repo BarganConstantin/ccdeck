@@ -106,6 +106,60 @@ pulsul de opacitate în locul rotației.
   dau `pulse` și `transform: none`, apoi sunt restaurate. Nu s-a schimbat
   preferința sistemului proprietarului.
 
+## Revizie: conversație structurată și context discret
+
+Chat identifică fiecare răspuns, păstrează mesajele utilizatorului pe linii
+separate și formatează paragrafe, liste, titluri, citate și blocuri de cod.
+Copierea unui răspuns păstrează textul Markdown. HTML-ul și linkurile rămân
+text literal; acesta este un subset de Markdown, nu un renderer CommonMark complet.
+
+Apelurile consecutive sunt grupate într-un disclosure nativ. Un apel cu argument
+poate fi deschis pentru a citi argumentul primit de la server; un apel fără
+argument nu pretinde că se poate deschide. Grupul în curs este deschis inițial,
+iar cele încheiate sunt strânse. Lipsa stării Running nu este prezentată drept
+succes. Argumentele sunt limitate de ruta existentă la 120 de caractere;
+disclosure-ul nu oferă un jurnal complet de intrări sau rezultate.
+
+Citirea mai sus în conversație păstrează poziția la polling. „Latest messages”
+revine la sfârșit și mută focusul în regiunea de citire. Butonul aparține zonei
+scrollabile, separat de eventualul card de întrebare. Footerul explică unde
+se poate răspunde și folosește acțiunile existente de trecere în Term.
+
+În lista Workspace, numele duplicate din proiecte diferite afișează numai
+proiectul necesar diferențierii. Promptul și ora exactă rămân în tooltip și
+în textul accesibil. Același proiect cere contextul sarcinii; doar gemenii cu
+același provider și același prompt integral păstrează ceasul. La coliziunea
+ceasului apare și coada distinctă a ID-ului. Această regulă înlocuiește pentru
+Workspace regula anterioară care ascundea ceasul gemenilor deschiși în panouri.
+
+Verificări pe această revizie, Node 22:
+
+- 438 teste trecute în 14 fișiere: `chat-conversation`, `chat-markdown`,
+  `chat-follow`, `chat-i18n`, `v4-chat-view`, `v4-chat-writes-in-term`,
+  `workspace-compact-rows`, `v4-rail`, `v4-decision-chat-geometry`,
+  `rail-row-tell`, `i18n`, `contrast-floors`, `terminal-stage-view` și
+  `workspace-session-links`. Typecheck și build trecute; avertismentul
+  existent despre mărimea chunk-urilor rămâne.
+- Detector Impeccable: zero alerte pe cele șase componente schimbate.
+- Chromium izolat cu build-ul servit: 1440×900, Rider Black și Light;
+  text Largest și Comfortable la 1100×700. Fără overflow orizontal în
+  aplicație sau în corpurile conversațiilor.
+- Expandare din tastatură, argumentul real al unui apel, copierea răspunsului
+  în clipboard, păstrarea scroll-ului după un polling de peste 5 secunde,
+  revenirea la ultimele mesaje cu focus și Show Term verificate în browser.
+- 390 și 320px: fluxul mobil existent, fără overflow. Separat, Chat și footerul
+  au fost verificate ca elemente în panouri de 390 și 320px; textul se încadrează,
+  iar blocul de cod are propriul scroll orizontal.
+- Pointer coarse real în contextul browserului: instrumente, copiere și
+  butoanele noi din footer au minimum 44px. Zero erori JavaScript observate.
+
+Conexiunile DevTools și Browser plugin nu au fost disponibile în această rundă;
+QA a folosit Chromium headless instalat local, într-un context separat.
+Aceste verificări susțin review-ul vizual al lotului local, nu o lansare.
+Verdict pentru lotul local: **SHIP WITH FOLLOW-UPS**. Confirmarea vizuală a
+proprietarului și verificarea de integrare rămân înainte de v4; Chat păstrează
+limitele de provider și de trimitere descrise mai jos.
+
 ## Previzualizare și limite
 
 Aplicația completă: `http://127.0.0.1:4479/batch1-preview.html`.
@@ -114,6 +168,9 @@ Bootstrap-ul de previzualizare este un artefact local ignorat de Git, nu cod
 livrat. O reconstruire îl elimină și trebuie regenerat.
 
 Backend-ul folosește configurații și transcript-uri sintetice separate.
+La revizia Chat, backend-ul a fost repornit exclusiv în mediul izolat și
+inițializează direct cele șase sesiuni și maparea transcript-urilor sintetice.
+Nu mai depinde de procesul separat de seed pentru Chat.
 Sesiunile fixture nu au terminale reale de atașat: Term poate afișa refuzul
 de atașare. Harness-ul separat `http://127.0.0.1:5197/` permite tastare cu ecou
 local în memorie; geometria split-ului său este proprie și nu validează

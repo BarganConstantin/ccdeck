@@ -7,7 +7,7 @@ import type { Row } from "./SessionList";
 import { AlertMark, StateMark } from "./StateMark";
 import { stateLabel } from "../agent-copy";
 import { RAIL_GROUP_LABEL_MSGS, type RailGroup } from "../rail-model";
-import { railFailed, railGlyph, railLine, railTime, rowSpoken, rowTooltip, twinStart, type RailGlyphKind, type RailLine } from "../rail-row-copy";
+import { railFailed, railGlyph, railLine, railTime, rowSpoken, rowTooltip, twinStart, type CompactRowContext, type RailGlyphKind, type RailLine } from "../rail-row-copy";
 import { fadeIn, tokenMs } from "../rail-motion";
 import type { UsageMeter } from "../rail-usage";
 import { FadeFigure, useFillJump } from "./FadeFigure";
@@ -82,6 +82,7 @@ export type FoldMode = "animate" | "fade" | "instant";
 export interface RailRowProps {
   compact?: boolean;
   showContext?: boolean;
+  context?: CompactRowContext;
   pane?: PaneLink;
   row: Row;
   group: RailGroup;
@@ -140,17 +141,20 @@ export function openBesideOnShiftEnter(
   };
 }
 
-export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys, onOpenBeside, rename, compact = false, showContext = false, pane }: RailRowProps) {
+export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys, onOpenBeside, rename, compact = false, showContext = false, context, pane }: RailRowProps) {
   const t = useT();
   const failed = railFailed(r, group, t);
   // Keep a second line where it explains an action or tells sessions apart.
   // A named task's project fits beside its name; its full prompt stays in the tooltip.
-  const detail = !compact || showContext || group === 0 || !!r.twin || removed || !!failed || r.state === "err" || !r.folder;
-  const line = detail ? railLine(r, group) : null;
-  // A row that reads like another (twinClocks) ends it with when it started.
-  // An open pane is also identified in the tooltip. Keep its exact clock there
-  // instead of squeezing a waiting command beside a second timestamp.
-  const start = r.twin && !(compact && pane) ? twinStart(r.startedAt, r.twin) : null;
+  const twin = compact && context ? context.twin : r.twin;
+  const detail = !compact || showContext || context?.detail === "task" || context?.detail === "project" || group === 0 || !!twin || removed || !!failed || r.state === "err" || !r.folder;
+  const contextual = compact && context && group !== 0 && !removed && !failed && r.state !== "err" && !r.neverPrompted;
+  const projectOnly = contextual && context.detail === "project";
+  const line = detail ? contextual && context.text ? { kind: "words" as const, text: context.text } : railLine(r, group) : null;
+  // True twins keep their clock even when one is open in a pane.
+  const start = twin ? [twinStart(r.startedAt, twin), compact ? context?.idTail : null].filter(Boolean).join(" · ") : null;
+  const hiddenTask = compact && (!detail || projectOnly || group === 0 || (r.fullTask && (r.fullTask !== r.task || context?.text !== undefined && !context.text.includes(r.fullTask))))
+    ? r.fullTask ?? r.task : null;
   const worded = !!(line || removed || failed);
   const lined = worded || !!start;
   const time = railTime(r, group, now);
@@ -215,7 +219,7 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
           onClick={() => onSelect(r.sessionId)}
           onDoubleClick={rename ? renaming.start : undefined}
           onKeyDown={openKeysOnEnter(r.sessionId, onOpenKeys)}
-          title={[rowTooltip(r, removed), pane ? t(pane.active ? "board.stage.split.activePane" : "board.stage.split.paneNumber", { number: pane.number }) : ""].filter(Boolean).join("\n")}
+          title={[rowTooltip(r, removed, compact), pane ? t(pane.active ? "board.stage.split.activePane" : "board.stage.split.paneNumber", { number: pane.number }) : ""].filter(Boolean).join("\n")}
         >
           {/* Once, on the row a jump arrived at; a new nonce is a new element,
               so the fade runs again for the next jump. */}
@@ -227,7 +231,8 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
           {/* What the row no longer draws, for a screen reader and for touch,
               where the tooltip is not reached. */}
           <span className="vis-hidden">{rowSpoken(r)}</span>
-          {compact && !detail && <span className="vis-hidden">{[r.folder, r.task].filter(Boolean).join(" · ")}</span>}
+          {hiddenTask && <span className="vis-hidden">{[!detail || group === 0 ? r.folder : null, hiddenTask].filter(Boolean).join(" · ")}</span>}
+          {compact && !start && <span className="vis-hidden">{r.exactHover}</span>}
           <span className="sl-text">
             <span className="sl-line1">
               {/* The name alone: the model that stood after it, in mono, is

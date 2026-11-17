@@ -13,7 +13,7 @@ const said = (text: string): ChatTurn => ({ kind: "assistant", text });
 
 function view(first: ChatSource) {
   // What the document would do: a layout the fake does not have, a scroller it can scroll.
-  const el = { scrollTop: 0, scrollHeight: 1000, clientHeight: 400 };
+  const el = { scrollTop: 0, scrollHeight: 1000, clientHeight: 400, focus: vi.fn() };
   const scrolls: number[] = [];
   Object.defineProperty(el, "scrollTop", { get: () => 0, set: (v: number) => { scrolls.push(v); }, configurable: true });
   const m = mount(ChatView, { source: first }, {
@@ -24,7 +24,7 @@ function view(first: ChatSource) {
     },
   });
   scrolls.length = 0;
-  return { m, scrolls };
+  return { m, scrolls, el };
 }
 
 describe("following the end", () => {
@@ -50,6 +50,22 @@ describe("following the end", () => {
     const { m, scrolls } = view(ready(said("a"), said("b")));
     m.rerender({ source: ready(said("a"), said("b")) });
     expect(scrolls).toEqual([]);
+  });
+
+  it("keeps the reading position until Latest messages restores following", () => {
+    const { m, scrolls, el } = view(ready(said("a")));
+    const region = all(m.tree, e => e.props.role === "region")[0];
+    (region.props.onScroll as (event: unknown) => void)({ currentTarget: el });
+    m.rerender({ source: ready(said("a"), said("b")) });
+    expect(scrolls).toEqual([]);
+    const latest = all(m.tree, e => e.props.className === "chat-latest btn")[0];
+    expect(latest).toBeDefined();
+    (latest.props.onClick as () => void)();
+    expect(el.focus).toHaveBeenCalledWith({ preventScroll: true });
+    expect(scrolls).toEqual([1000]);
+    expect(all(m.tree, e => e.props.className === "chat-latest btn")).toEqual([]);
+    m.rerender({ source: ready(said("a"), said("b"), said("c")) });
+    expect(scrolls).toEqual([1000, 1000]);
   });
 
   it("names a turn by what it is and says", () => {
