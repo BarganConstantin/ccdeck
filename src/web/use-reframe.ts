@@ -41,8 +41,9 @@ export function useReframe({
     if (!prev || (prev.width === frame.width && prev.height === frame.height)) return;
     // The board keeps its positions, but its old viewport can leave cards
     // outside the narrowed canvas. Wait one paint for the pane to settle, then
-    // fit while the deck owns the camera — or, with the auto-fit off, frame a
-    // card the reader focused a moment ago again.
+    // fit while the deck owns the camera — or, with the auto-fit off, bring
+    // the card the reader went to a moment ago into view again, the way it
+    // was brought (a selection's pan or a focus's frame, use-agent-focus.ts).
     const focused = lastFocusRef.current && Date.now() - lastFocusRef.current.at < 1500 ? lastFocusRef.current.id : null;
     const epoch = cameraEpochRef.current;
     const timer = window.setTimeout(() => {

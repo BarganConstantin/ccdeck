@@ -145,10 +145,13 @@ describe("before the pane is measured", () => {
 });
 
 describe("the chrome it keeps clear of", () => {
-  it("is the furniture drawn over the pane: the filter bar, the control stack and minimap, the auto-fit chip, the floating panels", () => {
-    for (const sel of [".cat-filter-bar", ".react-flow__panel", ".autofit-chip", ".usage-panel", ".sysdetail", ".detail"]) {
+  it("is the furniture drawn over the pane: the filter bar, the control stack and minimap, Undo, the floating panels", () => {
+    for (const sel of [".cat-filter-bar", ".react-flow__panel", ".rearrange-undo", ".usage-panel", ".sysdetail", ".detail"]) {
       expect(PANE_CHROME.split(",").map(s => s.trim()), sel).toContain(sel);
     }
+    // CHANGED ON PURPOSE (V4 top-10 #3): the auto-fit chip was furniture → it is
+    // gone, because recenter on the control bar did the same thing.
+    expect(PANE_CHROME).not.toContain(".autofit-chip");
   });
 
   it("is measured against the pane and clipped to it", () => {

@@ -41,9 +41,8 @@
   .fc-tab,
   .fc-anon { min-height: 32px; }
   .fb-shot > .fb-shot-remove::after { inset: -6px; }
-  /* Fit all and Re-arrange's Undo take the floor too, and Undo drops the
-     chord it names: a fingertip has no key to press. */
-  .autofit-chip,
+  /* Re-arrange's Undo takes the floor too, and drops the chord it names: a
+     fingertip has no key to press. */
   .rearrange-undo-act { min-height: 32px; }
   .rearrange-undo-key { display: none; }
   /* The terminal stage's keys bar (terminal-stage.css) names keys the same
@@ -451,12 +450,10 @@
   /* Re-arrange's Undo is set apart from the status beside it by weight and
      by a fill under the pointer, and the theme paints that fill Canvas. An
      edge in the button colour carries it instead, so the one control in the
-     strip still reads as one; Fit all has its own edge. Both turn Highlight
-     under the pointer. A border and not an outline, which would replace the
-     keyboard's ring. */
+     strip still reads as one, and it turns Highlight under the pointer. A
+     border and not an outline, which would replace the keyboard's ring. */
   .rearrange-undo-act { border: 1px solid ButtonText; }
   @media (hover: hover) and (pointer: fine) {
-  .autofit-chip:hover,
   .rearrange-undo-act:hover { border-color: Highlight; }
   }
 

@@ -39,8 +39,18 @@ export interface FitFrame {
 export interface FitBox { minX: number; minY: number; w: number; h: number }
 
 /**
- * Where the camera frames `rects`: left-anchored, at the largest zoom that
- * shows the board, never above 1 and never below `floor`.
+ * Where the camera frames `rects`: at the largest zoom that shows the board,
+ * never above 1 and never below `floor`, centred across the canvas the panels
+ * leave when the board is narrower than it, and from the canvas's left margin
+ * when it is not.
+ *
+ * Centred because the reader's eye starts at the middle of the free canvas.
+ * Anchored left, a board whose zoom is held by its height or by 1 stood in the
+ * left half of the canvas with some 600px of nothing on its right (1440x900,
+ * seven sessions), and a board pushed to one side reads as a board that did
+ * not fit or broke. A board wider than the canvas at the floor still starts at
+ * the left margin: its top left is shown first and the reader pans for the
+ * rest, as before.
  *
  * Two boxes. `all` is everything, with the tool bubbles' lane beside it: what
  * the full card draws. `cards` is the cards alone in their session's padding:
@@ -88,9 +98,20 @@ export function fitBoard(rects: readonly FitRect[], { pane: paneRect, rail: rail
   // (the band between the two thresholds keeps whichever it came from, so it
   // is given the room), the cards alone below it. Packing keeps the board's
   // left edge, top and height, so the frame is the same packed or not.
-  const { minX, minY, h } = zoom * bodyPx >= DETAIL_EXIT_PX ? all : cards;
+  const full = zoom * bodyPx >= DETAIL_EXIT_PX;
+  const { minX, minY, h } = full ? all : cards;
+  // ...and how wide it is drawn: at the full card, the board and the bubbles'
+  // lane its zoom made room for, so the last column's bubbles stay inside the
+  // centred frame as they did inside the anchored one; below it, the packed
+  // board, which is all the faces draw. Both are the board's own places, so
+  // fitted twice the board still lands on the same frame twice.
+  const drawnW = full ? all.w + TOOL_LANE_W : packed.w;
+  // What is left of the canvas across, once the board is drawn: half of it
+  // goes on the left. None when the board is wider (the floor held its zoom):
+  // then the board starts at the margin and the reader pans.
+  const slack = Math.max(0, paneRect.width - railWidth - MARGIN * 2 - drawnW * zoom);
   return {
-    x: MARGIN - minX * zoom,
+    x: MARGIN + slack / 2 - minX * zoom,
     // Tall canvases read down from the top. Centring a width-bound board
     // there left hundreds of empty pixels above and below its sessions.
     // Keep the familiar vertical centring on landscape/square canvases.

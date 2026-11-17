@@ -443,13 +443,11 @@ const PRESSES: Press[] = [
   // 0.97 like every other labelled control rather than the 0.94 the round
   // glyphs take.
   [".aa-result-fix:active", "0.97", "transform"],
-  // #820's way back, "Fit all": a labelled control, so 0.97 like every other
-  // one. CHANGED ON PURPOSE: it was Resume, inside a strip; the whole chip is
-  // the button now, and it presses with `scale` because the notices row sets
-  // `transform: none` on it.
-  [".autofit-chip:active", "0.97", "scale"],
-  // Re-arrange's Undo, the one pressable part of its strip, and Resume's twin
-  // beside it. A labelled control, so 0.97.
+  // CHANGED ON PURPOSE (V4 top-10 #3): #820's "Fit all" chip pressed at 0.97
+  // with `scale` → it is gone, because the control bar's recenter, which
+  // presses like the bar's other buttons, did the very same thing.
+  // Re-arrange's Undo, the one pressable part of its strip. A labelled
+  // control, so 0.97.
   [".rearrange-undo-act:active", "0.97", "transform"],
   // The spoken-voice disclosure under the custom-sound cards: a full-width
   // row, like `.up-disclose`. A labelled control, so 0.97.
