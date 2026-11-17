@@ -466,3 +466,28 @@ isolated visual checks covered desktop, 390/320px and light/dark palettes.
 The native folder bridge is present, but selecting a folder through the
 system dialog is not fully automated. External foreground-session transfer
 remains a separate engine capability; this UI validation does not prove it.
+
+
+### Codex prompt bands after a theme change — 2026-11-17
+
+The native Codex TUI caches its startup background and emits explicit RGB
+fills for its composer and submitted prompts. Changing the deck palette
+updates the terminal defaults but leaves those fills dark on light paper.
+A disposable native 0.169.0 session reproduced the unchanged RGB band after
+the tmux background changed.
+
+Codex display output now maps dark/pale near-neutral RGB bands to the
+existing theme-owned indexed band. This also lets already rendered messages
+follow later theme changes. DIM is suppressed only while such a band is
+active, restoring the requested intensity afterwards, because xterm halves
+its contrast floor for dim text. Foreground colors, chromatic backgrounds
+and other providers pass through. Stream boundaries, Unicode and OSC/DCS
+strings are preserved, with bounded escape buffering and fresh state on a
+reseed. Wire acknowledgements count original bytes, not adapted display
+bytes. No provider restart or input is needed.
+
+Regression checks exercise real controller seed/output paths, original-byte
+acknowledgements and switching back to Claude. An isolated browser replayed
+actual native output through xterm and changed light/dark themes without
+rewriting the output; both the prompt and composer remained readable. This
+is a display correction, not a change to provider authentication or handoff.

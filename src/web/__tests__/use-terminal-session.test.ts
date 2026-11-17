@@ -238,6 +238,39 @@ afterEach(() => { vi.useRealTimers(); });
 // ---------------------------------------------------------------------------
 
 describe("opening a session: write before reveal", () => {
+  it("keeps Codex's cached RGB prompt bands theme-aware in seeds and output without reopening", async () => {
+    const { r, ctl } = rig();
+    ctl.resize(120, 40, false);
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    const native = "\x1b[48;2;54;55;57mPrompt\x1b[49m";
+    const themed = "\x1b[48;5;239mPrompt\x1b[49m";
+    const socket = await attach(r, ctl, { ...REF, provider: "codex" }, native);
+    expect(r.terminal().log).toContain(`write ${JSON.stringify(themed)}`);
+    expect(socket.sentText()).toContainEqual({ t: "ack", bytes: enc(native).byteLength });
+    r.terminal().log.length = 0;
+    socket.binary(enc(native.slice(0, 12)));
+    socket.binary(enc(native.slice(12)));
+    r.terminal().parse();
+    expect(r.terminal().log).toEqual([`write ${JSON.stringify(themed)}`]);
+    ctl.setTheme({ foreground: "#1f2328", background: "#fafaf8" });
+    expect(r.open).toHaveBeenCalledTimes(1);
+    expect(socket.sentBytes()).toEqual([]);
+    ctl.dispose();
+  });
+
+  it("leaves Claude's RGB output untouched when the pane switches providers", async () => {
+    const { r, ctl } = rig();
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    const native = "\x1b[48;2;54;55;57mPrompt\x1b[49m";
+    await attach(r, ctl, { ...REF, provider: "codex" }, native);
+    r.terminal().log.length = 0;
+    await attach(r, ctl, OTHER, native);
+    expect(r.terminal().log).toContain(`write ${JSON.stringify(native)}`);
+    ctl.dispose();
+  });
+
   it("asks for a ticket, sends its size first, and reveals the pane only once the seed is parsed", async () => {
     const { r, ctl } = rig();
     ctl.resize(120, 40, false);

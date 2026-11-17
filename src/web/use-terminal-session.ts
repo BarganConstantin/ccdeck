@@ -57,6 +57,7 @@ import {
 import { connectTerminal, hexColour, pasteTooLarge, type ConnectOptions, type SizeOwner, type TerminalConnection, type TmuxVersion, type ViewKind } from "./terminal-protocol";
 import { MINIMUM_CONTRAST_RATIO } from "./terminal-palette";
 import { fileDropText, isFileDrop } from "./terminal-file-drop";
+import { codexTerminalSurfaces } from "./codex-terminal-surfaces";
 import type { Cell } from "./stage-geometry";
 import { terminalKeyInput, terminalKeyOutcome, type TerminalKey } from "./terminal-keys";
 import { stepTerminalText, textSizeChord } from "./terminal-text-size";
@@ -759,6 +760,9 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         c.sendAck(parsed);
       }
     };
+    const surfaces = codexTerminalSurfaces();
+    const codex = subject.kind === "launch" ? subject.agent === "codex" : refOf()?.provider === "codex";
+    const displayBytes = (bytes: Uint8Array) => codex ? surfaces.write(bytes) : bytes;
     const c: TerminalConnection = deps.connect({
       ticket,
       onHello: hello => {
@@ -768,13 +772,15 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       },
       onReset: ({ cols, rows, seed }) => {
         if (my !== gen) return;
+        surfaces.reset();
+        const displayed = displayBytes(seed);
         withTerminal(t => {
           t.write("", () => {
             if (my !== gen) return;
             t.reset();
             if (t.cols !== cols || t.rows !== rows) t.resize(cols, rows);
           });
-          t.write(seed, () => {
+          t.write(displayed, () => {
             if (my !== gen || !open) return;
             // At once after a seed, whatever its size: it is how the deck
             // learns this panel acknowledges at all.
@@ -800,7 +806,8 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         // late (25 ms a key against 2.3 measured). Output that follows input
         // this closely is the input's own.
         if (deps.now() - typedAt >= ECHO_WINDOW_MS) markStreaming();
-        withTerminal(t => t.write(bytes, () => parsedBytes(bytes.byteLength)));
+        const displayed = displayBytes(bytes);
+        withTerminal(t => t.write(displayed, () => parsedBytes(bytes.byteLength)));
       },
       onTmux: version => {
         if (my !== gen) return;
