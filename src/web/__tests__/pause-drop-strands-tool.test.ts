@@ -410,7 +410,10 @@ describe("the deck this is all wired into", () => {
   const src = clientText();
 
   it("builds its pause gate with the protection the ceiling reads", () => {
-    expect(src).toMatch(/createPauseGate<HookEnvelope>\(\{\s*protect: env => settlesInFlightCall\(stateRef\.current, env\),/);
+    // CHANGED ON PURPOSE (#2591): the gate also takes `enabled: false`, because
+    // the owner withdrew Board pause and a legacy toggle must not freeze the
+    // Board. The protection stays wired, so a gate that pauses again is safe.
+    expect(src).toMatch(/createPauseGate<HookEnvelope>\(\{\s*(?:\/\/[^\n]*\n\s*)*enabled: false,\s*protect: env => settlesInFlightCall\(stateRef\.current, env\),/);
   });
 
   it("notes the hole on a resume that dropped, before it feeds the run in", () => {

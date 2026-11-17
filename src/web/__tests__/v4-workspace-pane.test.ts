@@ -103,7 +103,9 @@ describe("the geometry, filled", () => {
 
   it("never reads or writes the stored width: the hook passes `fill`, and the Board's divider is not drawn", () => {
     const stage = withoutComments(sourceOf("use-stage.ts"));
-    expect(stage).toContain("fill: workspace, barH, headH })");
+    // CHANGED ON PURPOSE (#2591): the call also says whether the keys bar is
+    // the app's status bar (off a phone), which takes no room in the pane.
+    expect(stage).toContain("fill: workspace, barH, headH, externalBar: !phoneWidth() })");
     const ts = withoutComments(sourceOf("components/terminal/TerminalStage.tsx"));
     expect(ts).toContain("!p.geometry.takeover && !p.expanded && !workspace && (");
     expect(STAGE_COLS_KEY).toBe("agent-dag.terminal.cols");
