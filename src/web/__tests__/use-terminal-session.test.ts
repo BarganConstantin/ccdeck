@@ -21,7 +21,7 @@ vi.mock("react", async () => (await import("./fake-react")).react);
 
 import { mount as mountComponent, flush } from "./fake-react";
 import { forgetTerminalTextStep, setTerminalTextStep, terminalTextStep } from "../terminal-text-size";
-import { MAX_MESSAGE_BYTES, connectTerminal } from "../terminal-protocol";
+import { MAX_MESSAGE_BYTES, connectTerminal, type TerminalConnection } from "../terminal-protocol";
 import { CLEAN_END_MIN_LIVE_MS } from "../components/terminal/stage-model";
 import { launchTerminal, type ApiFailure, type NotAttachable, type SessionRef, type TerminalStatus, type Ticketed, type Launched } from "../terminal-api";
 import {
@@ -145,6 +145,8 @@ class FakeTerminal implements StageTerminal {
 
 const REF: SessionRef = { sessionId: "6f1c2d3e-0000-4000-8000-000000000001", provider: "claude", cwd: "/home/u/code/paycore" };
 const OTHER: SessionRef = { sessionId: "6f1c2d3e-0000-4000-8000-000000000002", provider: "claude", cwd: "/home/u/personal/ccdeck" };
+const REF_SUBJECT = subjectKey({ kind: "session", ref: REF });
+const OTHER_SUBJECT = subjectKey({ kind: "session", ref: OTHER });
 const ticketed = (ticket: string): Ticketed => ({ ok: true, ticket, target: { kind: "A", label: "attaches directly" } });
 const failure = (status: number | null, error = "The deck did not answer."): ApiFailure => ({ ok: false, status, error });
 
@@ -804,6 +806,194 @@ describe("how a session ends", () => {
     expect(r.adopt).toHaveBeenCalledTimes(1);
     expect(r.open).toHaveBeenCalledTimes(2);
     expect(r.sockets).toHaveLength(0);
+  });
+});
+
+describe("sending a Chat prompt on the current terminal connection", () => {
+  async function promptRig(readOnly = false) {
+    const { r, ctl } = rig();
+    let connection: TerminalConnection;
+    const connect = r.deps.connect;
+    r.deps.connect = options => (connection = connect(options));
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    const s = await attach(r, ctl);
+    if (readOnly) s.text({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: true });
+    s.sent.length = 0;
+    r.terminal().log.length = 0;
+    return { r, ctl, s, connection: connection! };
+  }
+
+  it("records one intact multiline Unicode paste then Enter, without changing focus or key ownership", async () => {
+    const { r, ctl, s } = await promptRig();
+    const text = "  Bună 👨‍👩‍👧\n日本語\r\n\"quoted\"\\path  ";
+    expect(ctl.sendPrompt(text, REF_SUBJECT)).toBe("sent");
+    expect(s.sent).toEqual([JSON.stringify({ t: "paste", text }), enc("\r")]);
+    expect(r.terminal().log).toEqual([]);
+    expect(ctl.snapshot().keysOwner).toBe("board");
+    s.binary(enc("echo"));
+    expect(ctl.snapshot().streaming).toBe(false);
+    ctl.dispose();
+  });
+
+  it.each(["", " \t\r\n", "\u2003\u00a0"])("refuses blank text %j before any transport call", async text => {
+    const { ctl, s, connection } = await promptRig();
+    const paste = vi.spyOn(connection, "sendPaste");
+    const enter = vi.spyOn(connection, "sendInput");
+    expect(ctl.sendPrompt(text, REF_SUBJECT)).toBe("empty");
+    expect(paste).not.toHaveBeenCalled();
+    expect(enter).not.toHaveBeenCalled();
+    expect(s.sent).toEqual([]);
+    ctl.dispose();
+  });
+
+  it("checks the encoded paste cap before sending, including Unicode bytes and JSON escaping", async () => {
+    const { ctl, s, connection } = await promptRig();
+    const paste = vi.spyOn(connection, "sendPaste");
+    const enter = vi.spyOn(connection, "sendInput");
+    for (const text of ["x".repeat(MAX_MESSAGE_BYTES), "😀".repeat(MAX_MESSAGE_BYTES / 4), `x${"\n".repeat(MAX_MESSAGE_BYTES / 2)}`]) {
+      expect(ctl.sendPrompt(text, REF_SUBJECT)).toBe("too-large");
+    }
+    expect(paste).not.toHaveBeenCalled();
+    expect(enter).not.toHaveBeenCalled();
+    expect(s.sent).toEqual([]);
+    ctl.dispose();
+  });
+
+  it("refuses read-only before calling either send method", async () => {
+    const { ctl, s, connection } = await promptRig(true);
+    const paste = vi.spyOn(connection, "sendPaste");
+    const enter = vi.spyOn(connection, "sendInput");
+    expect(ctl.sendPrompt("unsent", REF_SUBJECT)).toBe("unavailable");
+    expect(paste).not.toHaveBeenCalled();
+    expect(enter).not.toHaveBeenCalled();
+    expect(s.sent).toEqual([]);
+    ctl.dispose();
+  });
+
+  it("refuses before attachment, during reconnect and after disposal, without retaining text", async () => {
+    const { ctl } = rig();
+    expect(ctl.sendPrompt("before mount", REF_SUBJECT)).toBe("unavailable");
+    ctl.dispose();
+    const { r, ctl: live, s, connection } = await promptRig();
+    const paste = vi.spyOn(connection, "sendPaste");
+    s.drop();
+    expect(live.sendPrompt("while disconnected", REF_SUBJECT)).toBe("unavailable");
+    expect(paste).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(RECONNECT_DELAYS_MS[0]);
+    await flush();
+    const next = r.sockets[1];
+    next.open();
+    next.text({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: false });
+    next.text({ t: "reset", cols: 120, rows: 40 });
+    next.binary(enc("fresh"));
+    r.terminal().parse();
+    expect(next.sentText().filter(frame => frame.t === "paste")).toEqual([]);
+    expect(next.sentBytes()).toEqual([]);
+    live.dispose();
+    expect(live.sendPrompt("after disposal", REF_SUBJECT)).toBe("unavailable");
+  });
+
+  it.each([false, true])("leaves the text unsent when paste is refused or throws (throws=%s)", async throws => {
+    const { ctl, s, connection } = await promptRig();
+    vi.spyOn(connection, "sendPaste").mockImplementation(() => {
+      if (throws) throw new Error("paste failed");
+      return false;
+    });
+    const enter = vi.spyOn(connection, "sendInput");
+    expect(ctl.sendPrompt("unsent", REF_SUBJECT)).toBe("unavailable");
+    expect(enter).not.toHaveBeenCalled();
+    expect(s.sent).toEqual([]);
+    ctl.dispose();
+  });
+
+  it.each([false, true])("returns partial when Enter is refused or throws, without retry (throws=%s)", async throws => {
+    const { ctl, s, connection } = await promptRig();
+    const enter = vi.spyOn(connection, "sendInput").mockImplementation(() => {
+      if (throws) throw new Error("Enter failed");
+      return false;
+    });
+    expect(ctl.sendPrompt("already pasted", REF_SUBJECT)).toBe("partial");
+    expect(s.sent).toEqual([JSON.stringify({ t: "paste", text: "already pasted" })]);
+    expect(enter).toHaveBeenCalledTimes(1);
+    expect(enter).toHaveBeenCalledWith("\r");
+    vi.advanceTimersByTime(10_000);
+    expect(s.sent).toHaveLength(1);
+    ctl.dispose();
+  });
+
+  it("catches actual socket send errors both before paste and after a recorded paste", async () => {
+    const { ctl, s } = await promptRig();
+    const send = s.send.bind(s);
+    vi.spyOn(s, "send").mockImplementation(() => { throw new Error("socket lost"); });
+    expect(ctl.sendPrompt("unsent", REF_SUBJECT)).toBe("unavailable");
+    expect(s.sent).toEqual([]);
+    vi.mocked(s.send).mockImplementation(frame => {
+      if (typeof frame !== "string") throw new Error("Enter lost");
+      send(frame);
+    });
+    expect(ctl.sendPrompt("pasted", REF_SUBJECT)).toBe("partial");
+    expect(s.sent).toEqual([JSON.stringify({ t: "paste", text: "pasted" })]);
+    ctl.dispose();
+  });
+
+  it("refuses a target change before paste", async () => {
+    const { r, ctl, s, connection } = await promptRig();
+    const paste = vi.spyOn(connection, "sendPaste");
+    r.deps.now = () => { ctl.show({ kind: "session", ref: OTHER }); return r.clock.now; };
+    expect(ctl.sendPrompt("unsent", REF_SUBJECT)).toBe("unavailable");
+    expect(paste).not.toHaveBeenCalled();
+    expect(s.sent).toEqual([]);
+    ctl.dispose();
+    await flush();
+  });
+
+  it("rejects a stale expected subject after the controller is fully live on another target", async () => {
+    const { r, ctl, s } = await promptRig();
+    const retainedSend = () => ctl.sendPrompt("session A draft", REF_SUBJECT);
+    const next = await attach(r, ctl, OTHER);
+    next.sent.length = 0;
+    expect(retainedSend()).toBe("unavailable");
+    expect(ctl.sendPrompt("wrong key", "empty")).toBe("unavailable");
+    expect(s.sent).toEqual([]);
+    expect(next.sent).toEqual([]);
+    expect(ctl.sendPrompt("session B draft", OTHER_SUBJECT)).toBe("sent");
+    expect(next.sent).toEqual([JSON.stringify({ t: "paste", text: "session B draft" }), enc("\r")]);
+    ctl.dispose();
+  });
+
+  it.each(["target", "generation", "disconnect", "read-only", "dispose"])("stops after paste when %s changes, never sending Enter or replaying the prompt", async change => {
+    const { r, ctl, s, connection } = await promptRig();
+    const paste = connection.sendPaste.bind(connection);
+    vi.spyOn(connection, "sendPaste").mockImplementation(text => {
+      const accepted = paste(text);
+      if (change === "target") ctl.show({ kind: "session", ref: OTHER });
+      if (change === "generation") {
+        ctl.show({ kind: "empty" });
+        ctl.show({ kind: "session", ref: REF });
+      }
+      if (change === "disconnect") s.drop();
+      if (change === "read-only") s.text({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: true });
+      if (change === "dispose") ctl.dispose();
+      return accepted;
+    });
+    const enter = vi.spyOn(connection, "sendInput");
+    expect(ctl.sendPrompt("original target only", REF_SUBJECT)).toBe("partial");
+    expect(enter).not.toHaveBeenCalled();
+    expect(s.sent).toEqual([JSON.stringify({ t: "paste", text: "original target only" })]);
+    if (change === "disconnect") vi.advanceTimersByTime(RECONNECT_DELAYS_MS[0]);
+    await flush();
+    const next = r.sockets[1];
+    if (next) {
+      next.open();
+      next.text({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: false });
+      next.text({ t: "reset", cols: 120, rows: 40 });
+      next.binary(enc("replacement"));
+      r.terminal().parse();
+      expect(next.sentText().filter(frame => frame.t === "paste")).toEqual([]);
+      expect(next.sentBytes()).toEqual([]);
+    }
+    ctl.dispose();
   });
 });
 
@@ -1614,6 +1804,49 @@ describe("the hook", () => {
       ({ subject, cols: 120, rows: 40, theme: THEME, fontFamily: "monospace", deps: r.deps });
     return { r, seen, Probe, props };
   }
+
+  it("exposes synchronous prompt sending and blocks the render-to-effect target gap and unmount", async () => {
+    const { r, seen, Probe, props } = hookRig();
+    let duringCommit: (() => void) | undefined;
+    const m = mountComponent(Probe, props({ kind: "session", ref: REF }), {
+      commit: () => {
+        seen.at(-1)!.hostRef.current = HOST as HTMLDivElement;
+        duringCommit?.();
+      },
+    });
+    await flush();
+    const s = r.sockets[0];
+    s.open();
+    s.text({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: false });
+    s.text({ t: "reset", cols: 120, rows: 40 });
+    s.binary(enc("seed"));
+    r.terminal().parse();
+    s.sent.length = 0;
+    const send = seen.at(-1)!.sendPrompt;
+    expect(send("Bună\n世界", REF_SUBJECT)).toBe("sent");
+    expect(s.sent).toEqual([JSON.stringify({ t: "paste", text: "Bună\n世界" }), enc("\r")]);
+    s.sent.length = 0;
+    duringCommit = () => { expect(send("wrong target", REF_SUBJECT)).toBe("unavailable"); };
+    m.rerender(props({ kind: "session", ref: OTHER }));
+    duringCommit = undefined;
+    await flush();
+    expect(seen.at(-1)!.sendPrompt).toBe(send);
+    expect(s.sent).toEqual([]);
+    const next = r.sockets[1];
+    next.open();
+    next.text({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: false });
+    next.text({ t: "reset", cols: 120, rows: 40 });
+    next.binary(enc("new target"));
+    r.terminal().parse();
+    expect(next.sentBytes()).toEqual([]);
+    expect(next.sentText().filter(frame => frame.t === "paste")).toEqual([]);
+    expect(send("stale draft", REF_SUBJECT)).toBe("unavailable");
+    expect(next.sentBytes()).toEqual([]);
+    expect(next.sentText().filter(frame => frame.t === "paste")).toEqual([]);
+    expect(send("new prompt", OTHER_SUBJECT)).toBe("sent");
+    m.unmount();
+    expect(send("after unmount", OTHER_SUBJECT)).toBe("unavailable");
+  });
 
   it("opens the subject it is given, switches when it changes, and leaves when the stage unmounts", async () => {
     const { r, seen, Probe, props } = hookRig();

@@ -67,7 +67,7 @@ import PhoneKeys from "./PhoneKeys";
 import Divider from "./Divider";
 import HostsDialog from "./HostsDialog";
 import { t as tNow, useT } from "../../i18n";
-import { useScreenFlags } from "../../use-screens";
+import { ChatComposerSlot, useScreenFlags } from "../../use-screens";
 import { fontSizeFor, stepTerminalText, useTerminalTextStep } from "../../terminal-text-size";
 import { chatSessionFor, useSessionTranscript } from "../../use-session-transcript";
 import { DialogPresence } from "../Dialog";
@@ -271,6 +271,7 @@ export interface TerminalStageProps {
 
 /** A pane of a split Workspace (internal #102). */
 export interface StageSplit {
+  number?: number;
   primary: boolean;
   /** This pane fills the Workspace, the others named in the strip. */
   max: boolean;
@@ -372,12 +373,16 @@ export default function TerminalStage(p: TerminalStageProps) {
   const chatSession = chatSessionFor(screenFlags.chat, p.show.kind === "session" ? p.show.session.ref : null);
   const [view, setView] = useState<"chat" | "term">("term");
   const chatOn = chatSession !== null && view === "chat";
+  // Drafts belong to session IDs, so switching panes or Chat/Term cannot
+  // send one session's draft to another. They stay in this stage's memory.
+  const [chatDrafts, setChatDrafts] = useState<Record<string, string>>({});
+  const [chatSent, setChatSent] = useState(0);
   const chatSource = useSessionTranscript({
     session: chatSession,
     shown: chatOn,
     working: p.show.kind === "session" && p.show.session.status.state === "working",
     ended: p.show.kind === "session" && p.show.session.status.state === "ended",
-    change: p.show.kind === "session" ? `${p.show.session.promptCount ?? 0}:${p.show.session.status.state}` : "",
+    change: p.show.kind === "session" ? `${p.show.session.promptCount ?? 0}:${p.show.session.status.state}:${chatSent}` : "",
   });
   useEffect(() => { if (chatSession === null) setView("term"); }, [chatSession]);
   // Workspace's pane is sunken (V4), the terminal with it; beside the board it
@@ -415,8 +420,9 @@ export default function TerminalStage(p: TerminalStageProps) {
   const live = spineLive(status, phase, session.streaming);
   const typing = phaseTakesKeys(phase);
 
-  // CHAT ONLY READS (Figma V4: the conversation is read in Chat and typed into
-  // in Term, "↵ open and type"). Every way into the pane — the keys bar's
+  // Terminal focus requests still show Term before giving xterm the keys.
+  // The Chat composer writes through the connection without focusing xterm.
+  // Every way into the terminal — the keys bar's
   // "type in Term", the header's keys button, Enter on the deck, the asks run,
   // a card's click — shows Term first and gives it the keys once it is drawn.
   // Under Chat the pane is hidden, and a hidden textarea takes no focus: ↵
@@ -450,6 +456,10 @@ export default function TerminalStage(p: TerminalStageProps) {
     setView(next);
   };
   const chatCannotType = chatOn && p.show.kind === "session" && PANELESS.has(phase.kind);
+  const chatUnavailable = session.subject !== key ? t("board.chat.connecting") : phase.kind === "live"
+    ? phase.readOnly ? t("board.chat.readOnly")
+      : board?.state === "waiting" ? t("board.chat.waiting") : undefined
+    : t(phase.kind === "attaching" || phase.kind === "starting" ? "board.chat.connecting" : "board.chat.offline");
 
   // RENAMING (internal #101): held here rather than in the header, which is
   // drawn by calling it; the facts are the session on stage, so a switch to
@@ -565,6 +575,20 @@ export default function TerminalStage(p: TerminalStageProps) {
   const end = endView(phase, p.show, { reopen, launchAgain: p.onLaunchAgain, attachAgain: retry });
   const hosts = useOlderHosts(p.windows === true, key, s => onAnnounce.current?.(s), p.hostsApi);
 
+  const composer = chatOn && chatSession !== null ? <ChatComposerSlot
+    key={chatSession}
+    value={chatDrafts[chatSession] ?? ""}
+    onChange={value => setChatDrafts(drafts => ({ ...drafts, [chatSession]: value }))}
+    unavailable={chatUnavailable}
+    onShowTerm={() => showView("term")}
+    onSend={text => {
+      if (chatUnavailable) return "unavailable";
+      const result = session.sendPrompt(text, key);
+      if (result === "sent") setChatSent(sent => sent + 1);
+      return result;
+    }}
+  /> : undefined;
+
   const style = {
     "--ts-term-top": `${p.geometry.termTop}px`,
   } as CSSProperties;
@@ -615,6 +639,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         canFull={p.split ? false : fullStage.can}
         full={p.split ? false : fullStage.full}
         split={p.split != null}
+        paneLink={p.split?.number != null ? { number: p.split.number, active: p.split.primary } : undefined}
         onDragHead={p.split?.onDragHead}
         takeover={p.geometry.takeover}
         workspace={workspace ? (p.show.kind === "empty" ? "empty" : "pane") : undefined}
@@ -664,6 +689,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         paneless={p.show.kind === "empty" || PANELESS.has(phase.kind) || onItsWay(phase, frame)}
         onFirstRunDone={p.onFirstRunDone}
         chat={chatOn}
+        composer={composer}
         chatCannotType={chatCannotType}
         onShowTerm={() => showView("term")}
         onTypeHere={() => intoPane()}

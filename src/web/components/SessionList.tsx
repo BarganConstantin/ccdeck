@@ -13,7 +13,7 @@ import { isAlarming } from "../ambient-counts";
 import { useT } from "../i18n";
 import { agentCost } from "../usage-models";
 import type { GraphState } from "../reducer";
-import type { BackgroundJob, SessionRecap, WaitingBlock } from "../types";
+import type { BackgroundJob, Provider, SessionRecap, WaitingBlock } from "../types";
 import { sessionNoteShown, type SessionNote } from "../session-note";
 import { drawnState, neverPrompted } from "../node-face";
 import { isAgentVisible } from "../visibility";
@@ -27,7 +27,7 @@ import {
 } from "../rail-model";
 import { leaveHoldMs, useRailFlip, useRailMembership } from "../rail-motion";
 import { prefersReducedMotion } from "../viewport-motion";
-import { runningTool, sessionNames, startedHover, twinClocks, type TwinClock } from "../rail-row-copy";
+import { compactRowContexts, lastTypedPrompt, runningTool, sessionNames, startedHover, twinClocks, type TwinClock } from "../rail-row-copy";
 import { PauseGlyph } from "./rail-glyphs";
 import { CloseGlyph, FoldBody, GroupHead, MoreLine, PlusGlyph, RailRow, RailUsage, type FoldMode } from "./RailParts";
 
@@ -35,10 +35,12 @@ import { CloseGlyph, FoldBody, GroupHead, MoreLine, PlusGlyph, RailRow, RailUsag
 export const RAIL_NEW_SESSION_ID = "rail-new-session";
 import { usageMeter } from "../rail-usage";
 import { renameFacts } from "../session-rename";
+import type { PaneLink } from "../workspace-split";
 import type { MeterQuota } from "../use-quota";
 
 export interface Row {
   sessionId: string;
+  provider?: Provider;
   /** The row's title: the session's name as its card draws it (the user's
    *  name, else Claude Code's title), else its folder (owner, 2026-11-10). */
   label: string;
@@ -53,10 +55,9 @@ export interface Row {
    *  last, or a background job's question, headline or failure. Same rule;
    *  null whenever the recap speaks instead, or nothing has been said. */
   status?: SessionNote | null;
-  /** The model, for the phone Board's card (phone-board.ts). The rail's row
-   *  does not draw it (V4 top-10 #5): the Inspector says it. */
+  /** The model for Board cards and noncompact rows. Workspace compact rows
+   *  keep provider identity in the avatar. */
   modelId?: string;
-  provider?: "claude" | "codex";
   /** The effort the session reported, shown after the model (#2155). */
   effort?: string;
   toolCount: number;
@@ -90,6 +91,10 @@ export interface Row {
   /** What a person last asked it, one line (rail-row-copy.ts sessionTask),
    *  when that is not the title again. With the folder, the second line. */
   task?: string;
+  /** Whole human prompt, retained for compact rows’ accessible context. */
+  fullTask?: string;
+  /** Exact start and distinct id tail for compact rows’ tooltip. */
+  exactHover?: string;
   /** When it started and its id's tail (startedHover), for the tooltip: what
    *  tells two rows of one name apart without drawing it. */
   hover?: string;
@@ -201,6 +206,7 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
       tool: inFlightCall(a),
       cwd: a.cwd,
       ...(task ? { task } : null),
+      fullTask: lastTypedPrompt(a),
       ...(folder ? { folder } : null),
       ...(a.toolErrorCount ? { toolErrorCount: a.toolErrorCount } : null),
     });
@@ -229,7 +235,10 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
   });
   // On the row, so a row that leaves keeps saying it while it fades.
   const ids = rows.map(r => r.sessionId);
-  for (const r of rows) r.hover = startedHover(r.startedAt, r.sessionId, ids, now);
+  for (const r of rows) {
+    r.hover = startedHover(r.startedAt, r.sessionId, ids, now);
+    r.exactHover = startedHover(r.startedAt, r.sessionId, ids, now, undefined, true);
+  }
   return rows;
 }
 
@@ -266,6 +275,8 @@ interface Props {
   /** The sessions you are looking at: selected, or open on the stage. Their
    *  finished turns count as seen in the rows themselves. */
   watching?: ReadonlySet<string>;
+  /** Workspace's open panes, using the numbers drawn in their headers. */
+  openPanes?: ReadonlyMap<string, PaneLink>;
   /** Claude's 5-hour reading with when it was read (useMeterQuota, held in
    *  App.tsx). The rail itself never fetches. */
   quota?: MeterQuota;
@@ -302,7 +313,7 @@ interface Props {
 interface Ghost { row: Row; group: RailGroup; after: string | null; until: number }
 interface Entry { id: string; row: Row; ghost: boolean }
 
-export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, quota, activeAlias = null, onOpenUsage, onOpenKeys, onOpenBeside, onNewSession, offline = null, emptyNotice = null, edge = null }: Props) {
+export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, openPanes, quota, activeAlias = null, onOpenUsage, onOpenKeys, onOpenBeside, onNewSession, offline = null, emptyNotice = null, edge = null }: Props) {
   const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
@@ -458,11 +469,15 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
 
   // A row's words and glyph follow its own state, not the group a held order
   // keeps it in: they change in place while the row waits for its move.
+  const contexts = compactRowContexts(rows, new Map(layout.map(slot => [slot.id, slot.group])));
   const renderRow = (e: Entry): ReactNode => (
     <RailRow key={e.id} row={e.row} group={rank(e.row)} now={now} leaving={e.ghost}
       selected={selectedIds.has(e.id)} removed={removedIds?.has(e.id) ?? false}
       landNonce={landing?.id === e.id ? landing.nonce : null} onSelect={press} onOpenKeys={e.ghost ? undefined : onOpenKeys}
       onOpenBeside={e.ghost ? undefined : onOpenBeside}
+      compact={!!onOpenKeys}
+      context={contexts.get(e.row.sessionId)}
+      pane={openPanes?.get(e.row.sessionId)}
       // Named in place (internal #101), from the session as the board has it.
       rename={e.ghost ? null : renameFacts(state.agents.get(e.id))} />
   );

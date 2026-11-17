@@ -138,15 +138,22 @@
 @container ts-head (max-width: 480px) {
   .ts-ctxchip > :is(svg, .ts-ctxpct) { display: none; }
   .ts-ctxshort { display: inline; }
-  /* A header narrower still (a Workspace pane down to its 400 px beside a
-     wide Sessions list and the side panels, internal #103): the state word
-     gives way with an ellipsis, as the name does, instead of being drawn
-     over the chip. */
-  .ts-meta { flex: 0 1 auto; overflow: hidden; }
-  .ts-meta-state { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* Waiting keeps its duration: it is the reason to look at the pane.
+     Other state words may give way before drawing over the context chip. */
+  .ts-meta:not([data-state="waiting"]) { flex: 0 1 auto; overflow: hidden; }
+  .ts-meta:not([data-state="waiting"]) .ts-meta-state { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 }
 
 .ts-ctl { flex: none; display: flex; align-items: center; gap: 4px; }
+.ts-head > .ts-compact-more.ts-more.glyph-btn { display: none; flex: none; }
+/* Keep the task name readable in a narrow split. The existing overflow menu
+   carries the same actions; the header keeps one measured row. */
+@container ts-head (max-width: 480px) {
+  .ts-head > .ts-compact-more.ts-more.glyph-btn { display: inline-flex; }
+  .ts-head:has(> .ts-compact-more) > .ts-ctl { display: none; }
+  /* Rename is already in More; its hidden pencil need not reserve room. */
+  .ts-head:has(> .ts-compact-more) .ts-rename { display: none; }
+}
 /* The controls are the deck's header glyphs (.glyph-btn), as 24px squares at
    the control radius; ⌨ pressed — the keys in the pane — wears the accent. */
 .ts-tools { display: flex; align-items: center; gap: 2px; }
@@ -500,6 +507,25 @@
 /* ── the keys bar: who has the keyboard, and the asks ────────────────────── */
 
 .ts-bar[hidden] { display: none; }
+.ts-bar.ts-bar-compose {
+  height: auto;
+  max-height: min(50%, 320px);
+  overflow-y: auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  border-top: 0;
+  white-space: normal;
+}
+.ts-chat-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--line-soft);
+}
 .ts-bar {
   container: ts-bar / inline-size;
   flex: none;
@@ -602,6 +628,46 @@
    ellipsis from the end (its whole text is the title); Review stays. */
 .ts-asks.ts-hosts { flex: 0 1 auto; min-width: 0; }
 .ts-hosts-said { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+
+/* Chat reads here and replies in Term. Let the whole explanation and action
+   wrap within each pane, including a narrow workspace split. Term keeps its
+   existing keys bar; the stage measures this footer's natural height. */
+.ts-bar:has(.ts-chat-handoff) {
+  height: auto;
+  min-height: 40px;
+  padding-block: 6px;
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+.ts-keys.ts-chat-handoff {
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  overflow: visible;
+  white-space: normal;
+}
+.ts-chat-handoff > .ts-chat-reply-note {
+  flex: 1 1 180px;
+  min-width: 0;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.ts-chat-handoff > button.btn {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  min-height: var(--ctl-h);
+  padding-block: 4px;
+  line-height: 16px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.ts-chat-handoff > button.btn:focus-visible {
+  outline: var(--focus-w) solid var(--accent);
+  outline-offset: calc(-1 * var(--focus-w));
+}
+@media (pointer: coarse) {
+  .ts-chat-handoff > button.btn { min-height: 44px; }
+}
 
 /* Review (V4's Hosts dialog), inside the shared dialog shell: an intro, one
    44px row per session, the two facts as plain lines, the engine's refusal.

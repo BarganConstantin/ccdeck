@@ -17,6 +17,8 @@
     "pixel-metal-edge": "#475569",
     "pixel-character-body": "#38bdf8",
     "text-secondary": "#9aa0ab",
+    "provider-claude": "#e5a181",
+    "provider-codex": "#aab5ff",
     "ctl-fill": "color-mix(in srgb, var(--text) 7%, transparent)",
     "ctl-edge": "color-mix(in srgb, var(--text) 50%, transparent)",
     "chrome-bg": "color-mix(in srgb, var(--panel) 60%, var(--bg))",

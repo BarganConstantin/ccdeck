@@ -850,23 +850,19 @@ const paints = (rule: Rule): string =>
 const live = pulsing.filter(r => /--inflight/.test(paints(r)));
 const otherPulses = pulsing.filter(r => !live.includes(r));
 
-/** The five rules that say a tool or a session is in flight. `.state-pill` and
- *  `.sl-dot` are the same `agent.state` rendered on the node and in the sidebar;
- *  the other three are the same tool `inflight` rendered on the bubble, in the
- *  detail panel and in the modal title. For one active session most of them are
- *  on screen at once, which is why they share a beat. The rail's Working glyph
- *  (V4's Attention rail) is the sixth: the same `agent.state`, breathing on the
- *  same --pulse-live, drawn in the mark's own --inflight. */
+/** The four pulsing rules that say a tool or a session is in flight share a
+ *  beat. The rail's Working glyph deliberately spins on the owner's request;
+ *  under reduced motion it returns to the same --pulse-live opacity cue. */
 // CHANGED ON PURPOSE (V4's Figma): the state pill (the recap's last use) and the dialog title's pulsing
 // status dot are gone from the sheet, so they leave this family.
 const LIVE_PULSE = [
   // V4's card: the Working glyph breathes where the pill's dot did.
   '.agent-node .state-line[data-tone="active"] .state-mark',
   ".sl-dot.state-active::before",
-  `.session-list .sl-glyph[data-glyph="working"] .state-mark`,
   ".tool-burst .tb-spin",
   ".detail .tool .name .status-dot.inflight::before",
 ];
+const RAIL_WORKING = '.session-list .sl-glyph[data-glyph="working"] .state-mark';
 
 /** The pulses that are NOT that signal, each with the question it answers. They
  *  keep their own rates on purpose: collapsing them would say the version you
@@ -886,7 +882,7 @@ const OTHER_PULSES: [selector: string, meaning: string][] = [
 ];
 
 /** The two live pulses that live on the canvas, and so are switched off by the
- *  canvas block like everything else there. The other three are single dots in
+ *  canvas block like everything else there. The other two are single dots in
  *  panels and keep pulsing — see the note at the foot of the sheet, and
  *  state-channels.test.ts, which forbids a state mark from depending on it. */
 const LIVE_ON_CANVAS = ['.agent-node .state-line[data-tone="active"] .state-mark', ".tool-burst .tb-spin"];
@@ -905,10 +901,14 @@ describe("one tempo for one meaning: the live pulse", () => {
     expect(otherPulses.map(r => r.selector).sort()).toEqual(OTHER_PULSES.map(([sel]) => sel).sort());
   });
 
-  it("beats all five of them on one token, with no duration written twice", () => {
+  it("keeps live pulses on one token and the rail's deliberate spin on the loader token", () => {
     for (const rule of live) {
       expect(decl(rule.body, "animation"), rule.selector).toBe("pulse var(--pulse-live) infinite");
     }
+    const rail = all.find(r => !r.reduced && r.selector === RAIL_WORKING)!;
+    expect(rail, "the rail still signals Working").toBeDefined();
+    expect(decl(rail.body, "color")).toBe("var(--inflight)");
+    expect(decl(rail.body, "animation")).toBe("spin var(--loop-loader) linear infinite");
   });
 
   it("declares that token once, at :root, outside any theme", () => {
@@ -953,7 +953,7 @@ describe("one tempo for one meaning: the live pulse", () => {
     expect(all.filter(r => r.reduced && decl(r.body, "--pulse-live") != null)).toEqual([]);
   });
 
-  it("keeps the canvas half switched off and the panel half pulsing", () => {
+  it("keeps the canvas switched off, panel pulses intact and the rail falling back to pulse", () => {
     // The split is deliberate and predates this: a dozen bubbles pulsing across
     // the surface the deck is watched on is not one dot in a fixed strip.
     for (const sel of LIVE_ON_CANVAS) {
@@ -962,6 +962,11 @@ describe("one tempo for one meaning: the live pulse", () => {
     for (const sel of LIVE_PULSE.filter(s => !LIVE_ON_CANVAS.includes(s))) {
       expect(answers.get(sel) ?? [], sel).toEqual([]);
     }
+    const rail = all.find(r => !r.reduced && r.selector === RAIL_WORKING)!;
+    const fallback = (answers.get(RAIL_WORKING) ?? []).at(-1)!;
+    expect(fallback, "reduced motion replaces the rail's spin").toBeDefined();
+    expect(fallback.at).toBeGreaterThan(rail.at);
+    expect(decl(fallback.body, "animation")).toBe("pulse var(--pulse-live) infinite");
   });
 });
 

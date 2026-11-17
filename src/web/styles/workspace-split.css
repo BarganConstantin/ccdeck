@@ -16,10 +16,57 @@
 /* Side by side, the stage's own left edge is the line between panes. */
 .stage-in[data-split] .ts-stage { border-left: 0; }
 
-/* The pane that has the keys: its header carries a 2px accent line at the
-   top; the others keep their header and say their name more quietly. */
-.stage-in[data-split] .wsp-pane[data-focused] .ts-head { box-shadow: inset 0 2px 0 var(--accent); }
-.stage-in[data-split] .wsp-pane:not([data-focused]) .ts-name { color: var(--muted); }
+/* Selection stays in the header's neutral surface and pane number. Keyboard
+   focus and resize targets keep their own focus-visible treatment. */
+.stage-in[data-split] .wsp-pane[data-focused] .ts-head { background: color-mix(in srgb, var(--text) 5%, var(--panel)); }
+.stage-in[data-split] .wsp-pane:not([data-focused]) .ts-name { color: var(--text-secondary); }
+/* Pane titles and mode labels follow the same reading size as the rail. */
+.wsp-pane .ts-name { font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: calc(20px + var(--ui-text-increase, 0px)); }
+.wsp-pane :is(.ts-meta, .ts-ctxchip) { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px)); }
+.wsp-pane .view-switch { flex: none; height: auto; min-height: 28px; }
+.wsp-pane .view-opt { flex: none; white-space: nowrap; height: auto; min-height: 24px; padding-block: 2px; line-height: calc(16px + var(--ui-text-increase, 0px)); }
+.provider-avatar {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--provider-claude);
+  vertical-align: middle;
+}
+.provider-avatar::before {
+  content: "";
+  width: 20px;
+  height: 20px;
+  background-color: currentColor;
+  -webkit-mask: var(--provider-mark) center / contain no-repeat;
+  mask: var(--provider-mark) center / contain no-repeat;
+}
+.provider-avatar[data-provider="codex"] { color: var(--provider-codex); }
+/* Codex fills its square; Claude's wide mark has transparent headroom.
+   Balance the visible shapes inside the same slot, without altering artwork. */
+.provider-avatar[data-provider="codex"]::before { width: 16px; height: 16px; }
+/* A reference shared with the session row, including panes hidden by Zoom.
+   Active means this pane is selected; the keyboard button still owns typing. */
+.pane-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: var(--r-tag);
+  background: var(--ctl-fill);
+  color: var(--text-secondary);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.pane-badge[data-active] { color: var(--panel); background: var(--text-secondary); }
 .stage-in[data-split] .ts-head[draggable="true"] { cursor: grab; }
 .stage-in[data-split] .ts-head[draggable="true"]:active { cursor: grabbing; }
 
@@ -114,9 +161,8 @@
 }
 .wsp-tab { max-width: 220px; }
 .wsp-tab[data-on] {
-  background: var(--panel);
+  background: color-mix(in srgb, var(--text) 5%, var(--panel));
   color: var(--text);
-  box-shadow: inset 0 2px 0 var(--accent);
 }
 .wsp-tab-n {
   flex: none;
@@ -124,6 +170,7 @@
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
+.wsp-tab[data-on] .wsp-tab-n { color: inherit; }
 .wsp-tab-name {
   min-width: 0;
   overflow: hidden;

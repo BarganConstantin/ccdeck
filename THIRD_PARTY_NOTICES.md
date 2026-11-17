@@ -966,3 +966,47 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
+
+
+## Claude Code and Codex provider marks — LobeHub
+
+The monochrome SVGs below are copied byte for byte from
+[LobeHub Icons](https://github.com/lobehub/lobe-icons) commit
+`34270bc208d7122778dc00b30bd460f97ea03216`, with their artwork unchanged.
+Both use `currentColor`, with no background or gradients. They identify
+third-party providers and are separate from the ccdeck brand kit.
+
+| Distributed asset | LobeHub source | SHA-256 |
+| --- | --- | --- |
+| `src/web/assets/providers/claude-code.svg` | [claudecode.svg](https://github.com/lobehub/lobe-icons/blob/34270bc208d7122778dc00b30bd460f97ea03216/packages/static-svg/icons/claudecode.svg) | `d7eb2d876b49e51cc16291a42b681d7cf4906e60e0150776dbfb353ec4ca3746` |
+| `src/web/assets/providers/codex.svg` | [codex.svg](https://github.com/lobehub/lobe-icons/blob/34270bc208d7122778dc00b30bd460f97ea03216/packages/static-svg/icons/codex.svg) | `d08b4e824cd6727e89617f59e4737273ff53e44c1da849d016dd64dfd08b33e1` |
+
+The icons are distributed under the MIT licence. Trademark rights are not
+granted by the MIT licence.
+
+The full [upstream LobeHub notice](https://github.com/lobehub/lobe-icons/blob/34270bc208d7122778dc00b30bd460f97ea03216/LICENSE)
+is reproduced unchanged:
+
+```text
+MIT License
+
+Copyright (c) 2023 LobeHub
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

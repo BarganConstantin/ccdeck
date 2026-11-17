@@ -8,7 +8,7 @@ import { AlertMark, StateMark } from "./StateMark";
 import { stateLabel } from "../agent-copy";
 import { modelChipText, modelChipTitle } from "../model-label";
 import { RAIL_GROUP_LABEL_MSGS, type RailGroup } from "../rail-model";
-import { railFailed, railGlyph, railLine, railTime, rowSpoken, rowTooltip, twinStart, type RailGlyphKind, type RailLine } from "../rail-row-copy";
+import { railFailed, railGlyph, railLine, railTime, rowSpoken, rowTooltip, twinStart, type CompactRowContext, type RailGlyphKind, type RailLine } from "../rail-row-copy";
 import { fadeIn, tokenMs } from "../rail-motion";
 import type { UsageMeter } from "../rail-usage";
 import { FadeFigure, useFillJump } from "./FadeFigure";
@@ -17,9 +17,11 @@ import { useT } from "../i18n";
 import SessionNameField, { useRenaming } from "./SessionNameField";
 import { isRenameKey, type RenameFacts } from "../session-rename";
 import { beginDrag, endDrag } from "../split-drag";
+import ProviderAvatar from "./ProviderAvatar";
+import type { PaneLink } from "../workspace-split";
 
-/** The 14px status glyph. Working breathes on --pulse-live and nothing else
- *  moves on its own; Waiting is the alert triangle and holds still, because
+/** The 14px status glyph. Working turns steadily (pulses with reduced motion);
+ *  nothing else moves on its own. Waiting is the alert mark and holds still, because
  *  what asks for you is the rail's order, not motion. The kind keys the mark,
  *  and the new mark fades in over --dur-fast only when THIS row's kind changes
  *  (a row that is only moved, or drawn again, remounts without playing it). */
@@ -79,6 +81,10 @@ export function PlusGlyph() {
 export type FoldMode = "animate" | "fade" | "instant";
 
 export interface RailRowProps {
+  compact?: boolean;
+  showContext?: boolean;
+  context?: CompactRowContext;
+  pane?: PaneLink;
   row: Row;
   group: RailGroup;
   now: number;
@@ -136,15 +142,23 @@ export function openBesideOnShiftEnter(
   };
 }
 
-export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys, onOpenBeside, rename }: RailRowProps) {
+export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys, onOpenBeside, rename, compact = false, showContext = false, context, pane }: RailRowProps) {
   const t = useT();
-  // What it waits on, Ready, or "folder · task" (rail-row-copy.ts railLine);
-  // none, and the row is one line.
-  const line = railLine(r, group);
-  // "Done · 1 failed" beside the partial mark, as the card says it (railFailed).
   const failed = railFailed(r, group, t);
-  // A row that reads like another (twinClocks) ends it with when it started.
-  const start = r.twin ? twinStart(r.startedAt, r.twin) : null;
+  // Keep a second line where it explains an action or tells sessions apart.
+  // A named task's project fits beside its name; its full prompt stays in the tooltip.
+  const twin = compact && context ? context.twin : r.twin;
+  const detail = !compact || showContext || context?.detail === "task" || context?.detail === "project" || group === 0 || !!twin || removed || !!failed || r.state === "err" || !r.folder;
+  const contextual = compact && context && group !== 0 && !removed && !failed && r.state !== "err" && !r.neverPrompted;
+  const projectOnly = contextual && context.detail === "project";
+  const line = detail ? contextual && context.text ? { kind: "words" as const, text: context.text } : railLine(r, group) : null;
+  // An identical import time does not distinguish twins: keep only their
+  // unique suffix here; the full clock remains in the tooltip.
+  const start = twin ? compact && context?.idTail ? context.idTail : twinStart(r.startedAt, twin) : null;
+  const waitingProject = compact && context && group === 0 && context.detail !== "none" && !removed && !failed
+    ? r.folder ?? r.cwdBasename : null;
+  const hiddenTask = compact && (!detail || projectOnly || group === 0 || (r.fullTask && (r.fullTask !== r.task || context?.text !== undefined && !context.text.includes(r.fullTask))))
+    ? r.fullTask ?? r.task : null;
   const worded = !!(line || removed || failed);
   const lined = worded || !!start;
   const time = railTime(r, group, now);
@@ -204,46 +218,58 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
           aria-keyshortcuts={rename ? "F2" : undefined}
           data-session={r.sessionId}
           data-one-line={!lined || undefined}
+          data-compact={compact || undefined}
+          data-pane-active={pane?.active || undefined}
           onClick={() => onSelect(r.sessionId)}
           onDoubleClick={rename ? renaming.start : undefined}
           onKeyDown={openKeysOnEnter(r.sessionId, onOpenKeys)}
-          title={rowTooltip(r, removed)}
+          title={[rowTooltip(r, removed, compact), pane ? t(pane.active ? "board.stage.split.activePane" : "board.stage.split.paneNumber", { number: pane.number }) : ""].filter(Boolean).join("\n")}
         >
           {/* Once, on the row a jump arrived at; a new nonce is a new element,
               so the fade runs again for the next jump. */}
           {lit != null && <span key={lit} className="sl-land" aria-hidden onAnimationEnd={() => setLit(null)} />}
           {/* The glyph stays hidden and the state beside it is in words, ahead
               of the name, so the row's name says what the glyph shows (#373). */}
-          <RailGlyph kind={railGlyph(r, group)} />
+          {compact ? <ProviderAvatar provider={r.provider ?? "claude"} /> : <RailGlyph kind={railGlyph(r, group)} />}
           <span className="vis-hidden">{stateLabel(r.state)}</span>
           {/* What the row no longer draws, for a screen reader and for touch,
               where the tooltip is not reached. */}
           <span className="vis-hidden">{rowSpoken(r)}</span>
+          {hiddenTask && <span className="vis-hidden">{[!detail || group === 0 ? r.folder : null, hiddenTask].filter(Boolean).join(" · ")}</span>}
+          {compact && !start && <span className="vis-hidden">{r.exactHover}</span>}
           <span className="sl-text">
             <span className="sl-line1">
-              {/* The title keeps its own row; provider and model are below. */}
+              {/* Compact rows keep status beside the title; other rows put
+                  provider, model and time below it. */}
               <span className="sl-name">
                 <span className="sl-label">{r.label}</span>
                 {/* Said after the name, as the Feedback list says an unread
                     conversation; the dot is for the eye. */}
                 {unread && <span className="vis-hidden">{t("shell.feedback.unreadSuffix")}</span>}
               </span>
+              {pane && <span className="vis-hidden">{t(pane.active ? "board.stage.split.activePane" : "board.stage.split.paneNumber", { number: pane.number })}</span>}
               {/* The unread dot, in the accent the stripes' doors use for
                   something unread, just before the age (V4 top-10, inbox). */}
               {unread && <span className="sl-unread" aria-hidden />}
+              {compact && <span className="sl-row-status">
+                {time && <span className={`sl-time ${time.tone}`}><span className="vis-hidden">{time.spoken}</span>{time.text}</span>}
+                <RailGlyph kind={railGlyph(r, group)} />
+              </span>}
             </span>
             {lined && (start
               ? (
-                // A look-alike's line: its words give way first, so the start
-                // time at its end stays whole. Not at the line's start any more
-                // (V4 top-10, inbox): the line leads with what the session is.
+                // Project first; the unique suffix or clock stays whole.
                 <span className="sl-line2 sl-twin">
+                  {waitingProject && <span className="sl-row-project">{waitingProject} · </span>}
                   {worded && <span className={`sl-words${line?.kind === "tool" ? " mono" : ""}`}>{words}</span>}
                   <span className="sl-start">{worded ? "· " : ""}{start}</span>
                 </span>
               )
-              : <span className={`sl-line2${line?.kind === "tool" ? " mono" : ""}`}>{words}</span>)}
-            {(r.provider || r.modelId || time) && <span className="sl-meta">
+              : <span className={`sl-line2${waitingProject ? " sl-with-project" : line?.kind === "tool" ? " mono" : ""}`}>
+                  {waitingProject && <span className="sl-row-project">{waitingProject} · </span>}
+                  {waitingProject ? <span className={`sl-words${line?.kind === "tool" ? " mono" : ""}`}>{words}</span> : words}
+                </span>)}
+            {!compact && (r.provider || r.modelId || time) && <span className="sl-meta">
               <span className="sl-model" title={r.modelId ? modelChipTitle(r.modelId, r.effort) : undefined}>
                 {r.provider && <>{r.provider === "codex" ? "Codex" : "Claude"}{r.modelId ? " · " : ""}</>}
                 {r.modelId && modelChipText(r.modelId, r.effort)}

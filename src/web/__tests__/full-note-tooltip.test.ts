@@ -49,7 +49,7 @@ describe("the note at the full card's size", () => {
     expect(en["board.list.reply"]).toBe("suggested reply “{reply}”");
     // The rail's row (V4's Attention rail) draws one line and no suggested
     // reply; the whole reply, like the whole note, is the row's tooltip.
-    expect(list).toContain("title={rowTooltip(r, removed)}");
+    expect(list).toContain("title={[rowTooltip(r, removed, compact),");
     // CHANGED ON PURPOSE (the UI in every language): the line is a key, and
     // English maps it to the same words.
     expect(list).toContain('lines.push(t("board.row.suggestedReply", { reply: r.status.reply }))');

@@ -1,5 +1,44 @@
 # Owner's ccdeck work — continuation context
 
+## Workspace UI integration requested — 2026-11-17
+
+The owner explicitly requested merging the reviewed UI batch into development.
+The earlier local-only approval notes below describe the preceding review phase.
+The integration base is development `b3a0687b6`, including the Codex account
+handoff correction from PR #2599, next/v4 and engine 0.1.5.
+Preserve its session chrome and keyboard work alongside the
+compact rows, direct Chat composer and quiet active-pane styling. Validate the
+combined tree and required PR checks before merging; no release tag or package
+publication was requested.
+
+During integration the owner clarified that compact named rows should not repeat
+project labels when heading and provider already identify the session. Keep
+project/prompt information in accessible text and tooltips, and show additional
+context only for remaining same-provider collisions or actionable waiting rows.
+The integrated UI follows the shared type, spacing and keyboard-focus tokens.
+
+PR #2600 is the integration boundary. After its verified merge, the isolated
+port 4479 preview moves to a detached merged commit in `ccdeck-ui-dev-preview`;
+the feature worktree is then removed. Its helpers remain in the temporary
+preview directory. Recheck the PR, checkout and process before relying on that
+planned runtime transition. The local `development` branch contains archived
+history: do not reset it or merge that history into the recreated remote branch.
+
+
+## Workspace compact preview — earlier review on 2026-11-17
+
+- Branch `feature/v4-terminal-chat`, worktree `~/Desktop/ccdeck-v4-terminal-chat`,
+  based on `next/v4` `13d1d45c1`. First batch awaits the owner's visual review
+  before integration; do not merge or start the next batch before that review.
+- Isolated built-app preview: `http://127.0.0.1:4479/batch1-preview.html`, with
+  synthetic sessions and transcripts. Terminal fixtures cannot attach to real
+  agents; component-only local echo is on port 5197. Recheck processes before use.
+- Preview launch/rebuild/stop helpers are under `/tmp/ccdeck-batch1-preview/`;
+  `stop.py` checks recorded processes before stopping them. The preview HTML is
+  ignored build output; regenerate with `make-review-page.py` after rebuilding.
+- Scope, verification and limitations: `docs/research/herdr-batch1-verification.md`.
+  Preserve the separately served session-chrome worktree and other agents' work.
+
 ## Intel CPU readings and pending Codex switches — 2026-11-17
 
 The Intel CPU proximity reader is merged into `next/v4` through PR #2596,
@@ -424,6 +463,83 @@ An active terminal in another app cannot be transferred by this change.
 The installed terminal engine has not been replaced; do not claim this
 preview resolves every unsupported external-session case. No new changes
 from this work have been pushed, merged, tagged or published.
+
+## Workspace and Chat review — 2026-11-17
+
+The owner's current visual batch lives in worktree `ccdeck-v4-terminal-chat`,
+branch `feature/v4-terminal-chat`, based on `next/v4` at `13d1d45c1`.
+It is a local review branch; the owner requested visual confirmation before
+integration into v4. No public push, pull request or merge is authorized by
+the repeated requests to continue implementing.
+
+The built preview is `http://127.0.0.1:4479/batch1-preview.html`, with six
+synthetic sessions and disposable configuration. Its own backend was restarted
+for the Chat review; recheck its PID and command before touching it. The runtime
+on port 4317 and the owner's personal sessions were left alone. Preview launch
+scripts live outside the checkout in a temporary directory. Rebuilding removes
+the ignored preview HTML; regenerate it with that preview's make-review-page
+script before opening its URL. Transcript mapping now initializes in the
+isolated backend, rather than depending on the earlier separate seeder.
+
+The batch adds compact project context, transparent provider avatars, rotating
+Working indicators, structured Chat responses, native tool disclosures, copy,
+reading-position retention and an explicit handoff to Term. Chat still reads
+Claude only. This earlier revision's terminal handoff is superseded below.
+Details and exact verification are in
+`docs/research/herdr-batch1-verification.md`. The latest revision passed 438
+focused tests, typecheck, build and isolated Chromium interaction/responsive QA.
+Neither live agent typing nor an external telemetry stream was verified.
+
+### Direct replies and visual polish, later on 2026-11-17
+
+The owner rejected the handoff-only footer and requested a direct reply input,
+then a calmer, more polished Workspace with several panes. The composer now
+uses the existing writable terminal connection to paste and submit, remaining
+in Chat. It preserves per-session drafts in stage memory and refuses stale
+targets, read-only/disconnected states and pending confirmation requests.
+Transport acceptance is not an agent acknowledgement; partial sends are never
+retried automatically. No provider endpoint or new Chat provider was added.
+
+The compact composer replaces the repeated labels/instructions of its first
+variant. Tool groups no longer each wear a box. Pane titles and mode controls
+follow reading-size settings. Under 400px, the existing More menu carries the
+header actions with instance-specific IDs; it keeps one header row. The rail
+keeps the full prompt accessible while drawing less duplicate context.
+
+The same preview URL now opens Reply demo alongside synthetic sessions.
+Reply demo is a local fixture process launched through the installed terminal
+engine. It echoes input and writes a real fixture transcript; no AI process
+or paid request runs. Its launcher and identity file live with the isolated
+preview scripts. Check these current files/processes before restarting or
+cleaning them up; do not use the older PID notes above.
+
+Latest validation: 574 focused tests in 20 files, typecheck and build passed.
+Chromium checked direct multiline Unicode input through the actual engine,
+draft retention, IME, keyboard menus/focus and 1/2/4-pane light/dark layouts,
+text enlargement, narrow component widths and the existing mobile route.
+An agent AI session and external telemetry capture remain unverified.
+
+### Provider accents and independent visual review, later on 2026-11-17
+
+The owner requested orange Claude and blue-violet Codex marks, including in
+headers and Chat. They now use light/dark provider tokens in the JSON theme
+catalog; SVG masks remain unchanged. The visible keyboard hint is removed
+(still accessible), and composer focus uses a single 1px edge without a halo.
+
+Two independent Impeccable assessments found four P2 defects, now corrected:
+waiting duration truncation (More threshold now 480px), lost project context
+in urgent same-name rows, enabled Send contrast in Light, and fixed user-message
+leading under Largest. Identical twin clocks yield to a distinct suffix;
+the full start time remains in the tooltip. Final rendered marks passed all
+12 themes (minimum 3.99:1); enabled Send minimum 5.21:1 after theme transitions
+settled. Final focused validation: 157 tests across ten files, typecheck,
+themes:check and build, plus isolated browser layouts, focus and header edges.
+
+Four-pane preview: `http://127.0.0.1:4479/batch1-four-preview.html`.
+The local backend and demo process remain isolated. Do not reuse dated PIDs.
+No push, public PR, v4 merge or release has been performed. Owner visual
+confirmation and integration validation remain outstanding; real-model and
+external telemetry behavior are not certified by this UI review.
 
 ## Session controls and local shell — 2026-11-17
 

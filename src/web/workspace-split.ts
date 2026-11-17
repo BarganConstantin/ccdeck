@@ -89,6 +89,19 @@ export function paneTarget(s: SplitState, id: string, focusedTarget: StageTarget
   return s.targets[id] ?? EMPTY;
 }
 
+/** The same reading-order numbers in the list, headers and narrow pane strip.
+ * The shell owns the focused target; its saved entry can still name the previous session. */
+export interface PaneLink { number: number; active: boolean }
+export function sessionPaneLinks(s: SplitState, focusedTarget: StageTarget | null, order = paneIds(s.root)): Map<string, PaneLink> {
+  const links = new Map<string, PaneLink>();
+  if (order.length < 2) return links;
+  order.forEach((id, index) => {
+    const target = paneTarget(s, id, focusedTarget);
+    if (target.kind === "session") links.set(target.id, { number: index + 1, active: id === s.focused });
+  });
+  return links;
+}
+
 /** The pane that shows `sessionId`, other than `except`, or null. */
 export function paneWith(s: SplitState, sessionId: string, focusedTarget: StageTarget | null, except?: string): string | null {
   for (const id of paneIds(s.root)) {
