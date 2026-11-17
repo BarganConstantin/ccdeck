@@ -150,11 +150,20 @@ describe("the body and the title block", () => {
   });
   // CHANGED ON PURPOSE (V4's Figma): the three are V4's Quiet button, `button.btn` unchanged (28 high,
   // 13/500 --text-secondary, r8, 12 in), 8 apart, and stay on a running session.
-  it("keeps Export JSON, Remove and Recap, at the foot of the body as V4's Quiet buttons", () => {
-    const out = renderToStaticMarkup(createElement(Detail, { agent: A("s"), now: 2000, onExportSession: () => {}, onRemove: () => {} }));
-    expect(out.lastIndexOf('class="hero-actions"')).toBeGreaterThan(out.lastIndexOf('class="detail-section"'));
-    expect(out).toContain("Export JSON");
-    expect(out).toContain('class="btn"');
+  // CHANGED ON PURPOSE (V4 top-10 #6): Recap, Export JSON and Remove at the foot
+  // of the body → Recap alone as the Quiet button, under what is read and above
+  // Details, with Export and Remove in the title block's ⋯ menu, because three
+  // equal outlined buttons under the whole tool-call list read as the panel's
+  // main act. With no recap to show, the row is not drawn at all.
+  it("keeps Recap as the body's one Quiet button, over Details, and draws no empty row without it", () => {
+    const done = A("s", { state: "done" });
+    const out = renderToStaticMarkup(createElement(Detail, { agent: done, now: 2000, onShowSummary: () => {}, onExportSession: () => {}, onRemove: () => {} }));
+    expect(out.match(/class="hero-actions"/g)).toHaveLength(1);
+    expect(out).toMatch(/<div class="hero-actions"><button type="button" class="btn" title="[^"]*">Show recap<\/button><\/div><details class="detail-more">/);
+    expect(out).not.toContain("Export JSON");
+    expect(out).not.toContain("Remove from board");
+    const running = renderToStaticMarkup(createElement(Detail, { agent: A("s"), now: 2000, onShowSummary: () => {}, onExportSession: () => {}, onRemove: () => {} }));
+    expect(running).not.toContain("hero-actions");
     expect(out).not.toContain("hero-action-btn");
     expect(decl(".detail .hero-action-btn", "font-size")).toBeUndefined();
     expect(decl(".detail .hero-action-btn", "color")).toBeUndefined();
