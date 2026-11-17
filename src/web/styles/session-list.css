@@ -44,12 +44,15 @@
   line-height: 20px;
   color: var(--text);
 }
+/* A count is a figure, not code: the UI face with tabular figures, as every
+   number in this list is (V4 top-10, inbox). Mono is kept for what a person
+   could type: a blocked tool's path or command. */
 .session-list .sl-count {
-  font-family: var(--font-mono);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   font-weight: 400;
   line-height: 16px;
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 /* The header's end: two 24x24 icon buttons, 2 apart (V4's Plus, and the ×
    that only a phone's drawer shows). */
@@ -173,13 +176,22 @@
    failed: Done in the line's own muted ink, the count in the warning's, as the
    card says it beside the same partial mark. */
 .session-list .sl-failed { font-weight: 500; color: var(--warn); }
-/* When a row that reads like another started (twinClocks): it leads the second
-   line in a quiet mono, so the name keeps the first line whole. */
+/* When a row that reads like another started (twinClocks): it ends the second
+   line, in the line's own quiet ink and tabular figures, never cut. The words
+   before it give way first, with their ellipsis, so two look-alikes stay told
+   apart however narrow the list is. */
+.session-list .sl-line2.sl-twin { display: flex; }
+.session-list .sl-words {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .session-list .sl-start {
-  font-family: var(--font-mono);
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  flex: none;
+  padding-left: 4px;
   font-variant-numeric: tabular-nums;
 }
+.session-list .sl-start:first-child { padding-left: 0; }
 
 /* LAND: the row a jump arrived at says "here" once, --accent-16 fading to
    nothing over --dur-base. Opacity only, so reduced motion keeps it. */
@@ -242,10 +254,24 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* The clock: the wait in the warn tone on Needs you, everything else quiet. */
+/* UNREAD: a finished turn you have not looked at (Done · new) wears a 6px
+   disc in the accent just before its age, the one the stripes' doors and the
+   Feedback list wear for something unread; amber stays the waiting count's.
+   Seen, the row has none. */
+.session-list .sl-unread {
+  flex: none;
+  align-self: center;
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+/* The age: the wait in the warn tone on Needs you, everything else quiet. A
+   figure, so the UI face with tabular figures; to the minute, so it moves at
+   most once a minute (rail-row-copy.ts railTime). */
 .session-list .sl-time {
   flex: none;
-  font-family: var(--font-mono);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   font-weight: 500;
   line-height: 16px;
@@ -266,8 +292,10 @@
   text-overflow: ellipsis;
   text-align: left;
 }
-/* A blocked tool and what it works on (a path, a command): mono, the name heavier. */
-.session-list .sl-line2.mono { font-family: var(--font-mono); }
+/* A blocked tool and what it works on (a path, a command): mono, the name
+   heavier. On a look-alike's line only the words are, not its start time. */
+.session-list .sl-line2.mono,
+.session-list .sl-words.mono { font-family: var(--font-mono); }
 .session-list .sl-tool { font-weight: 500; color: var(--text-secondary); }
 
 /* ── groups ───────────────────────────────────────────────────────────────── */
@@ -290,10 +318,10 @@
   color: var(--text-secondary);
 }
 .session-list .sl-group-count {
-  font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 14px;
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 /* A group that folds: the header is the button, the chevron first (the folded
    group row, 28 tall), and it turns a quarter when the group is open. */
@@ -437,9 +465,9 @@
 .session-list .sl-usage-line2 { gap: 4px; color: var(--muted); white-space: nowrap; }
 .session-list .sl-usage-name { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .session-list .sl-usage-what { flex: none; color: var(--text-secondary); white-space: nowrap; }
+/* The percent is a figure: the UI face with tabular figures, not mono. */
 .session-list .sl-usage-pct {
   margin-left: auto;
-  font-family: var(--font-mono);
   font-weight: 600;
   color: var(--text);
   font-variant-numeric: tabular-nums;

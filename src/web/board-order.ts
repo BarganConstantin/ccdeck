@@ -1,8 +1,8 @@
 // The order the board's columns read in: the rail's.
 //
 // The board flows its sessions down a column and then across (layout.ts), and
-// it puts first what the session list puts first — Needs you, Working, Done ·
-// new, Done, Ready — so the session at the top of the rail is the one at the
+// it puts first what the session list puts first — Needs you, Done · new,
+// Working, Done, Ready — so the session at the top of the rail is the one at the
 // top left of the board. The rail's own sort is reused rather than restated:
 // two copies of one order drift apart.
 import { canvasSessions } from "./canvas-session";

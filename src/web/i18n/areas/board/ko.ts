@@ -866,7 +866,6 @@ const catalog: Catalog = {
   "board.row.spokenRunning": "실행 중 ",
   "board.row.spokenYourTurnEnded": "사용자 차례, 종료 ",
   "board.row.spokenEnded": "종료 ",
-  "board.row.ago": "{time} 전",
   "board.row.asks": "요청 · {sentence}",
   "board.row.ready": "첫 프롬프트 대기 중",
   "board.row.bringBack": "{label}을(를) 보드로 되돌리기",

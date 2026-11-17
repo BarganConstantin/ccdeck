@@ -33,6 +33,7 @@ import { snapshotToFlow, type BoardFlow } from "../canvas-flow";
 import { autoLayout, fillGapsWithNewSessions } from "../layout";
 import { COLUMN_GAP, MAX_COLUMNS, SESSION_GAP, sessionOfNode, TOOL_LANE_W } from "../layout-geometry";
 import { initialState, type GraphState } from "../reducer";
+import { markSeen, resetSessionsSeen, turnEndedAt } from "../session-seen";
 import { fitBoard } from "../fit-board";
 import { FIT_FILL, FIT_MARGIN } from "../use-layout-frame";
 import type { AgentNodeData, ToolCall } from "../types";
@@ -487,13 +488,21 @@ describe("an arrival is scored the way the columns are", () => {
 });
 
 describe("the rail's order is the board's", () => {
-  it("puts the session waiting on you first, then the working ones, then the finished", () => {
+  // CHANGED ON PURPOSE: herdr order, unread done above working. The board
+  // reads in the rail's order, so a finished turn not yet looked at ("done",
+  // never seen here) now comes before the working one (V4 top-10, inbox); once
+  // seen it goes back below.
+  it("puts the session waiting on you first, then the finished one you have not seen, then the working ones", () => {
+    resetSessionsSeen();
     const state = initialState();
     const add = (a: AgentNodeData) => state.agents.set(a.id, a);
     add(agent("done", { state: "done" }));
     add(agent("work", { state: "active", endedAt: undefined, prompts: [{ at: 1_500, text: "go" }] }));
     add(agent("wait", { state: "active", endedAt: undefined, prompts: [{ at: 1_200, text: "go" }], waiting: { kind: "permission", since: 1_300 } } as Partial<AgentNodeData>));
     state.revision = 1;
+    expect(attentionOrder(state, 3_000)).toEqual(["wait", "done", "work"]);
+    markSeen("done", turnEndedAt(state.agents.get("done")!));
     expect(attentionOrder(state, 3_000)).toEqual(["wait", "work", "done"]);
+    resetSessionsSeen();
   });
 });

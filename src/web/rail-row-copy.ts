@@ -13,7 +13,7 @@ import { noteSource, noteTag, promptLine } from "./session-note";
 import { planSpoken } from "./agent-plan";
 import { salientField } from "./tool-input";
 import type { Row } from "./components/SessionList";
-import { agoShort, elapsedShort } from "./elapsed-short";
+import { ageShort } from "./elapsed-short";
 import type { RailGroup } from "./rail-model";
 import { distinctIdTail } from "./session-id-tail";
 import { sessionDisplay, sessionListName } from "./session-display";
@@ -29,7 +29,7 @@ export type RailGlyphKind = "waiting" | "working" | "done" | "partial" | "idle" 
 
 export function railGlyph(r: Row, group: RailGroup): RailGlyphKind {
   if (group === 0) return "waiting";
-  if (group === 1) return "working";
+  if (group === 2) return "working";
   // The card's own mark (node-face.ts sessionMark): a turn that stopped on an
   // error is the cross, and a finished one whose calls failed the partial mark.
   const mark = sessionMark(r);
@@ -164,7 +164,7 @@ export type TwinClock = "minute" | "second";
  * 2026-11-12): three cards and three rows read "ccdeck · Write the release notes
  * for 3.83" and nothing told them apart. Only where two or more of the sessions
  * a surface shows share the name and the task line does each of them draw when
- * it started beside its name; a session that reads like no other is left
+ * it started (twinStart); a session that reads like no other is left
  * exactly as it was. Names compare as a reader takes them (sameWords). The
  * Sessions list asks it of its rows, the board of the cards it draws.
  */
@@ -191,7 +191,8 @@ function minuteOfDay(ms: number): number {
   return at.getHours() * 60 + at.getMinutes();
 }
 
-/** A look-alike's start time as it is drawn beside its name. */
+/** A look-alike's start time as it is drawn: at the end of a Sessions row's
+ *  second line, the end of a phone card's line, and on a card's task line. */
 export function twinStart(startedAt: number, clock: TwinClock): string {
   return clockTime(startedAt, clock === "second");
 }
@@ -253,17 +254,25 @@ export function rowPath(path: string, cwd?: string): string {
   return `…${sep}${parts.slice(-2).join(sep)}`;
 }
 
-/** The clock at the row's right edge. Needs you counts the wait, in the warn
- *  tone, and Working counts the turn, both to the second under an hour; a
- *  finished or idle row says how long ago the turn ended, to the minute; a
- *  session that never had a prompt has none. `spoken` is the word a screen
- *  reader hears first, since the number alone is not "waiting". */
+/** The age at the row's right edge, as an inbox prints one (V4 top-10, inbox):
+ *  how long Needs you has waited, in the warn tone; how old a Working row's
+ *  turn is; how long ago a finished turn ended. One form for every row, to the
+ *  minute ("now", "4m", "1h 12m", "3d", elapsed-short.ts ageShort), so the
+ *  column never ticks under your eyes; the pane's header keeps the seconds of
+ *  a wait. A session that never had a prompt has none. `spoken` is the word a
+ *  screen reader hears first, since the number alone is not "waiting".
+ *
+ *  CHANGED ON PURPOSE (V4 top-10, inbox): Needs you and Working counted to
+ *  the second ("6m 42s") and a finished row said "3m ago"; a stopwatch on
+ *  every row is motion nobody reads, and what the figure measures is the
+ *  glyph's to show and the spoken word's to say, ahead of it. */
 export function railTime(r: Row, group: RailGroup, now: number): { text: string; tone: "warn" | "quiet"; spoken: string } | null {
-  if (group === 0 && r.waiting) return { text: elapsedShort(r.waiting.since, undefined, now), tone: "warn", spoken: t("board.row.spokenWaiting") };
-  if (group === 1) return { text: elapsedShort(r.turnStartedAt ?? r.startedAt, undefined, now), tone: "quiet", spoken: t("board.row.spokenRunning") };
+  const age = (since: number) => ageShort(since, now, t("lan.seen.now"));
+  if (group === 0 && r.waiting) return { text: age(r.waiting.since), tone: "warn", spoken: t("board.row.spokenWaiting") };
+  if (group === 2) return { text: age(r.turnStartedAt ?? r.startedAt), tone: "quiet", spoken: t("board.row.spokenRunning") };
   if (r.neverPrompted || r.turnEndedAt == null) return null;
   return {
-    text: t("board.row.ago", { time: agoShort(r.turnEndedAt, undefined, now) }),
+    text: age(r.turnEndedAt),
     tone: "quiet",
     spoken: r.waiting?.kind === "idle" ? t("board.row.spokenYourTurnEnded") : t("board.row.spokenEnded"),
   };

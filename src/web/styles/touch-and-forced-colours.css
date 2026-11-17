@@ -325,6 +325,8 @@
      paint over, redrawn as something live (the dots, the underline) and as a
      count the text colour carries. */
   .rail-dot, .fc-dot, .fc-tab[aria-selected="true"]::after { forced-color-adjust: none; background: Highlight; }
+  /* A Sessions row's finished turn not yet looked at: the same unread dot. */
+  .session-list .sl-unread { forced-color-adjust: none; background: Highlight; }
   .fc-tab-count { forced-color-adjust: none; background: CanvasText; color: Canvas; }
   /* The canvas bar's ⋯ dot, which says tool calls are hidden: a fill the theme
      would paint over, so redrawn in the highlight like the rail's. */

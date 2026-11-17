@@ -866,7 +866,6 @@ const catalog: Catalog = {
   "board.row.spokenRunning": "en cours",
   "board.row.spokenYourTurnEnded": "à vous, terminée",
   "board.row.spokenEnded": "terminée",
-  "board.row.ago": "il y a {time}",
   "board.row.asks": "Demande · {sentence}",
   "board.row.ready": "Prête pour une première instruction",
   "board.row.bringBack": "Remettre {label} sur le tableau",
