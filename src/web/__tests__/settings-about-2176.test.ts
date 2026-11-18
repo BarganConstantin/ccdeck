@@ -28,7 +28,6 @@ import UpdatesSection, {
 import ElsewhereSection, {
   ACCOUNTS_ROW, ACCOUNTS_ROW_NOTE, CODEX_ACCOUNTS_ROW, LAN_ROW, LAN_ROW_NOTE, WATCH_ROW, WATCH_ROW_NOTE,
 } from "../components/ElsewhereSection";
-import { TOUR_WHY } from "../components/ReleaseActions";
 import { doorOut, SETTINGS_SECTIONS, type SettingsDoors, type SettingsSection } from "../settings";
 import { readyButtonCopy, RESTART_TO_UPDATE_MSG, updateRestartFailureText } from "../desktop-update";
 import { IDLE_BEFORE_RESTART_MS } from "../restart";
@@ -256,7 +255,7 @@ describe("Settings › About says which ccdeck this is", () => {
       const row = html.slice(html.indexOf(`data-setting="${id}"`));
       expect(row.slice(0, row.indexOf("</div>")), id).not.toContain("settings-row-note");
     }
-    for (const gone of ["What changed in each release, newest first.", TOUR_WHY, "Tell the people who make ccdeck what works and what does not."]) {
+    for (const gone of ["What changed in each release, newest first.", "Eight pictures of what the deck shows.", "Tell the people who make ccdeck what works and what does not."]) {
       expect(html, gone).not.toContain(gone);
     }
   });

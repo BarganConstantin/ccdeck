@@ -91,6 +91,26 @@ afterAll(() => {
 });
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+/** Starts this file's server with one session. Each test kills its last
+ *  session when it ends, and a server with no session left goes, but not at
+ *  once: a client that reaches it in that moment is told "server exited
+ *  unexpectedly" and nothing it asked for is run. That is how the seed test,
+ *  starting right after the first test's kill, failed on Ubuntu's CI. The deck
+ *  starts a session again on that answer (terminal-sessions.mjs); so does
+ *  this, a few times. Anything else tmux says is thrown as it is. */
+async function startSession(...args: string[]): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      tm(...args);
+      return;
+    } catch (err) {
+      const said = String((err as { stderr?: unknown }).stderr ?? (err as Error).message ?? "");
+      if (attempt >= 5 || !/server exited unexpectedly/i.test(said)) throw err;
+      await sleep(50 * attempt);
+    }
+  }
+}
 async function waitFor(cond: () => boolean, what: string, ms: number) {
   const end = Date.now() + ms;
   while (!cond()) {
@@ -153,7 +173,7 @@ describe("whole characters from a real tmux pane to the panel", () => {
     if (!kit.needed(NEEDS_TMUX, TMUX)) return;
     const started = Date.now();
     const token = `utf8-done-${randomBytes(4).toString("hex")}`;
-    tm("start-server", ";", "set-option", "-g", "history-limit", String(HISTORY), ";",
+    await startSession("start-server", ";", "set-option", "-g", "history-limit", String(HISTORY), ";",
       "new-session", "-d", "-s", "u8", "-x", "120", "-y", "40", NODE, FIXTURE, token, String(LINES));
     const pane = tm("display-message", "-p", "-t", "u8", "#{pane_id}").trim();
     socketPath = tm("display-message", "-p", "-t", "u8", "#{socket_path}").replace(/\n$/, "");
@@ -270,7 +290,7 @@ describe("whole characters from a real tmux pane to the panel", () => {
       if (shift > 2 && lossy > 0) break;
       const name = `seed${shift}`;
       const token = `utf8-seed-${randomBytes(4).toString("hex")}`;
-      tm("start-server", ";", "set-option", "-g", "history-limit", String(HISTORY), ";",
+      await startSession("start-server", ";", "set-option", "-g", "history-limit", String(HISTORY), ";",
         "new-session", "-d", "-s", name, "-x", "120", "-y", "40", NODE, SEED_FIXTURE, token, String(shift), String(SEED_LINES));
       const pane = tm("display-message", "-p", "-t", name, "#{pane_id}").trim();
       socketPath = tm("display-message", "-p", "-t", name, "#{socket_path}").replace(/\n$/, "");

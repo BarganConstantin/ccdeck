@@ -9,7 +9,7 @@
 // macOS by handing the installer a mocked ACL reader and a Windows-shaped
 // package, so the rules are covered, not Windows itself (NOT TESTED there).
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, chown, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { promises as fileSystem } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -326,6 +326,173 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))("bringing the e
     expect(await readFile(join(w.dest, w.engineFile))).toEqual(before);
     expect(await verified(w)).toMatchObject({ version: "1.0.0" });
     expect((await readdir(w.home)).sort()).toEqual(["engine", pkg.MINIMUM_VERSION_FILE]);
+  });
+});
+
+// Ubuntu, Debian and Fedora give each user a group of their own and a umask of
+// 002, so a folder another program made above the data folder (a second Claude
+// profile that CLAUDE_CONFIG_DIR names, the ~/.local Claude Code's installer
+// makes) is 0775. The account files are handed in by a mock of the one read the
+// installer makes, so the answer does not hang on the machine's own accounts,
+// and the rule is Linux's, so it is asked for as Linux on a Mac too.
+describe.skipIf(!['darwin', 'linux'].includes(process.platform))("a folder above the data folder that the user's own group can write", () => {
+  // A skipped describe's body still runs while the file is collected, and
+  // Windows has no getuid: the ids are read only where they exist.
+  const uid = process.getuid?.() ?? -1;
+  const gid = process.getgid?.() ?? -1;
+  const passwd =(...more: string[]) => [`root:x:0:0:root:/root:/bin/sh`, `me:x:${uid}:${gid}:me:/home/me:/bin/sh`, ...more].join("\n") + "\n";
+  const group = (members = "", ...more: string[]) => [`root:x:0:`, `me:x:${gid}:${members}`, ...more].join("\n") + "\n";
+
+  /** The account files the installer reads, as given; anything else as it is. */
+  function accounts(files: { passwd?: string | Error; group?: string | Error }) {
+    const real = fileSystem.readFile.bind(fileSystem);
+    return vi.spyOn(fileSystem, "readFile").mockImplementation(async (file: any, ...rest: any[]) => {
+      const given = file === "/etc/passwd" ? files.passwd : file === "/etc/group" ? files.group : undefined;
+      if (given instanceof Error) throw given;
+      if (typeof given === "string") return given;
+      return (real as any)(file, ...rest);
+    });
+  }
+
+  /** A world whose data folder sits in `profile`, a folder of `mode` made by
+   *  this user, in this process's group (macOS gives a new folder its parent's
+   *  group instead). `profile` is its real path, the one the check walks. */
+  async function underProfile(mode: number, platform = "linux") {
+    const w = await world(platform);
+    const made = join(w.base, "profile");
+    await mkdir(made);
+    await chown(made, uid, gid);
+    await chmod(made, mode);
+    w.home = join(made, "agent-dag");
+    w.dest = join(w.home, "engine");
+    w.env = { CCDECK_HOME: w.home };
+    return { w, profile: await realpath(made) };
+  }
+
+  const verifiedAs = (w: World) => install.verifyEngineInstallation({ directory: w.dest, publicKey: w.keys, platform: w.platform, arch: w.arch });
+
+  /** The folder's owner or group as `over` says, every other folder as it is. */
+  function statAs(folder: string, over: { uid?: number; gid?: number }) {
+    const real = fileSystem.stat.bind(fileSystem);
+    return vi.spyOn(fileSystem, "stat").mockImplementation(async (...args: any[]) => {
+      const stat = await (real as any)(...args);
+      return String(args[0]) === folder ? Object.assign(Object.create(stat), over) : stat;
+    });
+  }
+
+  const quiet = () => vi.spyOn(console, "error").mockImplementation(() => {});
+
+  it("installs and runs the engine under a 0775 folder whose group is the user's alone", async () => {
+    const { w } = await underProfile(0o775);
+    accounts({ passwd: passwd(), group: group() });
+    expect(await run(w)).toMatchObject({ status: "imported" });
+    await expect(verifiedAs(w)).resolves.toMatchObject({ version: "1.0.0" });
+  });
+
+  it("also when the group's entry names the user, or the user under a second name", async () => {
+    const { w } = await underProfile(0o770);
+    accounts({ passwd: passwd(`me2:x:${uid}:${gid}::/home/me:/bin/sh`), group: group("me,me2") });
+    expect(await run(w)).toMatchObject({ status: "imported" });
+  });
+
+  it("refuses when another account has that group as its own, or the group names anybody else", async () => {
+    quiet();
+    const { w } = await underProfile(0o775);
+    const spy = accounts({ passwd: passwd(`other:x:${uid + 1}:${gid}::/home/other:/bin/sh`), group: group() });
+    expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+    spy.mockRestore();
+    accounts({ passwd: passwd(`other:x:${uid + 1}:${uid + 1}::/home/other:/bin/sh`), group: group("me,other") });
+    expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+    expect(await readdir(w.home).catch(() => [])).not.toContain("engine");
+  });
+
+  it("refuses a second entry for the group that names somebody else, and another account under the user's name", async () => {
+    quiet();
+    const { w } = await underProfile(0o775);
+    const spy = accounts({ passwd: passwd(), group: group("", `extra:x:${gid}:other`) });
+    expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+    spy.mockRestore();
+    accounts({ passwd: passwd(`me:x:${uid + 1}:${uid + 1}::/home/x:/bin/sh`), group: group("me") });
+    expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+  });
+
+  it("refuses when the account files cannot say: unreadable, the user or the group not there, NIS, a line it cannot read", async () => {
+    quiet();
+    const { w } = await underProfile(0o775);
+    const missing = Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    for (const files of [
+      { passwd: missing, group: group() },
+      { passwd: passwd(), group: missing },
+      // An account from LDAP: the user is not in /etc/passwd at all.
+      { passwd: `root:x:0:0:root:/root:/bin/sh\n`, group: group() },
+      { passwd: passwd(), group: `root:x:0:\n` },
+      { passwd: passwd(`me:x:${uid}:${gid + 1}:me:/home/me:/bin/sh`), group: group() },
+      // NIS, which can bring in accounts these files do not show.
+      { passwd: passwd("+::::::"), group: group() },
+      { passwd: passwd(`+other:x:${uid + 1}:${uid + 1}:::`), group: group() },
+      { passwd: passwd(), group: group("", `+extra:x:${gid + 1}:`) },
+      { passwd: passwd("broken"), group: group() },
+    ]) {
+      const spy = accounts(files);
+      expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+      spy.mockRestore();
+    }
+    accounts({ passwd: passwd(), group: group() });
+    expect(await run(w)).toMatchObject({ status: "imported" });
+  });
+
+  it("still refuses a folder others can write, or one another account owns, whatever the group", async () => {
+    quiet();
+    accounts({ passwd: passwd(), group: group() });
+    for (const mode of [0o777, 0o757, 0o707]) {
+      const { w } = await underProfile(mode);
+      expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+    }
+    const { w, profile } = await underProfile(0o755);
+    const spy = statAs(profile, { uid: uid + 1 });
+    expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+    spy.mockRestore();
+    expect(await run(w)).toMatchObject({ status: "imported" });
+  });
+
+  it("refuses a 0775 folder whose group is not the user's own (a shared group)", async () => {
+    quiet();
+    accounts({ passwd: passwd(), group: group() });
+    const { w, profile } = await underProfile(0o775);
+    statAs(profile, { gid: gid + 1 });
+    expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+  });
+
+  it("keeps the engine folder and the engine itself owner-only under such a folder", async () => {
+    const { w } = await underProfile(0o775);
+    accounts({ passwd: passwd(), group: group() });
+    expect(await run(w)).toMatchObject({ status: "imported" });
+    await chmod(w.dest, 0o770);
+    await expect(verifiedAs(w)).rejects.toThrow("could not be verified");
+    await chmod(w.dest, 0o700);
+    await chmod(join(w.dest, w.engineFile), 0o770);
+    await expect(verifiedAs(w)).rejects.toThrow("could not be verified");
+    await chmod(join(w.dest, w.engineFile), 0o700);
+    await expect(verifiedAs(w)).resolves.toMatchObject({ version: "1.0.0" });
+  });
+
+  it("relaxes nothing on macOS, where every user shares one group", async () => {
+    quiet();
+    accounts({ passwd: passwd(), group: group() });
+    const { w, profile } = await underProfile(0o775, "darwin");
+    expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+    await chmod(profile, 0o755);
+    expect(await run(w)).toMatchObject({ status: "imported" });
+  });
+
+  it("names the folder and the fix in the deck's log, once, and never in what it answers", async () => {
+    const said = quiet();
+    accounts({ passwd: passwd(), group: group() });
+    const { w, profile } = await underProfile(0o777);
+    expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+    await expect(verifiedAs(w)).rejects.toThrow(/^The installed terminal engine could not be verified\.$/);
+    const lines = said.mock.calls.map((call) => String(call[0])).filter((line) => line.includes(profile));
+    expect(lines).toEqual([expect.stringContaining(`chmod go-w '${profile}'`)]);
   });
 });
 
