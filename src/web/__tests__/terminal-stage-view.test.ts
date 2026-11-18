@@ -268,7 +268,7 @@ describe("the body's state cards, each at the terminal's origin", () => {
 
     const ended = { ...external, target: { ...target, kind: "gone" as const }, stillRunning: false };
     const pending = bodyProps(ended, { handoff: { moving: true, toggle } });
-    expect(html(createElement(StateCard, pending))).toContain("/background");
+    expect(html(createElement(StateCard, pending))).toContain(en["board.stage.handoff.waiting"]);
     const waiting = StateCard(pending);
     expect(button(waiting, "Reopen here")).toBeNull();
     press(button(waiting, "Cancel"));

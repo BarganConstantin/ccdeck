@@ -97,6 +97,7 @@ const ROUTES: [string, string, unknown?][] = [
   ["GET", "/api/terminal/status"],
   ["GET", "/api/terminal/target?session=0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f&provider=claude&cwd=%2Ftmp"],
   ["POST", "/api/terminal/open", { sessionId: "0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f", provider: "claude", cwd: "/tmp" }],
+  ["POST", "/api/terminal/background", { sessionId: "0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f", provider: "claude", cwd: "/tmp" }],
   ["POST", "/api/terminal/adopt", { sessionId: "0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f", provider: "claude", cwd: "/tmp" }],
   ["POST", "/api/terminal/launch", { agent: "claude", cwd: "/tmp" }],
   ["POST", "/api/terminal/claim", { key: "launch-k1", sessionId: "0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f", provider: "codex", cwd: "/tmp" }],

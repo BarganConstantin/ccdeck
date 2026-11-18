@@ -72,7 +72,7 @@ export interface StageBodyProps {
    *  that runs somewhere the stage cannot reach (#97). */
   boardState?: StageState | null;
   onAdopt(): void;
-  handoff?: { moving: boolean; toggle(): void };
+  handoff?: { moving: boolean; failed?: boolean; toggle(): void };
   /** "Not now": leave the stage, the session untouched. */
   onNotNow(): void;
   onRetry(): void;
@@ -264,6 +264,8 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
           {p.context?.prompt && <div className="ts-ctx"><span className="ts-prompt">❯ </span>{p.context.prompt}</div>}
           {handoff?.moving
             ? <p className="ts-text" role="status">{t("board.stage.handoff.waiting")}</p>
+            : handoff?.failed
+            ? <p className="ts-text" role="status">{t("board.stage.handoff.failed")}</p>
             : elsewhere
             ? <p className="ts-text" role="status">{t(elsewhereLine(p.boardState))}</p>
             : <p className="ts-text">{ours ? t(LAUNCHED_UNREACHABLE_MSG) : unsure ? t(PROVENANCE_UNKNOWN_MSG) : target.label}</p>}

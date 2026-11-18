@@ -62,6 +62,9 @@ module.exports = {
     icon: "dist/icons/icon.icns",
     identity: null,
     category: "public.app-category.developer-tools",
+    extendInfo: {
+      NSAppleEventsUsageDescription: "ccdeck uses Ghostty automation to move a Claude session when you ask.",
+    },
     // Not notarised (no Apple Developer ID), so hardened runtime buys nothing
     // and would enforce library validation against Electron's own frameworks.
     hardenedRuntime: false,
