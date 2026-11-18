@@ -1210,6 +1210,19 @@ function Inner() {
     paneWasOpen.current = paneOpen;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phone, paneOpen]);
+  /** More's Command Panel row (a phone's dock only, rail-items.tsx
+   *  commandPanelMore): the canvas button's press, and the Sessions list makes
+   *  way for the stage as it does for a row's press, coming back when the pane
+   *  is left. Left open, the list covered the stage, and the press seemed to do
+   *  nothing. */
+  const { openFromButton } = stage;
+  const openPanelFromMore = useCallback((opener: Element | null) => {
+    openFromButton(opener);
+    if (phone && sessionListOpen) {
+      paneFromListRef.current = true;
+      closeSessionListToCanvas();
+    }
+  }, [openFromButton, phone, sessionListOpen, closeSessionListToCanvas]);
   // ACCOUNTS OVER A PANE. A pane on a phone is the whole screen under the top
   // bar, and a sheet drawn over its header would cover the buttons there (and
   // the Inspector and the other two already give the pane back). So Accounts,
@@ -1398,7 +1411,7 @@ function Inner() {
         // terminal: the phone's Board draws no canvas bar to hold its button.
         ? <EdgeDock
             items={[...rails.left, ...rails.right[0]].map(sessionsDoorUnderSheet)}
-            more={[rails.search, ...commandPanelMore(stage.enabled ? stage.openFromButton : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}
+            more={[rails.search, ...commandPanelMore(stage.enabled ? openPanelFromMore : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}
             offline={everConnected && !live} />
         : <EdgeRail side="left" label={t("board.rail.tools")} groups={rails.leftStripe} more={rails.leftMore} foot={rails.leftFoot} />}
 
