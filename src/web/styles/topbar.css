@@ -301,4 +301,38 @@
   .topbar .readout .provider-incident :is(.pi-words, .pi-asof) { display: none; }
   .topbar .readout .provider-incident .pi-short { display: inline; }
 }
+/* THE MARK OUTLASTS THE NAME, under 390px while the version chip is up. The
+   chip stands in the end group, which never gives, so at 320 the readout had
+   142px left for the mark, the name and the waiting count, and the count's word
+   runs to 109px ("1 aguardando", "1 în așteptare"): the readout, clipping from
+   the left, cut the mark itself off the bar, by 10px in Japanese and 38 in
+   Portuguese, and at 360 by 9 in Portuguese and Romanian. The name goes first,
+   whole, rather than the mark in part: the readout is then the mark, a gap and
+   the count. Only while the chip is drawn (without it the bar holds the name)
+   and only under 390, where the bar holds the name beside the chip and nothing
+   moves. The name leaves the screen and not the outline (it is the page's
+   <h1>), so it is hidden the way .vis-hidden hides, never with display. */
+@media (max-width: 389px) {
+  .topbar:has(.tb-end button.v) .brand h1 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+/* AND UNDER 340 THE CHIP'S ICON GOES, ITS WORDS STAY. Without the name, 320
+   had 2px to spare beside the widest count, so chip words longer than "4.0.1
+   is ready" ("4.0.1 este gata") or a count of two digits still cost the mark 4
+   to 10 of its 19. The icon is the chip's decoration (aria-hidden), the words
+   are what it says, so the 18px of icon and gap go and the version and its
+   news stay readable, in the accessible name too. From 340 up the bar holds
+   both beside the count. */
+@media (max-width: 339px) {
+  .topbar button.v .v-icon { display: none; }
+}
 
