@@ -545,6 +545,13 @@ export function StageDock(p: StageDockProps) {
         onBarH={own ? stage.onBarH : undefined}
         onHeadH={own ? stage.onHeadH : undefined}
         onLaunched={stage.onLaunched}
+        onContinuation={(sessionId, cwd) => {
+          const next = p.stateRef.current.agents.get(sessionId);
+          if (!next || next.provider !== "claude" || next.cwd !== cwd) return false;
+          if (multi) stage.dropHere(id, sessionId);
+          else stage.switchTo(sessionId, { focusPane: true });
+          return true;
+        }}
         onLaunchAgain={ps.kind === "launch" ? () => { keysHere(); stage.launch(ps.agent, ps.cwd, ps.options); } : undefined}
         onAnnounce={stage.announce}
         windows={stage.windows}

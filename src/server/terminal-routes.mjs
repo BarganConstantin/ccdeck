@@ -64,6 +64,7 @@
 // ticket, the engine gives an opaque handle instead, and the ticket is minted
 // here over it: the handle never reaches the page, and nothing the page sends
 // is ever used as a pane.
+import { backgroundInGhostty } from "./ghostty-handoff.mjs";
 import { existsSync } from "node:fs";
 import { PRODUCT } from "./brand.mjs";
 import { commandPanel } from "./command-panel-engine.mjs";
@@ -266,6 +267,52 @@ export async function handleTerminalOpen(req, res, options) {
  *  session in a deck pane. 409 `still-running` while its process lives. */
 export async function handleTerminalAdopt(req, res, options) {
   return posted(req, res, options, "adopt");
+}
+
+const backgroundRequests = new Map();
+const BACKGROUND_REQUEST_COOLDOWN = 15_000;
+
+/** A local request to use Claude's background shortcut on its exact Ghostty surface.
+ *  With `check: true` it sends nothing and answers `{ ok: true, movable }`:
+ *  whether the same request without `check` could be made. The pane offers
+ *  the move only when `movable` is true. */
+export async function handleTerminalBackground(req, res, options) {
+  const d = terminalDeps(options);
+  if (!d.enabled()) return notFound(res);
+  if (!["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress)) {
+    return send(res, 403, { ok: false });
+  }
+  const body = await jsonBody(req, res);
+  if (res.headersSent) return;
+  if (!d.enabled()) return notFound(res);
+  if (body?.provider !== "claude" || typeof body.cwd !== "string" || !body.cwd.startsWith("/") ||
+      typeof body.sessionId !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(body.sessionId)) {
+    return send(res, 400, { ok: false });
+  }
+  const session = { sessionId: body.sessionId.toLowerCase(), provider: "claude", cwd: body.cwd };
+  if (body.check === true) {
+    let movable = false;
+    if (d.engine?.enabled === true) {
+      const answer = await d.engine.route("target", session);
+      if (answer.status === 200 && answer.body?.target?.kind === "C") {
+        movable = await (d.background ?? backgroundInGhostty)(session, { enabled: d.enabled, check: true });
+      }
+    }
+    return send(res, 200, { ok: true, movable: movable === true });
+  }
+  if (backgroundRequests.has(session.sessionId)) return send(res, 409, { ok: false });
+  backgroundRequests.set(session.sessionId, true);
+  let sent = false;
+  try {
+    if (d.engine?.enabled !== true) return send(res, 409, { ok: false });
+    const answer = await d.engine.route("target", session);
+    if (answer.status !== 200 || answer.body?.target?.kind !== "C") return send(res, 409, { ok: false });
+    sent = await (d.background ?? backgroundInGhostty)(session, { enabled: d.enabled });
+    return send(res, sent ? 200 : 409, { ok: sent });
+  } finally {
+    if (sent) setTimeout(() => backgroundRequests.delete(session.sessionId), BACKGROUND_REQUEST_COOLDOWN).unref();
+    else backgroundRequests.delete(session.sessionId);
+  }
 }
 
 /** POST /api/terminal/launch `{ agent, cwd, key? }` → `{ ok: true, sessionId,

@@ -215,15 +215,11 @@ describe("the panel's reload path", () => {
     // And the panel hands it its own in-flight flag, not the request slot's.
     expect(panel).toMatch(/<AccountsHeader[\s\S]*?reloading=\{reloading\}/);
     expect(accountsSurface()).not.toMatch(/className="glyph-btn ap-refresh"[\s\S]{0,400}disabled=\{reloading\}/);
-    // PINNED AS THE REQUIREMENT RATHER THAN AS THE GLYPH. It said which state it
-    // was in by swapping the arrow for an ellipsis; it says it by turning now —
-    // the same `spin` the LAN section's round takes for the same act, and
-    // without the button's ink changing shape under the finger that pressed it.
-    // What has to hold either way is that the control shows its own in-flight
-    // state, which is the half of this assertion that was never about
-    // `disabled`.
-    expect(header).toMatch(/className="glyph-btn ap-refresh"[\s\S]{0,900}(?:<svg|<KitIcon)/);
-    expect(css).toMatch(/\.ap-refresh\[aria-busy="true"\][^}]*animation:\s*spin/);
+    // The shared busy animation turns the arrow inside the stable button.
+    expect(header).toMatch(/className="glyph-btn ap-refresh"[\s\S]{0,900}className="refresh-glyph"/);
+    expect(css).not.toMatch(/\.ap-refresh\[aria-busy="true"\]\s*\{[^}]*animation:/);
+    const glyphCss = readFileSync(`${web}styles/panel-glyph.css`, "utf8");
+    expect(glyphCss).toMatch(/\.glyph-btn\[aria-busy="true"\] > \.refresh-glyph[^}]*animation:\s*spin/);
     expect(accountsSurface()).not.toContain('"↻"');
     // Only the forced half: a poll blinking the button every 15 seconds would
     // read as the panel doing something to itself.

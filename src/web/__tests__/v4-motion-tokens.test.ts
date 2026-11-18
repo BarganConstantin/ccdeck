@@ -55,7 +55,6 @@ const ALLOWLIST: Allowed[] = [
   { file: "styles/read-activity.css", needle: "animation-duration: 1200ms", why: "processes reading loop: its own period" },
   // ---- spinners, progress and sweeps: linear by rule ----
   { file: "styles/session-list.css", needle: "spin var(--loop-loader) linear", why: "Working state: continuous rotation at the loader tempo, without acceleration or blinking" },
-  { file: "styles/accounts-panel.css", needle: "spin 900ms linear", why: "the refresh arrow: 900, linear" },
   { file: "styles/dialogs.css", needle: "spin 900ms linear", why: "the refresh arrow: 900, linear" },
   { file: "styles/lan-setup.css", needle: "spin 900ms linear", why: "the refresh arrow: 900, linear" },
   { file: "styles/panel-glyph.css", needle: "spin 900ms linear", why: "the refresh arrow: 900, linear" },

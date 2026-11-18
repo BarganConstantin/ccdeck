@@ -258,6 +258,45 @@ describe("the body's state cards, each at the terminal's origin", () => {
       .not.toContain("Reopen here");
   });
 
+  it("guides a Claude handoff and keeps waiting when the old process exits", () => {
+    const toggle = vi.fn();
+    const target = { kind: "C" as const, label: "External session", adoptable: true };
+    const external = { kind: "not-attachable" as const, target, stillRunning: true, busy: false };
+    const offer = StateCard(bodyProps(external, { handoff: { moving: false, toggle } }));
+    press(button(offer, "Move session here"));
+    expect(toggle).toHaveBeenCalledOnce();
+
+    const ended = { ...external, target: { ...target, kind: "gone" as const }, stillRunning: false };
+    const pending = bodyProps(ended, { handoff: { moving: true, toggle } });
+    expect(html(createElement(StateCard, pending))).toContain(en["board.stage.handoff.waiting"]);
+    const waiting = StateCard(pending);
+    expect(button(waiting, "Reopen here")).toBeNull();
+    press(button(waiting, "Cancel"));
+    expect(toggle).toHaveBeenCalledTimes(2);
+  });
+
+  it("offers the Claude handoff only where the server said the move can be made", () => {
+    // Without a handoff prop the card has no move button: the stage passes one
+    // only after its check (POST /api/terminal/background with check: true,
+    // terminal-background-check.test.ts) answered movable for this session.
+    const target = { kind: "C" as const, label: "External session", adoptable: true };
+    const external = { kind: "not-attachable" as const, target, stillRunning: true, busy: false };
+    expect(button(StateCard(bodyProps(external)), "Move session here")).toBeNull();
+    // With the move offered, the card says ccdeck can move it, not "quit it
+    // there and Reopen here"; without it, the card keeps that instruction.
+    const offered = html(createElement(StateCard, bodyProps(external, { handoff: { moving: false, toggle: vi.fn() } })));
+    expect(offered).toContain(en["board.stage.handoff.offer"]);
+    expect(offered).not.toContain(en["board.stage.elsewhere.running"]);
+    const plain = html(createElement(StateCard, bodyProps(external)));
+    expect(plain).toContain(en["board.stage.elsewhere.running"]);
+    expect(plain).not.toContain(en["board.stage.handoff.offer"]);
+    const stage = withoutComments(readFileSync(fileURLToPath(new URL("../components/terminal/TerminalStage.tsx", import.meta.url)), "utf8"));
+    expect(stage).toMatch(/cwd: handoffCwd, check: true \}/);
+    expect(stage).toMatch(/if \(!controller\.signal\.aborted && movable === true\) setMovableFor\(claudeSource\);/);
+    expect(stage).toMatch(/const canMove = couldMove && movableFor === claudeSource;/);
+    expect(stage).toMatch(/handoff=\{canMove \? \{/);
+  });
+
   it("says what a session outside the deck is doing there and how to bring it here, by the board's state (#97)", () => {
     const target = { kind: "C" as const, label: "This session was started outside the deck, so there is no pane to attach to.", adoptable: true };
     const phase: StagePhase = { kind: "not-attachable", target, stillRunning: true, busy: false };

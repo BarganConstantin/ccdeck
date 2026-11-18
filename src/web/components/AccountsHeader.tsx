@@ -128,12 +128,7 @@ export default function AccountsHeader({
           <button type="button" className="glyph-btn ap-refresh" onClick={() => onReload()}
             {...pressProps("reload", reloading)} aria-label={t("accounts.header.reload")}
             title={t("accounts.header.reloadTip")}>
-            {/* IT TURNS WHILE IT WORKS, where it used to swap the arrow for an
-                ellipsis. Both say which of the two states the control is in,
-                which is what #518 asked of it; a rotation says it without the
-                button's ink changing shape. The LAN section's check turns the
-                same way while it works, with its own glyph since #838. */}
-            <KitIcon name="update" />
+            <KitIcon name="update" className="refresh-glyph" />
           </button>
           {/* THE REST, behind ⋯: named "More actions" as the rows' ⋯ is, by its
               word and not its glyph, with the tooltip for the pointer. Down

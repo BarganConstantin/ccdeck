@@ -56,6 +56,11 @@ describe("the Local network header draws its own actions (#838)", () => {
     // already has here — and the reduced-motion answer that stops it.
     const busy = /\.ap-lan-check\[aria-busy="true"\]\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
     expect(busy).toMatch(/animation:\s*spin\b/);
-    expect(css).toMatch(/\.ap-lan-check\[aria-busy="true"\],\s*\.ap-refresh\[aria-busy="true"\]\s*\{\s*animation:\s*none;/);
+    // CHANGED ON PURPOSE (#2621): the Accounts refresh button turns only its
+    // arrow now, through the shared .refresh-glyph rule, so the reduced-motion
+    // stop is pinned per rule instead of on one shared selector.
+    expect(css).toMatch(/\.ap-lan-check\[aria-busy="true"\]\s*\{\s*animation:\s*none;/);
+    expect(css).toMatch(/\.glyph-btn\[aria-busy="true"\]\s*>\s*\.refresh-glyph\s*\{\s*animation:\s*none;/);
+    expect(css).not.toMatch(/\.ap-refresh\[aria-busy="true"\]/);
   });
 });

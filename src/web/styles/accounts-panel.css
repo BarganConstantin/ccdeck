@@ -170,13 +170,7 @@
    sat inside the 24px floor, and it did change a pixel of the box after all:
    12px of content width around a 13px icon measured the button at 25x24 in a
    row of 24x24 ones. An SVG is centred by the flex box, so there is nothing
-   left to nudge.
-
-   It turns while a reload it was asked for is in flight — the `spin` this sheet
-   already has, at the one speed that means "still going". Reduced motion is
-   answered further down, after this rule, which is the only place the answer
-   can win. */
-.ap-refresh[aria-busy="true"] { animation: spin 900ms linear infinite; }
+   left to nudge. */
 /* The one moment this button does nothing. A reload can ask claude-swap to
    collect over the network, so it is not instant, and without a dimmed state a
    click that landed looks exactly like a click that missed. */
