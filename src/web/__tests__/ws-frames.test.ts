@@ -1073,6 +1073,8 @@ async function dial(port: number) {
   return {
     handshake,
     write: (b: Buffer | string) => sock.write(b),
+    /** Closes this client's half: it sends nothing more and still reads. */
+    end: () => sock.end(),
     async head(): Promise<string> {
       for (;;) {
         const at = buf.indexOf("\r\n\r\n");
@@ -1172,6 +1174,32 @@ describe("a WebSocket over a real http.Server upgrade", () => {
     expect(closeOf(await client.frame()).code).toBe(1002);
     await client.hangup();
     expect(ended.map(e => e[0])).toEqual([1002]);
+  });
+
+  // The engine's attach waits for the engine's answer before its 101, and a
+  // browser that leaves during that wait closes its half then. The upgrade
+  // socket goes on reading, so its 'end' has already fired when wsConnection
+  // is called; the connection must still end and report its close, not stay
+  // half-open holding a terminal's place until a keepalive write fails.
+  it("ends a connection whose client closed its half before the 101 went out", async () => {
+    const ended: [number, string][] = [];
+    const server = http.createServer();
+    server.on("upgrade", (req, socket, head) => {
+      socket.on("error", () => {});
+      const verdict = validateUpgrade(req);
+      socket.once("end", () => setTimeout(() => {
+        socket.write(upgradeResponse(verdict.key));
+        wsConnection(socket, head, { pingMs: 0, onClose: (code: number, reason: string) => ended.push([code, reason]) });
+      }, 20));
+    });
+    servers.push(server);
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const client = await dial((server.address() as net.AddressInfo).port);
+    client.write(client.handshake(BROWSER));
+    client.end();
+    expect((await client.head()).split("\r\n")[0]).toBe("HTTP/1.1 101 Switching Protocols");
+    await vi.waitFor(() => expect(ended).toEqual([[1006, ""]]), { timeout: 1_000 });
+    await client.hangup();
   });
 
   /** Node 22 brought a WebSocket client of its own (undici's), written by
