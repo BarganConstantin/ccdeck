@@ -459,7 +459,7 @@ const catalog: Catalog = {
   "insights.session.partial": "parcial",
   "insights.session.noCost": "No se informó ningún costo",
   "insights.session.totalTokens": "Tokens totales",
-  "insights.session.cacheWriteSplit": "Escrituras en caché · 5 min {short} · 1 h {long}",
+  "insights.session.cacheWriteSplit": "Escrituras en caché · 5\u00a0min\u00a0{short} · 1\u00a0h\u00a0{long}",
   "insights.session.breakdown": "Desglose de tokens",
   "insights.session.reuse": "Reutilización de entrada en caché",
   "insights.session.measured": "{measured} de {total} {unit} medidos",

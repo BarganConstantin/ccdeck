@@ -459,7 +459,7 @@ const catalog: Catalog = {
   "insights.session.partial": "一部",
   "insights.session.noCost": "コストの報告なし",
   "insights.session.totalTokens": "合計トークン",
-  "insights.session.cacheWriteSplit": "キャッシュ書き込み · 5分 {short} · 1時間 {long}",
+  "insights.session.cacheWriteSplit": "キャッシュ書き込み · 5分\u00a0{short} · 1時間\u00a0{long}",
   "insights.session.breakdown": "トークンの内訳",
   "insights.session.reuse": "キャッシュ入力の再利用率",
   "insights.session.measured": "{total}件の{unit}のうち{measured}件を計測",

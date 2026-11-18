@@ -459,7 +459,7 @@ const catalog: Catalog = {
   "insights.session.partial": "partiel",
   "insights.session.noCost": "Aucun coût signalé",
   "insights.session.totalTokens": "Total des jetons",
-  "insights.session.cacheWriteSplit": "Écritures en cache · 5 min {short} · 1 h {long}",
+  "insights.session.cacheWriteSplit": "Écritures en cache · 5\u00a0min\u00a0{short} · 1\u00a0h\u00a0{long}",
   "insights.session.breakdown": "Détail des jetons",
   "insights.session.reuse": "Réutilisation de l’entrée en cache",
   "insights.session.measured": "{measured} sur {total} {unit} mesurés",

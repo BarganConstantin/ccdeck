@@ -459,7 +459,7 @@ const catalog: Catalog = {
   "insights.session.partial": "部分",
   "insights.session.noCost": "未回報費用",
   "insights.session.totalTokens": "Token 總數",
-  "insights.session.cacheWriteSplit": "快取寫入 · 5 分鐘 {short} · 1 小時 {long}",
+  "insights.session.cacheWriteSplit": "快取寫入 · 5\u00a0分鐘\u00a0{short} · 1\u00a0小時\u00a0{long}",
   "insights.session.breakdown": "Token 明細",
   "insights.session.reuse": "快取輸入重複使用率",
   "insights.session.measured": "已測量 {measured} / {total} 個{unit}",
