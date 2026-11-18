@@ -215,6 +215,16 @@ describe("the claude-swap install command line", () => {
     expect(state).toMatchObject({ state: "installed", version: "0.26.0" });
   });
 
+  it("installs the newest supported 1.x release while leaving 2.x out", async () => {
+    pypi.body = registry(["0.30.0", "1.0.0", "1.1.0", "2.0.0"]);
+    machine.lands = "1.1.0";
+
+    const { state, calls } = await boot();
+
+    expect(installArgv(calls)).toEqual({ cmd: "uv", args: ["tool", "install", "claude-swap==1.1.0"] });
+    expect(state).toMatchObject({ state: "installed", version: "1.1.0" });
+  });
+
   it("carries no character cmd.exe reads as redirection", async () => {
     pypi.reachable = false;
 
@@ -385,6 +395,17 @@ describe("the background upgrade", () => {
     expect(JSON.parse(readFileSync(RECORD, "utf8"))).toMatchObject({
       from: "0.25.0", want: "0.26.0", to: "0.26.0", ok: true,
     });
+  });
+
+  it("upgrades an owned 0.x install to the selected 1.x release", async () => {
+    machine.has = "0.30.0";
+    machine.lands = "1.1.0";
+    pypi.body = registry(["0.30.0", "1.1.0", "2.0.0"]);
+
+    const { state, upgrade } = await boot({ owned: true });
+
+    expect(state).toMatchObject({ state: "upgrading", version: "0.30.0", latest: "1.1.0" });
+    expect(upgrade).toMatchObject({ from: "0.30.0", want: "1.1.0", to: "1.1.0", ok: true, via: "uv" });
   });
 
   it("says so when the version that arrived is outside the bound", async () => {

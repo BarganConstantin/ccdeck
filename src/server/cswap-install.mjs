@@ -51,26 +51,12 @@ const MARKER = join(homedir(), ".agents-deck", ".cswap-update-check");
 // did not ask, and can be told so. Raise it deliberately, with claude-swap's
 // release notes open.
 //
-// CEILING: the next major. claude-swap is 0.x and ships a minor every couple of
-// weeks, so a ceiling tight enough to stop a hostile 0.27 would stop every real
-// release too and rot within the month. What this ceiling does stop is the
-// shape a takeover actually takes — a version number picked to win every
-// resolution, `9.9.9` — and a 1.0 arriving unattended while the deck's caller
-// list still speaks 0.x.
-//
-// Spelled `~=0.26` and not `>=0.26,<1`, which is the same set. PEP 440's
-// compatible-release operator expands to `>= 0.26, == 0.*`, and the spelling
-// with no `<` or `>` in it cannot be read as redirection by anything that ever
-// sees this argument as text: `run` spawns with shell:false, but the Windows
-// leg routes a `.cmd`/`.bat` shim through cmd.exe (exec.mjs viaCmd), where `<`
-// and `>` are syntax while outside quotes. That quoting is correct and tested;
-// not needing it is better.
-// Dated for the reason uv-bootstrap.mjs dates its FALLBACK_VERSION: a floor
-// rots silently. Nothing fails when it falls behind — it simply stops being the
-// version anyone is developing against — so no test and no user will report it.
-const MIN_VERSION = "0.26";                       // latest on PyPI as of 2026-09-15
-const MAX_VERSION = "1";                          // the first one this deck will not run
-const RANGE_SPEC  = `${PKG}~=${MIN_VERSION}`;     // >= 0.26, == 0.*
+// The CLI and JSON contracts used by the deck are compatible with 1.x.
+// Keep the previous install range when the registry cannot be inspected.
+// A registry-backed install always requests the exact accepted release.
+const MIN_VERSION = "0.26";
+const MAX_VERSION = "2";
+const FALLBACK_SPEC = `${PKG}~=${MIN_VERSION}`;
 
 /**
  * True when `v` is a version this deck is willing to put in front of the user's
@@ -181,7 +167,7 @@ export async function cswapRefusal() {
 /** ensureCswap's answer for a refused copy: the install-time row's shape, so
  *  the boot says the same thing on every launch the refusal holds. */
 function refusedState(r) {
-  return { state: "unavailable", reason: "unexpected_version", version: r.version, want: r.want ?? RANGE_SPEC, via: r.via ?? null };
+  return { state: "unavailable", reason: "unexpected_version", version: r.version, want: r.want ?? FALLBACK_SPEC, via: r.via ?? null };
 }
 
 /**
@@ -401,7 +387,7 @@ async function safePythons() {
  * half is why that step is uv's alone (and why the bound is re-checked on
  * arrival, not trusted to the installer).
  */
-async function installers(spec = RANGE_SPEC) {
+async function installers(spec = FALLBACK_SPEC) {
   const out = [
     { cmd: "uv",   probe: ["--version"], args: ["tool", "install", spec], upgrade: ["tool", "upgrade", PKG], via: "uv",   owner: "uv" },
     { cmd: "pipx", probe: ["--version"], args: ["install", spec],         upgrade: ["upgrade", PKG],         via: "pipx", owner: "pipx" },
@@ -449,7 +435,7 @@ async function installCswap() {
   // daily check already makes, bounded at six seconds in front of an install
   // that takes minutes.
   const want = await newestAcceptableOnPypi();
-  const spec = want ? `${PKG}==${want}` : RANGE_SPEC;
+  const spec = want ? `${PKG}==${want}` : FALLBACK_SPEC;
 
   for (const { cmd, probe, args, via } of await installers(spec)) {
     if (!(await run(cmd, probe, { timeout: 8_000 })).ok) continue;
@@ -505,10 +491,10 @@ export async function installHint() {
     if ((await run(py, ["-c", "import sys"], { timeout: 5_000 })).ok) {
       // Quoted: a resolved Windows path routinely contains spaces.
       const q = /\s/.test(py) ? `"${py}"` : py;
-      return `${q} -m pip install --user pipx && ${q} -m pipx install "${RANGE_SPEC}"`;
+      return `${q} -m pip install --user pipx && ${q} -m pipx install "${FALLBACK_SPEC}"`;
     }
   }
-  return `${getUv}  (then: uv tool install "${RANGE_SPEC}")`;
+  return `${getUv}  (then: uv tool install "${FALLBACK_SPEC}")`;
 }
 
 function updateCheckDue() {
@@ -526,15 +512,8 @@ function touchMarker() {
  * The newest claude-swap on PyPI that this deck would actually install, or null
  * when the registry cannot be asked.
  *
- * "Newest acceptable" and not `info.version`, which is PyPI's own idea of
- * latest and is bounded by nothing here. Reading that one and then installing
- * inside a bound is two different questions answered by two different parties,
- * and the disagreement between them is a daily lie of the kind this file has
- * already been bitten by twice (#579): the day claude-swap ships 1.0.0, every
- * deck would see a newer version, fire an upgrade its own specifier forbids,
- * and print "upgrading to v1.0.0 in background" at every launch, forever, about
- * a version that can never arrive. So the bound decides what "newest" means,
- * once, and the upgrade decision and the install target are the same answer.
+ * Use the same version bound for registry installs and upgrades so an
+ * out-of-range latest release does not trigger an upgrade on every launch.
  *
  * Pre-releases are skipped — claude-swap publishes `0.21.0b1` and friends, and
  * an unattended upgrade is not the place to chase them — as are releases whose
@@ -828,11 +807,13 @@ async function installAndConfirm() {
   // supply-chain risk for a certain outage the day `cswap --version` changes
   // how it prints.
   if (version !== "installed") {
-    const wrong = result.want ? !sameVersion(version, result.want) : !isAcceptableVersion(version);
+    const wrong = result.want
+      ? !sameVersion(version, result.want)
+      : !isAcceptableVersion(version) || !isOlder(version, "1");
     if (wrong) {
       // Kept, not only reported (#1799): see REFUSED_RECORD.
-      refuse({ path: _bin, version, want: result.want ?? RANGE_SPEC, via: result.via });
-      return { state: "unavailable", reason: "unexpected_version", version, want: result.want ?? RANGE_SPEC, via: result.via };
+      refuse({ path: _bin, version, want: result.want ?? FALLBACK_SPEC, via: result.via });
+      return { state: "unavailable", reason: "unexpected_version", version, want: result.want ?? FALLBACK_SPEC, via: result.via };
     }
   }
   return { state: "installed", via: result.via, version };

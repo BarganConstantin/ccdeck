@@ -484,7 +484,7 @@ session to rearm it. Native terminal/protocol resumption was verified against a
 local simulated provider and authenticated cross-account inference on macOS.
 Native Windows/Linux TUI behavior remains a separate acceptance check.
 
-The deck installs that package itself, so it installs it **bounded**: `claude-swap~=0.26`, which is `>= 0.26, == 0.*`, and when PyPI can be reached the exact version it resolved rather than the range. What `cswap --version` reports afterwards has to be that version, or the deck says so and leaves the panel dark rather than driving a copy it cannot account for — this is the tool that holds your Claude logins. The daily upgrade is bounded by the same specifier, and what it left behind is written to `~/.agents-deck/cswap-upgrade.json`.
+For managed installs and upgrades, ccdeck supports claude-swap versions from 0.26 up to, but below, 2. When PyPI can be reached, it installs the exact compatible version it resolved. If the version lookup fails, installation falls back to `claude-swap~=0.26` (0.x). What `cswap --version` reports afterwards has to be that version, or the deck says so and leaves the panel dark rather than driving a copy it cannot account for — this is the tool that holds your Claude logins. The daily upgrade uses the same supported version interval, and what it left behind is written to `~/.agents-deck/cswap-upgrade.json`.
 
 The active account is the one Claude Code is signed in to, as `cswap list` shows it, even after a `/login` made outside the deck; when that login is not one of your accounts, the panel says so above the list, with **Add account**.
 
