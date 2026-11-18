@@ -36,7 +36,7 @@ for (const p of [process.env.HOME, process.env.USERPROFILE, process.env.CLAUDE_C
 // @ts-expect-error — plain .mjs module, no types
 const { startServer } = await import("../../server/index.mjs");
 // @ts-expect-error — plain .mjs module, no types
-const { prefsPath, prefsWriteRefusal } = await import("../../server/deck-prefs.mjs");
+const { prefsPath, prefsRefusalDetail, prefsWriteRefusal } = await import("../../server/deck-prefs.mjs");
 if (!resolve(prefsPath()).startsWith(resolve(DIR))) throw new Error(`sandbox escaped: ${prefsPath()}`);
 
 const ENV_KEYS = ["HOME", "USERPROFILE", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "CCDECK_HOME", "AGENTS_DECK_NO_INSTALL", "AGENTS_DECK_NO_LAN"];
@@ -111,6 +111,15 @@ describe("prefsWriteRefusal", () => {
   it("names a settings folder the deck is not allowed to write to", () => {
     for (const code of ["EACCES", "EPERM", "EROFS"]) {
       expect(prefsWriteRefusal(fsError(code)), code).toBe("prefs_not_writable");
+    }
+  });
+
+  // A full disk reached `guard` as a bug, and was sent as an error report: the
+  // machine's to fix, like the two above, so the panel names it instead.
+  it("names a disk with no room left for the settings, and has no owner or folder to add", () => {
+    for (const code of ["ENOSPC", "EDQUOT"]) {
+      expect(prefsWriteRefusal(fsError(code)), code).toBe("prefs_no_space");
+      expect(prefsRefusalDetail(fsError(code)), code).toBeNull();
     }
   });
 

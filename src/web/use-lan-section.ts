@@ -101,12 +101,14 @@ function actionHead(what: string): string {
   return key ? t(key) : t("lan.fail.generic", { what });
 }
 
-/** The two refusals whose next move is on the machine rather than in the panel
+/** The refusals whose next move is on the machine rather than in the panel
  *  (#1335), so a bracketed code would send the reader looking in the wrong
- *  place. The server keeps the path out of its answer; its log has it. */
+ *  place: a settings file or folder out of reach, or a full disk. The server
+ *  keeps the path out of its answer; its log has it. */
 const SETTINGS_OUT_OF_REACH: Record<string, string> = {
   prefs_unreadable: "lan.fail.prefsUnreadable",
   prefs_not_writable: "lan.fail.prefsNotWritable",
+  prefs_no_space: "lan.fail.prefsNoSpace",
 };
 
 /** What the deck says blocked a settings write — deck-prefs.mjs's

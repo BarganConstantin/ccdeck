@@ -676,6 +676,7 @@ export const LAN_REFUSED = Object.freeze({
   unreachable: "Nothing answered at any address in that invite. Check that deck is running with its Local network switch on.",
   prefs_unreadable: "this deck cannot read its settings file, so it will not write over it. The deck's log names the file.",
   prefs_not_writable: "this deck is not allowed to save its settings. The deck's log names the folder.",
+  prefs_no_space: "the disk this deck saves its settings on is full, so they were not saved. Free some space, then try again.",
   bad_request: "the deck did not take that",
   unknown_action: "this deck does not know that yet — an update of ccdeck brings it",
 });

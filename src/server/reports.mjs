@@ -167,6 +167,8 @@ const ERRORS_PER_HOUR = 20;
 const SAME_ERROR_QUIET_MS = 60 * 60 * 1000;
 const MESSAGE_MAX = 500;
 const STACK_MAX = 4000;
+/** A disk with no room left, or a quota used up: see reportError. */
+const NO_SPACE = new Set(["ENOSPC", "EDQUOT"]);
 
 /** Why somebody uninstalled, when they said: the answers `ccdeck --uninstall`
  *  offers (bin/cli/leaving.js), and nothing else ever leaves as a reason. */
@@ -1467,8 +1469,17 @@ export function createReporter({
    * Report an error, scrubbed. At most ERRORS_PER_HOUR an hour, and the same
    * message is not repeated within SAME_ERROR_QUIET_MS: a handler that fails on
    * every poll would otherwise send the same line all day.
+   *
+   * Never for a write that found the disk full (ENOSPC, EDQUOT). That is the
+   * state of the machine, not a bug of the deck's, and no report can fix it:
+   * the person whose disk it is has to free some space. It came in as an
+   * error all the same, from every route that writes a file and lets the
+   * failure fall to `guard` — the settings route names it to the page now
+   * (prefs-refusal.mjs), the others still answer a bare 500. The deck's own
+   * log still says it, with the path, for whoever looks.
    */
   async function reportError(where, error) {
+    if (NO_SPACE.has(error?.code)) return false;
     const p = prefs.current();
     if (!reportsOn(p, env) || !p.report.installId) return false;
     const message = scrub(error?.message ?? error, home, root).slice(0, MESSAGE_MAX).trim();

@@ -28,6 +28,7 @@ const catalog: Catalog = {
   "lan.fail.errorCode": " Code d’erreur : {code}.",
   "lan.fail.prefsUnreadable": "ce ccdeck ne peut pas lire son fichier de paramètres et ne l’écrasera donc pas. Le fichier appartient peut-être à un autre utilisateur, par exemple après un lancement de ccdeck avec sudo. Le journal du ccdeck indique le fichier.",
   "lan.fail.prefsNotWritable": "ce ccdeck n’a pas le droit d’enregistrer ses paramètres. Le dossier des paramètres appartient peut-être à un autre utilisateur, par exemple après un lancement de ccdeck avec sudo, ou un autre programme retient le fichier. Le journal du ccdeck indique le dossier.",
+  "lan.fail.prefsNoSpace": "le disque sur lequel ce ccdeck enregistre ses paramètres est plein, ils n’ont donc pas été enregistrés. Libérez de l’espace, puis réessayez.",
   "lan.fail.badJson": "son fichier de paramètres est endommagé et n’a pas pu être mis de côté, il ne sera donc pas écrasé. Le journal du ccdeck indique le fichier.",
   "lan.fail.folderOther": "ce ccdeck ne peut pas ouvrir son dossier de paramètres, qui appartient à un autre utilisateur, par exemple après un lancement de ccdeck avec sudo. Le journal du ccdeck contient la commande qui le lui rend.",
   "lan.fail.folderYou": "ce ccdeck ne peut pas ouvrir son propre dossier de paramètres et n’écrasera donc rien dedans. Le journal du ccdeck indique le dossier.",

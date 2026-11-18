@@ -979,6 +979,21 @@ describe("errors", () => {
     expect(h.calls.length - start).toBe(2);
   });
 
+  it("leave out a write the disk had no room left for: the machine's to fix, not a bug", async () => {
+    const h = harness();
+    await h.reporter.checkIn();
+    const start = h.calls.length;
+
+    for (const code of ["ENOSPC", "EDQUOT"]) {
+      const error = Object.assign(new Error(`${code}: no space left on device, open '/home/alice/.ccdeck/prefs.json.tmp'`), { code });
+      error.stack = `${error.message}\n    at createTemp (/home/alice/.npm/_npx/1/node_modules/ccdeck/src/server/atomic-write.mjs:30:5)`;
+      expect(await h.reporter.reportError("server", error), code).toBe(false);
+    }
+    expect(h.calls.length - start).toBe(0);
+    // Nor does it use up the hour: an error of the deck's own still goes.
+    expect(await h.reporter.reportError("server", new Error("boom"))).toBe(true);
+  });
+
   it("send at most twenty an hour in all", async () => {
     const h = harness();
     await h.reporter.checkIn();
