@@ -151,7 +151,7 @@ export interface MeterQuota {
 const NO_METER_QUOTA: MeterQuota = { reading: null, readAt: 0, failed: false };
 
 /**
- * The rail's usage meter's view of Claude's quota: the usual `/api/quota` read,
+ * The Accounts panel's passive Claude quota reading: the usual `/api/quota` read,
  * once a minute while the page is open and visible, never forced. The owner
  * allowed exactly that (2026-11-01): the server answers from its own cache and
  * reaches the provider at most as often as it does for the Usage panel. There is
