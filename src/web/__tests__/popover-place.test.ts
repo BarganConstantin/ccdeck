@@ -2,6 +2,8 @@
 // inside the column that clips it (popover-place.ts). These are the rules that
 // file states, each measured at the edge where it binds.
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { placeBeside, placePopover, placeReadingHint, POPOVER_GAP, POPOVER_MARGIN } from "../popover-place";
 
 const VIEW = { width: 1280, height: 800 };
@@ -187,5 +189,67 @@ describe("start-aligned board pickers", () => {
   });
   it("still clamps the picker inside a narrow viewport", () => {
     expect(placePopover(anchor(250, 100), SIZE, { width: 320, height: 800 }, "start").left).toBe(104);
+  });
+});
+
+// New session's form, from the empty stage's own button halfway down the
+// window. Measured at 1440 x 860 (2026-11-18): the button at 457 to 485, the
+// form 440 x 588 with three projects and 662 with five. Neither side held it,
+// and it scrolled inside the roomier side's 445px with its closing note out of
+// view. Asked, it covers its anchor instead wherever the window holds it whole.
+describe("a form that asks to stay whole (overAnchor)", () => {
+  const DESK = { width: 1440, height: 860 };
+  const stageButton = { left: 890, right: 995, top: 457, bottom: 485 };
+  const FORM = { width: 440, height: 588 };
+
+  it("unasked, still scrolls on the roomier side, as a menu does", () => {
+    const p = placePopover(stageButton, FORM, DESK, "start");
+    expect(p.side).toBe("above");
+    expect(p.maxHeight).toBe(457 - POPOVER_GAP - POPOVER_MARGIN);
+  });
+
+  it("at 1440 x 860 is whole: no cap, inside the window's margins, over its anchor from the roomier side", () => {
+    for (const height of [588, 662]) {
+      const p = placePopover(stageButton, { width: 440, height }, DESK, "start", true);
+      expect(p.maxHeight, `${height}px`).toBeNull();
+      expect(p.side).toBe("above");
+      expect(p.top).toBe(POPOVER_MARGIN);
+      expect(p.top + height).toBeLessThanOrEqual(DESK.height - POPOVER_MARGIN);
+      expect(p.top + height).toBeGreaterThan(stageButton.top);
+      expect(p.left).toBe(stageButton.left);
+    }
+  });
+
+  it("from below moves up only as far as the window's foot makes it", () => {
+    // 520px below the anchor, 288 above: below is roomier, and holds 520 of 700.
+    const p = placePopover({ left: 600, right: 700, top: 300, bottom: 328 }, { width: 440, height: 700 }, DESK, "start", true);
+    expect(p.side).toBe("below");
+    expect(p.maxHeight).toBeNull();
+    expect(p.top + 700).toBe(DESK.height - POPOVER_MARGIN);
+  });
+
+  it("where a side holds it, sits there exactly as unasked, never over the anchor", () => {
+    for (const a of [anchor(220, 100), anchor(220, 700), { left: 273, right: 297, top: 46, bottom: 70 }]) {
+      expect(placePopover(a, SIZE, VIEW, "start", true)).toEqual(placePopover(a, SIZE, VIEW, "start"));
+    }
+    // The Workspace list's Plus at the top: the 662px form below it, as before.
+    const plus = { left: 273, right: 297, top: 46, bottom: 70 };
+    expect(placePopover(plus, { width: 440, height: 662 }, DESK, "start", true)).toEqual({ top: 70 + POPOVER_GAP, left: 273, side: "below", maxHeight: null });
+  });
+
+  it("in a window shorter than itself scrolls in all the window has, from the top margin", () => {
+    const phone = { width: 320, height: 640 };
+    const p = placePopover({ left: 108, right: 212, top: 355, bottom: 383 }, { width: 304, height: 662 }, phone, "start", true);
+    expect(p.top).toBe(POPOVER_MARGIN);
+    expect(p.maxHeight).toBe(phone.height - POPOVER_MARGIN * 2);
+  });
+
+  it("is what New session asks for", () => {
+    const src = readFileSync(fileURLToPath(new URL("../components/terminal/NewSessionPopover.tsx", import.meta.url)), "utf8")
+      .replace(/\/\/[^\n]*/g, "");
+    const at = src.indexOf("<AnchoredPopover");
+    const pop = src.slice(at, src.indexOf(">\n", src.indexOf("align=\"start\"", at)) + 1);
+    expect(pop).toContain("id={NEW_SESSION_POPOVER_ID}");
+    expect(pop).toMatch(/\balign="start"\s+overAnchor\s*>$/);
   });
 });

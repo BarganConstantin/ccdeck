@@ -87,6 +87,11 @@ interface Props {
   /** Which edge lines up with the anchor's (popover-place.ts). "end" unless
    *  the anchor sits at the left end of the surface the popover belongs to. */
   align?: PopoverAlign;
+  /** A form that would rather cover the control that opened it than scroll:
+   *  where neither side of the anchor holds it whole, it moves over the anchor
+   *  as far as the window holds it whole (popover-place.ts). Unset, it
+   *  scrolls on the roomier side, as a menu does. */
+  overAnchor?: boolean;
   children: ReactNode;
 }
 
@@ -103,7 +108,7 @@ function itemsIn(root: HTMLElement | null): HTMLButtonElement[] {
 }
 
 export default function AnchoredPopover({
-  anchorId, boundaryId, portalRootId, id, className, role, labelledBy, start = "first", focusRef, fallbackFocus, onClose, align = "end", children,
+  anchorId, boundaryId, portalRootId, id, className, role, labelledBy, start = "first", focusRef, fallbackFocus, onClose, align = "end", overAnchor = false, children,
 }: Props) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -153,13 +158,13 @@ export default function AnchoredPopover({
     const scrolled = el.scrollTop;
     el.style.maxHeight = "";
     const p = placePopover(box, { width: el.offsetWidth, height: el.offsetHeight },
-      { width: window.innerWidth, height: window.innerHeight }, align);
+      { width: window.innerWidth, height: window.innerHeight }, align, overAnchor);
     el.style.top = `${p.top}px`;
     el.style.left = `${p.left}px`;
     el.style.maxHeight = p.maxHeight == null ? "" : `${p.maxHeight}px`;
     if (scrolled) el.scrollTop = scrolled;
     el.dataset.side = p.side;
-  }, [anchorId, boundaryId, ref, align]);
+  }, [anchorId, boundaryId, ref, align, overAnchor]);
 
   // Before paint, every render: the first one is what puts it beside the
   // anchor at all, and the rest follow a row that moved.
