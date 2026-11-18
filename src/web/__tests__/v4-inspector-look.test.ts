@@ -188,14 +188,22 @@ describe("the body and the title block", () => {
     expect(decl("button.btn", "border-radius")).toBe("var(--r-ctl)");
     expect(decl(".detail .hero-actions", "gap")).toBe("8px");
   });
-  it("sets the empty Inspector 600 13/20 --text-secondary over 400 12/16 --muted, centred, padded 8 12 12 with a gap of 4", () => {
-    expect(decl(".insp-none-title", "font-size")).toBe(INC(13));
-    expect(decl(".insp-none-title", "color")).toBe("var(--text-secondary)");
+  // CHANGED ON PURPOSE (owner 2026-11-18): Workspace's column says the one line the
+  // deck says at every width, in the hint line's 400 12/16 --muted. Its 600 13/20
+  // --text-secondary title and its own second line are gone, and the title's rule
+  // with them.
+  it("sets the empty Inspector's one line 400 12/16 --muted, centred, padded 8 12 12 with a gap of 4", () => {
+    expect(decl(".insp-none-title", "font-size")).toBeUndefined();
+    expect(decl(".insp-none-title", "color")).toBeUndefined();
+    expect(decl(".insp-note", "font-size")).toBe(INC(12));
+    expect(decl(".insp-note", "line-height")).toBe("16px");
+    expect(decl(".insp-note", "color")).toBe("var(--muted)");
     expect(decl(".insp-none", "padding")).toBe("8px 12px 12px");
     expect(decl(".insp-none", "gap")).toBe("4px");
     const out = renderToStaticMarkup(createElement(EmptyInspector));
-    expect(out).toContain("No session in focus");
-    expect(out).toContain("Open one from the list.");
+    expect(out).toContain('<div class="insp-b insp-none"><p class="insp-note">Choose a session to see its details.</p></div>');
+    expect(out).not.toContain("No session in focus");
+    expect(out).not.toContain("Open one from the list.");
   });
 });
 

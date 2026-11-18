@@ -796,8 +796,6 @@ const catalog: Catalog = {
   "board.inspector.detail": "詳細",
   "board.inspector.agents": "エージェント",
   "board.inspector.agentsNote": "誰が誰を起動したかを、トランスクリプトから読み取っています。各カードに、そのモデル・コスト・時間が表示されます。",
-  "board.inspector.emptyTitle": "フォーカス中のセッションはありません",
-  "board.inspector.emptyLine": "一覧から開いてください。",
   "board.inspector.chooseSession": "詳細を見るにはセッションを選んでください。",
   "board.inspector.tabAgents": "エージェント",
   "board.inspector.tabTime": "時間",
