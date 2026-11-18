@@ -137,7 +137,7 @@ function refuse(entry) {
   _bin = null;
   _probe = null;
   try {
-    mkdirSync(join(homedir(), ".agents-deck"), { recursive: true });
+    mkdirSync(join(homedir(), ".agents-deck"), { recursive: true, mode: 0o700 });
     writeFileSync(REFUSED_RECORD, JSON.stringify({ ...entry, at: new Date().toISOString() }, null, 2) + "\n");
   } catch { /* the in-process refusal still holds; a note on disk is the next launch's */ }
 }
@@ -503,7 +503,7 @@ function updateCheckDue() {
 }
 function touchMarker() {
   try {
-    mkdirSync(join(homedir(), ".agents-deck"), { recursive: true });
+    mkdirSync(join(homedir(), ".agents-deck"), { recursive: true, mode: 0o700 });
     writeFileSync(MARKER, String(Date.now()));
   } catch { /* ignore */ }
 }
@@ -557,7 +557,7 @@ const UPGRADE_RECORD = join(homedir(), ".agents-deck", "cswap-upgrade.json");
 
 function recordUpgrade(entry) {
   try {
-    mkdirSync(join(homedir(), ".agents-deck"), { recursive: true });
+    mkdirSync(join(homedir(), ".agents-deck"), { recursive: true, mode: 0o700 });
     writeFileSync(UPGRADE_RECORD, JSON.stringify(entry, null, 2) + "\n");
   } catch { /* a note about an upgrade is not worth failing the upgrade over */ }
 }

@@ -107,7 +107,7 @@ setcap cap_net_raw,cap_net_admin=eip "$tool"
 /** The script, written where its owner can read it, and the command that runs it. */
 async function handOver(script, directory) {
   const file = join(directory, 'radar-capture-setup.sh');
-  await mkdir(directory, { recursive: true });
+  await mkdir(directory, { recursive: true, mode: 0o700 });
   await writeFile(file, script, { mode: 0o600 });
   return `sudo sh '${file.replaceAll("'", "'\\''")}'`;
 }

@@ -1078,7 +1078,7 @@ export async function seedFirstAccount() {
     // Mark before running, not after: if `cswap add` half-succeeds or the process
     // dies mid-way, the retry-forever loop is the worse outcome.
     try {
-      await mkdir(dirname(SEED_MARKER), { recursive: true });
+      await mkdir(dirname(SEED_MARKER), { recursive: true, mode: 0o700 });
       await writeFile(SEED_MARKER, new Date().toISOString());
     } catch { /* best-effort — worst case it is attempted again */ }
 
