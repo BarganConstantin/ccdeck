@@ -1,4 +1,70 @@
 {
+  "4.0.0": [
+    {
+      "title": "🖥️ Your sessions' terminals, inside the deck",
+      "body": "Open, resume or attach to a Claude Code or Codex session in a terminal pane on the board or in Workspace, on Linux, macOS and Windows.",
+      "priority": "highlight",
+      "noticeLabel": "Setup change",
+      "notice": "The terminal is on by default; Settings › General › Experimental turns it off. It runs through ccdeck's terminal engine, a separate program under its own licence that comes with ccdeck (npm installs the one for this machine, the desktop app carries it) and is checked before every start. Windows on ARM has no terminal yet.",
+      "details": "In Workspace, a Claude Code or Codex session's pane offers Chat | Term: Chat shows the conversation, and you can reply from it while the session's terminal is open here. The terminal has its own text size, apart from the page's: Aa, or Ctrl+= / Ctrl+- / Ctrl+0 (⌘ on a Mac)."
+    },
+    {
+      "title": "🧭 A calmer deck that shows what needs you",
+      "body": "The Sessions list reads like an inbox, colour on the board means state, and the Inspector offers each session's next step under its title.",
+      "priority": "highlight",
+      "details": "Each stripe keeps its everyday doors and puts the rest behind More. Counters at zero and key hints you have learned step aside, and the board's tools sit in one ⋯ menu. Quotas moved from Sessions to Usage, and Codex's helper agents stay inside their main conversation. Every key works as before."
+    },
+    {
+      "title": "🪟 Up to four sessions side by side in Workspace",
+      "body": "Drag a session onto a pane's edge, or press ⇧↵ on its row, to open it beside the others; one pane has the keys while the rest keep running.",
+      "priority": "highlight",
+      "details": "Rename a session where its name is drawn (double click, F2 or the pencil), and that name shows everywhere in the deck; for a Codex session, Codex itself gets the new name too. The Sessions list's edge drags to resize it."
+    },
+    {
+      "title": "🔀 Move a Claude session here from Ghostty",
+      "body": "On a Mac, a Claude Code session running in Ghostty 1.4 or later offers Move session here in its ccdeck pane: one click continues the same conversation in that pane."
+    },
+    {
+      "title": "🔁 A Codex account switch keeps the turn going",
+      "body": "Switching Codex accounts lets the running tool call finish first, and a turn stopped by a usage limit in the minutes before the switch continues on the new account."
+    },
+    {
+      "title": "🔔 A notification when a session finishes",
+      "body": "If Settings › Notifications › While the deck is closed is on, a session that ends its turn now notifies you too, as a waiting one already did."
+    },
+    {
+      "title": "🚪 A pane closes when its agent exits",
+      "body": "Ending an agent yourself (/exit or Ctrl+D) closes its pane, and the session stays in the list. After a crash or a kill, the pane keeps its last frame and offers Reopen here."
+    },
+    {
+      "title": "▶️ The board always stays live",
+      "body": "Pause is gone from the board's menu and the keyboard help, and Space no longer freezes the board."
+    },
+    {
+      "title": "👥 Accounts you can switch to now come first",
+      "body": "Other accounts are grouped by whether you can use them now, and the sort menu is gone. Rows stay put while your pointer is in the list."
+    },
+    {
+      "title": "📂 New session finds its folder by search",
+      "body": "One field searches your projects, remembered folders and Git repositories, and takes a full path; Worktrees groups each repository's worktrees. The deck says before starting if an agent cannot open that folder."
+    },
+    {
+      "title": "🎨 Ink, a new light theme",
+      "body": "Settings › Appearance now has Ink: warm paper surfaces with charcoal text."
+    },
+    {
+      "title": "📱 The board as a card stack on a phone",
+      "body": "On a phone, the board is a full-width stack of readable cards, and More opens the Command Panel."
+    },
+    {
+      "title": "🌡️ CPU temperature on Intel Macs",
+      "body": "This machine now shows the CPU temperature on Intel Macs too."
+    },
+    {
+      "title": "⌨️ ccdeck tui stays current after a deck restart",
+      "body": "The account screen in ccdeck tui keeps updating when the deck restarts underneath it."
+    }
+  ],
   "3.82.4": [
     {
       "title": "🪟 Start at login works on Windows without administrator rights",
@@ -118,6 +184,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.0.0": "A calmer deck, with your sessions' terminals inside it",
     "3.82.3": "Windows CPU limits and more reliable session and usage history",
     "3.82.2": "Arrow keys show the selected row on ccdeck tui's Network tab",
     "3.82.1": "Clearer network shortcuts, accurate account capacity and Codex recovery fixes",
