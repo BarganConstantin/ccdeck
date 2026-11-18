@@ -476,6 +476,7 @@ const catalog: Catalog = {
   "insights.session.partial": "parțial",
   "insights.session.noCost": "Niciun cost raportat",
   "insights.session.totalTokens": "Total tokeni",
+  "insights.session.cacheWriteSplit": "Scrieri în cache · 5 min {short} · 1 oră {long}",
   "insights.session.breakdown": "Detalierea tokenilor",
   "insights.session.reuse": "Reutilizarea intrării din cache",
   "insights.session.measured": "{measured} din {total} {unit} măsurate",

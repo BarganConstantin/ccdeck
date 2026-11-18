@@ -459,6 +459,7 @@ const catalog: Catalog = {
   "insights.session.partial": "部分",
   "insights.session.noCost": "未上报费用",
   "insights.session.totalTokens": "Token 总数",
+  "insights.session.cacheWriteSplit": "缓存写入 · 5 分钟 {short} · 1 小时 {long}",
   "insights.session.breakdown": "Token 明细",
   "insights.session.reuse": "缓存输入复用率",
   "insights.session.measured": "已测量 {measured} / {total} 个{unit}",

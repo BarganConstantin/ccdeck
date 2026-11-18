@@ -46,6 +46,27 @@ describe("whole-session figures", () => {
     expect(detail.models.map((row: { totalTokens: number }) => row.totalTokens)).toEqual([32, 14]);
     expect(JSON.stringify(detail)).not.toContain("costUSD");
   });
+  it("retains optional Claude cache TTLs without increasing token counts", () => {
+    const detail = sessionDetail({
+      sessionId: "claude-session", totalCost: 1, totalTokens: 110,
+      entries: [
+        { model: "mixed", cacheCreationTokens: 100 },
+        { model: "legacy", cacheCreationTokens: 8 },
+        { model: "invalid", cacheCreationTokens: 2 },
+      ],
+      modelBreakdowns: [
+        { modelName: "mixed", cacheCreation1hTokens: 75 },
+        { modelName: "legacy" },
+        { modelName: "invalid", cacheCreation1hTokens: 3 },
+        { modelName: "absent", cacheCreation1hTokens: 10 },
+      ],
+    }, "claude", "claude-session");
+    expect(detail.cacheCreationTokens).toBe(110);
+    expect(detail.models[0]).toMatchObject({ model: "mixed", totalTokens: 100, cacheCreation1hTokens: 75 });
+    expect(detail.models[1]).not.toHaveProperty("cacheCreation1hTokens");
+    expect(detail.models[2]).not.toHaveProperty("cacheCreation1hTokens");
+    expect(detail.models).toHaveLength(3);
+  });
   it("keeps Codex reasoning inside output and missing prices explicit", () => {
     const detail = sessionDetail({ ...codex, models: {
       ...codex.models, "unknown-model": { inputTokens: 3, outputTokens: 2, missingPricing: true },

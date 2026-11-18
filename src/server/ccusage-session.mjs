@@ -60,6 +60,17 @@ export function sessionDetail(raw, agent, sessionId, speed = "auto") {
       if (at && (!firstActivity || Date.parse(at) < Date.parse(firstActivity))) firstActivity = at;
       if (at && (!lastActivity || Date.parse(at) > Date.parse(lastActivity))) lastActivity = at;
     }
+    if (Array.isArray(raw.modelBreakdowns)) {
+      for (const summary of raw.modelBreakdowns) {
+        const bucket = models.get(summary?.modelName);
+        if (!bucket) continue;
+        const oneHour = summary.cacheCreation1hTokens;
+        if (Number.isFinite(oneHour) && oneHour >= 0 && oneHour <= bucket.cacheCreationTokens) {
+          bucket.cacheCreation1hTokens = oneHour;
+        }
+        bucket.missingPricing = summary.missingPricing === true;
+      }
+    }
   } else if (agent === "codex" && raw.models && typeof raw.models === "object" && !Array.isArray(raw.models)) {
     for (const [model, value] of Object.entries(raw.models)) {
       models.set(model, { model, ...counters(value), missingPricing: value?.missingPricing === true });

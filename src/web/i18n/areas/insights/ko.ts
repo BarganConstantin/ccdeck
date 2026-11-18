@@ -459,6 +459,7 @@ const catalog: Catalog = {
   "insights.session.partial": "일부",
   "insights.session.noCost": "보고된 비용 없음",
   "insights.session.totalTokens": "총 토큰",
+  "insights.session.cacheWriteSplit": "캐시 쓰기 · 5분 {short} · 1시간 {long}",
   "insights.session.breakdown": "토큰 내역",
   "insights.session.reuse": "캐시된 입력 재사용",
   "insights.session.measured": "{total}개 {unit} 중 {measured}개 측정됨",
