@@ -33,6 +33,7 @@ const catalog: Catalog = {
   "lan.fail.errorCode": " Error code: {code}.",
   "lan.fail.prefsUnreadable": "this deck cannot read its settings file, so it will not write over it. The file may belong to another user, for example after ccdeck was run with sudo. The deck's log names the file.",
   "lan.fail.prefsNotWritable": "this deck is not allowed to save its settings. The settings folder may belong to another user, for example after ccdeck was run with sudo, or another program may be holding the file. The deck's log names the folder.",
+  "lan.fail.prefsNoSpace": "the disk this deck saves its settings on is full, so they were not saved. Free some space, then try again.",
   "lan.fail.badJson": "its settings file is damaged and could not be moved aside, so it will not write over it. The deck's log names the file.",
   "lan.fail.folderOther": "this deck cannot open its settings folder, which belongs to another user, for example after ccdeck was run with sudo. The deck's log has the command that gives it back.",
   "lan.fail.folderYou": "this deck cannot open its own settings folder, so it will not write over what is in it. The deck's log names the folder.",

@@ -251,7 +251,10 @@ describe("the topbar's Feedback button", () => {
     // wherever a menu still lists it, as quick open does).
     expect(item).toMatch(/menu: t\("board\.rail\.feedback\.menu"\)/);
     // CHANGED ON PURPOSE (critique 3, point 7): the Command Panel's row follows Search.
-    expect(app).toMatch(/more=\{\[rails\.search, \.\.\.commandPanelMore\(stage\.enabled \? stage\.openFromButton : undefined\), \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, \.\.\.rails\.utilities\.filter\(item => item !== rails\.corner\)\]\}/);
+    // CHANGED ON PURPOSE (phone More › Open the Command Panel): its press is
+    // openPanelFromMore, the stage's own press plus the Sessions list making way,
+    // which had covered the stage (v4-phone-board-stack.test.tsx).
+    expect(app).toMatch(/more=\{\[rails\.search, \.\.\.commandPanelMore\(stage\.enabled \? openPanelFromMore : undefined\), \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, \.\.\.rails\.utilities\.filter\(item => item !== rails\.corner\)\]\}/);
     expect(app).not.toMatch(/\{!phone && <div className="tb-corner">/);
     expect(rails).toMatch(/item\.menu \?\? item\.label/);
   });

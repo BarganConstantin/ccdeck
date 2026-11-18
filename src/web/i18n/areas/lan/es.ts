@@ -28,6 +28,7 @@ const catalog: Catalog = {
   "lan.fail.errorCode": " Código de error: {code}.",
   "lan.fail.prefsUnreadable": "este ccdeck no puede leer su archivo de configuración, así que no lo sobrescribirá. Es posible que el archivo pertenezca a otro usuario, por ejemplo si ccdeck se ejecutó con sudo. El registro de ccdeck indica el archivo.",
   "lan.fail.prefsNotWritable": "este ccdeck no tiene permiso para guardar su configuración. Es posible que la carpeta de configuración pertenezca a otro usuario, por ejemplo si ccdeck se ejecutó con sudo, o que otro programa esté usando el archivo. El registro de ccdeck indica la carpeta.",
+  "lan.fail.prefsNoSpace": "el disco donde este ccdeck guarda su configuración está lleno, así que no se guardó. Libera algo de espacio e inténtalo de nuevo.",
   "lan.fail.badJson": "su archivo de configuración está dañado y no se pudo apartar, así que no lo sobrescribirá. El registro de ccdeck indica el archivo.",
   "lan.fail.folderOther": "este ccdeck no puede abrir su carpeta de configuración, que pertenece a otro usuario, por ejemplo si ccdeck se ejecutó con sudo. El registro de ccdeck incluye el comando que la devuelve.",
   "lan.fail.folderYou": "este ccdeck no puede abrir su propia carpeta de configuración, así que no sobrescribirá lo que hay en ella. El registro de ccdeck indica la carpeta.",
