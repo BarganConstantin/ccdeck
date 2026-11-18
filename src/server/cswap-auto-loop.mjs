@@ -201,7 +201,7 @@ async function loadState() {
 }
 async function saveState(state) {
   try {
-    await mkdir(STATE_DIR, { recursive: true });
+    await mkdir(STATE_DIR, { recursive: true, mode: 0o700 });
     await writeFile(STATE_PATH, JSON.stringify(state, null, 2));
   } catch { /* best-effort */ }
 }

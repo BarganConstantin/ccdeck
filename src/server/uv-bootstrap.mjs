@@ -286,7 +286,7 @@ export async function bootstrapUv() {
     // CREATES — it cannot be handed a directory somebody else made. findUv's
     // ordering is left alone deliberately; it is not wrong on its own, and it
     // stops being reachable once nobody else can write here.
-    await mkdir(TOOL_DIR, { recursive: true });
+    await mkdir(TOOL_DIR, { recursive: true, mode: 0o700 });
     staging = await mkdtemp(join(TOOL_DIR, "uv-staging-"));
     const archivePath = join(staging, asset);
     await writeFile(archivePath, archive);
@@ -295,7 +295,7 @@ export async function bootstrapUv() {
     const found = await findUv(staging);
     if (!found) return { ok: false, reason: "not_in_archive" };
 
-    await mkdir(UV_DIR, { recursive: true });
+    await mkdir(UV_DIR, { recursive: true, mode: 0o700 });
     const dest = join(UV_DIR, process.platform === "win32" ? "uv.exe" : "uv");
 
     // Copy rather than rename out of staging: the staging dir is in the system

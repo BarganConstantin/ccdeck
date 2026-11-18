@@ -315,3 +315,32 @@ describe("Codex Chat", () => {
     expect((await call(query, { ...known(path), roots: () => [OUTSIDE] })).status).toBe(404);
   });
 });
+
+describe("Claude foreground-to-background continuation", () => {
+  const original = "13aaaaaa-1111-4111-8111-111111111111";
+  const moved = "23bbbbbb-2222-4222-8222-222222222222";
+  const query = `?session=${original}&continuation=1`;
+  const event = (sessionId: string, continuedInSessionId: string) =>
+    JSON.stringify({ type: "continued-in", sessionId, continuedInSessionId });
+
+  it("returns the link before the background worker writes a transcript", async () => {
+    const source = file(`${original}.jsonl`, event(original, moved));
+    const destination = file(`${moved}.jsonl`, said("The turn continued."));
+    expect(await call(query, { pathOf: (id: string) => id === original ? source : undefined }))
+      .toEqual({ status: 200, body: { ok: true, sessionId: moved } });
+    expect(await call(query, { pathOf: (id: string) => id === original ? source : destination }))
+      .toEqual({ status: 200, body: { ok: true, sessionId: moved } });
+  });
+
+  it("ignores another session's event and rejects a link outside the project", async () => {
+    const source = file(`${original}.jsonl`, event(moved, moved));
+    const destination = file(`${moved}.jsonl`, said("Another turn."));
+    expect((await call(query, { pathOf: (id: string) => id === original ? source : destination })).body.sessionId).toBeNull();
+    writeFileSync(source, event(original, moved));
+    const otherProject = join(PROJECTS, "..", "other");
+    mkdirSync(otherProject, { recursive: true });
+    const other = join(otherProject, `${moved}.jsonl`);
+    writeFileSync(other, said("An unrelated project."));
+    expect((await call(query, { pathOf: (id: string) => id === original ? source : other })).body.sessionId).toBeNull();
+  });
+});

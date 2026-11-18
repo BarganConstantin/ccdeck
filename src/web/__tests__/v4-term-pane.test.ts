@@ -506,7 +506,10 @@ describe("the state cards: centred in the pane", () => {
     // CHANGED ON PURPOSE (#97): Figma's one still-running sentence ("…then
     // check again") becomes one per state the board reads, each ending on how
     // to bring the session here; the stage checks again itself.
-    expect(body).toContain("t(elsewhereLine(p.boardState))");
+    // CHANGED ON PURPOSE (#2621): where ccdeck offers to move the session
+    // here, the line says so instead of "quit it in that terminal"; every
+    // other case keeps the per-state line.
+    expect(body).toContain('t(handoff ? "board.stage.handoff.offer" : elsewhereLine(p.boardState))');
     expect(en["board.stage.elsewhere.running"]).toBe("It is still running in a terminal outside ccdeck. To continue it here, quit it in that terminal. ccdeck sees that on its own and offers Reopen here, with the same conversation.");
     expect(en).not.toHaveProperty(["board.stage.stillRunning"]);
     expect(body).not.toContain("stopped first —");

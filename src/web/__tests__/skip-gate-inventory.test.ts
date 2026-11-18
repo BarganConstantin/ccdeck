@@ -155,8 +155,8 @@ describe("the register of conditionally-skipped cases", () => {
     expect(expectedSkips("darwin")).toEqual(expected);
   });
 
-  it("expects the two hundred and thirty-four platform-gated cases to skip on Windows, file by file", () => {
-    // One hundred and nine behind `process.platform === "win32"`, twenty-nine behind
+  it("expects the two hundred and thirty-five platform-gated cases to skip on Windows, file by file", () => {
+    // One hundred and ten behind `process.platform === "win32"`, twenty-nine behind
     // development's Codex probes (the same gate written with single quotes),
     // eighty-two behind the optional engine's macOS-and-Linux gate, eight
     // behind the posix runIf family, three behind the non-root posix
@@ -169,7 +169,7 @@ describe("the register of conditionally-skipped cases", () => {
     // than as a total, so a change that moves a case from one gate to another is
     // a mismatch rather than an arithmetic coincidence.
     expect(expectedSkips("win32")).toEqual({
-      total: 234,
+      total: 235,
       byFile: {
         "append-deadline.test.ts": 1,
         "backup-root-shared.test.ts": 1,
@@ -192,7 +192,7 @@ describe("the register of conditionally-skipped cases", () => {
         "exec-descendants.test.ts": 7,
         "exec-timeout.test.ts": 2,
         "exec-windows.test.ts": 3,
-        "deck-folders-private.test.ts": 4,
+        "deck-folders-private.test.ts": 5,
         "engine-package.test.ts": 36,
         "engine-install.test.ts": 10,
         "hangup-shuts-down.test.ts": 5,

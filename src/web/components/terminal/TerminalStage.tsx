@@ -26,7 +26,7 @@
 // (StageBody) — the header and the keys bar are where focus lands when the
 // keys go back to the board, and from there j, k and n are the board's.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type RefObject } from "react";
-import type { LaunchOptions, SessionRef, TerminalProvider } from "../../terminal-api";
+import { terminalTarget, type LaunchOptions, type SessionRef, type TerminalProvider } from "../../terminal-api";
 import { terminalTheme } from "../../terminal-palette";
 import { releaseChordLabel } from "../../terminal-keys";
 import { platformName } from "../../platform";
@@ -245,6 +245,7 @@ export interface TerminalStageProps {
    *  `--pane-head-h` (36 at Compact, 44 above), and the rows are fitted below it. */
   onHeadH?(height: number): void;
   onLaunched?(launched: LaunchedSession): void;
+  onContinuation?(sessionId: string, cwd: string): boolean;
   /** Start the launch on the stage again, in the same folder with the same
    *  options: its agent exited before the board had its session (endView). */
   onLaunchAgain?(): void;
@@ -410,6 +411,102 @@ export default function TerminalStage(p: TerminalStageProps) {
     windows: p.windows,
   });
   const { phase } = session;
+  const [handoffFrom, setHandoffFrom] = useState<string | null>(null);
+  const [handoffFailed, setHandoffFailed] = useState(false);
+  const handoffRequest = useRef<AbortController | null>(null);
+  const continuationRef = useRef(p.onContinuation);
+  continuationRef.current = p.onContinuation;
+  const claudeSource = chatRef?.provider === "claude" && !p.windows ? chatRef.sessionId : null;
+  const handoffCwd = chatRef?.cwd ?? "";
+  const couldMove = !!p.onContinuation && !!claudeSource && !!handoffCwd && phase.kind === "not-attachable";
+  // The move works only for Claude in a Ghostty window on a Mac. The server
+  // makes every lookup of the real move without sending anything, and the
+  // button shows only when it says yes, so nobody gets a button that fails.
+  const [movableFor, setMovableFor] = useState<string | null>(null);
+  useEffect(() => {
+    if (!couldMove || !claudeSource) return;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch("/api/terminal/background", {
+          method: "POST",
+          signal: controller.signal,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId: claudeSource, provider: "claude", cwd: handoffCwd, check: true }),
+        });
+        if (!response.ok) return;
+        const { movable } = await response.json() as { movable?: unknown };
+        if (!controller.signal.aborted && movable === true) setMovableFor(claudeSource);
+      } catch { /* No answer: the button stays hidden. */ }
+    })();
+    return () => controller.abort();
+  }, [couldMove, claudeSource, handoffCwd]);
+  const canMove = couldMove && movableFor === claudeSource;
+  const moving = canMove && handoffFrom === claudeSource;
+  useEffect(() => {
+    setHandoffFrom(null);
+    setHandoffFailed(false);
+    return () => handoffRequest.current?.abort();
+  }, [claudeSource]);
+  const toggleHandoff = async () => {
+    if (moving) {
+      handoffRequest.current?.abort();
+      setHandoffFrom(null);
+      return;
+    }
+    if (!claudeSource || handoffRequest.current) return;
+    const controller = new AbortController();
+    handoffRequest.current = controller;
+    setHandoffFailed(false);
+    setHandoffFrom(claudeSource);
+    try {
+      const response = await fetch("/api/terminal/background", {
+        method: "POST",
+        signal: controller.signal,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: claudeSource, provider: "claude", cwd: handoffCwd }),
+      });
+      if (response.ok) return;
+    } catch { /* The source remains where it was if the request failed. */ }
+    finally { handoffRequest.current = null; }
+    if (controller.signal.aborted) return;
+    setHandoffFrom(null);
+    setHandoffFailed(true);
+  };
+  useEffect(() => {
+    if (!moving || !claudeSource) return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    const deadline = setTimeout(() => {
+      handoffRequest.current?.abort();
+      controller.abort();
+      setHandoffFrom(null);
+      setHandoffFailed(true);
+    }, 40_000);
+    const findContinuation = async () => {
+      try {
+        const query = new URLSearchParams({ session: claudeSource, continuation: "1" });
+        const response = await fetch(`/api/session/transcript?${query}`, {
+          cache: "no-store", signal: controller.signal,
+        });
+        if (response.ok) {
+          const { sessionId } = await response.json() as { sessionId?: unknown };
+          if (!controller.signal.aborted && typeof sessionId === "string") {
+            const next = await terminalTarget({ sessionId, provider: "claude", cwd: handoffCwd }, { signal: controller.signal });
+            if (!controller.signal.aborted && next.ok && next.target.kind === "D" &&
+                continuationRef.current?.(sessionId, handoffCwd)) {
+              setView("term");
+              setHandoffFrom(null);
+              return;
+            }
+          }
+        }
+      } catch { /* A transcript may appear after Claude finishes backgrounding. */ }
+      if (!controller.signal.aborted) timer = setTimeout(findContinuation, 2000);
+    };
+    void findContinuation();
+    return () => { controller.abort(); clearTimeout(timer); clearTimeout(deadline); };
+  }, [moving, claudeSource, handoffCwd]);
   // The host's frame from one render to the next, followed as StageBody
   // follows it: the keys bar is not drawn while the pane is only on its way.
   const frameRef = useRef<FrameState>("hidden");
@@ -667,6 +764,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         launched={p.show.kind === "session" && (p.show.session.launched === true || !!p.show.launch)}
         boardState={board?.state ?? null}
         onAdopt={reopen}
+        handoff={canMove ? { moving, failed: handoffFailed, toggle: toggleHandoff } : undefined}
         onNotNow={p.onClose}
         onRetry={retry}
         onNewSession={p.onNewSession}

@@ -30,7 +30,7 @@
 // `complete: false`. A line longer than the window gives no turn; the read is
 // never grown to fit it.
 import { constants } from "node:fs";
-import { basename, relative, sep } from "node:path";
+import { basename, dirname, relative, sep } from "node:path";
 import { lstat as fsLstat, open as fsOpen, realpath as fsRealpath } from "node:fs/promises";
 import { send } from "./http-io.mjs";
 import { claudeTranscriptRoots, isClaudeTranscriptPath } from "./transcript-gate.mjs";
@@ -45,17 +45,20 @@ export const SESSION_TRANSCRIPT_ROUTE = "/api/session/transcript";
 /** The most bytes read from the end of a transcript. */
 export const READ_WINDOW = 512 * 1024;
 
+const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 
 const loopback = req => ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress);
 
 function transcriptQuery(params) {
   const keys = [...params.keys()];
-  if (new Set(keys).size !== keys.length || keys.some(key => key !== "session" && key !== "provider")) return null;
+  if (new Set(keys).size !== keys.length || keys.some(key => key !== "session" && key !== "provider" && key !== "continuation")) return null;
   const session = params.get("session");
   const provider = params.get("provider") ?? "claude";
   if (!SESSION_ID.test(session ?? "") || (provider !== "claude" && provider !== "codex")) return null;
-  return { session, provider };
+  const continuation = params.has("continuation");
+  if (continuation && (params.get("continuation") !== "1" || provider !== "claude" || !UUID.test(session))) return null;
+  return { session, provider, continuation };
 }
 
 function isCodexTranscriptPath(path, roots, session) {
@@ -108,16 +111,30 @@ async function readTail(path, io) {
   }
 }
 
+/** Claude writes this event in the original transcript when /background changes its UUID. */
+function continuedSession(lines, source) {
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    let event;
+    try { event = JSON.parse(lines[i]); } catch { continue; }
+    if (event?.type !== "continued-in" || event.sessionId !== source) continue;
+    const next = event.continuedInSessionId;
+    return typeof next === "string" && UUID.test(next) && next.toLowerCase() !== source.toLowerCase() ? next : null;
+  }
+  return null;
+}
+
 export async function handleSessionTranscript(req, res, io = {}) {
   if (!loopback(req)) return send(res, 403, { ok: false, error: "A conversation can be read on this computer only." });
   if (req.method !== "GET") return send(res, 405, { ok: false, error: "Use GET." });
   const query = transcriptQuery(new URL(req.url, "http://localhost").searchParams);
   if (!query) return send(res, 400, { ok: false, reason: "bad_session" });
-  const { session, provider } = query;
+  const { session, provider, continuation } = query;
   const codex = provider === "codex";
   const pathOf = io.pathOf ?? (codex ? codexTranscriptPath : sid => outputWatch.pathOf(sid));
   const allowed = codex ? (path, roots) => isCodexTranscriptPath(path, roots, session) : isClaudeTranscriptPath;
+  const realpath = io.realpath ?? fsRealpath;
   let tail;
+  let next = null;
   try {
     const path = pathOf(session);
     if (typeof path !== "string") return unknown(res);
@@ -125,10 +142,24 @@ export async function handleSessionTranscript(req, res, io = {}) {
     if (!(io.isTranscriptPath ?? allowed)(path, roots)) return unknown(res);
     tail = await readTail(path, {
       lstat: io.lstat ?? fsLstat, open: io.open ?? fsOpen,
-      realpath: io.realpath ?? fsRealpath, roots, allowed,
+      realpath, roots, allowed,
     });
+    if (continuation && tail && basename(path) === `${session}.jsonl`) {
+      const candidate = continuedSession(tail.lines, session);
+      const destination = candidate && pathOf(candidate);
+      // An idle background worker may be attachable before writing a transcript.
+      // The pane verifies the backend's live target and the session's project.
+      if (candidate && typeof destination !== "string") next = candidate;
+      if (typeof destination === "string" && basename(destination) === `${candidate}.jsonl` && allowed(destination, roots)) {
+        const dest = await realpath(destination);
+        const src = await realpath(path);
+        // Same resolved project within the same profile. No scan of other sessions.
+        if (dirname(dest) === dirname(src) && basename(dest) === `${candidate}.jsonl`) next = candidate;
+      }
+    }
   } catch { return unknown(res); }
   if (!tail) return unknown(res);
+  if (continuation) return send(res, 200, { ok: true, sessionId: next });
   const { turns, cut } = (codex ? codexTranscriptWindow : transcriptWindow)(tail.lines);
   // Not complete when the byte window began after the file's start, or when the
   // turn cap dropped turns from the front.
