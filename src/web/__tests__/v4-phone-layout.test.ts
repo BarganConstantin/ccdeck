@@ -574,11 +574,7 @@ describe("the dock has five doors, and the rest are in More", () => {
     const css = strip(read("styles/phone-sheet.css"));
     expect(squash(css)).toContain("transform-origin:rightbottom;animation:dock-more-invar(--dur-base)var(--ease);");
     expect(squash(css)).toContain("@keyframesdock-more-in{from{opacity:0;transform:scale(var(--enter-scale));}}");
-    // CHANGED ON PURPOSE (V4 top-10 #4): the dock's More is the one More the
-    // stripes share, so its menu's class is the dock's entry in a per-place
-    // map rather than a literal className.
-    expect(read("components/EdgeRails.tsx")).toContain('const MORE_POP_CLASS = { dock: "ap-pop dock-more-pop", left: "ap-pop", right: "ap-pop" } as const;');
-    expect(read("components/EdgeRails.tsx")).toContain("className={MORE_POP_CLASS[place]}");
+    expect(read("components/EdgeRails.tsx")).toContain('className="ap-pop dock-more-pop"');
   });
 });
 

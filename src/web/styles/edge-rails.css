@@ -34,8 +34,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* V4's stripes: two groups, pushed apart — the doors at the top, the More
-     and the utilities at the foot — with 6px of air above and
+  /* V4's stripes: two groups, pushed apart — the doors at the top, the
+     utilities at the foot (the left one only) — with 6px of air above and
      below. Figma centres them on the stripe's whole 40, its edge drawn inside;
      the border here takes its 1px off the side facing the canvas, so 1px of
      padding on the other puts the doors back 6 in. */
@@ -175,18 +175,6 @@
 .edge-rail-left .rail-btn-stripe::before { right: -5px; }
 .edge-rail-right .rail-btn-stripe::before { left: -5px; }
 .rail-btn-stripe[aria-expanded="true"]::before { opacity: 1; }
-/* A stripe's More while a dialog behind it is up wears the open door's look,
-   the fill and the line, so the reader sees where it came from (EdgeRails.tsx).
-   Drawn, not said: the dialog says itself, and More's aria-expanded is its own
-   menu's. */
-.rail-btn-stripe[data-up] { color: var(--text); background: var(--selected); }
-.rail-btn-stripe[data-up]::before { opacity: 1; }
-@media (hover: hover) and (pointer: fine) {
-  .rail-btn-stripe[data-up]:hover { background: color-mix(in srgb, var(--text) 6%, var(--selected)); }
-}
-/* A stripe's More menu ends each row in its key, quiet and at the row's end,
-   as a native menu does. */
-.rail-menu-key { margin-inline-start: auto; flex: none; }
 
 /* Unread findings, Browser watch's: a count, not an alarm, so --muted and
    never --warn. Amber belongs to the waiting count, the one thing the deck

@@ -56,7 +56,9 @@ describe("the tour names the sound control by what it looks like (#818)", () => 
     expect(tip).toMatch(/Settings › Notifications/);
     // Settings is the door at the foot of the left edge, worded as the tip
     // words it, and drawn with the kit's cog rather than a path of its own.
-    expect(run).toMatch(/leftFoot: \[settings\],/);
+    // CHANGED ON PURPOSE (4.0.1, owner): every door is back on the stripes,
+    // so Radio stands at the left foot again, above Settings, which stays last.
+    expect(run).toMatch(/leftFoot: \[\.\.\.radio, settings\],/);
     expect(run).toMatch(/ariaLabel: t\("board\.rail\.settings"\), glyph: <SettingsGlyph \/>/);
     expect(board["board.rail.settings"]).toBe("Settings");
     expect(run).toContain('<KitIcon name="settings"');

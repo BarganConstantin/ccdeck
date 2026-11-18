@@ -68,7 +68,7 @@ const catalog: Catalog = {
   "shell.guide.welcome.inspector.line": "인스펙터는 모든 에이전트, 서브에이전트, 도구 호출을 비용과 시간과 함께 보여 줍니다.",
   "shell.guide.welcome.inspector.tip": "D를 누르거나 오른쪽 가장자리 맨 위의 인스펙터를 누르세요.",
   "shell.guide.welcome.edges.line": "왼쪽 가장자리: 세션, 계정, 맨 아래 설정. 오른쪽: 사용량과 이 컴퓨터.",
-  "shell.guide.welcome.edges.tip": "나머지는 각 가장자리 맨 아래의 더 보기에 있습니다.",
+  "shell.guide.welcome.edges.tip": "그 아래 왼쪽에는 용량과 초기화 캘린더, 오른쪽에는 사용량 기록이 있습니다.",
   "shell.guide.welcome.accounts.line": "Claude와 Codex 계정을 전환하세요. 페어링한 컴퓨터끼리 만료된 로그인을 서로 복구합니다.",
   "shell.guide.welcome.accounts.tip": "계정 패널 맨 아래의 로컬 네트워크 줄에서 페어링하세요.",
   "shell.guide.welcome.start.line": "아무 폴더에서나 claude 또는 codex를 실행하거나 새 세션을 사용하세요. 여기에 나타납니다.",

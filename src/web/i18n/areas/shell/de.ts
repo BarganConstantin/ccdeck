@@ -68,7 +68,7 @@ const catalog: Catalog = {
   "shell.guide.welcome.inspector.line": "Der Inspector zeigt jeden Agenten, Subagenten und Tool-Aufruf, mit Kosten und Zeit.",
   "shell.guide.welcome.inspector.tip": "Drück D oder Inspector oben am rechten Rand.",
   "shell.guide.welcome.edges.line": "Linker Rand: Sitzungen, Konten, unten Einstellungen. Rechts: Nutzung und Dieser Rechner.",
-  "shell.guide.welcome.edges.tip": "Der Rest liegt unter Mehr, unten an jedem Rand.",
+  "shell.guide.welcome.edges.tip": "Weiter unten: Kapazität und Reset-Kalender links, Nutzungsverlauf rechts.",
   "shell.guide.welcome.accounts.line": "Wechsle zwischen Claude- und Codex-Konten. Gekoppelte Rechner erneuern abgelaufene Anmeldungen gegenseitig.",
   "shell.guide.welcome.accounts.tip": "Kopple sie über die Zeile Lokales Netzwerk unten im Konten-Panel.",
   "shell.guide.welcome.start.line": "Starte claude oder codex in einem beliebigen Ordner, oder nutze Neue Sitzung. Sie erscheint hier.",

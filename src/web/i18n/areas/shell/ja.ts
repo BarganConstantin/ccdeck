@@ -67,7 +67,7 @@ const catalog: Catalog = {
   "shell.guide.welcome.inspector.line": "インスペクターに、すべてのエージェント、サブエージェント、ツール呼び出しがコストと時間付きで表示されます。",
   "shell.guide.welcome.inspector.tip": "D キー、または右端の上にあるインスペクターから開けます。",
   "shell.guide.welcome.edges.line": "左端：セッション、アカウント、下に設定。右端：使用量とこのマシン。",
-  "shell.guide.welcome.edges.tip": "ほかの項目は、それぞれの端の下の「その他」にあります。",
+  "shell.guide.welcome.edges.tip": "その下に、左は容量とリセットカレンダー、右は使用量の履歴があります。",
   "shell.guide.welcome.accounts.line": "Claude と Codex のアカウントを切り替えられます。ペアリングしたマシン同士が期限切れのサインインを修復します。",
   "shell.guide.welcome.accounts.tip": "アカウントパネル下部の「ローカルネットワーク」の行からペアリングします。",
   "shell.guide.welcome.start.line": "任意のフォルダーで claude か codex を実行するか、「新しいセッション」を使えば、ここに現れます。",

@@ -67,7 +67,7 @@ const catalog: Catalog = {
   "shell.guide.welcome.inspector.line": "檢查器會列出每個代理、子代理與工具呼叫，並附上花費與耗時。",
   "shell.guide.welcome.inspector.tip": "按 D，或點選右側邊欄頂端的「檢查器」。",
   "shell.guide.welcome.edges.line": "左側邊欄：工作階段、帳號，底部是設定。右側：使用量與這台電腦。",
-  "shell.guide.welcome.edges.tip": "其餘功能在各側邊欄底部的「更多」裡。",
+  "shell.guide.welcome.edges.tip": "再往下：左側是容量和重設行事曆，右側是使用量記錄。",
   "shell.guide.welcome.accounts.line": "切換 Claude 與 Codex 帳號。已配對的電腦會互相修復過期的登入。",
   "shell.guide.welcome.accounts.tip": "從帳號面板底部的「區域網路」這一列進行配對。",
   "shell.guide.welcome.start.line": "在任何資料夾執行 claude 或 codex，或使用「新工作階段」，它都會出現在這裡。",
