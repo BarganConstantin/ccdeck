@@ -11,6 +11,7 @@
 // virtualisation in 4.0, and a host caps the turns it hands over.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import IntegrationSkeleton from "../IntegrationSkeleton";
+import type { Provider } from "../../types";
 import { useT } from "../../i18n";
 import DecisionCard, { type DecisionCardProps } from "../decision/DecisionCard";
 import type { ChatSource, ChatTurn } from "./chat-model";
@@ -20,6 +21,7 @@ import "./chat.css";
 
 export interface ChatViewProps {
   source: ChatSource;
+  provider?: Provider;
   /** The question docked under the chat. Its flag is the caller's to check. */
   decision?: DecisionCardProps;
 }
@@ -37,7 +39,7 @@ export function tailKey(turn: ChatTurn | undefined): string {
  *  where there is no layout to wait for (rendering to a string). */
 const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
-export default function ChatView({ source, decision }: ChatViewProps) {
+export default function ChatView({ source, provider, decision }: ChatViewProps) {
   const t = useT();
   const scroller = useRef<HTMLDivElement | null>(null);
   const stuck = useRef(true);
@@ -79,7 +81,7 @@ export default function ChatView({ source, decision }: ChatViewProps) {
               {source.since && <SinceDivider since={source.since} />}
               {source.turns.length === 0 && <p className="chat-empty">{t("board.chat.empty")}</p>}
               {conversationBlocks(source.turns).map(block => block.kind === "assistant"
-                ? <AssistantBlock key={block.index} turns={block.turns} />
+                ? <AssistantBlock key={block.index} turns={block.turns} provider={provider} />
                 : block.kind === "user" ? <YourMessage key={block.index} text={block.text} />
                 : <RecordLine key={block.index} text={block.text} />)}
             </>

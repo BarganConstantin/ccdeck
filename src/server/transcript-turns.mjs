@@ -1,3 +1,5 @@
+import { codexItemText } from "./codex-translate.mjs";
+
 // A Claude Code transcript's lines, as the turns Chat draws: what you typed,
 // what the assistant said, and one row per tool call. Pure: lines in, turns
 // out, nothing read from disk and nothing remembered between calls.
@@ -118,5 +120,35 @@ export function transcriptWindow(lines) {
       }
     }
   }
+  return capTurns(turns);
+}
+
+function capTurns(turns) {
   return turns.length > MAX_TURNS ? { turns: turns.slice(-MAX_TURNS), cut: true } : { turns, cut: false };
+}
+
+/** Prefer Codex's conversation events. The model-facing response items repeat
+ * these messages and can also carry injected user-role context. */
+export function codexTranscriptWindow(lines) {
+  const turns = [];
+  for (const line of lines) {
+    const record = parse(line);
+    if (record?.type !== "event_msg") continue;
+    const event = record.payload;
+    let kind, text;
+    if (event?.type === "user_message" || event?.type === "agent_message") {
+      kind = event.type === "user_message" ? "user" : "assistant";
+      text = event.message;
+    } else if (event?.type === "item_completed") {
+      if (event.item?.type === "UserMessage") {
+        kind = "user";
+        text = codexItemText(event.item);
+      } else if (event.item?.type === "AgentMessage") {
+        kind = "assistant";
+        text = typeof event.item.content === "string" ? event.item.content : codexItemText(event.item);
+      }
+    }
+    if (typeof text === "string" && text.trim()) turns.push({ kind, text: cut(text.trim(), MAX_TEXT) });
+  }
+  return capTurns(turns);
 }

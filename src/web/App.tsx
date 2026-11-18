@@ -487,10 +487,8 @@ function Inner() {
   // the board's clock, so an answer the page is still holding expires on
   // screen even while the deck itself has stopped answering.
   const providerStatus = useProviderStatus(providers.claude || providers.codex);
-  // Claude's 5-hour reading for the rail's usage meter: the usual /api/quota
-  // read once a minute while the page is open and visible, never forced
-  // (the owner's OK, 2026-11-01). The Usage panel keeps its own useQuota.
-  const meterQuota = useMeterQuota(providers.claude);
+  // The active Claude account's plan label comes from its quota reading.
+  const accountQuota = useMeterQuota(accountsDrawn && providers.claude);
   const incidents = incidentsOf(providerStatus, now);
 
   // An account the deck signed in whose login has stopped working, asked about
@@ -1212,6 +1210,19 @@ function Inner() {
     paneWasOpen.current = paneOpen;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phone, paneOpen]);
+  /** More's Command Panel row (a phone's dock only, rail-items.tsx
+   *  commandPanelMore): the canvas button's press, and the Sessions list makes
+   *  way for the stage as it does for a row's press, coming back when the pane
+   *  is left. Left open, the list covered the stage, and the press seemed to do
+   *  nothing. */
+  const { openFromButton } = stage;
+  const openPanelFromMore = useCallback((opener: Element | null) => {
+    openFromButton(opener);
+    if (phone && sessionListOpen) {
+      paneFromListRef.current = true;
+      closeSessionListToCanvas();
+    }
+  }, [openFromButton, phone, sessionListOpen, closeSessionListToCanvas]);
   // ACCOUNTS OVER A PANE. A pane on a phone is the whole screen under the top
   // bar, and a sheet drawn over its header would cover the buttons there (and
   // the Inspector and the other two already give the pane back). So Accounts,
@@ -1316,7 +1327,7 @@ function Inner() {
           onRoster={attention.observe} onClose={sheetClose("accounts", closeAccounts)}
           lanWanted={lanWanted} onLanShown={lanShown} onLanAccounts={setClaudeLan} codexLanAccounts={codexLan} switcher={accountsSwitch}
           side={sideState("claude")} onNotice={accountSide.noteClaude}
-          planLabel={meterQuota.reading?.planLabel ?? null} />
+          planLabel={accountQuota.reading?.planLabel ?? null} />
       )}
       {accountsDrawn && (shownAccountProvider === "codex" || accountSide.bothMounted) && (
         <CodexAccountsPanel leaving={isLeaving(accountsOnScreen, accountsPhase)}
@@ -1417,7 +1428,7 @@ function Inner() {
         // terminal: the phone's Board draws no canvas bar to hold its button.
         ? <EdgeDock
             items={[...rails.left, ...rails.right[0]].map(sessionsDoorUnderSheet)}
-            more={[rails.search, ...commandPanelMore(stage.enabled ? stage.openFromButton : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}
+            more={[rails.search, ...commandPanelMore(stage.enabled ? openPanelFromMore : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}
             offline={everConnected && !live} />
         : <EdgeRail side="left" label={t("board.rail.tools")} groups={rails.leftStripe} more={rails.leftMore} foot={rails.leftFoot} />}
 
@@ -1464,9 +1475,6 @@ function Inner() {
               landed={landed}
               watching={watchingSessions}
               openPanes={openPanes}
-              quota={meterQuota}
-              activeAlias={attention.accounts?.find(a => a.active)?.alias ?? null}
-              onOpenUsage={() => usageRail.set(o => !o)}
               onOpenKeys={inWorkspace ? openSessionWithKeys : undefined}
               onOpenBeside={inWorkspace && stage.enabled ? openSessionBeside : undefined}
               onNewSession={inWorkspace && stage.enabled ? stage.newSessionFrom : undefined}

@@ -29,14 +29,12 @@ import { leaveHoldMs, useRailFlip, useRailMembership } from "../rail-motion";
 import { prefersReducedMotion } from "../viewport-motion";
 import { compactRowContexts, lastTypedPrompt, runningTool, sessionNames, startedHover, twinClocks, type TwinClock } from "../rail-row-copy";
 import { PauseGlyph } from "./rail-glyphs";
-import { CloseGlyph, FoldBody, GroupHead, MoreLine, PlusGlyph, RailRow, RailUsage, type FoldMode } from "./RailParts";
+import { CloseGlyph, FoldBody, GroupHead, MoreLine, PlusGlyph, RailRow, type FoldMode } from "./RailParts";
 
 /** The id the rail's Plus carries, so the new-session popover can hang off it. */
 export const RAIL_NEW_SESSION_ID = "rail-new-session";
-import { usageMeter } from "../rail-usage";
 import { renameFacts } from "../session-rename";
 import type { PaneLink } from "../workspace-split";
-import type { MeterQuota } from "../use-quota";
 
 export interface Row {
   sessionId: string;
@@ -280,15 +278,6 @@ interface Props {
   watching?: ReadonlySet<string>;
   /** Workspace's open panes, using the numbers drawn in their headers. */
   openPanes?: ReadonlyMap<string, PaneLink>;
-  /** Claude's 5-hour reading with when it was read (useMeterQuota, held in
-   *  App.tsx). The rail itself never fetches. */
-  quota?: MeterQuota;
-  /** The active Claude account's alias from the roster the page already holds,
-   *  or null: the meter's label, else the plan's. */
-  activeAlias?: string | null;
-  /** What the usage meter does: the Usage stripe door's own toggle. Without it
-   *  the meter is not drawn. */
-  onOpenUsage?: () => void;
   /** WORKSPACE: Enter on a row opens the session in the pane with the keys in
    *  it (a click leaves them here). Absent on the Board. */
   onOpenKeys?: (sessionId: string) => void;
@@ -316,7 +305,7 @@ interface Props {
 interface Ghost { row: Row; group: RailGroup; after: string | null; until: number }
 interface Entry { id: string; row: Row; ghost: boolean }
 
-export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, openPanes, quota, activeAlias = null, onOpenUsage, onOpenKeys, onOpenBeside, onNewSession, offline = null, emptyNotice = null, edge = null }: Props) {
+export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, openPanes, onOpenKeys, onOpenBeside, onNewSession, offline = null, emptyNotice = null, edge = null }: Props) {
   const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
@@ -596,7 +585,6 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
       {/* The foot of the rail, below the list that scrolls: the Usage panel's
           5-hour reading as the page last read it, aged against the board's
           clock. No reading, nothing drawn. */}
-      {onOpenUsage && <RailUsage meter={usageMeter(quota, now, activeAlias)} onPress={onOpenUsage} />}
       {edge}
     </aside>
   );

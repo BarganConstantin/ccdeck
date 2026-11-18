@@ -41,10 +41,15 @@ const KiB = 1024, MiB = 1024 * 1024;
 afterEach(async () => {
   for (const c of sockets.splice(0)) c.socket.destroy();
   for (const r of raws.splice(0)) r.destroy();
-  await vi.waitFor(() => expect(ts.openTerminalCount()).toBe(0));
-  await Promise.all(clients.splice(0).map(c => c.close()));
-  await Promise.all(servers.splice(0).map(s => new Promise(r => { s.close(r); s.closeAllConnections?.(); })));
-  await Promise.all(roots.splice(0).map(p => rm(p, { recursive: true, force: true })));
+  // A terminal left open fails the test that left it. The engines, servers and
+  // folders are closed either way, so the next test does not start with it.
+  try {
+    await vi.waitFor(() => expect(ts.openTerminalCount()).toBe(0));
+  } finally {
+    await Promise.all(clients.splice(0).map(c => c.close()));
+    await Promise.all(servers.splice(0).map(s => new Promise(r => { s.close(r); s.closeAllConnections?.(); })));
+    await Promise.all(roots.splice(0).map(p => rm(p, { recursive: true, force: true })));
+  }
 });
 
 /** The double as an installed, signed engine; `backend` is what it advertises. */
@@ -346,9 +351,10 @@ async function deck(e: Engine) {
       sockets.push(c);
       return c;
     },
-    /** A handshake on a bare socket, for a client that goes away before its answer. */
-    raw(ticket: string, extra = Buffer.alloc(0)) {
-      const socket = net.connect(port, "127.0.0.1");
+    /** A handshake on a bare socket, for a client that goes away before its
+     *  answer; `through` dials another port that leads to the deck, a relay. */
+    raw(ticket: string, extra = Buffer.alloc(0), through = port) {
+      const socket = net.connect(through, "127.0.0.1");
       raws.push(socket);
       socket.on("error", () => {});
       socket.write(`GET ${path(ticket)} HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nOrigin: ${origin}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: ${handshakeKey()}\r\nSec-WebSocket-Version: 13\r\n\r\n`);
@@ -536,14 +542,40 @@ describe.skipIf(process.platform === "win32")("the terminal socket relayed to th
     expect(e.lost).toEqual([]);
   });
 
-  // An upgrade socket is not read until its 101, so a browser's own hang-up
-  // while the engine answers is seen once the socket is read: the stream the
-  // engine attached is closed right after, and nothing of it is left.
+  // A browser that hangs up while the engine answers: the stream the engine
+  // attached is closed once the answer comes, and nothing of it is left.
   it("closes the stream of a browser that hung up while its attach was waiting, once the socket is read", async () => {
     const e = await installed();
     const d = await deck(e);
     await plan(e, { delayMs: 200 });
     const early = d.raw(await d.ticket());
+    await vi.waitFor(async () => expect(await attaches(e)).toHaveLength(1));
+    early.socket.destroy();
+    await vi.waitFor(async () => expect((await controls(e, 1)).filter(m => m.t === "close")).toEqual([{ t: "close" }]));
+    expect((await e.client.request("terminal.log")).live).toEqual([]);
+    await vi.waitFor(() => expect(ts.openTerminalCount()).toBe(0));
+    expect(e.lost).toEqual([]);
+  });
+
+  // The same hang-up through a relay, as through `ssh -L`: the deck sees only
+  // the browser's half closed, while the answer is pending, and nothing resets
+  // its socket when the 101 and the hello go out. The deck must end its half
+  // itself; left half-open, the socket kept a terminal's place and its engine
+  // stream until a keepalive write failed (the macOS CI flake had this shape).
+  it("closes the stream of a browser that hung up through a relay while its attach was waiting", async () => {
+    const e = await installed();
+    const d = await deck(e);
+    await plan(e, { delayMs: 200 });
+    const relay = net.createServer((down) => {
+      const up = net.connect(d.port, "127.0.0.1");
+      up.on("error", () => {}); down.on("error", () => {});
+      down.on("data", (b) => up.write(b));
+      down.on("end", () => up.end());
+      up.on("data", (b) => { if (down.destroyed) up.destroy(); else down.write(b); });
+    });
+    servers.push(relay as unknown as Server);
+    await new Promise<void>(r => relay.listen(0, "127.0.0.1", r));
+    const early = d.raw(await d.ticket(), Buffer.alloc(0), (relay.address() as net.AddressInfo).port);
     await vi.waitFor(async () => expect(await attaches(e)).toHaveLength(1));
     early.socket.destroy();
     await vi.waitFor(async () => expect((await controls(e, 1)).filter(m => m.t === "close")).toEqual([{ t: "close" }]));

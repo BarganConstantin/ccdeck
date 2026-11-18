@@ -90,6 +90,8 @@ describe("a path put in the id is refused before anything is looked up", () => {
     ["129 characters", `?session=${long}`],
     ["empty", "?session="],
     ["none", ""],
+    ["unknown provider", "?session=a&provider=other"],
+    ["two providers", "?session=a&provider=claude&provider=codex"],
     ["two session parameters", "?session=a&session=b"],
     ["an extra parameter", "?session=a&path=/etc/passwd"],
     ["only another parameter", "?path=/etc/passwd"],
@@ -271,5 +273,45 @@ describe.skipIf(process.platform === "win32")("links and pipes", () => {
     execFileSync("mkfifo", [fifo]);
     const fooled = async () => ({ isFile: () => true, dev: 0n, ino: 0n });
     expect(await call("?session=known", { ...known(fifo), lstat: fooled })).toEqual(refused);
+  });
+});
+
+describe("Codex Chat", () => {
+  const event = (payload: object) => JSON.stringify({ type: "event_msg", payload });
+  const item = (type: string, content: unknown) => event({ type: "item_completed", item: { type, content } });
+  const roots = () => [join(DIR, "codex", "sessions")];
+  const day = join(roots()[0], "2026", "11", "18");
+  const path = join(day, "rollout-2026-11-18T12-00-00-known.jsonl");
+  const query = "?session=known&provider=codex";
+
+  it("reads modern and legacy conversation events without exposing injected context or duplicate items", async () => {
+    mkdirSync(day, { recursive: true });
+    writeFileSync(path, [
+      event({ type: "user_message", message: "Legacy prompt" }),
+      event({ type: "agent_message", message: "Legacy answer" }),
+      item("UserMessage", [{ type: "text", text: "Current prompt" }]),
+      JSON.stringify({ type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "Injected context" }] } }),
+      JSON.stringify({ type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "Current answer" }] } }),
+      item("AgentMessage", "Current answer"),
+      item("Reasoning", [{ type: "text", text: "Internal reasoning" }]),
+    ].join("\n") + "\n");
+    expect(await call(query, { ...known(path), roots })).toEqual({
+      status: 200,
+      body: { ok: true, complete: true, turns: [
+        { kind: "user", text: "Legacy prompt" },
+        { kind: "assistant", text: "Legacy answer" },
+        { kind: "user", text: "Current prompt" },
+        { kind: "assistant", text: "Current answer" },
+      ] },
+    });
+  });
+
+  it("refuses a different rollout ID or an unauthorized root", async () => {
+    mkdirSync(day, { recursive: true });
+    const other = path.replace("-known.jsonl", "-other.jsonl");
+    writeFileSync(other, "");
+    writeFileSync(path, "");
+    expect((await call(query, { ...known(other), roots })).status).toBe(404);
+    expect((await call(query, { ...known(path), roots: () => [OUTSIDE] })).status).toBe(404);
   });
 });

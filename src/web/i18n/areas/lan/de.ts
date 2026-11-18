@@ -28,6 +28,7 @@ const catalog: Catalog = {
   "lan.fail.errorCode": " Fehlercode: {code}.",
   "lan.fail.prefsUnreadable": "dieses ccdeck kann seine Einstellungsdatei nicht lesen und überschreibt sie deshalb nicht. Die Datei gehört vielleicht einem anderen Benutzer, etwa nachdem ccdeck mit sudo gestartet wurde. Das Log des ccdecks nennt die Datei.",
   "lan.fail.prefsNotWritable": "dieses ccdeck darf seine Einstellungen nicht speichern. Der Einstellungsordner gehört vielleicht einem anderen Benutzer, etwa nachdem ccdeck mit sudo gestartet wurde, oder ein anderes Programm hält die Datei fest. Das Log des ccdecks nennt den Ordner.",
+  "lan.fail.prefsNoSpace": "der Datenträger, auf dem dieses ccdeck seine Einstellungen speichert, ist voll, deshalb wurden sie nicht gespeichert. Gib etwas Speicherplatz frei und versuche es dann noch einmal.",
   "lan.fail.badJson": "seine Einstellungsdatei ist beschädigt und konnte nicht beiseitegelegt werden, deshalb überschreibt das ccdeck sie nicht. Das Log des ccdecks nennt die Datei.",
   "lan.fail.folderOther": "dieses ccdeck kann seinen Einstellungsordner nicht öffnen, der einem anderen Benutzer gehört, etwa nachdem ccdeck mit sudo gestartet wurde. Das Log des ccdecks enthält den Befehl, der ihn zurückgibt.",
   "lan.fail.folderYou": "dieses ccdeck kann seinen eigenen Einstellungsordner nicht öffnen und überschreibt deshalb nichts darin. Das Log des ccdecks nennt den Ordner.",

@@ -305,8 +305,26 @@ describe("what the canvas bar held that a phone still needs, and what it does no
 
   it("App puts it right after Search, on the stage's own condition and press", () => {
     const app = read("App.tsx");
-    expect(app).toContain("more={[rails.search, ...commandPanelMore(stage.enabled ? stage.openFromButton : undefined), ...rails.capacity,");
+    // CHANGED ON PURPOSE (phone More › Open the Command Panel): the row's press is
+    // stage.openFromButton → openPanelFromMore, which presses it the same way and
+    // then has the Sessions list make way (the test below), because the list,
+    // left open over the stage, hid it and the press seemed to do nothing.
+    expect(app).toContain("more={[rails.search, ...commandPanelMore(stage.enabled ? openPanelFromMore : undefined), ...rails.capacity,");
     expect(app).toContain("onTerminal={stage.enabled ? stage.openFromButton : undefined}");
+  });
+
+  it("its press makes the Sessions list give way, as a row's press does, so the stage is seen", () => {
+    const app = read("App.tsx");
+    const fn = /const openPanelFromMore = useCallback\(\(opener: Element \| null\) => \{[\s\S]*?\n {2}\}, \[[^\]]*\]\);/.exec(app)?.[0] ?? "";
+    expect(fn).not.toBe("");
+    // The canvas button's own press first, with the More button as the opener.
+    expect(fn).toMatch(/^[^{]*\{\s*openFromButton\(opener\);/);
+    expect(app).toContain("const { openFromButton } = stage;");
+    // Then the list closes to the canvas, and is marked to come back when the
+    // pane is left, exactly as pickSession does for a row.
+    expect(fn).toMatch(/if \(phone && sessionListOpen\) \{\s*paneFromListRef\.current = true;\s*closeSessionListToCanvas\(\);\s*\}/);
+    expect(fn).toMatch(/\}, \[openFromButton, phone, sessionListOpen, closeSessionListToCanvas\]\);$/);
+    expect(app).toMatch(/if \(back && !sessionListOpen\) toggleSessionList\(\)/);
   });
 
   const quick = (phone: boolean | undefined) => quickOpenItems({

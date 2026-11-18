@@ -40,6 +40,34 @@ function fromExtension(stack: unknown, filename?: unknown): boolean {
   return typeof filename === "string" && EXTENSION_SCRIPT.test(filename);
 }
 
+/** What a frame of code evaluated in the page from outside it is called: by
+ *  Puppeteer, which chrome-devtools-mcp drives the browser with (`pptr:…`, and
+ *  `__puppeteer_evaluation_script__` before it), by Playwright (its
+ *  `UtilityScript`), and by DevTools' console or a bare CDP evaluate, which
+ *  name no script at all (`<anonymous>:1:221`). `(<anonymous>)` with no line
+ *  and column is a native frame, `Array.map`'s, and says nothing. */
+const AUTOMATION_SCRIPT = /\bpptr:|__puppeteer_evaluation_script__|\bUtilityScript\./;
+const EVALUATED = /<anonymous>:\d+:\d+/;
+
+/**
+ * Whether an error was raised by a script driving the page rather than by
+ * anyone using it. A test, or an agent working the deck through DevTools, that
+ * dispatches a synthetic keydown on `document` trips a handler that expects an
+ * element behind it (`n.hasAttribute is not a function`, in React Flow's): a
+ * report of that is a bug no user hits, and a new kind in Errors. It is the
+ * script's when the last `at` line of a V8 stack — where the chain of calls
+ * began — is code evaluated from outside the bundle (AUTOMATION_SCRIPT,
+ * EVALUATED). Code the bundle evaluated itself names the bundle's address in
+ * that frame (`eval at f (http://…)`), and stays ours; so does an error whose
+ * chain began in the deck, whatever ran above it.
+ */
+function fromAutomation(stack: unknown): boolean {
+  const frames = typeof stack === "string" ? stack.split("\n").filter(line => /^\s*at\s/.test(line)) : [];
+  const origin = frames[frames.length - 1];
+  if (!origin) return false;
+  return AUTOMATION_SCRIPT.test(origin) || (EVALUATED.test(origin) && !origin.match(SCRIPT_URL));
+}
+
 // The path and project-folder patterns of `scrub` in server/reports.mjs, the
 // same text (error-report-paths.test.ts holds the two together): see there.
 const NAME = String.raw`[^\s\\/:'"\`<>|?*;,]`;
@@ -83,6 +111,21 @@ export const ADDRESS_PATTERN = String.raw`(?<![\w:.%-])(?:\[(?!${KEPT_IPV6}\])${
 const HOST = String.raw`(?=[\w.-]*[A-Za-z])[A-Za-z0-9][\w-]*(?:\.[\w-]+)*`;
 export const HOST_PATTERN = String.raw`(?<![\w.@/\\%-])(?!localhost(?![\w-]|\.\w))(?:(?<=\b(?:(?:getaddrinfo|connect) E[A-Z_]+|ENOTFOUND|EAI_AGAIN) )${HOST}|${HOST}(?=:\d{1,5}(?![\w:-]|\.\w))|${HOST}\.(?:local|lan|home|internal|ts\.net)(?![\w-]|\.\w))`;
 
+// How `scrub` in server/reports.mjs reads back a path written percent-encoded
+// (`file%3A%2F%2F%2FUsers%2Falice%2F…`, the way Puppeteer names the code it
+// evaluates), the same steps (error-report-encoded-paths.test.ts runs both on
+// the same text): see there.
+const KEPT_ESCAPED = /[\s"\x60<>|?;,]/g;
+function decodeEscapes(text: string): string {
+  return text.replace(/(?:%[0-9A-Fa-f]{2})+/g, run => {
+    try {
+      return decodeURIComponent(run).replace(KEPT_ESCAPED, c => encodeURIComponent(c));
+    } catch {
+      return run;
+    }
+  });
+}
+
 /**
  * Take out of an error text what could say who someone is, for text that is
  * shown or seeded on the page rather than sent — the crash report the error
@@ -91,7 +134,8 @@ export const HOST_PATTERN = String.raw`(?<![\w.@/\\%-])(?!localhost(?![\w-]|\.\w
  * `<path>`), project folders in Claude Code's encoding (`<project>`), the host
  * of every address (`<deck>`, `<host>`), every bare IP address and the machine
  * name a network error carries (`<host>`, the loopback kept), email addresses
- * and strings shaped like keys or tokens. That server scrub is still the one that runs on every
+ * and strings shaped like keys or tokens, each found in a percent-encoded path
+ * too, read back first. That server scrub is still the one that runs on every
  * error the page forwards, and the one the README's promise rests on; this is
  * the same shape done in the browser for the words a person reads before Send —
  * feedback is not scrubbed on its way through the server, so a path must never
@@ -101,7 +145,7 @@ export const HOST_PATTERN = String.raw`(?<![\w.@/\\%-])(?!localhost(?![\w-]|\.\w
  * the bundle (`<deck>/assets/…`).
  */
 export function scrubReport(text: string): string {
-  return String(text ?? "")
+  return decodeEscapes(String(text ?? ""))
     .replace(/\/(?:home|Users)\/[^/\s:'"]+/g, "~")
     .replace(/[A-Za-z]:\\(?:Users|Documents and Settings)\\[^\\\r\n:'"]+/gi, "~")
     .replace(new RegExp(PATH_PATTERN, "g"), hidePath)
@@ -154,7 +198,7 @@ export function forwardPageErrors(isOn: () => boolean, target: ErrorTarget = win
   const forward = (message: unknown, stack: unknown, filename?: unknown) => {
     const text = String(message ?? "").slice(0, MESSAGE_MAX).trim();
     if (!isOn() || !text || sent >= MAX_PER_PAGE || seen.has(text) || IGNORED.some(re => re.test(text))) return;
-    if (fromExtension(stack, filename)) return;
+    if (fromExtension(stack, filename) || fromAutomation(stack)) return;
     seen.add(text);
     sent++;
     send({ message: text, stack: typeof stack === "string" ? stack.slice(0, STACK_MAX) : undefined });
