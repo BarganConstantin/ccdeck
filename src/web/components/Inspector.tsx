@@ -9,7 +9,7 @@
 // The Time tab is "where the time went" for the session's current turn, or its
 // last: the three lanes come from /api/tool-audit?session=, the spans from the
 // calls the session holds (InspectorTime.tsx).
-import { memo, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { memo, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import SheetHandle from "./SheetHandle";
 
 import { agentAriaLabel } from "../agent-copy";
@@ -117,17 +117,51 @@ export default function Inspector({ selected, agents, revision = 0, onSelectAgen
   );
 }
 
+/** Workspace's sheet (1100 to 1319) is drawn off the right edge first and moved
+ *  in on the next style flush (a style read in between makes the browser take
+ *  the start as computed), so the entry is a transition and not a pop. The
+ *  aside's ref, and its data-sheet: "pre", "in", or "out" while `leaving`;
+ *  none off the sheet. */
+export function useSheetEntry(sheet: boolean, leaving: boolean) {
+  const asideRef = useRef<HTMLElement>(null);
+  const [entered, setEntered] = useState(!sheet);
+  useLayoutEffect(() => {
+    if (!sheet) return;
+    void asideRef.current?.offsetWidth;
+    setEntered(true);
+  }, [sheet]);
+  const sheetState = !sheet ? undefined : leaving ? "out" : entered ? "in" : "pre";
+  return { asideRef, sheetState };
+}
+
 /** WORKSPACE, the pane empty: the Inspector's column with no session in focus
  *  (Figma, "Empty workspace"). The same header and tabs, none of them
  *  pressable, over two lines saying so. No Fold: the Inspector is a column
- *  here (workspace.css), not a panel to close. */
+ *  here (workspace.css), not a panel to close.
+ *
+ *  NO SESSION TO SHOW (`nothing`): the door or D with nothing selected and no
+ *  session to pick, a first run's empty board above all, opened nothing at all
+ *  and a new user pressed it again. The Inspector opens there, wherever D opens
+ *  it (the Board's column, Workspace's sheet, a phone's sheet), and says one
+ *  muted line: no title, no button (the owner's call, 2026-11-18). The door, D
+ *  and Escape close it, and choosing a session shows that session instead. */
 export const EMPTY_INSPECTOR_TITLE_MSG = "board.inspector.emptyTitle";
 export const EMPTY_INSPECTOR_LINE_MSG = "board.inspector.emptyLine";
+export const NOTHING_INSPECTOR_LINE_MSG = "board.inspector.chooseSession";
 
-export function EmptyInspector() {
+export function EmptyInspector({ nothing = false, leaving = false, sheet = false }: {
+  /** No session to show at all: the one line, in place of the two. */
+  nothing?: boolean;
+  /** On its way out, as DetailAside's (a phone's sheet down the bottom edge,
+   *  Workspace's off the right). */
+  leaving?: boolean;
+  /** Workspace's sheet width (1100 to 1319), as DetailAside's. */
+  sheet?: boolean;
+} = {}) {
   const tr = useT();
+  const { asideRef, sheetState } = useSheetEntry(sheet, leaving);
   return (
-    <aside id={INSPECTOR_REGION_ID} className="detail" aria-label={tr("board.inspector.detail")} data-empty="">
+    <aside ref={asideRef} id={INSPECTOR_REGION_ID} className={leaving ? "detail leaving" : "detail"} data-sheet={sheetState} aria-label={tr("board.inspector.detail")} data-empty="">
       <SheetHandle />
       <header className="insp-h">
         {/* The tabs' look, with nothing to switch between: not a tablist. */}
@@ -143,8 +177,12 @@ export function EmptyInspector() {
         </div>
       </header>
       <div className="insp-b insp-none">
-        <p className="insp-none-title">{tr(EMPTY_INSPECTOR_TITLE_MSG)}</p>
-        <p className="insp-note">{tr(EMPTY_INSPECTOR_LINE_MSG)}</p>
+        {nothing ? <p className="insp-note">{tr(NOTHING_INSPECTOR_LINE_MSG)}</p> : (
+          <>
+            <p className="insp-none-title">{tr(EMPTY_INSPECTOR_TITLE_MSG)}</p>
+            <p className="insp-note">{tr(EMPTY_INSPECTOR_LINE_MSG)}</p>
+          </>
+        )}
       </div>
     </aside>
   );

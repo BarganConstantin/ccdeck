@@ -825,6 +825,7 @@ const catalog: Catalog = {
   "board.inspector.agentsNote": "Cine pe cine a pornit, citit din transcriere. Fiecare card arată propriul model, cost și timp.",
   "board.inspector.emptyTitle": "Nicio sesiune în focus",
   "board.inspector.emptyLine": "Deschide una din listă.",
+  "board.inspector.chooseSession": "Alege o sesiune ca să-i vezi detaliile.",
   "board.inspector.tabAgents": "Agenți",
   "board.inspector.tabTime": "Timp",
   "board.inspector.tabContext": "Context",

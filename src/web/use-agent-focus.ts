@@ -173,8 +173,12 @@ export function useAgentFocus({
    *
    *  The order and the wrap-around live in canvas-keys.ts, where they can be
    *  tested without a canvas; what stays here is the two things that need one,
-   *  the fit and the focus. */
-  const stepAgent = useCallback((direction: 1 | -1) => {
+   *  the fit and the focus.
+   *
+   *  Returns whether it landed on a card: with none on the board there is
+   *  nothing to step to, and D says so in the Inspector instead
+   *  (pickSessionForInspector). */
+  const stepAgent = useCallback((direction: 1 | -1): boolean => {
     // Cards only: a recap note is a node on the canvas, not a stop for j and k.
     const current = nodesRef.current.filter(n => n.type === "agent");
     const targetId = stepTarget(
@@ -183,7 +187,7 @@ export function useAgentFocus({
       direction,
     );
     const target = targetId ? current.find(n => n.id === targetId) : undefined;
-    if (!target) return;
+    if (!target) return false;
     // Traversal takes the keyboard with it, but only when the keyboard was
     // already on a card. j from <body> is the shortcut it has always been —
     // it selects, and every other single-key shortcut stays live because
@@ -197,6 +201,7 @@ export function useAgentFocus({
       try { revealAgent(target.id); } catch {}
       if (follow) focusCanvasNode(target.id);
     }, 30);
+    return true;
   }, [selectAgent, revealAgent]);
 
   /** Select a session's root and bring it on screen, at the zoom the reader is

@@ -800,6 +800,7 @@ const catalog: Catalog = {
   "board.inspector.agentsNote": "Qui a lancé qui, d’après la transcription. Chaque carte montre son propre modèle, son coût et son temps.",
   "board.inspector.emptyTitle": "Aucune session sélectionnée",
   "board.inspector.emptyLine": "Ouvrez-en une depuis la liste.",
+  "board.inspector.chooseSession": "Choisissez une session pour voir ses détails.",
   "board.inspector.tabAgents": "Agents",
   "board.inspector.tabTime": "Temps",
   "board.inspector.tabContext": "Contexte",
