@@ -76,6 +76,10 @@ let downloadResult: Promise<any>;
 let progress: any;
 let recentFailure: { reason: string; at: number } | null;
 let forgot: number;
+// Whether the build is wanted behind a tmux that works (tmux.mjs ownTmuxWanted),
+// and every answer it was asked about.
+let ownWanted: boolean;
+let wantedFor: any[];
 let pruned: any[];
 let clock: number;
 let sized: string[];
@@ -113,6 +117,8 @@ beforeEach(() => {
   progress = null;
   recentFailure = null;
   forgot = 0;
+  ownWanted = false;
+  wantedFor = [];
   pruned = [];
   clock = 1_000_000_000;
   sized = [];
@@ -145,6 +151,7 @@ beforeAll(async () => {
       downloadProgress: () => progress,
       recentDownloadFailure: () => recentFailure,
       forgetTmux: () => { forgot += 1; },
+      ownTmuxWanted: (found: any) => { wantedFor.push(found); return ownWanted; },
       pruneDeadDeckSessions: async (o: any) => { pruned.push(o); return []; },
       now: () => clock,
     },
@@ -254,6 +261,44 @@ describe("GET /api/terminal/status", () => {
     tmuxAnswer = { ok: false, reason: "unsupported-platform" };
     expect((await ask("GET", "/api/terminal/status")).body.tmux.reason).toBe("unsupported-platform");
     expect(downloads).toBe(0);
+  });
+
+  it("fetches ccdeck's own tmux behind a tmux 3.2–3.5 that works, says nothing of it, and forgets the answer when it lands", async () => {
+    const OLDER = Object.freeze({ ok: true, path: "/secret/usr/bin/tmux", version: [3, 4], raw: "tmux 3.4" });
+    tmuxAnswer = OLDER;
+    ownWanted = true;
+    downloadBlocked = null;
+    let land!: (r: unknown) => void;
+    downloadResult = new Promise(r => { land = r; });
+    progress = { stage: "downloading", received: 1, total: 2 };
+    const got = await ask("GET", "/api/terminal/status");
+    expect([got.status, got.body], "the tmux that works, and nothing of the download").toEqual([200, { ok: true, platform: process.platform, tmux: { ok: true, version: "3.4" } }]);
+    expect(got.raw).not.toContain("/secret");
+    expect(wantedFor).toEqual([OLDER]);
+    expect(downloads).toBe(1);
+    expect(forgot, "nothing landed yet").toBe(0);
+    land({ ok: true, path: "/secret/data/tools/tmux/tmux-3.8-1/tmux" });
+    await new Promise(r => setTimeout(r, 10));
+    expect(forgot, "the remembered answer goes, so the next ask can move to the build").toBe(1);
+  });
+
+  it("answers a tmux 3.2–3.5 as it is, offline or switched off, and fetches nothing it does not want", async () => {
+    tmuxAnswer = { ok: true, path: "/secret/usr/bin/tmux", version: [3, 4], raw: "tmux 3.4" };
+    ownWanted = true;
+    downloadBlocked = null;
+    // Offline: the download failed a moment ago.
+    downloadResult = Promise.resolve({ ok: false, reason: "download_failed" });
+    recentFailure = { reason: "download_failed", at: Date.now() };
+    const offline = await ask("GET", "/api/terminal/status");
+    expect(offline.body.tmux, "no failure said: the older tmux works").toEqual({ ok: true, version: "3.4" });
+    recentFailure = null;
+    downloadBlocked = "download_disabled";
+    expect((await ask("GET", "/api/terminal/status")).body.tmux).toEqual({ ok: true, version: "3.4" });
+    downloadBlocked = null;
+    ownWanted = false;
+    expect((await ask("GET", "/api/terminal/status")).body.tmux, "the build is there, or CCDECK_TMUX chose it").toEqual({ ok: true, version: "3.4" });
+    expect(downloads).toBe(0);
+    expect(forgot).toBe(0);
   });
 });
 

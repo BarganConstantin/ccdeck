@@ -190,7 +190,7 @@ below), never answered some other way.
 | `terminal.launch` | `POST /api/terminal/launch` | `{ "body": B }` |
 | `terminal.hosts` | `GET /api/terminal/hosts` | `{ "body": null }` |
 | `terminal.endHosts` | `POST /api/terminal/hosts/end` | `{ "body": B }` |
-| `terminal.forgetTmux` | not a route | `{ "body": null }`, to a running engine once a tmux the deck fetched has landed, or when a status calls the one already in place `fixable` |
+| `terminal.forgetTmux` | not a route | `{ "body": null }`, to a running engine once a tmux the deck fetched has landed (for a machine with none, or behind a tmux 3.2–3.5), or when a status calls the one already in place `fixable` |
 
 `B` is the request's body when it is a JSON object, else null. The engine
 answers `{ status, body, handle?, log?, fixable? }`, and the deck sends
@@ -225,6 +225,22 @@ answers `{ status, body, handle?, log?, fixable? }`, and the deck sends
   an architecture with no build (other than x64 and arm64). The tag, and so
   the folder, is the deck's and the engine's both: they must name the same
   one.
+- `fixable` beside a tmux that works (`body.tmux.ok` true, `body.tmux.version`
+  older than 3.6): the engine chose a tmux 3.2–3.5 by itself (`CCDECK_TMUX`
+  unset) and the build is not at the managed path. tmux before 3.6 mis-draws
+  a row with a wide glyph in it, which a reconnecting pane copies one cell
+  off. The deck starts the same download, under the same rules, but behind
+  the answer: the status is sent as the engine gave it, with no `installing`
+  and no `download`, and a download that fails is not said at all (offline,
+  the older tmux keeps working). Once the build has landed, the deck sends
+  `terminal.forgetTmux` to a running engine. The engine then runs the build
+  instead of the older tmux, unless the deck's tmux server still runs a
+  session under a tmux older than 3.6, asked of the build itself
+  (`list-sessions -F '#{version}'`: a 3.8 client reads a 3.4 server, while a
+  3.4 client cannot reach a 3.8 one). Those sessions keep the older tmux
+  until they end; nothing is moved, restarted or killed. `fixable` beside a
+  tmux 3.6 or newer, or one whose version the status does not give, fetches
+  nothing. A deck from before this rule fetches nothing for it either.
 
 Any other shape is the deck's own 500.
 

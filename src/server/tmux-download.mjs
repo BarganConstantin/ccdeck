@@ -1,4 +1,5 @@
-// ccdeck's own tmux, fetched for a machine that has no usable one.
+// ccdeck's own tmux, fetched for a machine that has no usable one, or only one
+// older than 3.6.
 //
 // The terminal panel runs every session inside tmux 3.2 or newer, and most of
 // the people who run ccdeck have never installed tmux. Installing it for them
@@ -7,6 +8,10 @@
 // compiled by the `tmux` workflow — and publishes it as a prerelease of its own
 // repository. This file fetches the build for this machine into the deck's
 // data folder.
+//
+// A machine whose tmux is 3.2–3.5 (Ubuntu 22.04 and 24.04, Debian 12) gets it
+// too, behind a panel that keeps working meanwhile: see
+// PREFERRED_TMUX_VERSION.
 //
 // THE TRUST IS IN THIS FILE, NOT IN THE RELEASE PAGE. uv-bootstrap.mjs checks
 // uv against the SHA-256 that Astral publishes beside it, because Astral is the
@@ -40,6 +45,21 @@ export const TMUX_BUILD = Object.freeze({
     "darwin-arm64": "cd298aefcf669ae084e2d5361b7621f12c9a65d18983f47c5dfcd0740c44f9c5",
   }),
 });
+
+/**
+ * The oldest tmux the deck runs in preference to this build, as [major,
+ * minor].
+ *
+ * tmux before 3.6 mis-draws a row with a wide glyph in it (upstream
+ * `9c07903a`), and a pane that reconnects or reopens is reseeded from what
+ * tmux drew, so the panel shows that row one cell off until the program
+ * redraws it. A tmux 3.2–3.5 still works, so it is never refused for this:
+ * the build is fetched behind it, and the deck moves to the build once it is
+ * in place and the deck's own tmux server runs no session under the older
+ * one (tmux.mjs ownOverOlder). Here rather than in tmux.mjs because the
+ * deck's routes read it, and tmux.mjs is not on their path.
+ */
+export const PREFERRED_TMUX_VERSION = Object.freeze([3, 6]);
 
 const RELEASES = "https://github.com/BarganConstantin/ccdeck/releases/download";
 /** A build is about 1 MB; anything near this is not one. */
