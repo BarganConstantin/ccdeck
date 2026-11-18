@@ -336,9 +336,11 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))("bringing the e
 // installer makes, so the answer does not hang on the machine's own accounts,
 // and the rule is Linux's, so it is asked for as Linux on a Mac too.
 describe.skipIf(!['darwin', 'linux'].includes(process.platform))("a folder above the data folder that the user's own group can write", () => {
-  const uid = process.getuid!();
-  const gid = process.getgid!();
-  const passwd = (...more: string[]) => [`root:x:0:0:root:/root:/bin/sh`, `me:x:${uid}:${gid}:me:/home/me:/bin/sh`, ...more].join("\n") + "\n";
+  // A skipped describe's body still runs while the file is collected, and
+  // Windows has no getuid: the ids are read only where they exist.
+  const uid = process.getuid?.() ?? -1;
+  const gid = process.getgid?.() ?? -1;
+  const passwd =(...more: string[]) => [`root:x:0:0:root:/root:/bin/sh`, `me:x:${uid}:${gid}:me:/home/me:/bin/sh`, ...more].join("\n") + "\n";
   const group = (members = "", ...more: string[]) => [`root:x:0:`, `me:x:${gid}:${members}`, ...more].join("\n") + "\n";
 
   /** The account files the installer reads, as given; anything else as it is. */
