@@ -45,7 +45,8 @@ interface Props {
   onTour?: () => void;
   /** Close this and open Settings at Keyboard, where the single-key switch is. */
   onSettings?: () => void;
-  /** The Command Panel is on, so Ctrl + backtick has a row (key-help.ts). */
+  /** The Command Panel is on, so Workspace and Terminal have their groups
+   *  (key-help.ts). */
   workspace?: boolean;
   /** Groups a screen adds while it is on (the Decision card's keys). Passed by
    *  the caller, never named here, so with no screen the sheet is key-help.ts's
@@ -54,9 +55,12 @@ interface Props {
 }
 
 /** V4's left column: what acts on the deck and the questions waiting on you.
- *  Every other group, and any a screen adds, is the right column's. */
+ *  Every other group, and any a screen adds, is the right column's. Where the
+ *  Command Panel is on, the right one opens on Workspace and the terminal, the
+ *  first keys a reader new to V4 looks for, and Panels moves to the left so
+ *  the two columns stay about as long. */
 const LEFT_GROUPS: readonly string[] = ["deck", "question"];
-const RIGHT_GROUPS: readonly string[] = ["terminal", "canvas", "panels"];
+const RIGHT_GROUPS: readonly string[] = ["workspace", "terminal", "canvas", "panels"];
 
 /** The groups in V4's two columns. A group a screen adds goes where there are
  *  fewer rows, so neither column runs away. */
@@ -64,19 +68,21 @@ export function splitColumns(groups: readonly KeyHelpGroup[]): KeyHelpGroup[][] 
   const left: KeyHelpGroup[] = [];
   const right: KeyHelpGroup[] = [];
   const size = (column: KeyHelpGroup[]) => column.reduce((n, g) => n + g.rows.length + 1, 0);
+  const leftIds = groups.some(group => group.id === "workspace") ? [...LEFT_GROUPS, "panels"] : LEFT_GROUPS;
   for (const group of groups) {
     const known = LEFT_GROUPS.includes(group.id) || RIGHT_GROUPS.includes(group.id);
-    const toLeft = known ? LEFT_GROUPS.includes(group.id) : size(left) < size(right);
+    const toLeft = known ? leftIds.includes(group.id) : size(left) < size(right);
     (toLeft ? left : right).push(group);
   }
   return [left, right].filter(column => column.length > 0);
 }
 
 /** A cap as V4's key chips: one chip to a key ("Ctrl + K" is Ctrl and K, a
- *  Mac's "⌘ K" is ⌘ and K); a mouse word stays one chip. */
+ *  Mac's "⌘ K" is ⌘ and K, its "⌃ ⇧ X" is ⌃, ⇧ and X); a mouse word stays one
+ *  chip. */
 export function capChips(cap: string): string[] {
   if (cap.includes(" + ")) return cap.split(" + ");
-  if (cap.startsWith("⌘ ")) return cap.split(" ");
+  if (/^[⌘⌃⌥⇧] /.test(cap)) return cap.split(" ");
   return [cap];
 }
 export default function KeyboardHelp({ onClose, onTour, onSettings, workspace = false, extraGroups }: Props) {
@@ -137,9 +143,8 @@ export default function KeyboardHelp({ onClose, onTour, onSettings, workspace = 
           {/* The tour's intro line, above the keys; the door itself is the
               footer's link (V4's Figma). */}
           {onTour && <p className="kh-intro">{t("settings.key.tourText")}</p>}
-          {/* V4's two columns, the Deck and The question on the left and the
-              rest on the right, one row to a shortcut: the action on the left
-              and its keys as chips on the right. */}
+          {/* V4's two columns (splitColumns), one row to a shortcut: the
+              action on the left and its keys as chips on the right. */}
           <div className="kh-cols">
             {splitColumns(groups).map((column, i) => (
               <div className="kh-col" key={i}>

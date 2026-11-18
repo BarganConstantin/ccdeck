@@ -525,9 +525,9 @@ describe("which panels the UI draws for each machine", () => {
     expect(usageSrc).toContain("useCodexQuota(providers.codex)");
     // Usage insights retired the local token summary and its unused poll.
     expect(usageSrc).not.toContain("useCodexUsage(");
-    // The rail's usage meter reads /api/quota too (V4), so its poll is gated the
+    // Accounts reads the active Claude plan label from /api/quota, gated the
     // same way: a Codex-only machine never asks.
     const appSrc = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
-    expect(appSrc).toContain("useMeterQuota(providers.claude)");
+    expect(appSrc).toContain("useMeterQuota(accountsDrawn && providers.claude)");
   });
 });

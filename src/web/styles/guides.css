@@ -210,6 +210,11 @@
    so a drag starting on it still pans, and this is the one thing on it a
    pointer is meant to land on. */
 .empty-hero .empty-tour { pointer-events: auto; min-height: 36px; padding: 0 16px; font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; border-radius: var(--r-ctl); }
+/* Beside New session the tour is quiet, as the film beside it is: no edge at
+   rest or under a pointer, which keeps the button's own secondary ink and its
+   control fill on hover. New session is the hero's one primary. */
+.empty-hero .empty-actions[data-quiet] { margin-top: 12px; gap: 4px; }
+.empty-hero .empty-actions[data-quiet] .empty-tour { border-color: transparent; padding: 0 12px; }
 
 /* The way from a panel to its 30-second video on ccdeck.dev (FilmLink.tsx).
    Quiet: the accent's small words, the ink of the LAN card's `See how it
@@ -249,6 +254,8 @@
 .empty-hero .film-action svg { flex: none; }
 @container (max-width: 360px) {
   .empty-hero .empty-actions { flex-direction: column; gap: 4px; }
+  /* Two quiet links fit one line where a button and a link did not. */
+  .empty-hero .empty-actions[data-quiet] { flex-direction: row; }
 }
 /* The last line of the accounts and Usage columns, on their inset. */
 .film-foot { padding: 4px var(--panel-inset) 8px; }

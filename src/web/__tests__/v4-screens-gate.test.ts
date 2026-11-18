@@ -211,16 +211,16 @@ describe("what is drawn with the flags off", () => {
     }
   });
 
-  // CHANGED ON PURPOSE: the stage now reads a Claude session's conversation from the
+  // CHANGED ON PURPOSE: the stage now reads a supported session's conversation from the
   // deck's transcript route, so it hands Chat to the pane (it used to hand nothing).
-  // What stays true is that it does so only for a Claude session, only with the
+  // What stays true is that it does so only for a supported session, only with the
   // chat flag effective, and never hands the Decision card, which has no way to answer.
   // CHANGED ON PURPOSE (internal #99): the switch goes through showView, which takes
   // the keys out of the pane on the way to Chat (v4-chat-writes-in-term.test.ts).
-  it("the stage hands Chat only for a Claude session with the flag effective, and no Decision card", () => {
+  it("the stage hands Chat only for a supported session with the flag effective, and no Decision card", () => {
     const stage = code("components/terminal/TerminalStage.tsx");
-    expect(stage).toContain('chatSessionFor(screenFlags.chat, p.show.kind === "session" ? p.show.session.ref : null)');
-    expect(stage).toContain("screens={chatSession !== null ? { view, source: chatSource } : undefined}");
+    expect(stage).toContain('chatSessionFor(screenFlags.chat, chatRef)');
+    expect(stage).toContain("screens={chatSession !== null ? { view, source: chatSource, provider: chatProvider } : undefined}");
     expect(stage).toContain("view={chatSession !== null ? { current: view, onChange: showView } : undefined}");
     expect(stage).not.toMatch(/decision[:=]|DecisionCard/);
   });

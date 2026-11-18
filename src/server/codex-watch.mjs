@@ -520,6 +520,16 @@ function codexScanOnce(firstRun) {
   return codexScan;
 }
 
+/** The newest tracked rollout for a session in this deck's workspace. */
+export function codexTranscriptPath(sid) {
+  let newest = null;
+  for (const [path, state] of codexFileState) {
+    if (state.skip || state.sid !== sid || rolloutNameId(basename(path)) !== sid) continue;
+    if (!newest || state.mtimeMs > newest.mtimeMs) newest = { path, mtimeMs: state.mtimeMs };
+  }
+  return newest?.path ?? null;
+}
+
 /**
  * One scan that begins after this call, awaited — what the poll does every
  * 1500ms, on demand.

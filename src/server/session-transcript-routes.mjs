@@ -1,7 +1,6 @@
-// GET /api/session/transcript?session=<id>: the last turns of one Claude
-// session's conversation, for Chat. READ ONLY, and a read of one file the deck
-// already knows: the transcript path the session's own hook event carried
-// (output-watch.mjs holds it, gated by transcript-gate.mjs when it arrived).
+// GET /api/session/transcript?session=<id>&provider=<claude|codex>.
+// Chat reads one transcript already tracked by the Claude output watch or
+// the Codex rollout watcher. Requests without provider use Claude.
 //
 // THE ID IS A KEY AND NOTHING ELSE. It is checked against a short alphabet
 // before anything is looked up, and then only asks the watch's map for a path;
@@ -31,11 +30,15 @@
 // `complete: false`. A line longer than the window gives no turn; the read is
 // never grown to fit it.
 import { constants } from "node:fs";
+import { basename, relative, sep } from "node:path";
 import { lstat as fsLstat, open as fsOpen, realpath as fsRealpath } from "node:fs/promises";
 import { send } from "./http-io.mjs";
 import { claudeTranscriptRoots, isClaudeTranscriptPath } from "./transcript-gate.mjs";
 import { outputWatch } from "./session-tracking.mjs";
-import { transcriptWindow } from "./transcript-turns.mjs";
+import { codexTranscriptWindow, transcriptWindow } from "./transcript-turns.mjs";
+import { rolloutNameId } from "./codex-dir.mjs";
+import { codexProfileSessionDirs } from "./codex-profiles.mjs";
+import { codexTranscriptPath } from "./codex-watch.mjs";
 
 export const SESSION_TRANSCRIPT_ROUTE = "/api/session/transcript";
 
@@ -46,12 +49,18 @@ const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 
 const loopback = req => ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress);
 
-/** The one session id the query names, or null: exactly one `session` and no other parameter. */
-export function sessionOf(params) {
+function transcriptQuery(params) {
   const keys = [...params.keys()];
-  if (keys.length !== 1 || keys[0] !== "session") return null;
-  const id = params.get("session");
-  return SESSION_ID.test(id ?? "") ? id : null;
+  if (new Set(keys).size !== keys.length || keys.some(key => key !== "session" && key !== "provider")) return null;
+  const session = params.get("session");
+  const provider = params.get("provider") ?? "claude";
+  if (!SESSION_ID.test(session ?? "") || (provider !== "claude" && provider !== "codex")) return null;
+  return { session, provider };
+}
+
+function isCodexTranscriptPath(path, roots, session) {
+  if (rolloutNameId(basename(path)) !== session) return false;
+  return roots.some(root => /^\d{4}\/\d{2}\/\d{2}\/[^/]+$/.test(relative(root, path).split(sep).join("/")));
 }
 
 const unknown = res => send(res, 404, { ok: false, reason: "unknown_session" });
@@ -69,10 +78,10 @@ async function readTail(path, io) {
   // transcript root (themselves resolved: ~/.claude is often a link).
   const real = await io.realpath(path);
   const roots = [];
-  for (const root of io.roots()) {
+  for (const root of io.roots) {
     try { roots.push(await io.realpath(root)); } catch { /* a root that does not exist holds nothing */ }
   }
-  if (!isClaudeTranscriptPath(real, roots)) return null;
+  if (!io.allowed(real, roots)) return null;
   const handle = await io.open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0));
   try {
     const after = await handle.stat({ bigint: true });
@@ -100,23 +109,27 @@ async function readTail(path, io) {
 }
 
 export async function handleSessionTranscript(req, res, io = {}) {
-  const pathOf = io.pathOf ?? (sid => outputWatch.pathOf(sid));
-  const files = {
-    lstat: io.lstat ?? fsLstat, open: io.open ?? fsOpen,
-    realpath: io.realpath ?? fsRealpath, roots: io.roots ?? claudeTranscriptRoots,
-  };
-  const allowed = io.isTranscriptPath ?? isClaudeTranscriptPath;
   if (!loopback(req)) return send(res, 403, { ok: false, error: "A conversation can be read on this computer only." });
   if (req.method !== "GET") return send(res, 405, { ok: false, error: "Use GET." });
-  const session = sessionOf(new URL(req.url, "http://localhost").searchParams);
-  if (session === null) return send(res, 400, { ok: false, reason: "bad_session" });
-  const path = pathOf(session);
-  if (typeof path !== "string" || !allowed(path)) return unknown(res);
+  const query = transcriptQuery(new URL(req.url, "http://localhost").searchParams);
+  if (!query) return send(res, 400, { ok: false, reason: "bad_session" });
+  const { session, provider } = query;
+  const codex = provider === "codex";
+  const pathOf = io.pathOf ?? (codex ? codexTranscriptPath : sid => outputWatch.pathOf(sid));
+  const allowed = codex ? (path, roots) => isCodexTranscriptPath(path, roots, session) : isClaudeTranscriptPath;
   let tail;
-  try { tail = await readTail(path, files); }
-  catch { return unknown(res); }
+  try {
+    const path = pathOf(session);
+    if (typeof path !== "string") return unknown(res);
+    const roots = await (io.roots ?? (codex ? codexProfileSessionDirs : claudeTranscriptRoots))();
+    if (!(io.isTranscriptPath ?? allowed)(path, roots)) return unknown(res);
+    tail = await readTail(path, {
+      lstat: io.lstat ?? fsLstat, open: io.open ?? fsOpen,
+      realpath: io.realpath ?? fsRealpath, roots, allowed,
+    });
+  } catch { return unknown(res); }
   if (!tail) return unknown(res);
-  const { turns, cut } = transcriptWindow(tail.lines);
+  const { turns, cut } = (codex ? codexTranscriptWindow : transcriptWindow)(tail.lines);
   // Not complete when the byte window began after the file's start, or when the
   // turn cap dropped turns from the front.
   return send(res, 200, { ok: true, complete: tail.complete && !cut, turns });
