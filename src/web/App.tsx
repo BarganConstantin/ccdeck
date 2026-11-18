@@ -615,14 +615,24 @@ function Inner() {
   // during render (the two writes are inside a replay effect and the SSE
   // handler), so reading it here is the same read it was 150 lines further on.
   const selected = primarySelectedId ? stateRef.current.agents.get(primarySelectedId) : null;
+  // THE INSPECTOR ON NOTHING (the owner's call, 2026-11-18). The door, or D,
+  // with nothing selected and no session to pick (a first run's empty board)
+  // drew nothing at all, and a new user pressed it again. It opens the
+  // Inspector on one line saying what to do instead (Inspector.tsx,
+  // EmptyInspector), until the door, D or Escape closes it or a session is
+  // chosen. Set with the panel's own open flag, so every way that closes the
+  // panel closes it too. Workspace's column has its own empty Inspector and
+  // never sets it.
+  const [inspectingNothing, setInspectingNothing] = useState(false);
   /** Whether `.detail` is in the DOM, which is what the sheet keys the rail's
    *  horizontal position off: `--rail-r` is 368px with it and 8px without
    *  (`.app:not(:has(.detail))`), and `.usage-panel` takes the same 360px step.
    *  Not `detailOpen` on its own — the panel is `detailOpen && selected`, so a
    *  deck with the panel enabled and nothing selected is 360px out. Nor while
    *  the right column is folded (one-side-column.ts): `detailWanted` is the
-   *  panel the reader has open, folded or not. */
-  const detailWanted = detailOpen && selected != null;
+   *  panel the reader has open, folded or not. With nothing selected it is
+   *  the Inspector on nothing, asked for by the door or D. */
+  const detailWanted = detailOpen && (selected != null || inspectingNothing);
   const detailShown = detailWanted && !sideFold.right;
   const lastSelected = useRef(selected);
   if (selected) lastSelected.current = selected;
@@ -762,7 +772,13 @@ function Inner() {
   const sheetExitMs = inspectorSheet && !reducedMotion && !lastInputWasKey() ? tokenMs("--dur-stage-out") : 0;
   const detailPhase = usePanelPresence(detailShown, phone ? railExitMs : sheetExitMs);
   const detailLeaving = (phone || sheetExitMs > 0) && isLeaving(detailShown, detailPhase);
-  const detailOnScreen = detailShown ? selected : detailLeaving ? lastSelected.current : null;
+  // What the Inspector is about while it shows and while it leaves: a session,
+  // or nothing, the one line. Never a second empty Inspector beside
+  // Workspace's column, which draws its own.
+  const lastNothing = useRef(false);
+  if (detailShown) lastNothing.current = selected == null;
+  const nothingOnScreen = !(inWorkspace && inspectorColumn) && (detailShown ? selected == null : detailLeaving && lastNothing.current);
+  const detailOnScreen = detailShown ? selected : detailLeaving && !lastNothing.current ? lastSelected.current : null;
   // The Board's stored Inspector choice is not the sheet width's: entering
   // Workspace here, or narrowing into this range, folds it in memory alone
   // (use-right-panels.ts, the same hold the panels use).
@@ -816,22 +832,40 @@ function Inner() {
   const inspectorOpen = inspectorDoorOpen({
     workspace: inWorkspace, column: inspectorColumn, folded: inspectorFolded, shown: detailShown, zoomed,
   });
+  // No session to pick: the Inspector on its one line. Through the panel's own
+  // setter, which brings a folded right column back as any open does.
+  const inspectNothing = useCallback(() => { setInspectingNothing(true); setDetailOpen(true); }, [setDetailOpen]);
+  // Escape clears the selection, which takes a session's Inspector away; the
+  // Inspector on nothing goes on the same press.
+  const clearInspection = useCallback(() => { clearSelection(); setInspectingNothing(false); }, [clearSelection]);
+  // The line is done once the panel closes or a session is chosen, so a later
+  // open (leaving Workspace gives the Board its own back) never brings it back
+  // unasked. Workspace's column says it its own way.
+  useEffect(() => {
+    if (!detailOpen || primarySelectedId || (inWorkspace && inspectorColumn)) setInspectingNothing(false);
+  }, [detailOpen, primarySelectedId, inWorkspace, inspectorColumn]);
   const showInspector = useCallback(() => {
     setInspectorFolded(false);
     if (primarySelectedIdRef.current) setDetailOpen(true);
-    else pickSessionForInspector(stateRef.current, focusSession, stepAgent);
+    // The column, unfolded, is its own empty Inspector; the sheet needs the line.
+    else if (!pickSessionForInspector(stateRef.current, focusSession, stepAgent) && inspectorSheet) inspectNothing();
     // The door is not what the keys are for once the Inspector is drawn: they go into it.
     requestAnimationFrame(() => { document.querySelector<HTMLElement>(".detail .insp-tab[aria-selected=\"true\"]")?.focus(); });
-  }, [setDetailOpen, primarySelectedIdRef, stateRef, focusSession, stepAgent]);
+  }, [setDetailOpen, primarySelectedIdRef, stateRef, focusSession, stepAgent, inspectorSheet, inspectNothing]);
   // In Workspace the door folds and unfolds the column or the sheet; on the
-  // Board and under 1100 it is exactly D (inspector-corner.ts says which).
+  // Board and under 1100 it is exactly D (inspector-corner.ts says which), and
+  // with nothing to pick it opens the Inspector on its line, and closes it.
   const toggleInspector = useCallback(() => {
     const press = inspectorDoorPress({ workspace: inWorkspace, column: inspectorColumn, sheet: inspectorSheet, open: inspectorOpen });
     if (press === "fold") foldInspector();
     else if (press === "show") showInspector();
     else if (primarySelectedIdRef.current) setDetailOpen(o => !o);
-    else pickSessionForInspector(stateRef.current, focusSession, stepAgent);
-  }, [inWorkspace, inspectorColumn, inspectorSheet, inspectorOpen, foldInspector, showInspector, setDetailOpen, primarySelectedIdRef, stateRef, focusSession, stepAgent]);
+    else if (inspectorOpen) setInspectingNothing(false);
+    else if (!pickSessionForInspector(stateRef.current, focusSession, stepAgent)) inspectNothing();
+  }, [inWorkspace, inspectorColumn, inspectorSheet, inspectorOpen, foldInspector, showInspector, setDetailOpen, primarySelectedIdRef, stateRef, focusSession, stepAgent, inspectNothing]);
+  // D with nothing selected and no session to pick presses the door
+  // (use-deck-shortcuts.ts).
+  const inspectorDoorRef = useMirroredRef<(() => void) | null>(toggleInspector);
   const sheetFoldRef = useMirroredRef<(() => void) | null>(inspectorSheet && detailShown ? foldInspector : null);
   // Usage and Machine dock in a side column in Workspace, beside the pane, and
   // sit in the right column on the Board (side-column.ts). One open flag each for
@@ -1039,9 +1073,10 @@ function Inner() {
     pointerFocusRef, nodesRef, stateRef, primarySelectedIdRef, providersRef, soundOnRef,
     keyHelpOpenRef, modalOpenRef, waitingCursorRef, removeSelectedRef, activateSoundRef,
     viewRef: viewShortcutRef,
-    stageRef: stage.keysRef, lodRef, inspectorSheetFoldRef: sheetFoldRef,
-    // What the keys do.
-    clearSelection, selectAgent, focusAgent, stepAgent, focusSession: focusSessionOnView, requestClear,
+    stageRef: stage.keysRef, lodRef, inspectorSheetFoldRef: sheetFoldRef, inspectorDoorRef,
+    // What the keys do. Escape's clear is the selection's, and with it the
+    // Inspector's on nothing: either way the Inspector closes.
+    clearSelection: clearInspection, selectAgent, focusAgent, stepAgent, focusSession: focusSessionOnView, requestClear,
     handleRelayout, undoRearrange: rearrangeUndo.undo, handleFit, togglePause, toggleSessionList: pressSessionsKey, toggleAccountsPanel: pressAccounts,
     setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen: usageRail.set, setMachinePanelOpen: machineRail.set,
     setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef, openQuickOpen,
@@ -1642,7 +1677,7 @@ function Inner() {
           onOpenSession={stage.enabled ? openSessionWithKeys : undefined} stageSession={stage.enabled && stageClaimsKeys(stage.shell.phase) ? targetSession(stage.shell.target) : null}
           onClose={inWorkspace && (inspectorColumn || inspectorSheet) ? foldInspector : sheetClose("inspector", () => { panelReturn.detail(); setDetailOpen(false); })}
         />
-      ) : null}
+      ) : nothingOnScreen ? <EmptyInspector nothing leaving={detailLeaving} sheet={inspectorSheet} /> : null}
       </div>
 
       {/* A phone's sheets lie over a scrim; a press on it closes the one up. */}

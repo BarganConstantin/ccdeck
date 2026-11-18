@@ -203,14 +203,23 @@ describe("the rail inset is measured when something can have moved it", () => {
     // condition without changing the derivation goes red here.
     // CHANGED ON PURPOSE (one side column between 641 and 839): nor while the
     // right column is folded, which unmounts the panel the way a close does.
-    expect(app).toMatch(/const detailWanted = detailOpen && selected != null;/);
+    // CHANGED ON PURPOSE (owner, 2026-11-18): with nothing selected, the
+    // Inspector the door or D opened on nothing is the panel too, and it mounts
+    // `.detail` the same way (EmptyInspector, beside DetailAside).
+    expect(app).toMatch(/const detailWanted = detailOpen && \(selected != null \|\| inspectingNothing\);/);
     expect(app).toMatch(/const detailShown = detailWanted && !sideFold\.right;/);
     // CHANGED ON PURPOSE (the phone layout): the panel is drawn for
     // `detailOnScreen`, which is `selected` while `detailShown` and, on a phone
     // only, the last selection while the sheet slides down. Wider than a phone
     // it is `detailShown ? selected : null`: the same condition.
-    expect(app).toMatch(/const detailOnScreen = detailShown \? selected : detailLeaving \? lastSelected\.current : null;/);
+    // CHANGED ON PURPOSE (owner, 2026-11-18): and `nothingOnScreen` while it
+    // shows with nothing selected, or leaves having shown that: between the
+    // two, exactly `detailShown`, plus the slide down.
+    expect(app).toMatch(/const detailOnScreen = detailShown \? selected : detailLeaving && !lastNothing\.current \? lastSelected\.current : null;/);
+    expect(app).toMatch(/const nothingOnScreen = !\(inWorkspace && inspectorColumn\) && \(detailShown \? selected == null : detailLeaving && lastNothing\.current\);/);
+    expect(app).toMatch(/if \(detailShown\) lastNothing\.current = selected == null;/);
     expect(app).toMatch(/\{detailOnScreen \? \(/);
+    expect(app).toMatch(/\) : nothingOnScreen \? <EmptyInspector nothing leaving=\{detailLeaving\} sheet=\{inspectorSheet\} \/> : null\}/);
   });
 
   it("keeps railCover to the two callers that are not on the render path", () => {

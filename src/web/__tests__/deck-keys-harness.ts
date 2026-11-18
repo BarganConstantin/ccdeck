@@ -66,6 +66,14 @@ export interface DeckKeysOptions {
   /** Re-arrange's Undo: true when its window was open and it restored the
    *  board, false once the notice has gone. Absent, there is nothing to undo. */
   undoRearrange?: () => boolean;
+  /** The primary selection; `s1` unless a test says otherwise. */
+  selected?: string | null;
+  /** Whether j has a card to land on (stepAgent's answer); there is one
+   *  unless a test empties the board. */
+  cards?: boolean;
+  /** The Inspector door's press, what D does with nothing to pick. Left out,
+   *  the deck is mounted with the props it had before the door took D. */
+  inspectorDoor?: () => void;
 }
 
 /** A terminal stage whose every callback is a spy, open on `s1` with three
@@ -84,7 +92,7 @@ export function stageKeys(over: Partial<StageShortcuts> = {}): StageShortcuts {
   };
 }
 
-export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange = () => false, stage, view }: DeckKeysOptions = {}) {
+export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange = () => false, stage, view, selected = "s1", cards = true, inspectorDoor }: DeckKeysOptions = {}) {
   let onKey: ((e: KeyboardEvent) => void) | null = null;
   vi.stubGlobal("window", {
     addEventListener: (type: string, fn: (e: KeyboardEvent) => void) => { if (type === "keydown") onKey = fn; },
@@ -101,7 +109,7 @@ export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange 
     pointerFocusRef,
     nodesRef: { current: [] },
     stateRef: { current: initialState() },
-    primarySelectedIdRef: { current: "s1" },
+    primarySelectedIdRef: { current: selected },
     providersRef: { current: { claude } },
     soundOnRef: { current: true },
     // Mirrored from the flag, the way App mirrors its state into the ref.
@@ -114,7 +122,7 @@ export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange 
     clearSelection: vi.fn(),
     selectAgent: vi.fn(),
     focusAgent: vi.fn(),
-    stepAgent: vi.fn(),
+    stepAgent: vi.fn(() => cards),
     focusSession: vi.fn(),
     requestClear: vi.fn(),
     handleRelayout: vi.fn(),
@@ -136,6 +144,7 @@ export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange 
     // with the very props it always had.
     ...(stage !== undefined ? { stageRef: { current: stage } } : {}),
     ...(view !== undefined ? { viewRef: { current: view } } : {}),
+    ...(inspectorDoor !== undefined ? { inspectorDoorRef: { current: inspectorDoor } } : {}),
   };
   useDeckShortcuts(props);
   if (!onKey) throw new Error("useDeckShortcuts put no keydown listener on window");
