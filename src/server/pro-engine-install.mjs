@@ -1,4 +1,5 @@
-// Optional local executable verification. No downloads or public runtime deps.
+// Optional local executable verification. Nothing is downloaded here (a
+// person's Install does that, in engine-download.mjs) and no public runtime deps.
 //
 // TWO CALLERS, ONE SET OF RULES. verifyEngineInstallation checks the folder the
 // engine runs from (`<deck data folder>/engine`). engine-package.mjs checks the

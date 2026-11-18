@@ -25,8 +25,8 @@
 //     environment variable, a setting, a CLI flag, a file or a request;
 //   - startServer was also given an explicit `terminal.engine`: the engine
 //     that preload built, with a fresh test key it holds in memory and passes
-//     as that engine's `publicKey`. The deck's own ENGINE_PUBLIC_KEYS stay
-//     empty and are never added to;
+//     as that engine's `publicKey`. The deck's own ENGINE_PUBLIC_KEYS (the
+//     one release key) are never used for it and never added to;
 //   - the test-only module preview/command-panel-windows.mjs, outside
 //     src/server, can be loaded. It is not in the published package
 //     (package.json `files`) nor in the desktop app's resources
