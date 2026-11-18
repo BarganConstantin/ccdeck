@@ -90,10 +90,15 @@ describe("the top bar under 390px while the version chip is drawn", () => {
     expect(declared(rule.body, "visibility")).toBeUndefined();
   });
 
-  it("holds under 390 and nowhere wider, so 390, 641, 1024 and 1440 draw what they drew", () => {
+  it("holds under 390 and nowhere else on a phone, so 390 to 640, 1024 and 1440 draw what they drew", () => {
     const [rule] = nameRules;
     for (const w of [320, 340, 360, 375, 389]) expect(mediaApplies(rule.media, w), `at ${w}px`).toBe(true);
-    for (const w of [390, 412, 640, 641, 1024, 1440]) expect(mediaApplies(rule.media, w), `at ${w}px`).toBe(false);
+    // CHANGED ON PURPOSE: 641 left this list, for 680. The same rule now also
+    // holds from 641 to 679, the full bar's first widths, where the end group
+    // adds Board | Workspace and Search beside the chip and cut the mark off at
+    // 641 (topbar-counts-641.test.ts pins that band). The phone's widths from
+    // 390 up and the wide bar are still outside it.
+    for (const w of [390, 412, 480, 560, 640, 680, 1024, 1440]) expect(mediaApplies(rule.media, w), `at ${w}px`).toBe(false);
   });
 
   it("drops the chip's icon under 340 and nowhere wider, and nothing else of the chip", () => {
