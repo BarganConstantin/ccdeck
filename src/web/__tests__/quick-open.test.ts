@@ -264,7 +264,9 @@ describe("the chord", () => {
     const row = keyHelpFor(true).flatMap(g => g.rows).find(r => r.cap === "Ctrl + K");
     expect(row).toMatchObject({ macCap: "⌘ K", chord: true });
     // CHANGED ON PURPOSE (V4's Figma): Quick open is still alone in the panels group with the letters off, which V4 names Panels.
-    expect(keyHelpFor(false).find(g => g.title === "Panels")?.rows.map(r => r.cap)).toEqual(["Ctrl + K"]);
+    // CHANGED ON PURPOSE (first use of Workspace): F2 joins it there, the list's rename; it opens no panel, so
+    // Ctrl + K is still the one way to the panels.
+    expect(keyHelpFor(false).find(g => g.title === "Panels")?.rows.map(r => r.cap)).toEqual(["Ctrl + K", "F2"]);
   });
 });
 
