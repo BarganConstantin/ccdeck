@@ -258,9 +258,11 @@ export const GATES = [
   // on the two platforms the installer accepts rather than on win32, so a
   // fourth platform skips rather than failing an installation it never accepts.
   // The step that brings the engine in from its npm package, on real files and
-  // symlinks, and the Windows rules against a mocked ACL reader, which write
-  // the same fixtures to disk: three blocks, on the same two platforms.
-  { file: "engine-package.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 3, cases: 26 },
+  // symlinks, the Windows rules against a mocked ACL reader, which write the
+  // same fixtures to disk, and a folder above the data folder that only the
+  // user's own group can write (Linux's rule, asked for as Linux on a Mac too,
+  // with mocked account files): four blocks, on the same two platforms.
+  { file: "engine-package.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 4, cases: 36 },
   // The install's tightening of the deck's own data folder before it checks
   // an engine there: a folder made 0775 under a 0002 umask ends 0755, and a
   // writable folder above it is left alone and makes the check fail. Both read
@@ -278,7 +280,7 @@ export const GATES = [
   // The panel's routes answered by the same signed double started as the
   // engine, on a real deck, on the same two platforms. What a deck with no
   // engine answers is pro-engine-routes-off, un-gated, on every leg.
-  { file: "pro-engine-routes.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 1, cases: 10 },
+  { file: "pro-engine-routes.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 1, cases: 17 },
   // The test-only Windows preview's client started against the same double,
   // answering as a Windows engine under an `.exe` name: a script with a
   // shebang, which macOS and Linux run and Windows cannot, as it is not a PE

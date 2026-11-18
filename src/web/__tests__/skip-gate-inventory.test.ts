@@ -155,10 +155,10 @@ describe("the register of conditionally-skipped cases", () => {
     expect(expectedSkips("darwin")).toEqual(expected);
   });
 
-  it("expects the two hundred and thirteen platform-gated cases to skip on Windows, file by file", () => {
+  it("expects the two hundred and thirty platform-gated cases to skip on Windows, file by file", () => {
     // One hundred and five behind `process.platform === "win32"`, twenty-nine behind
     // development's Codex probes (the same gate written with single quotes),
-    // sixty-five behind the optional engine's macOS-and-Linux gate, eight
+    // eighty-two behind the optional engine's macOS-and-Linux gate, eight
     // behind the posix runIf family, three behind the non-root posix
     // permission probe (boot-lock-recovery's and the integrations store's
     // quarantine pair), and the three read-only-directory cases — sound-hook-park's,
@@ -169,7 +169,7 @@ describe("the register of conditionally-skipped cases", () => {
     // than as a total, so a change that moves a case from one gate to another is
     // a mismatch rather than an arithmetic coincidence.
     expect(expectedSkips("win32")).toEqual({
-      total: 213,
+      total: 230,
       byFile: {
         "append-deadline.test.ts": 1,
         "backup-root-shared.test.ts": 1,
@@ -192,7 +192,7 @@ describe("the register of conditionally-skipped cases", () => {
         "exec-descendants.test.ts": 7,
         "exec-timeout.test.ts": 2,
         "exec-windows.test.ts": 3,
-        "engine-package.test.ts": 26,
+        "engine-package.test.ts": 36,
         "engine-install.test.ts": 10,
         "hangup-shuts-down.test.ts": 5,
         "hook-command-node-fallback.test.ts": 3,
@@ -200,7 +200,7 @@ describe("the register of conditionally-skipped cases", () => {
         "no-shell-hook-commands.test.ts": 2,
         "prefs-corrupt-1002.test.ts": 2,
         "pro-engine-client.test.ts": 21,
-        "pro-engine-routes.test.ts": 10,
+        "pro-engine-routes.test.ts": 17,
         "pro-engine-terminal.test.ts": 28,
         "relay-guard.test.ts": 6,
         "session-transcript-route.test.ts": 6,

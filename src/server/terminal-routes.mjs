@@ -48,13 +48,26 @@
 // some other way. The JS backend these routes once ran is a test's
 // (terminal-js-routes.mjs, handed in as `jsBackend`); nothing here imports it.
 //
+// THE DECK STILL FETCHES ITS OWN TMUX. On Linux and macOS the engine runs each
+// session inside the deck's own tmux server, which needs tmux 3.2 or newer,
+// and many machines have none: no Mac ships one. The engine's status says so
+// with `fixable`, and the deck then does what it did before the engine: it
+// fetches ccdeck's own build (tmux-download.mjs: pinned SHA-256, into
+// <data>/tools/tmux, the folder the engine's lookup also reads), answers
+// "installing" with how far it has got, and once the build has landed tells
+// the engine to look again (`terminal.forgetTmux`). That download is the one
+// piece of the JS backend's tmux handling on the product's path;
+// terminal-js-offpath.test.ts holds that nothing else of it is.
+//
 // THE PAGE NEVER NAMES A PANE. It names a session — an id, a provider, a
 // folder — and the engine works the rest out. Where its answer carries a
 // ticket, the engine gives an opaque handle instead, and the ticket is minted
 // here over it: the handle never reaches the page, and nothing the page sends
 // is ever used as a pane.
+import { existsSync } from "node:fs";
 import { PRODUCT } from "./brand.mjs";
 import { commandPanel } from "./command-panel-engine.mjs";
+import { deckDataDir } from "./deck-home.mjs";
 import { terminalOn } from "./deck-prefs.mjs";
 import { ENGINE_TARBALL_MAX } from "./engine-download.mjs";
 import { readBody, readBytes, send } from "./http-io.mjs";
@@ -64,6 +77,9 @@ import { engineRefusal } from "./pro-engine-terminal.mjs";
 import { checkFolder } from "./terminal-folder.mjs";
 import { discoverProjects } from "./project-discovery.mjs";
 import { createTicketStore } from "./terminal-socket.mjs";
+import {
+  TMUX_BUILD, ensureManagedTmux, managedTmuxPath, recentTmuxFailure, tmuxDownloadBlocked, tmuxDownloadProgress,
+} from "./tmux-download.mjs";
 
 /** The bodies here are an id, a provider and a folder. A few kilobytes is far
  *  above any of them, and readBody answers 413 for anything larger. */
@@ -73,6 +89,58 @@ const BODY_LIMIT = 8 * 1024;
 // process, like the deck's token: a restarted deck has none of the old ones,
 // and a panel that reconnects asks for a new ticket first.
 const TICKETS = createTicketStore();
+
+/**
+ * ccdeck's own tmux (tmux-download.mjs), as the status route asks about it:
+ *
+ *   blocked()        why no download may start here, or null: switched off
+ *                    (AGENTS_DECK_NO_INSTALL=1, AGENTS_DECK_NO_DOWNLOAD=1), or
+ *                    no build for this machine (Windows, an arch other than
+ *                    x64 and arm64);
+ *   landed()         whether the build is in its folder already;
+ *   recentFailure()  the last download's failure while it is believed;
+ *   out              whether a download started here is still out;
+ *   progress()       how far that one has got, "checking" once its build has
+ *                    landed and the engine is being told, or null;
+ *   start(then)      start one unless one is out, and run `then` once its
+ *                    build has landed. Never awaited, never rejects.
+ *
+ * The download itself is ensureManagedTmux's, shared by everyone who asks
+ * while it is out. `env`, `platform` and `arch` say where it goes and which
+ * build it is; `build`, `fetchImpl` and `execImpl` are for tests.
+ */
+export function ownTmux({
+  env = process.env, platform = process.platform, arch = process.arch, build = TMUX_BUILD, fetchImpl, execImpl,
+} = {}) {
+  const dataDir = () => deckDataDir(platform, env);
+  let out = null; // { landed }
+  return Object.freeze({
+    blocked: () => tmuxDownloadBlocked({ env, platform, arch, build }),
+    landed: () => existsSync(managedTmuxPath(dataDir(), build)),
+    recentFailure: () => recentTmuxFailure(),
+    get out() { return out !== null; },
+    progress: () => (out ? tmuxDownloadProgress() ?? (out.landed ? { stage: "checking" } : null) : null),
+    start(then) {
+      if (out) return;
+      const run = { landed: false };
+      out = run;
+      void ensureManagedTmux({
+        env, platform, arch, build, dataDir: dataDir(),
+        ...(fetchImpl ? { fetchImpl } : {}), ...(execImpl ? { execImpl } : {}),
+      })
+        .then(async (r) => {
+          if (!r?.ok) return;
+          run.landed = true;
+          await then();
+        })
+        .catch(() => {})
+        .finally(() => { if (out === run) out = null; });
+    },
+  });
+}
+
+/** The deck's own: the default `ownTmux` of the routes below. */
+const OWN_TMUX = ownTmux();
 
 /**
  * Everything these routes reach outside themselves, with the real ones as
@@ -96,6 +164,10 @@ const TICKETS = createTicketStore();
  * (panel-provenance.mjs): told of each launch, adopt and claim the engine
  * answers, and asked for the provenance a case C target carries. Never asked
  * whether anything may be done.
+ *
+ * `ownTmux` is ccdeck's own tmux download (ownTmux above), which a status the
+ * engine calls `fixable` runs (withOwnTmux). A test hands one that fetches
+ * from a stand-in, never from the network.
  */
 export function terminalDeps(overrides = {}) {
   return {
@@ -103,6 +175,7 @@ export function terminalDeps(overrides = {}) {
     tickets: TICKETS,
     engine: commandPanel,
     provenance: panelProvenance,
+    ownTmux: OWN_TMUX,
     jsBackend: null,
     ...(overrides ?? {}),
   };
@@ -330,7 +403,8 @@ async function jsonBody(req, res) {
  * beside it, the ticket is minted here, in the same store, 30 s and single
  * use, bound to `{ handle, origin }` — the page's origin, as for any ticket —
  * and the upgrade relays it to the engine. The `log` line goes to the deck's
- * log, never to the page. An engine that could not take the question answers
+ * log, never to the page. A status it calls `fixable` runs the deck's own tmux
+ * download first (withOwnTmux). An engine that could not take the question answers
  * its refusal in the same shape (routeThroughEngine); one that failed in a way
  * that must not be asked again throws, which is `guard`'s 500.
  */
@@ -353,17 +427,80 @@ async function answer(d, req, res, method, question) {
   // deck stopped in between) leaves its session "unknown" rather than "external" (panel-provenance.mjs).
   const engineOn = d.engine?.enabled === true;
   const ref = engineOn && d.provenance && LAUNCHES.has(method) ? d.provenance.started(method, question) : null;
-  const said = engineOn ? await d.engine.route(method, question) : engineRefusal("not-installed");
+  let said = engineOn ? await d.engine.route(method, question) : engineRefusal("not-installed");
   if (said.log) console.error(`${PRODUCT}: terminal: ${said.log}`);
   // What the engine did, it did whatever the switch now says: noted before the switch is asked again.
   d.provenance?.answered(method, question, ref, said.status, said.body);
   // And once more, now that the engine has answered: a question asked while on can be answered after the
   // switch-off, since the engine is stopped only once it has answered (command-panel-engine.mjs).
   if (!d.enabled()) return answeredAfterOff(res, method, said);
+  if (method === "status" && fixable(said)) {
+    said = await withOwnTmux(d, said);
+    // It may have asked the engine again on the way: the switch once more.
+    if (!d.enabled()) return answeredAfterOff(res, method, said);
+  }
   let out = withProvenance(d.provenance, question, said.body);
   if (said.handle) {
     const origin = typeof req?.headers?.origin === "string" ? req.headers.origin.trim().toLowerCase() : "";
     out = { ...out, ticket: d.tickets.mint({ handle: said.handle, ...(origin ? { origin } : {}) }) };
   }
   return send(res, said.status, out);
+}
+
+/** The tmux states the deck's own build answers: none at all, or one older than 3.2. */
+const FETCHABLE = new Set(["missing", "too-old"]);
+
+/** Whether the engine's answer is a status it calls `fixable`: no tmux here it
+ *  can use, and one the deck could fetch. Asked of the body too, so an answer
+ *  that says fixable beside a tmux that works fetches nothing. */
+function fixable(said) {
+  const tmux = said?.body?.tmux;
+  return said?.fixable === true && said.status === 200 && said.body.ok === true
+    && !!tmux && typeof tmux === "object" && tmux.ok !== true && FETCHABLE.has(tmux.reason);
+}
+
+/** `said` with its body's `tmux` replaced by `tmux`. */
+function withTmux(said, tmux) {
+  return { ...said, body: { ...said.body, tmux } };
+}
+
+/**
+ * A status the engine called `fixable`, answered as the deck answered it
+ * before the engine served the panel:
+ *
+ *   - no download may start here (switched off, or no build for this
+ *     machine): the engine's answer as it is, the install line included;
+ *   - a download out: `reason: "installing"`, with `progress` once it has
+ *     said, and the page asks again;
+ *   - the build already in its folder: the engine may remember a miss from
+ *     before it landed (this deck's, a moment ago, or another deck's), so it
+ *     is told to forget it and asked once more. Still none, and the build is
+ *     not fetched again — the same bytes would land in the same place, every
+ *     time the page asks — but answered as the plain fact with `download:
+ *     "not_used"`;
+ *   - a download that failed lately (RETRY_AFTER_MS): the plain fact with
+ *     `download: <why>`, so the panel offers the install line instead;
+ *   - otherwise one starts, not awaited, and is answered `installing`: once
+ *     its build lands the engine is told to look again (`terminal.forgetTmux`),
+ *     and the page's next ask finds it.
+ *
+ * The deck never decides on its own that tmux is missing: only the engine's
+ * `fixable` starts any of this.
+ */
+async function withOwnTmux(d, said) {
+  const own = d.ownTmux;
+  if (!own || own.blocked()) return said;
+  if (!own.out) {
+    if (own.landed()) {
+      await d.engine.forgetTmux?.();
+      const again = await d.engine.route("status", null);
+      if (again.log) console.error(`${PRODUCT}: terminal: ${again.log}`);
+      return fixable(again) ? withTmux(again, { ...again.body.tmux, download: "not_used" }) : again;
+    }
+    const failed = own.recentFailure();
+    if (failed) return withTmux(said, { ...said.body.tmux, download: failed.reason });
+    own.start(() => d.engine.forgetTmux?.());
+  }
+  const progress = own.progress();
+  return withTmux(said, { ok: false, reason: "installing", ...(progress ? { progress } : {}) });
 }
