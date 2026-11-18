@@ -487,7 +487,7 @@ describe("the README sends a reader to the section a setting is drawn in", () =>
     // kept sending readers to General for all three.
     const pointers: Array<[string, RegExp, RegExp]> = [
       ["single-key shortcuts", /\*\*Single-key shortcuts\*\* in \*\*Settings › ([^*›]+)\*\*/, />Single-key shortcuts</],
-      ["color themes", /\*\*Settings › ([^*›]+)\*\* holds twelve color themes/, />Theme<\/h3>/],
+      ["color themes", /\*\*Settings › ([^*›]+)\*\* holds thirteen color themes/, />Theme<\/h3>/],
       ["the character", /character settings are in \*\*Settings › ([^*›]+)\*\*/, />Character<\/h3>/],
       // Its rows wait for the stored history, so the group is what a first
       // render draws; the README names the group too.
