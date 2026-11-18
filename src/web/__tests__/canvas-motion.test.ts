@@ -288,6 +288,7 @@ const PRESSES: Press[] = [
   [".tr-file-picker:active", "0.97", "transform"],
   // V4's button: the press reads --press and holds back under keyboard focus.
   ["button.btn:active:not(:disabled):not(:focus-visible)", "var(--press)", "transform"],
+  ['.ui-button:active:not(:disabled):not(:focus-visible):not([aria-disabled="true"])', "var(--press)", "transform"],
   // Every panel and dialog header close, in one entry. This used to be five —
   // `.sd-close` at 0.97 and `.detail-close`, `.ctx-modal-close` and `.uh-close`
   // at 0.94, with the rest pressing as `button.btn` because they were wearing

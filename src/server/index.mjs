@@ -201,7 +201,7 @@ import { handleIntegrations } from "./integrations/routes.mjs";
 // (terminal-socket.mjs).
 import {
   handleTerminalAdopt, handleTerminalClaim, handleTerminalEndHosts, handleTerminalFolder, handleTerminalHosts, handleTerminalLaunch, handleTerminalOpen,
-  handleTerminalStatus, handleTerminalTarget, terminalUpgradeOptions,
+  handleTerminalStatus, handleTerminalTarget, handleTerminalProjects, terminalUpgradeOptions,
   handleEngineStatus, handleEngineAction,
 } from "./terminal-routes.mjs";
 import { installTerminalUpgrade } from "./terminal-socket.mjs";
@@ -566,6 +566,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // terminal-routes.mjs. Session ids ride in the query or the body, never in
     // the path, so GUARDED_READS can name the three reads exactly.
     if (req.method === "GET"  && url.pathname === "/api/terminal/status") return guard(handleTerminalStatus(req, res, terminal), res);
+    if (req.method === "GET"  && url.pathname === "/api/terminal/projects") return guard(handleTerminalProjects(req, res, terminal), res);
     if (req.method === "GET"  && url.pathname === "/api/terminal/target") return guard(handleTerminalTarget(req, res, url, terminal), res);
     if (req.method === "GET"  && url.pathname === "/api/terminal/hosts")  return guard(handleTerminalHosts(req, res, terminal), res);
     if (req.method === "POST" && url.pathname === "/api/terminal/hosts/end") return guard(handleTerminalEndHosts(req, res, terminal), res);

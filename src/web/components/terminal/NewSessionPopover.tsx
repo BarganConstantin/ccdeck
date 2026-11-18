@@ -5,8 +5,8 @@
 // FIRST THE FOLDER, THEN THE AGENT, THEN A BUTTON THAT SAYS WHAT IT WILL DO
 // (internal #106). One field, "Search projects or enter a path", holds the
 // keyboard: empty, the list under it is the reader's recent projects — the
-// folders sessions on the board ran in, the stage's own first, and the ones
-// the reader started in or chose here before (project-picker.ts); typed into,
+// folders sessions on the board ran in, the stage's own first, the ones
+// chosen here before, and bounded local Git discovery (project-picker.ts); typed into,
 // the list keeps the projects whose name or path holds every word, and a full
 // path is offered as itself ("Use /srv/api"). ↑ and ↓ walk the list, Enter
 // CHOOSES — it never starts an agent — and Shift+Delete takes a project off
@@ -24,8 +24,8 @@
 // somewhere else. Once Start has gone through, the form takes no second press:
 // one press, one agent.
 //
-// BUILT FROM THE DECK'S OWN CONTROLS, so their focus, press and contrast are
-// the ones already measured rather than a new kind each: the agent is the
+// Shared Button/Input controls adapt shadcn/ui to the deck's theme tokens.
+// The agent is the
 // usage modal's range strip (.uh-range, a pair of pressed buttons), the
 // projects are quick open's rows (.qo-row's height, radius and --selected
 // fill, drawn as .ns-option: Settings' station list they once borrowed went
@@ -51,18 +51,21 @@
 // The form is its own component with no portal, so the suite can render it
 // whole and press its controls without a DOM; what it asks of the world
 // (the deck, the dialog, the storage, the clock) comes in through `deps`.
-import { useRef, useState, type KeyboardEvent, type MutableRefObject } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type MutableRefObject } from "react";
 import AnchoredPopover from "../AnchoredPopover";
-import { checkFolder, type FolderAnswer, type FolderProblem, type LaunchOptions, type TerminalProvider } from "../../terminal-api";
+import { checkFolder, discoverProjectFolders, type DiscoveredProject, type FolderAnswer, type FolderProblem, type LaunchOptions, type TerminalProvider } from "../../terminal-api";
+import { sessionHue } from "../../session-hue";
 import { canChooseFolder, chooseFolder } from "../../desktop-folder";
 import { isApplePlatform, platformName } from "../../platform";
 import { elidePath, folderName, type ProjectChoice } from "./stage-model";
 import {
-  browserStore, looksRelative, matchProjects, pickerProjects, projectKey, projectPaths, readKept, saveKept, typedFolder,
+  browserStore, groupProjects, looksRelative, matchProjects, pickerProjects, projectIdentity, projectKey, projectPaths, readKept, saveKept, typedFolder,
   withRecent, withoutRecent, type KeptProjects, type ProjectStore,
 } from "./project-picker";
 import { ProviderGlyph } from "./stage-icons";
 import SelectShell from "../SelectShell";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
 import { KitIcon } from "../kit-icons";
 import { t as tNow, useT } from "../../i18n";
 
@@ -73,6 +76,11 @@ const LIST_ID = "ns-projects";
 const KEYS_ID = "ns-keys";
 const WORKTREE_ID = "ns-worktree-label";
 const optionId = (i: number) => `ns-opt-${i}`;
+const DISCOVERY_MSG = {
+  loading: "board.newSession.discovery.loading",
+  partial: "board.newSession.discovery.partial",
+  unavailable: "board.newSession.discovery.unavailable",
+};
 
 /** The one sentence under the choices: where the session runs, and that
  *  closing the panel never stops it. */
@@ -84,6 +92,7 @@ export const NEW_SESSION_NOTE_WINDOWS_MSG = "board.newSession.noteWindows";
 export interface NewSessionDeps {
   /** Whether an agent can start in this folder (the deck's answer). */
   checkFolder(cwd: string): Promise<FolderAnswer>;
+  loadProjects?(signal: AbortSignal): Promise<{ projects: DiscoveredProject[]; truncated?: boolean }>;
   /** The desktop app's folder dialog: a path, null when closed without one,
    *  undefined when it could not be asked. Left out where there is none. */
   chooseFolder?: () => Promise<string | null | undefined>;
@@ -96,6 +105,11 @@ export interface NewSessionDeps {
 function productDeps(): NewSessionDeps {
   return {
     checkFolder: cwd => checkFolder(cwd),
+    loadProjects: async signal => {
+      const answer = await discoverProjectFolders({ signal });
+      if (!answer.ok) throw new Error("Project discovery unavailable");
+      return answer;
+    },
     ...(canChooseFolder() ? { chooseFolder } : {}),
     store: browserStore(),
     now: () => Date.now(),
@@ -169,10 +183,24 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
   const t = useT();
   const [deps] = useState<NewSessionDeps>(() => ({ ...productDeps(), ...given }));
   const [kept, setKept] = useState<KeptProjects>(() => readKept(deps.store));
-  const all = pickerProjects(projects, kept.recents, kept.forgotten);
+  const [discovered, setDiscovered] = useState<ProjectChoice[]>([]);
+  const [discovery, setDiscovery] = useState<"loading" | "ready" | "partial" | "unavailable">(deps.loadProjects ? "loading" : "ready");
+  const all = pickerProjects(projects, kept.recents, kept.forgotten, discovered);
+  useEffect(() => {
+    const controller = new AbortController();
+    void deps.loadProjects?.(controller.signal).then(found => {
+      if (controller.signal.aborted) return;
+      setDiscovered(found.projects.map(p => ({ ...p, hue: sessionHue(p.cwd) })));
+      setDiscovery(found.truncated ? "partial" : "ready");
+    }).catch(() => {
+      if (!controller.signal.aborted) setDiscovery("unavailable");
+    });
+    return () => controller.abort();
+  }, [deps]);
   const [chosen, setChosen] = useState<Chosen | null>(() => (all[0] ? { cwd: all[0].cwd, name: all[0].name } : null));
   const [query, setQuery] = useState("");
-  const [active, setActive] = useState(0);
+  const [active, setActive] = useState<string | null>(() => all[0]?.cwd ?? null);
+  const [showWorktrees, setShowWorktrees] = useState(false);
   const [agent, setAgent] = useState<TerminalProvider>(initialAgent);
   const [model, setModel] = useState<LaunchOptions["model"] | null>(null);
   const [mode, setMode] = useState<LaunchOptions["permissionMode"] | null>(null);
@@ -181,6 +209,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
   const [problem, setProblem] = useState<{ code: FolderProblem; cwd: string } | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const localFieldRef = useRef<HTMLInputElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
   const fieldRef = searchRef ?? localFieldRef;
   // Set once Start has gone through: the form takes no second one.
   const startedRef = useRef(false);
@@ -189,10 +218,24 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
 
   const searching = query.trim() !== "";
   const typed = searching ? typedFolder(all, query) : null;
-  const shown = searching ? [...(typed ? [typed] : []), ...matchProjects(all, query)] : all;
-  const at = shown.length ? Math.min(Math.max(active, 0), shown.length - 1) : -1;
+  const worktreeCount = all.filter(project => project.worktree).length;
+  const matches = searching
+    ? [...(typed ? [typed] : []), ...matchProjects(all, query)]
+    : all.filter(project => showWorktrees || !project.worktree || project.cwd === chosen?.cwd);
+  const groups = groupProjects(matches);
+  const shown = groups.flatMap(({ main, worktrees }) => main ? [main, ...worktrees] : worktrees);
+  const positions = new Map(shown.map((project, index) => [project.cwd, index]));
+  const at = shown.length ? positions.get(active ?? "") ?? 0 : -1;
+  useEffect(() => {
+    const list = listRef.current;
+    const row = list?.querySelector('[data-highlighted="true"]');
+    if (!list || !row) return;
+    const box = list.getBoundingClientRect(), item = row.getBoundingClientRect();
+    // Move only this scroller: scrollIntoView can also move the dialog/page.
+    if (item.top < box.top) list.scrollTop -= box.top - item.top;
+    else if (item.bottom > box.bottom) list.scrollTop += item.bottom - box.bottom;
+  }, [at, query, shown[at]?.cwd, shown.length]);
   const paths = projectPaths(all);
-  const place = (cwd: string) => Math.max(0, all.findIndex(p => p.cwd === cwd));
 
   const keep = (change: (k: KeptProjects) => KeptProjects) => {
     setKept(k => {
@@ -209,7 +252,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
   const choose = (p: ProjectChoice) => {
     setChosen({ cwd: p.cwd, name: p.name });
     setQuery("");
-    setActive(place(p.cwd));
+    setActive(p.cwd);
     clearSays();
   };
 
@@ -231,7 +274,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
     keep(k => withRecent(k, cwd, deps.now()));
     setChosen({ cwd, name: folderName(cwd) });
     setQuery("");
-    setActive(0);
+    setActive(cwd);
   };
 
   const pickOption = (p: ProjectChoice) => {
@@ -243,8 +286,8 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
     const next = withoutRecent(kept, p.cwd);
     saveKept(next, deps.store);
     setKept(next);
-    if (chosen && projectKey(chosen.cwd) === projectKey(p.cwd)) {
-      const rest = pickerProjects(projects, next.recents, next.forgotten);
+    if (chosen && projectIdentity(chosen.cwd) === projectIdentity(p.cwd)) {
+      const rest = pickerProjects(projects, next.recents, next.forgotten, discovered);
       setChosen(rest[0] ? { cwd: rest[0].cwd, name: rest[0].name } : null);
     }
     setProblem(null);
@@ -304,7 +347,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
       if (!shown.length) return;
       e.preventDefault();
       const step = e.key === "ArrowDown" ? 1 : shown.length - 1;
-      setActive((at < 0 ? 0 : at + step) % shown.length);
+      setActive(shown[(at < 0 ? 0 : at + step) % shown.length].cwd);
     } else if (e.key === "Enter") {
       e.preventDefault();
       if (e.ctrlKey || e.metaKey) { void start(); return; }
@@ -320,7 +363,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
       e.preventDefault();
       e.stopPropagation();
       setQuery("");
-      setActive(chosen ? place(chosen.cwd) : 0);
+      setActive(chosen?.cwd ?? null);
     }
   };
 
@@ -332,17 +375,74 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
   const problemText = problem && problem.code !== "unavailable" ? t(FOLDER_PROBLEM_MSG[problem.code]) : null;
   const keysHint = t("board.newSession.keysHint", { mod: deps.apple ? "⌘" : "Ctrl" });
 
+  const renderOption = (q: ProjectChoice) => {
+    const i = positions.get(q.cwd)!;
+    const isTyped = !!typed && q.cwd === typed.cwd;
+    const isChosen = !!chosen && chosen.cwd === q.cwd && !isTyped;
+    return (
+      <div
+        key={`${isTyped ? "typed:" : ""}${q.cwd}`}
+        id={optionId(i)}
+        className="ns-option"
+        role="option"
+        aria-selected={isChosen}
+        data-highlighted={i === at || undefined}
+        data-chosen={isChosen || undefined}
+        data-worktree={!!q.worktree || undefined}
+        title={q.cwd}
+        // The field keeps the keyboard: a press on a row is not a press
+        // that moves focus out of it.
+        onMouseDown={e => e.preventDefault()}
+        onClick={() => pickOption(q)}
+      >
+        <span className="ns-folder" aria-hidden="true"><KitIcon name="folder" /></span>
+        <span className="ns-project-copy">
+          <span className="ns-name">{isTyped ? t("board.newSession.usePath", { name: q.name }) : q.name}</span>
+          <span className="ns-path">
+            {q.worktree?.branch && q.worktree.branch !== q.name ? `${q.worktree.branch} · ` : ""}
+            {isTyped ? elidePath(q.cwd, 56) : paths.get(q.cwd) ?? elidePath(q.cwd, 56)}
+          </span>
+        </span>
+        {isChosen && (
+          <svg className="ns-check" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M2.5 6.5l2.25 2.25L9.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+        {!isTyped && (
+          <span
+            className="ns-forget"
+            aria-hidden="true"
+            title={t("board.newSession.forget", { name: q.name })}
+            onClick={e => { e.stopPropagation(); forget(q); }}
+          >
+            ×
+          </span>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="ns-form" data-searching={searching || undefined} aria-busy={busy ? true : undefined}>
       <div className="ns-head">
         <h3 id={TITLE_ID} className="ns-title">{t("board.newSession.title")}</h3>
-        <button type="button" className="glyph-btn ns-close" aria-label={t("common.close")} onClick={onCancel}><KitIcon name="close" /></button>
+        <Button variant="ghost" size="icon" className="ns-close" aria-label={t("common.close")} onClick={onCancel}><KitIcon name="close" /></Button>
       </div>
-      <label className="ns-label" id="ns-project-label" htmlFor={FIELD_ID}>{t("board.newSession.project")}</label>
-      <input
+      <div className="ns-project-heading">
+        <label className="ns-label" id="ns-project-label" htmlFor={FIELD_ID}>{t("board.newSession.project")}</label>
+        {worktreeCount > 0 && !searching && (
+          <Button variant="ghost" className="ns-worktree-toggle" aria-pressed={showWorktrees} aria-controls={LIST_ID}
+            onClick={() => setShowWorktrees(visible => !visible)}>
+            {t("board.newSession.worktrees")} <span className="ns-worktree-count">{worktreeCount}</span>
+          </Button>
+        )}
+      </div>
+      <div className="ns-search">
+      <KitIcon name="search" />
+      <Input
         ref={fieldRef}
         id={FIELD_ID}
-        className="ap-manage-input ns-field"
+        className="ns-field"
         type="text"
         name="project-search"
         role="combobox"
@@ -356,62 +456,35 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
         autoComplete="off"
         placeholder={t("board.newSession.searchLabel")}
         value={query}
-        onChange={e => { setQuery(e.target.value); setActive(0); clearSays(); }}
+        onChange={e => { setQuery(e.target.value); setActive(null); clearSays(); }}
         onKeyDown={onFieldKey}
       />
+      </div>
       <span id={KEYS_ID} className="ns-keys">{keysHint}</span>
-      <div className="ns-list" id={LIST_ID} role="listbox" aria-labelledby="ns-project-label" hidden={shown.length === 0}>
-        {shown.map((q, i) => {
-          const isTyped = !!typed && q.cwd === typed.cwd;
-          const isChosen = !!chosen && chosen.cwd === q.cwd && !isTyped;
+      <div ref={listRef} className="ns-list" id={LIST_ID} role="listbox" aria-labelledby="ns-project-label" hidden={shown.length === 0}>
+        {groups.map(group => {
+          const tree = group.worktrees[0]?.worktree;
+          if (!tree) return group.main && renderOption(group.main);
+          const label = t("board.newSession.worktreeGroup", { project: tree.projectName });
           return (
-            <div
-              key={`${isTyped ? "typed:" : ""}${q.cwd}`}
-              id={optionId(i)}
-              className="ns-option"
-              role="option"
-              aria-selected={isChosen}
-              data-highlighted={i === at || undefined}
-              data-chosen={isChosen || undefined}
-              title={q.cwd}
-              // The field keeps the keyboard: a press on a row is not a press
-              // that moves focus out of it.
-              onMouseDown={e => e.preventDefault()}
-              onClick={() => pickOption(q)}
-            >
-              <i className="ns-dot" aria-hidden="true" />
-              <span className="ns-project-copy">
-                <span className="ns-name">{isTyped ? t("board.newSession.usePath", { name: q.name }) : q.name}</span>
-                <span className="ns-path">{isTyped ? elidePath(q.cwd, 56) : paths.get(q.cwd) ?? elidePath(q.cwd, 56)}</span>
-              </span>
-              {isChosen && (
-                <svg className="ns-check" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-                  <path d="M2.5 6.5l2.25 2.25L9.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              )}
-              {!isTyped && (
-                <span
-                  className="ns-forget"
-                  aria-hidden="true"
-                  title={t("board.newSession.forget", { name: q.name })}
-                  onClick={e => { e.stopPropagation(); forget(q); }}
-                >
-                  ×
-                </span>
-              )}
+            <div className="ns-project-group" role="group" aria-label={label} key={group.key}>
+              {group.main && renderOption(group.main)}
+              <div className="ns-worktree-heading" aria-hidden="true" title={tree.projectCwd}>{label}</div>
+              {group.worktrees.map(renderOption)}
             </div>
           );
         })}
       </div>
-      {shown.length === 0 && <p className="ns-empty" role="status">{emptyText}</p>}
+      {shown.length === 0 && discovery !== "loading" && <p className="ns-empty" role="status">{emptyText}</p>}
+      {discovery !== "ready" && <p className="ns-discovery" role="status">{t(DISCOVERY_MSG[discovery])}</p>}
       {/* Pending is said, never a `disabled` that drops focus (#620): pick()
           takes no second press while the dialog is up. */}
-      <button type="button" className="btn ns-choose" onClick={() => void pick()} aria-disabled={busy === "picking" || undefined}>
+      <Button variant="ghost" className="ns-choose" onClick={() => void pick()} aria-disabled={busy === "picking" || undefined}>
         <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
           <path d="M1.75 4.25c0-.69.56-1.25 1.25-1.25h3.1l1.5 1.5H13c.69 0 1.25.56 1.25 1.25v6.5c0 .69-.56 1.25-1.25 1.25H3c-.69 0-1.25-.56-1.25-1.25z" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
         </svg>
         {t("board.newSession.chooseFolder")}
-      </button>
+      </Button>
       {problemText ? (
         <p className="ns-problem" role="alert">
           {problemText} <span className="ns-problem-path" title={problem!.cwd}>{elidePath(problem!.cwd, 48)}</span>
@@ -426,7 +499,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
       <span className="ns-label ns-label-gap" id="ns-agent-label">{t("board.newSession.agent")}</span>
       <div className="uh-range ns-agents" role="group" aria-labelledby="ns-agent-label">
         {AGENTS.map(a => (
-          <button
+          <Button
             key={a.agent}
             type="button"
             className="uh-range-btn"
@@ -434,7 +507,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
             onClick={() => setAgent(a.agent)}
           >
             <ProviderGlyph provider={a.agent} size={16} /> {a.label}
-          </button>
+          </Button>
         ))}
       </div>
       {agent === "claude" && (
@@ -476,12 +549,12 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
       )}
       <p className="ns-note">{t(windows ? NEW_SESSION_NOTE_WINDOWS_MSG : NEW_SESSION_NOTE_MSG)}</p>
       <div className="ns-acts">
-        <button type="button" className="btn" onClick={onCancel}>{t("common.cancel")}</button>
+        <Button onClick={onCancel}>{t("common.cancel")}</Button>
         {/* Unavailable with no folder; while a folder is being asked about it
             is pending, said and not disabled (#620): start() takes one press. */}
-        <button type="button" className="btn primary" disabled={!chosen} aria-disabled={busy !== null || undefined} title={chosen?.cwd} onClick={() => void start()}>
+        <Button variant="primary" className="primary" disabled={!chosen} aria-disabled={busy !== null || undefined} title={chosen?.cwd} onClick={() => void start()}>
           {startLabel(agent, chosen)}
-        </button>
+        </Button>
       </div>
     </div>
   );

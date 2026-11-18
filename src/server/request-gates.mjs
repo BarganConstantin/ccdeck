@@ -504,6 +504,7 @@ export const GUARDED_READS = new Set([
   // about route by route. /hosts names the sessions still running on an older
   // session host, with their folders.
   "/api/terminal/status",
+  "/api/terminal/projects",
   "/api/terminal/target",
   "/api/terminal/hosts",
   // The engine's install state (engine-install.mjs): which version is here,

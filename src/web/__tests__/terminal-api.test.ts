@@ -21,6 +21,7 @@ import {
   TERMINAL_ROUTES,
   adoptTerminal,
   checkFolder,
+  discoverProjectFolders,
   claimLaunch,
   endHostSessions,
   launchTerminal,
@@ -34,6 +35,20 @@ import {
 import { withoutComments } from "./tsx-scan";
 
 type Asked = { url: string; method: string; headers: Record<string, string>; body: unknown; signal?: AbortSignal };
+
+describe("project discovery", () => {
+  it("reads guarded suggestions with a cancellable GET and rejects malformed answers", async () => {
+    const controller = new AbortController();
+    const api = answering(200, { ok: true, projects: [{ cwd: "/srv/work", name: "work" }], truncated: true });
+    expect(await discoverProjectFolders({ fetchFn: api.fetchFn, signal: controller.signal })).toEqual({
+      ok: true, projects: [{ cwd: "/srv/work", name: "work" }], truncated: true,
+    });
+    expect(api.asked[0]).toMatchObject({ url: "/api/terminal/projects", method: "GET", signal: controller.signal });
+    const bad = answering(200, { ok: true, projects: [{ cwd: "/srv/work" }] });
+    expect((await discoverProjectFolders({ fetchFn: bad.fetchFn })).ok).toBe(false);
+    expect((await discoverProjectFolders({ fetchFn: answering(404, {}).fetchFn })).ok).toBe(false);
+  });
+});
 
 /** A fetch that answers every request with `status` and `body`, and records
  *  each request it saw. `body` may be a string to send something that is not
