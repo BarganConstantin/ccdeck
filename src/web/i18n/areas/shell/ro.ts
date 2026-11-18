@@ -68,7 +68,7 @@ const catalog: Catalog = {
   "shell.guide.welcome.inspector.line": "Inspectorul arată fiecare agent, subagent și apel de unealtă, cu cost și timp.",
   "shell.guide.welcome.inspector.tip": "Apasă D sau Inspector, sus pe marginea din dreapta.",
   "shell.guide.welcome.edges.line": "Marginea stângă: Sesiuni, Conturi, iar jos Setări. Dreapta: Utilizare și Acest computer.",
-  "shell.guide.welcome.edges.tip": "Restul stă sub Mai multe, jos pe fiecare margine.",
+  "shell.guide.welcome.edges.tip": "Mai jos: Capacitate și Calendar de resetări în stânga, Istoricul utilizării în dreapta.",
   "shell.guide.welcome.accounts.line": "Comută între conturile Claude și Codex. Computerele asociate își repară unul altuia autentificările expirate.",
   "shell.guide.welcome.accounts.tip": "Asociază-le din rândul Rețea locală, de la baza panoului Conturi.",
   "shell.guide.welcome.start.line": "Rulează claude sau codex în orice folder, sau folosește Sesiune nouă. Apare aici.",

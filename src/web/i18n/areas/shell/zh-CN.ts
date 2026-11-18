@@ -67,7 +67,7 @@ const catalog: Catalog = {
   "shell.guide.welcome.inspector.line": "检查器会列出每个代理、子代理和工具调用，并附上费用和耗时。",
   "shell.guide.welcome.inspector.tip": "按 D，或点击右侧边栏顶部的“检查器”。",
   "shell.guide.welcome.edges.line": "左侧边栏：会话、账号，底部是设置。右侧：用量和这台电脑。",
-  "shell.guide.welcome.edges.tip": "其余功能在各侧边栏底部的“更多”里。",
+  "shell.guide.welcome.edges.tip": "再往下：左侧是容量和重置日历，右侧是用量历史。",
   "shell.guide.welcome.accounts.line": "切换 Claude 和 Codex 账号。已配对的电脑会互相修复过期的登录。",
   "shell.guide.welcome.accounts.tip": "从账号面板底部的“局域网”这一行进行配对。",
   "shell.guide.welcome.start.line": "在任意文件夹运行 claude 或 codex，或使用“新建会话”，它都会出现在这里。",
