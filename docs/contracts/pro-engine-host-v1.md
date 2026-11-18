@@ -7,16 +7,19 @@ every route answers that the engine is not installed (Terminal routes, below)
 and the WebSocket is refused 503.
 
 The deck makes its own engine in one place, `command-panel-engine.mjs`, and
-only while the Command Panel's switch in Settings is on (off by default), on
-Linux or macOS, once a route asks. It looks in `<deck data folder>/engine` (the
-`CCDECK_HOME` folder when set) and nowhere else: not on `PATH`, never
-downloaded or installed. It trusts only the Ed25519 keys shipped with the deck,
-a frozen list holding the one release key the `@ccdeck/engine-*` packages are
-signed with, so a missing folder answers `not-installed` and a present one that
+only while the Command Panel's switch in Settings is on (on by default: The
+switch, below), on Linux, macOS or Windows, once a route asks. It runs the
+engine from `<deck data folder>/engine` (the `CCDECK_HOME` folder when set)
+and nowhere else: not from `PATH`, and never from the package it arrives in,
+which is copied into that folder first (Getting the engine, below). It
+trusts only the Ed25519 keys shipped with the deck, a frozen list holding the
+one release key the `@ccdeck/engine-*` packages are signed with, so a
+missing folder answers `not-installed` and a present one that
 key did not sign `not-verified`, and its executable is never read; one under a
-folder another account can change answers `unsafe-folder`. Off Linux and macOS (on Windows) every route answers `unsupported`
-without looking; on both, a route reaches the engine only when its hello
-advertises a terminal backend, and answers `no-terminal` otherwise. The client
+folder another account can change answers `unsafe-folder`. On any other
+platform every route answers `unsupported` without looking; on these three, a
+route reaches the engine only when its hello advertises a terminal backend, and
+answers `no-terminal` otherwise. The client
 it makes is the only one constructed with `terminal: true` (Terminal opt-in,
 below). The engine is stopped 1.5 s after the switch goes off, once its panels have been
 told, and at deck shutdown without being waited for; a later question starts
@@ -31,9 +34,10 @@ at most 5 s, and is answered `restarting` after that: two never run at once.
 A route whose request was still arriving when the switch went
 off is answered as one sent after it, the no-route 404, and nothing is asked of
 the engine. A route the engine answered after the switch went off mints no
-ticket: a launch or adopt it ran, and an open or claim that went through, is
-answered 409 `{ "ok": false, "error": E, "code": "turned-off" }`, `E` saying
-the session runs and the panel is off; anything else is the no-route 404.
+ticket: a launch or adopt it ran, an open or claim that went through, and an
+end of an older host's sessions it carried out, is answered 409 `{ "ok":
+false, "error": E, "code": "turned-off" }`, `E` saying what was done and that
+the panel is off; anything else is the no-route 404.
 With the switch off nothing here runs: no file is looked at, no
 client is made, no process is started and nothing touches the network.
 
@@ -54,7 +58,8 @@ startup after bounded
 backoff. `disconnected` reports a sanitized code; stderr is drained privately.
 
 An installation is an owner-only directory containing an executable named
-`ccdeck-pro-engine` (optionally a version suffix) and `manifest.json`. Trusted
+`ccdeck-pro-engine` (optionally a version suffix; `.exe` on Windows) and
+`manifest.json`. Trusted
 Ed25519 public keys must be provided by the host, never an HTTP request: one,
 or a list any of which may have signed the manifest. An empty list trusts
 nothing and is refused before anything is read.
@@ -71,11 +76,15 @@ An ancestor refused this way, or one another account owns, is the one refusal
 that names its check: the verifier's error carries `code: "unsafe-folder"`, and
 the routes answer `unsafe-folder` (Refusals, below). The folder goes to the
 deck's log once, with the fix, never to a route's body.
-No user-facing download is added.
-Windows installation ACL validation remains disabled pending native validation:
-the installer asks an injected ACL reader (owner, who may write, reparse point,
-link count, elevation) and refuses when none is given, and the panel stays
-`unsupported` there (`ENGINE_ON_WINDOWS` in `engine-package.mjs`).
+The deck downloads an engine only on a person's press (Getting the engine,
+below).
+On Windows the same questions go to an ACL reader: the one a caller gives,
+else the deck's own (`windows-acl.mjs`). The folder and its files must be
+owned by the deck's user and writable by none of Everyone, Authenticated
+Users or Users; none may be a reparse point, and a file must have one link.
+A deck running elevated is refused. The folders above it are not walked
+there. `ENGINE_ON_WINDOWS` in `engine-package.mjs` offers the panel on
+Windows.
 
 Host configuration may also give `minimumVersion`, the lowest engine version it
 accepts. A manifest `version` below it in SemVer precedence (build metadata
@@ -95,20 +104,22 @@ deck's data folder, verified by the installer, then renamed to `engine`. A
 failed import leaves the previous installation as it was; a source whose signed
 digest and version match a verifying installation is not copied again.
 
-The Windows preview is a test-only exception for one Windows VM, never a
-production feature. On Windows the deck offers the Command Panel's switch
-(`terminalSupported` in `/api/prefs`) only when `startServer` is given
-`terminal.windowsPreview: true` together with an explicit `terminal.engine`,
-and only when it can load `preview/command-panel-windows.mjs`
-(`src/server/command-panel-platform.mjs` decides, once, at start). That module
+The Windows preview is a test-only option for one Windows VM, never a
+production feature. Without it, a Windows deck offers the panel through its
+own engine, as above. With `startServer` given `terminal.windowsPreview:
+true`, the deck offers the Command Panel's switch (`terminalSupported` in
+`/api/prefs`) only when it is also given an explicit `terminal.engine` and can
+load `preview/command-panel-windows.mjs`
+(`src/server/command-panel-platform.mjs` decides, once, at start); when either
+fails, it offers no panel at all, not even through its own engine. That module
 sits outside `package.json` `files` and the desktop app's resources, so a
 published package or an installed app refuses the option and says so once in
 its log. Only a private QA preload passes the option; no production entry,
 setting, environment variable, flag, file or request does. The module's client
 is the deck's own client with one change: it verifies the installation with
 the module's Windows check, against the key its caller passes as `publicKey`
-(the preview's fresh test key, never a key of the deck's, whose list stays
-empty): the same signed manifest fields with a Windows target
+(the preview's fresh test key, never a key of the deck's): the same signed
+manifest fields with a Windows target
 (`x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc`), a `ccdeck-pro-engine*.exe`
 file name, non-link regular files and a matching hash and size. It checks
 neither ACLs nor owners, nor whether the account is an administrator. The
@@ -129,8 +140,10 @@ requests are released. Session capabilities comprise backend
 Up to 32 requests, a 4 MiB outbound queue and one bounded inbound frame are
 allowed. Abort/deadline sends `system.cancel`; periodic `system.ping` detects a
 hung child. Child exit rejects every pending call; restart creates fresh auth
-and process-instance identity. No listener is created. Terminal streams (below)
-carry each attached terminal panel on the same pipe.
+and process-instance identity. Terminal streams (below) carry each attached
+terminal panel on the same stdio pipes. No listener is created, by the deck or
+by the engine. The one exception is the Windows session host's named pipe,
+which the deck never touches (Windows session host, below).
 
 No JSON on the wire, kind 0 or kind 3, carries a lone UTF-16 surrogate: the
 engine's parser refuses one as malformed and ends the IPC. The host refuses a
@@ -141,17 +154,134 @@ A compromised owner account can replace trusted configuration or interfere
 between executable verification and exec. This boundary prevents untrusted
 browser/other-user selection; it does not claim protection from the same OS
 identity. Installation/update signing and key rotation require separate release
-validation. The free package contains only this host interface, not Rust sources,
-private build machinery, private fixtures or a bundled engine executable.
+validation. The `ccdeck` npm package contains only this host interface, not
+Rust sources, private build machinery, private fixtures or an engine
+executable: the engine comes in a package of its own (Getting the engine,
+below).
+
+## The switch
+
+The Command Panel's switch is one row, "Command Panel", in Settings ›
+General › Experimental. It is the `terminal` setting in the deck's settings
+file, and it is on unless a real `false` is stored there: a missing or
+non-boolean value reads as on. The page turns it on and off by posting
+`{ "terminal": true }` or `{ "terminal": false }` to `/api/prefs`, through the
+gates every setting goes through. No environment variable or command-line
+flag turns it on or off.
+
+`GET /api/prefs` tells the page three things about it: `terminalOn`, the
+switch itself; `terminalSupported`, whether this deck's platform has the panel;
+and `terminalWindows`, whether the panel's sessions run in the Windows session
+host rather than in tmux. Where the platform has no panel, Settings will not
+turn an off switch on; one stored on can still be turned off there.
+
+Turning it off closes every open panel at once, with a sentence, and stops the
+engine as above. It stops no session. While it is on, the row has the
+engine's rows under it: the version installed and that it verified, Check for
+an update, Remove, and Install where none is here (Getting the engine, below).
+
+Some variables change what the panel may fetch or where it looks, never the
+switch. `AGENTS_DECK_NO_INSTALL=1` and `AGENTS_DECK_NO_DOWNLOAD=1` turn off
+the engine's download and the deck's tmux download; a package file can still
+be installed. `CCDECK_HOME` moves the deck data folder, and the engine folder
+with it. A `CCDECK_ENGINE_TERMINAL` the deck inherited is removed before any
+engine starts (Terminal opt-in, below).
+
+## Getting the engine
+
+The engine reaches a machine in an npm package, one per platform:
+`@ccdeck/engine-linux-x64`, `-linux-arm64`, `-darwin-x64`, `-darwin-arm64`
+and `-win32-x64` (`ENGINE_PACKAGE_NAMES` in `engine-package.mjs`). Each holds
+the engine executable and its signed `manifest.json`. The `ccdeck` package
+lists all five as optional dependencies, each pinned to one exact version, so
+npm installs the one whose `os` and `cpu` fit the machine and skips the rest.
+
+The desktop app carries the same package for its own platform and arch,
+inside the app, in the `node_modules` of the deck it runs. Its build refuses
+to pack an app whose listed package is missing, at another version, or
+without its `manifest.json`.
+
+Either way, the deck finds the package by walking up from its own folder and
+imports it into its engine folder, as above: with the switch on, when a
+question makes an engine. Before that, on Linux and macOS, it takes write
+access to its own data folder away from everyone but its owner, when that
+folder is the user's own. A removed engine is imported again at the next
+question, from the package where there is one.
+
+When no package sits beside the deck (an install made with
+`--omit=optional`, a git checkout, a mirror that skipped it), the panel's
+card and the Settings row offer Install. Only a press starts a download; one
+that failed because the network did not answer is tried again every 15 s
+while that card stays open, and when the browser says it is back online.
+What is fetched is this machine's package at the exact version the
+deck's `package.json` pins, from `https://registry.npmjs.org/`: its metadata,
+then its tarball, from the same origin over HTTPS, with no credentials and no
+redirect, at most 160 MiB. The registry's sha512 integrity is checked, so a
+cut transfer fails. Only plain files directly under `package/` are unpacked,
+and the package must be this machine's, at the pinned version. They are then
+imported with every check above: the signed manifest, not the registry, is
+what makes the engine trusted. Check for an update downloads only when the
+pinned version is newer than the installed one.
+
+Nothing is downloaded with no pin, no keys, no package for this machine, or
+`AGENTS_DECK_NO_INSTALL=1` or `AGENTS_DECK_NO_DOWNLOAD=1`. A person can still
+install a package file they picked: the same checks, this machine's package
+only, at any version the kept floor allows.
+
+One install runs at a time, across tabs and decks. A lock file beside the
+engine folder names its holder; one held over ten minutes, or by a process
+that has gone, is taken over. An install or a removal stops the running
+engine first. An install that fails leaves the previous installation as it
+was, and what one cut short left behind is put right at the next status read.
+
+These routes are under the switch (404 while off) and the request gates,
+`GET /api/terminal/engine` among the guarded reads. A deck handed an engine
+by its `startServer` caller has no installer: the read answers
+`{ "ok": true, "engine": null }` and each action 409 `unavailable`.
+
+| Route | Answer |
+|---|---|
+| `GET /api/terminal/engine` | 200 `{ ok: true, engine }`, read from this machine alone, never the network: `platform`, `app`, `fixPath`, `supported`, `blocked`, `canInstallFile`, `installed` (`{ version, bytes }` or null), `present`, `pinned`, `job`, `last`, `recovered`, `elsewhere` |
+| `POST /api/terminal/engine/install` | 200 `{ ok: true, id }`, a new job or the one running; 409 `{ ok: false, code }`, `code` `unsupported`, `no-keys`, `not-published` or `download-disabled` |
+| `POST /api/terminal/engine/install-file` | the package file as the body, at most 160 MiB (else 413 `too-large`); 200 `{ ok: true, id }`; 409 `busy`, `unsupported`, `no-keys` or `check-failed` |
+| `POST /api/terminal/engine/cancel` | 200 `{ ok: true }` while a download runs; 409 `nothing-to-cancel` |
+| `POST /api/terminal/engine/remove` | 200 `{ ok: true }`; 409 `busy`, `elsewhere`, `no-permission`, `no-space` or `failed`. The kept floor stays, so a removed engine is never replaced by an older one |
+
+Any other action is the 404. A job that failed says why in `last.code`:
+`offline`, `download-failed`, `not-published`, `check-failed`,
+`wrong-machine`, `downgrade`, `unsafe-folder`, `no-permission`, `no-space`,
+`elsewhere` or `failed`.
+
+Nothing else is downloaded for the engine, and with the switch off nothing is
+downloaded at all. The deck's own tmux is the panel's one other download
+(`fixable`, Terminal routes, below).
+
+## Windows session host
+
+On Windows the panel's sessions do not run in tmux. The engine keeps them in
+a per-user session host, which outlives it: switching the panel off, or
+stopping the deck or the engine, leaves them running there. A session started
+under another Windows sign-in is behind another session host, out of this
+deck's reach.
+
+The engine reaches its session host over a named pipe that the host listens
+on. That pipe is the one listener in this contract. The deck takes no part in
+it: it does not start the host, and does not create, name, open or check the
+pipe. Who may connect to it, its name and how long it lives are the engine's,
+not this contract's, and none of them crosses the IPC or reaches a route.
+
+What the deck sees of the host is what the engine answers: its sessions,
+through the panel's routes like any other, and its older generations, through
+the two hosts routes (Terminal routes, below).
 
 ## Terminal opt-in
 
-An engine serves `terminal.*`, `terminal.attach` included, only on Linux and
-macOS, and only when its environment at start holds `CCDECK_ENGINE_TERMINAL` set to
+An engine serves `terminal.*`, `terminal.attach` included, only on Linux,
+macOS and Windows, and only when its environment at start holds `CCDECK_ENGINE_TERMINAL` set to
 exactly `1`: a second, engine-side switch behind the deck's own. The deck sets
 it only for the engine it starts for the Command Panel, a client constructed
-with `terminal: true`, after the person has switched the panel on in Settings
-(off by default). Every engine the deck starts, that one included, first has
+with `terminal: true`, while the panel's switch in Settings is on (on by
+default). Every engine the deck starts, that one included, first has
 any value the deck inherited removed, so a shell's variable reaches no engine
 and turns nothing on. Nothing else sets it: no request, other setting or
 command-line flag.
@@ -159,11 +289,14 @@ command-line flag.
 It is not authentication material (the nonce stays in the hello only) and
 carries nothing secret. It fixes the hello's `terminal` for the engine's life:
 
-- on: `launch`, `resume`, `attachOwned`, `attachExternalTmux` and
-  `surviveEngineRestart` true, `attachExternalConsole` false,
-  `backend: "tmux"`;
+- on, on Linux and macOS: `launch`, `resume`, `attachOwned`,
+  `attachExternalTmux` and `surviveEngineRestart` true,
+  `attachExternalConsole` false, `backend: "tmux"`;
+- on, on Windows: a backend other than `unavailable`, its sessions in the
+  session host (Windows session host, above). The deck reads the backend
+  alone, and of each flag checks only that it is a boolean;
 - off (absent, any other value such as `0`, `true`, ` 1` or `1\n`, or any
-  platform but Linux and macOS whatever it says): every flag false,
+  platform but Linux, macOS and Windows whatever it says): every flag false,
   `backend: "unavailable"`, and every `terminal.*` call answers `unavailable`.
 
 An engine that does not know the variable advertises `unavailable` the same
@@ -194,7 +327,10 @@ below), never answered some other way.
 
 `B` is the request's body when it is a JSON object, else null. The engine
 answers `{ status, body, handle?, log?, fixable? }`, and the deck sends
-`status` and `body` as they are; JSON key order is not part of the contract.
+`status` and `body` as they are, with one addition: a body whose `target` has
+`kind: "C"` gets `target.provenance`, `panel`, `external` or `unknown`, the
+deck's own record of whether its panel started that session
+(`panel-provenance.mjs`). JSON key order is not part of the contract.
 
 - `handle`, 64 lowercase hex characters, stands where the body's `ticket` is
   null. The deck mints its ticket there, in the same store as every ticket (30
@@ -267,6 +403,8 @@ hosts). The panel says the engine's sentence with Try again and Not now, and
 does not ask about tmux; a 409 with any other code, or none, may still be
 tmux missing (`tmux-unavailable`), and is asked as before.
 
+### The hosts routes
+
 The two hosts routes are the Windows session host's. `terminal.hosts` answers
 `{ ok: true, hosts: [{ generation, state, sessions: [{ id, name, agent, cwd,
 conversation, started }] }], launchesRefused }`: the older hosts still running
@@ -281,6 +419,19 @@ answers `{ ok: true, hosts: [], launchesRefused: null }`. An engine with no
 session host refuses both with `unavailable`, which the page reads as nothing
 to show. The page never asks `terminal.endHosts` again by itself: on
 `consent-outdated` it reads the hosts again for the person to review.
+
+The deck's part is the one it plays for every route, and no more. Both routes
+are under the switch (404 while off) and the request gates, the read among
+the guarded reads. The POST's body is read under the same 8 KiB cap (413) and
+sent as `B`. The deck asks `terminal.hosts` with `{ "body": null }` and
+`terminal.endHosts` with `{ "body": B }`, checks neither body, and sends the
+engine's answer as it is, the 500 of `end-failed` included. `unavailable` is
+answered 409 `no-terminal` (Refusals, above). A `terminal.hosts` that went
+unanswered is refused 503 like any read (`no-answer`, `restarting`).
+`terminal.endHosts` is a mutation: with no answer in time, or the engine
+gone, it is the deck's 500 and is never asked again. One the engine carried
+out after the switch went off is 409 `turned-off`, its `E` saying the
+sessions were ended and the panel is off.
 
 ## Terminal streams
 
