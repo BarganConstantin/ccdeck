@@ -8,7 +8,10 @@
 //
 // UNIX: the folder and files belong to the user (a package source may also
 // belong to root, since a global install is often made by it), nobody else may
-// write them, and root is refused as a user of the engine.
+// write them, and root is refused as a user of the engine. Nobody else may
+// write a folder above them either, since the engine is started by its path
+// after the check; on Linux a folder only the user's own group may write is
+// the user's alone (ownGroup).
 //
 // WINDOWS: the ownership and mode bits mean nothing there, so the same
 // questions are put to an ACL reader the caller hands in (`windowsAcl`): who
@@ -21,6 +24,7 @@ import { constants, promises as fs } from 'node:fs';
 import path from 'node:path';
 import { createHash, createPublicKey, verify } from 'node:crypto';
 import { createWindowsAcl } from './windows-acl.mjs';
+import { PRODUCT } from './brand.mjs';
 
 export const ENGINE_PROTOCOL = 1;
 export const ENGINE_MAX_FRAME = 2 * 1024 * 1024;
@@ -36,6 +40,76 @@ export const TARGETS = {
  *  groups (Everyone, Authenticated Users, Users). */
 const WINDOWS_WRITERS_REFUSED = /^(?:everyone|authenticated users|users|builtin\\users|nt authority\\authenticated users|s-1-1-0|s-1-5-11|s-1-5-32-545)$/i;
 const invalid = () => new Error('The installed terminal engine could not be verified.');
+
+/** Where Linux keeps who has which primary group, and who else is in a group. */
+const ACCOUNT_FILES = Object.freeze({ passwd: '/etc/passwd', group: '/etc/group' });
+
+/** The lines of an account file with `fields` fields each, comments and blank
+ *  lines left out as the C library leaves them. Throws for a line these rules
+ *  cannot read and for a `+` or `-` line, which pulls accounts in from NIS. */
+async function accountRows(file, fields) {
+  const rows = [];
+  for (const raw of (await fs.readFile(file, 'utf8')).split('\n')) {
+    const line = raw.trimStart();
+    if (!line || line.startsWith('#')) continue;
+    const row = line.split(':');
+    if (row.length !== fields || /^[+-]/.test(row[0]) || !/^[0-9]+$/.test(row[2]) || (fields === 7 && !/^[0-9]+$/.test(row[3]))) throw invalid();
+    rows.push(row);
+  }
+  return rows;
+}
+
+/**
+ * Whether `gid` is the user's own group, so that a folder only it may write is
+ * a folder only the user may write. Ubuntu, Debian and Fedora make a group of
+ * the user's name for each user (useradd's USERGROUPS_ENAB) and give them a
+ * umask of 002, so the folders their programs make are 0775: the ~/.local the
+ * deck or an installer made first, a second Claude profile CLAUDE_CONFIG_DIR
+ * names. Read as "others may write", every engine under them was refused.
+ *
+ * It is the user's own only when /etc/passwd and /etc/group say so with
+ * nothing left over: it is this process's group and the primary group of the
+ * user's own entry, no other account has it as theirs or shares the user's
+ * name, and no entry for it in /etc/group names anybody else. Either file
+ * unreadable, the user or the group not in it (an account from LDAP or another
+ * directory, whose groups these files do not hold), or a line these rules
+ * cannot read, and it is not: refused as it always was. Linux only: macOS
+ * gives every user one shared group.
+ */
+async function ownGroup(uid, gid) {
+  if (typeof process.getgid !== 'function' || gid !== process.getgid()) return false;
+  try {
+    const [users, groups] = await Promise.all([accountRows(ACCOUNT_FILES.passwd, 7), accountRows(ACCOUNT_FILES.group, 4)]);
+    const mine = users.filter(row => Number(row[2]) === uid);
+    const names = new Set(mine.map(row => row[0]));
+    const entries = groups.filter(row => Number(row[2]) === gid);
+    return mine.length > 0 && mine.every(row => Number(row[3]) === gid)
+      && users.every(row => (Number(row[3]) !== gid && !names.has(row[0])) || Number(row[2]) === uid)
+      && entries.length > 0 && entries.every(row => row[3].split(',').map(name => name.trim()).every(name => !name || names.has(name)));
+  } catch {
+    return false;
+  }
+}
+
+// Each folder the deck's log has named, so a status read every few hundred
+// milliseconds names it once.
+const named = new Set();
+
+/** Refuses the engine for a folder above it that someone else may change, and
+ *  says once in the deck's log which folder and what would let it run. The
+ *  path goes to the log only, never to the page: a route's body is readable by
+ *  a DNS-rebound page, and a path names the user. */
+function refuseFolder(folder, ownedByOther) {
+  const key = `${ownedByOther ? 'owner' : 'write'} ${folder}`;
+  if (!named.has(key)) {
+    named.add(key);
+    const quoted = `'${folder.replaceAll("'", "'\\''")}'`;
+    console.error(ownedByOther
+      ? `${PRODUCT}: terminal: the engine is refused: ${folder}, a folder above it, belongs to another account, which could replace it. Set CCDECK_HOME to a folder under your own.`
+      : `${PRODUCT}: terminal: the engine is refused: other accounts can write ${folder}, a folder above it, and could replace it. If nobody else should: chmod go-w ${quoted}`);
+  }
+  throw invalid();
+}
 
 /**
  * What a file or folder must be to be trusted, for `platform`. Unix asks the
@@ -185,10 +259,20 @@ export async function verifyEngineInstallation({ directory, publicKey, minimumVe
     await gate.directory(root, rootStat);
     if (platform !== 'win32') {
       if (rootStat.mode & 0o077) throw invalid();
+      // Every folder above: the user's or root's, and writable by nobody else,
+      // unless sticky (/tmp: nobody may rename what another made) or, on
+      // Linux, writable by the user's own group alone. The account files are
+      // read once, and only when a folder needs them.
+      let alone;
       let ancestor = path.dirname(root);
       while (true) {
         const s = await fs.stat(ancestor);
-        if (![0, gate.me].includes(s.uid) || ((s.mode & 0o022) && !(s.mode & 0o1000))) throw invalid();
+        if (![0, gate.me].includes(s.uid)) refuseFolder(ancestor, true);
+        if ((s.mode & 0o022) && !(s.mode & 0o1000)) {
+          if (platform !== 'linux' || (s.mode & 0o002)) refuseFolder(ancestor, false);
+          alone ??= ownGroup(gate.me, process.getgid());
+          if (s.gid !== process.getgid() || !(await alone)) refuseFolder(ancestor, false);
+        }
         const parent = path.dirname(ancestor); if (parent === ancestor) break; ancestor = parent;
       }
     }
