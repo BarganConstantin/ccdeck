@@ -281,6 +281,7 @@ const catalog: Catalog = {
   "board.hero.notShowing": "Sesiunea nu apare?",
   "board.hero.noSessions": "Încă nicio sesiune",
   "board.hero.startHint": "Pornește Claude Code sau Codex într-un terminal și sesiunea apare aici.",
+  "board.hero.orRun": "Sau rulează claude sau codex în orice folder și sesiunea apare aici.",
   "board.controls.zoomIn": "Mărește",
   "board.controls.zoomOut": "Micșorează",
   "board.controls.recenterOn": "Recentrează vizualizarea + reactivează potrivirea automată",

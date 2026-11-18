@@ -268,6 +268,7 @@ const catalog: Catalog = {
   "board.hero.notShowing": "Sitzung taucht nicht auf?",
   "board.hero.noSessions": "Noch keine Sitzungen",
   "board.hero.startHint": "Starte Claude Code oder Codex in einem Terminal, dann erscheint die Sitzung hier.",
+  "board.hero.orRun": "Oder führe claude oder codex in einem beliebigen Ordner aus, dann erscheint die Sitzung hier.",
   "board.controls.zoomIn": "Vergrößern",
   "board.controls.zoomOut": "Verkleinern",
   "board.controls.recenterOn": "Ansicht zentrieren + Autofit wieder einschalten",

@@ -268,6 +268,7 @@ const catalog: Catalog = {
   "board.hero.notShowing": "A sessão não aparece?",
   "board.hero.noSessions": "Nenhuma sessão ainda",
   "board.hero.startHint": "Inicie o Claude Code ou o Codex em um terminal e a sessão aparece aqui.",
+  "board.hero.orRun": "Ou execute claude ou codex em qualquer pasta e a sessão aparece aqui.",
   "board.controls.zoomIn": "Aumentar zoom",
   "board.controls.zoomOut": "Diminuir zoom",
   "board.controls.recenterOn": "Recentralizar a visão + reativar o ajuste automático",
