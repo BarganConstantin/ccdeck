@@ -1,9 +1,9 @@
 // V4's two stripes (V4's Figma): a door stays on the side where its panel
 // opens, so the eye never crosses the canvas to find what it opened.
 //
-// Pinned here: each stripe's order and runs, and its More's (with and without
-// Claude, on a Codex-only deck, with a tracker connected); More and Settings in
-// the left foot and More alone in the right's; the Inspector's door, first on the right
+// Pinned here: each stripe's order and runs (with and without Claude, on a
+// Codex-only deck, with a tracker connected); Radio and Settings in the left
+// foot and no foot on the right; the Inspector's door, first on the right
 // stripe (its key, aria-expanded in each place, what it controls, and that a
 // press is what D does there); the corner tab gone with the header's padding
 // back; the hint's side from each stripe; the open line's side in the sheet;
@@ -54,91 +54,72 @@ const make = (providers: { claude: boolean; codex: boolean }, over: Over = {}) =
   railItems({ ...base, providers: { kind: "reported", ...providers }, ...over });
 const ids = (group: { id: string }[]) => group.map(i => i.id);
 
-// CHANGED ON PURPOSE (V4 top-10 #4): each stripe held every door in its runs →
-// each keeps its everyday doors and a More at its foot holds the occasional
-// ones, in the same runs, because fifteen doors on an empty board read as
-// clutter. The pins below say both: the stripe's runs and its More's.
 const RIGHT_ALL = [
   ["inspector"],
   ["usage", "machine"],
-];
-const RIGHT_MORE = [
   ["history", "tool-activity", "skill-activity"],
   ["browser-watch", "traffic-radar"],
 ];
-const LEFT_MORE = [["account-capacity", "reset-calendar"], ["explore-integrations"], ["radio"]];
 
 describe("each stripe's order and runs", () => {
-  it("Claude with Codex: Sessions, Accounts on the left, its More capacity, calendar | Explore | Radio; Inspector | Usage, Machine on the right, its More records | watchers", () => {
+  it("Claude with Codex: Sessions, Accounts | capacity, calendar | Explore on the left; Inspector | Usage, Machine | records | watchers on the right", () => {
     const r = make({ claude: true, codex: true });
-    expect(r.leftStripe.map(ids)).toEqual([["session-list", "accounts"]]);
-    expect(r.leftMore.map(ids)).toEqual(LEFT_MORE);
+    expect(r.leftStripe.map(ids)).toEqual([["session-list", "accounts"], ["account-capacity", "reset-calendar"], ["explore-integrations"]]);
     expect(r.rightStripe.map(ids)).toEqual(RIGHT_ALL);
-    expect(r.rightMore.map(ids)).toEqual(RIGHT_MORE);
   });
 
   it("Claude alone is the same", () => {
     const r = make({ claude: true, codex: false });
-    expect(r.leftStripe.map(ids)).toEqual([["session-list", "accounts"]]);
-    expect(r.leftMore.map(ids)).toEqual(LEFT_MORE);
+    expect(r.leftStripe.map(ids)).toEqual([["session-list", "accounts"], ["account-capacity", "reset-calendar"], ["explore-integrations"]]);
     expect(r.rightStripe.map(ids)).toEqual(RIGHT_ALL);
-    expect(r.rightMore.map(ids)).toEqual(RIGHT_MORE);
   });
 
-  it("without Claude, on a Codex-only deck, Codex's door stands beside Sessions and the Claude capacity run is gone from More", () => {
+  it("without Claude, on a Codex-only deck, Codex's door stands beside Sessions and the Claude capacity run is gone", () => {
     const r = make({ claude: false, codex: true });
-    expect(r.leftStripe.map(ids)).toEqual([["session-list", "codex-accounts"]]);
-    expect(r.leftMore.map(ids)).toEqual([["explore-integrations"], ["radio"]]);
+    expect(r.leftStripe.map(ids)).toEqual([["session-list", "codex-accounts"], ["explore-integrations"]]);
     expect(r.rightStripe.map(ids)).toEqual(RIGHT_ALL);
-    expect(r.rightMore.map(ids)).toEqual(RIGHT_MORE);
   });
 
-  it("with neither CLI the left stripe is Sessions alone, its More Explore and Radio, and the right one is unchanged", () => {
+  it("with neither CLI the left stripe is Sessions alone and Explore, and the right one is unchanged", () => {
     const r = make({ claude: false, codex: false });
-    expect(r.leftStripe.map(ids)).toEqual([["session-list"]]);
-    expect(r.leftMore.map(ids)).toEqual([["explore-integrations"], ["radio"]]);
+    expect(r.leftStripe.map(ids)).toEqual([["session-list"], ["explore-integrations"]]);
     expect(r.rightStripe.map(ids)).toEqual(RIGHT_ALL);
-    expect(r.rightMore.map(ids)).toEqual(RIGHT_MORE);
   });
 
-  it("a connected tracker is its own run on the left stripe itself, never in a More, and never on the right", () => {
+  it("a connected tracker is its own run on the left, ahead of Explore, and never on the right", () => {
     const Glyph = () => null;
     const r = make({ claude: true, codex: false }, {
       integrations: [{ provider: { kind: "jira", label: "Jira", Glyph, shortcut: "j", detail: { key: "x" } as never }, onPress: noop }],
     });
-    expect(r.leftStripe.map(ids)).toEqual([["session-list", "accounts"], ["integration-jira"]]);
-    expect(r.leftMore.map(ids)).toEqual(LEFT_MORE);
+    expect(r.leftStripe.map(ids)).toEqual([
+      ["session-list", "accounts"], ["account-capacity", "reset-calendar"], ["integration-jira"], ["explore-integrations"],
+    ]);
     expect(r.rightStripe.map(ids)).toEqual(RIGHT_ALL);
-    expect(r.rightMore.map(ids)).toEqual(RIGHT_MORE);
   });
 
-  it("every door is in one place only, and the phone's own grouping still has them all but the Inspector", () => {
+  it("every door is on one stripe only, and the phone's own grouping still has them all but the Inspector", () => {
     const r = make({ claude: true, codex: true });
-    const placed = [...r.leftStripe.flat(), ...r.leftMore.flat(), ...r.leftFoot, ...r.rightStripe.flat(), ...r.rightMore.flat()].map(i => i.id);
+    const placed = [...r.leftStripe.flat(), ...r.leftFoot, ...r.rightStripe.flat()].map(i => i.id);
     expect(new Set(placed).size).toBe(placed.length);
     // The phone's dock is built from `left` and `right`, which this change did not touch.
     expect(r.right.map(ids)).toEqual([["usage", "machine"], ["history", "tool-activity", "skill-activity"], ["browser-watch", "traffic-radar"], ["radio"]]);
     expect(r.right.flat().map(i => i.id)).not.toContain("inspector");
   });
 
-  // CHANGED ON PURPOSE (V4 top-10 #4): Radio and Settings in the left foot and
-  // no foot on the right → More and Settings in the left foot, More alone in
-  // the right one, because each More stands on the side its doors' dialogs open.
-  it("puts More and Settings in the left foot, and More alone in the right one's", () => {
+  it("puts Radio and Settings in the left foot, and gives the right stripe no foot", () => {
     const r = make({ claude: true, codex: true });
-    expect(ids(r.leftFoot)).toEqual(["settings"]);
-    const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Usage and activity", groups: r.rightStripe, more: r.rightMore }));
-    expect(right).toMatch(/class="rail-foot"><button[^>]*data-rail-item="more"/);
+    expect(ids(r.leftFoot)).toEqual(["radio", "settings"]);
+    const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Usage and activity", groups: r.rightStripe }));
+    expect(right).not.toContain("rail-foot");
     expect(right).not.toContain('data-rail-item="radio"');
     expect(right).not.toContain('data-rail-item="settings"');
-    const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Panels and tools", groups: r.leftStripe, more: r.leftMore, foot: r.leftFoot }));
-    expect(left).toMatch(/class="rail-foot"[\s\S]*data-rail-item="more"[\s\S]*data-rail-item="settings"/);
-    expect(left).not.toContain('data-rail-item="radio"');
+    const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Panels and tools", groups: r.leftStripe, foot: r.leftFoot }));
+    expect(left).toMatch(/class="rail-foot"[\s\S]*data-rail-item="radio"[\s\S]*data-rail-item="settings"/);
   });
 
-  it("keeps every key it had, wherever the door moved to", () => {
+  it("keeps every key it had, each on the stripe it moved to", () => {
     const r = make({ claude: true, codex: true });
-    const keys = Object.fromEntries([...r.leftStripe.flat(), ...r.leftMore.flat(), ...r.leftFoot, ...r.rightStripe.flat(), ...r.rightMore.flat()].map(i => [i.id, i.key?.cap]));
+    const keys = Object.fromEntries([...r.leftStripe.flat(), ...r.leftFoot, ...r.rightStripe.flat()].map(i => [i.id, i.key?.cap]));
     expect(keys).toMatchObject({ "session-list": "L", accounts: "A", usage: "U", machine: "S", history: "H", "browser-watch": "B", inspector: "D" });
   });
 });
@@ -387,8 +368,8 @@ describe("the 40 the right stripe takes, and the panels clear of it", () => {
 
 describe("two toolbars, one Tab stop each", () => {
   const r = make({ claude: true, codex: true });
-  const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Panels and tools", groups: r.leftStripe, more: r.leftMore, foot: r.leftFoot }));
-  const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Usage and activity", groups: r.rightStripe, more: r.rightMore }));
+  const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Panels and tools", groups: r.leftStripe, foot: r.leftFoot }));
+  const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Usage and activity", groups: r.rightStripe }));
 
   it("draws each stripe as its own vertical toolbar, named for what it holds", () => {
     for (const [html, name] of [[left, "Panels and tools"], [right, "Usage and activity"]] as const) {
@@ -412,10 +393,7 @@ describe("two toolbars, one Tab stop each", () => {
     expect(edge).toContain('e.currentTarget.querySelectorAll<HTMLButtonElement>("button[data-rail-item]")');
     // CHANGED ON PURPOSE (stripe words): the left stripe's arrows also reach
     // the switch between words and icons, after its foot.
-    // CHANGED ON PURPOSE (V4 top-10 #4): the doors then the foot → the doors,
-    // the More, the foot, because the More takes its place in the arrows' order.
-    expect(edge).toContain("const footIndex = moreIndex + (moreHere ? 1 : 0);");
-    expect(edge).toContain("const switchIndex = footIndex + foot.length;");
+    expect(edge).toContain("const switchIndex = items.flat().length + foot.length;");
     expect(edge).toContain("const roving = useRoving(switchIndex + (switchHere ? 1 : 0), \"vertical\");");
     // One roving state per stripe: each EdgeRail has its own.
     expect(edge.match(/useRoving\(/g)!.length).toBe(3); // the declaration, a stripe, the dock

@@ -371,8 +371,10 @@ function InspectorArt() {
 }
 
 /** The whole deck at a distance, the board quiet in the middle: the left
- *  stripe with Sessions and Accounts and, at its foot, More and Settings; the
- *  right one with the Inspector, Usage and This machine, and its More. */
+ *  stripe with Sessions and Accounts, more doors under them, and Settings at
+ *  its foot; the right one with the Inspector, Usage and This machine, and
+ *  more doors under them. The doors below go unnamed: their words run too
+ *  long for the stripe in some languages, and the tip names them. */
 function EdgesArt() {
   const t = useT();
   return (
@@ -381,11 +383,10 @@ function EdgesArt() {
       <rect x={14} y={8} width={34} height={8} rx={4} className="ga-track" />
       <rect x={176} y={8} width={88} height={8} rx={4} className="ga-track" />
       <Stripe x={14} y={30} w={106} h={162}
-        doors={[{ label: t("board.rail.sessionList.short") }, { label: t("board.rail.accounts") }]}
-        foot={[{ label: t("board.rail.more") }, { label: t("board.rail.settings") }]} />
+        doors={[{ label: t("board.rail.sessionList.short") }, { label: t("board.rail.accounts") }, {}, {}, {}]}
+        foot={[{}, { label: t("board.rail.settings") }]} />
       <Stripe x={320} y={30} w={106} h={162}
-        doors={[{ label: t("board.inspector.label") }, { label: t("board.rail.usage") }, { label: t("board.rail.machine.hint") }]}
-        foot={[{ label: t("board.rail.more") }]} />
+        doors={[{ label: t("board.inspector.label") }, { label: t("board.rail.usage") }, { label: t("board.rail.machine.hint") }, {}, {}, {}]} />
       <g className="ga-quiet">
         <rect x={130} y={42} width={180} height={62} rx={8} className="ga-frame" />
         <rect x={140} y={56} width={76} height={34} rx={6} className="ga-card-warn" />

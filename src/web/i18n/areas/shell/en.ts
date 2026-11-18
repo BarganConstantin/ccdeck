@@ -68,7 +68,7 @@ const catalog: Catalog = {
   "shell.guide.welcome.inspector.line": "The Inspector shows every agent, subagent and tool call, with cost and time.",
   "shell.guide.welcome.inspector.tip": "Press D, or Inspector at the top of the right edge.",
   "shell.guide.welcome.edges.line": "Left edge: Sessions, Accounts, Settings at its foot. Right: Usage and This machine.",
-  "shell.guide.welcome.edges.tip": "The rest waits under More, at the foot of each edge.",
+  "shell.guide.welcome.edges.tip": "Further down: Capacity and Reset calendar on the left, Usage history on the right.",
   "shell.guide.welcome.accounts.line": "Switch Claude and Codex accounts. Paired machines repair each other's expired logins.",
   "shell.guide.welcome.accounts.tip": "Pair them from the Local network row at the foot of the Accounts panel.",
   "shell.guide.welcome.start.line": "Run claude or codex in any folder, or use New session. It appears here.",
