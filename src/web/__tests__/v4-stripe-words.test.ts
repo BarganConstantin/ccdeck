@@ -20,7 +20,7 @@ vi.mock("react-dom", async (orig) => ({ ...(await orig<typeof import("react-dom"
 vi.mock("../use-single-key-shortcuts", () => ({ useSingleKeyShortcuts: () => true }));
 vi.mock("../components/use-hint", () => ({ useHint: () => ({ bind: () => ({}), node: null }) }));
 
-const { EdgeDock, EdgeRail, railHint, stripeDoorName, stripeHint } = await import("../components/EdgeRails");
+const { EdgeDock, EdgeRail, railHint, stripeDoorName, stripeHint, stripeWordOf } = await import("../components/EdgeRails");
 const { railItems } = await import("../rail-items");
 const { KIT_ICONS } = await import("../components/kit-icons");
 const { SCHEMA_KEY, pruneStaleState } = await import("../storage");
@@ -417,6 +417,27 @@ describe("the right panels at load measure the stripes as drawn", () => {
     const token = (prop: string) => root.map(r => declared(r.body, prop)).filter(Boolean).at(-1);
     expect(token("--edge-w")).toBe(`${STRIPE_W.icons}px`);
     expect(token("--edge-words-w")).toBe(`${STRIPE_W.words}px`);
+  });
+});
+
+describe("the Settings door's word", () => {
+  it("is the name Settings has everywhere else, in every language", async () => {
+    // CHANGED ON PURPOSE: the stripe drew German "Optionen" and Portuguese
+    // "Config." while the dialog's title, the More row and the hint say
+    // "Einstellungen" and "Configurações". The short word was written for a
+    // door in the phone dock's 53px column, which Settings no longer has; the
+    // full words measure 72 and 77px in the stripe's 108.
+    const { LANGUAGES } = await import("../i18n/registry");
+    for (const { code, catalog } of LANGUAGES) {
+      expect(catalog["board.rail.settings.short"], code).toBe(catalog["board.rail.settings"]);
+    }
+  });
+
+  it("is drawn on the stripe alone: on a phone Settings is a row of the dock's More, named by its label", () => {
+    const r = rails();
+    expect([...r.left, ...r.right[0]].map(item => item.id)).not.toContain("settings");
+    const settings = r.leftFoot.find(item => item.id === "settings")!;
+    expect(stripeWordOf(settings)).toBe(settings.short);
   });
 });
 

@@ -386,7 +386,7 @@ const catalog: Catalog = {
   "board.rail.browserWatch": "Observação do navegador",
   "board.rail.browserWatch.short": "Observar",
   "board.rail.settings": "Configurações",
-  "board.rail.settings.short": "Config.",
+  "board.rail.settings.short": "Configurações",
   "board.rail.search": "Buscar",
   "board.rail.search.detail": "Painéis, sessões, configurações, ações e temas",
   "board.rail.feedback": "Feedback",
