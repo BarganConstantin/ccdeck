@@ -771,7 +771,7 @@
 @keyframes ns-pop-in { from { transform: translateY(-4px) scale(0.97); } }
 /* Clear project/agent hierarchy; the usual defaults stay one press away. */
 .ns-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
-.ns-head .ns-close { flex: none; width: 28px; height: 28px; }
+.ns-head .ns-close { flex: none; }
 .ns-title {
   margin: 0;
   font-size: 16px;
@@ -779,7 +779,7 @@
   line-height: 24px;
   color: var(--text);
 }
-.ns-label { display: block; margin: 0 0 6px; font-size: 12px; line-height: 16px; color: var(--muted); }
+.ns-label { display: block; margin: 0 0 8px; font-size: 12px; font-weight: 500; line-height: 16px; color: var(--text-secondary); }
 /* The strips are V4's chips here: 26 high, the control radius, --bg-soft on a --line-soft edge,
    12/500 in --text-secondary; the chosen one keeps the deck's solid accent state. */
 .ns-form .uh-range { gap: 6px; padding: 0; border: 0; background: none; }
@@ -826,13 +826,15 @@
   cursor: pointer;
 }
 .ns-option[data-highlighted] { background: var(--selected); }
-.ns-dot { flex: none; width: 7px; height: 7px; border-radius: var(--r-pill); background: var(--muted-dim); }
+.ns-folder { flex: none; display: inline-flex; width: 18px; align-items: center; justify-content: center; color: var(--muted); }
 .ns-project-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ns-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; line-height: 18px; }
 .ns-path { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 400 11px/16px var(--font-mono); color: var(--muted); }
 /* The search (internal #106): words first, so the field reads in the deck's
    own face; a typed path is still a path in it. 6px above the list. */
-.ns-form .ns-field { margin-bottom: 8px; min-height: 36px; }
+.ns-search { position: relative; margin-bottom: 8px; }
+.ns-search > svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.ns-form .ns-field { padding-left: 34px; min-height: 38px; }
 /* The chosen project's tick, in the accent the list's selection uses. */
 .ns-check { flex: none; color: var(--accent); }
 /* × takes a project off the list (nothing on disk): drawn on the row the
@@ -858,8 +860,9 @@
 /* What an empty list says: no projects yet, nothing matched, or "a full
    path" for ~/ and ./ — in the list's own place and size. */
 .ns-empty { margin: 0 0 8px; padding: 8px 10px; border: 1px dashed var(--line-soft); border-radius: var(--r-ctl); font-size: 12px; line-height: 16px; color: var(--text-secondary); }
+.ns-discovery { margin: 0 0 8px; font-size: 12px; line-height: 18px; color: var(--muted); }
 /* "Choose another folder…": the deck's own button, quiet, under the list. */
-button.btn.ns-choose { align-self: flex-start; gap: 6px; padding: 0 8px; font-size: 12px; border-color: transparent; background: transparent; color: var(--text-secondary); }
+.ns-choose { align-self: flex-start; gap: 6px; padding: 0 8px; margin-left: -8px; }
 /* Where Start will go, said whole: the chosen folder's path, or what is
    wrong with it — in --warn's words, the path after them. */
 .ns-where { display: flex; gap: 8px; min-width: 0; margin: 8px 0 0; font-size: 12px; line-height: 16px; }

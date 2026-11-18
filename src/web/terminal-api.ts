@@ -68,6 +68,20 @@ export const TERMINAL_ROUTES = {
  *  those are the terminal's version 1 contract, answered by the engine; this
  *  one the deck answers itself, behind the same switch and gates. */
 export const FOLDER_ROUTE = "/api/terminal/folder";
+export const PROJECTS_ROUTE = "/api/terminal/projects";
+
+export interface DiscoveredProject { cwd: string; name: string }
+export function discoverProjectFolders(options: ApiOptions = {}): Promise<{ ok: true; projects: DiscoveredProject[]; truncated: boolean } | ApiFailure> {
+  return ask(PROJECTS_ROUTE, {}, options, body => {
+    if (!isObject(body) || body.ok !== true || !Array.isArray(body.projects) || body.projects.length > 150) return null;
+    const projects: DiscoveredProject[] = [];
+    for (const p of body.projects) {
+      if (!isObject(p) || typeof p.cwd !== 'string' || !p.cwd || typeof p.name !== 'string' || !p.name) return null;
+      projects.push({ cwd: p.cwd, name: p.name });
+    }
+    return { ok: true, projects, truncated: body.truncated === true };
+  });
+}
 
 export type TerminalProvider = "claude" | "codex";
 

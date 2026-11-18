@@ -1,0 +1,60 @@
+/* shadcn/ui form recipes, adapted to ccdeck's control and theme contract. */
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.ui-button-primary { background: var(--accent-dim); border-color: var(--accent); color: var(--text); }
+.ui-button-ghost { border-color: transparent; }
+.ui-button-icon { width: 32px; min-height: 32px; padding: 0; flex: none; }
+.ui-button svg { flex: none; pointer-events: none; }
+.ui-button:disabled { opacity: var(--dim-off); cursor: default; }
+.ui-button[aria-disabled="true"] { cursor: progress; }
+.ui-button:active:not(:disabled):not([aria-disabled="true"]) { transform: scale(0.97); }
+@media (hover: hover) and (pointer: fine) {
+  .ui-button:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--ctl-fill); color: var(--text); border-color: var(--text); }
+  .ui-button-ghost:hover:not(:disabled):not([aria-disabled="true"]) { border-color: transparent; }
+}
+.ui-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-ctl);
+  background: var(--bg-soft);
+  color: var(--text);
+  font: inherit;
+  caret-color: var(--accent);
+}
+.ui-input::placeholder { color: var(--muted); opacity: 1; }
+.ui-input:disabled { opacity: var(--dim-off); cursor: not-allowed; }
+.ui-input[aria-invalid="true"] { border-color: var(--err); }
+.ui-button:focus-visible, .ui-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (pointer: coarse) {
+  .ui-button, .ui-input { min-height: 44px; }
+  .ui-button-icon { width: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-button { transition: none; }
+  .ui-button:active:not(:disabled):not([aria-disabled="true"]) { transform: none; }
+}
+@media (forced-colors: active) {
+  .ui-button-primary { border-color: Highlight; }
+  .ui-input[aria-invalid="true"] { border-color: Mark; }
+}

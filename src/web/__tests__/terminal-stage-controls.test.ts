@@ -109,9 +109,9 @@ describe("the New session form", () => {
   };
   const folderOk = vi.fn(async (cwd: string): Promise<FolderAnswer> => ({ ok: true, cwd }));
   const props = (over: Partial<NewSessionFormProps> = {}, deps: Partial<NewSessionDeps> = {}): NewSessionFormProps =>
-    ({ projects, onStart: vi.fn(), onCancel: vi.fn(), ...over, deps: { checkFolder: folderOk, store: memStore(), now: () => 1_000, apple: false, ...deps } });
+    ({ projects, onStart: vi.fn(), onCancel: vi.fn(), ...over, deps: { checkFolder: folderOk, loadProjects: undefined, store: memStore(), now: () => 1_000, apple: false, ...deps } });
   const startButton = (tree: unknown) => one(tree, el => el.type === "button" && /^Start /.test(textOf(el)))!;
-  const chooseButton = (tree: unknown) => one(tree, el => el.type === "button" && el.props.className === "btn ns-choose")!;
+  const chooseButton = (tree: unknown) => one(tree, el => el.type === "button" && String(el.props.className).split(" ").includes("ns-choose"))!;
   const agents = (tree: unknown) => one(tree, el => el.props.className === "uh-range ns-agents")!.props.children as Drawn[];
   const strip = (tree: unknown, label: string) =>
     all(tree, el => el.type === "select" && el.props["aria-labelledby"] === label)[0];
@@ -130,6 +130,38 @@ describe("the New session form", () => {
     (field(m.tree).props.onKeyDown as (e: unknown) => void)(e);
     return e;
   };
+
+  it('loads other local projects, keeps the chosen project and supports searching their paths', async () => {
+    const loadProjects = vi.fn(async () => ({ projects: [{ cwd: '/srv/team/other-project', name: 'other-project' }] }));
+    const p = props({}, { loadProjects }); const view = mount(NewSessionForm, p);
+    await flush();
+    expect(loadProjects).toHaveBeenCalledTimes(1);
+    expect(names(view.tree)).toContain('other-project');
+    expect(textOf(startButton(view.tree))).toBe('Start Claude in paycore');
+    (field(view.tree).props.onChange as (e: unknown) => void)({ target: { value: 'other-project' } });
+    expect(names(view.tree)).toEqual(['other-project']);
+    expect(p.onStart).not.toHaveBeenCalled();
+    view.unmount();
+  });
+
+  it('keeps folder selection usable while discovery loads, fails, or is cancelled on close', async () => {
+    let resolve!: (r: { projects: never[]; truncated: boolean }) => void;
+    let signal!: AbortSignal;
+    const view = mount(NewSessionForm, props({}, { loadProjects: s => {
+      signal = s;
+      return new Promise(r => { resolve = r; });
+    } }));
+    expect(textOf(view.tree)).toContain('Looking for local projects');
+    expect(textOf(startButton(view.tree))).toBe('Start Claude in paycore');
+    resolve({ projects: [], truncated: true }); await flush();
+    expect(textOf(view.tree)).toContain('More projects may be available');
+    view.unmount(); expect(signal.aborted).toBe(true);
+    const failed = mount(NewSessionForm, props({}, { loadProjects: async () => { throw new Error('offline'); } }));
+    await flush();
+    expect(textOf(failed.tree)).toContain('Local projects could not be loaded');
+    expect(textOf(startButton(failed.tree))).toBe('Start Claude in paycore');
+    failed.unmount();
+  });
 
   it("starts Claude in the first project by default, once the deck has said the folder is there", async () => {
     const p = props();

@@ -535,6 +535,10 @@ interface Control {
 }
 
 const CONTROLS: Control[] = [
+  // Local shadcn/ui form recipes retain the existing contrast floor.
+  { at: ".ui-button", states: ['.ui-button:hover:not(:disabled):not([aria-disabled="true"])'], beds: ["--panel"] },
+  { at: ".ui-button-primary", fillFrom: ".ui-button-primary", beds: ["--panel"] },
+  { at: ".ui-input", states: ['.ui-input[aria-invalid="true"]'], beds: ["--panel"] },
   // CHANGED ON PURPOSE (V4's Figma): the integrations' tabs, detail tabs and the New session chips
   // are outlined pills on the kit chip's --ctl-edge, swept here like any other control edge.
   { at: ".fg-tabs .uh-range-btn", states: ['.fg-tabs .uh-range-btn[aria-selected="true"]'], beds: ["--panel"] },
@@ -955,6 +959,8 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // its shared keyboard outline is the action's only ring boundary.
       ".ts-chat-handoff > button.btn:focus-visible",
       ".uh-bar-col.sel .uh-bar",
+      ".ui-button:focus-visible",
+      ".ui-input:focus-visible",
       // CHANGED ON PURPOSE (internal #102): the line between two panes of a
       // split Workspace is the same kind of grab strip, 1px drawn, so the
       // keyboard ring drawn round it is the whole of its boundary.
@@ -1016,7 +1022,8 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // CHANGED ON PURPOSE: Jira's Filters button, the chips folded in a dialog
     // under 900 wide, adds one: its accent edge while a filter is on, swept
     // above at the same 3:1 floor. The ceiling moves from 172 to 173.
-    expect(EDGED_CONTROLS.length).toBeLessThan(173);
+    // Button/Input add two boundaries and their hover, invalid and focus states.
+    expect(EDGED_CONTROLS.length).toBeLessThan(180);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);

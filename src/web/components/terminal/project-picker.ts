@@ -133,7 +133,7 @@ export function withoutRecent(kept: KeptProjects, cwd: string): KeptProjects {
  * as projectChoices orders them) and the remembered ones, each folder once,
  * the rest newest first, without the ones the reader removed.
  */
-export function pickerProjects(board: ProjectChoice[], recents: RecentProject[], forgotten: readonly string[] = []): ProjectChoice[] {
+export function pickerProjects(board: ProjectChoice[], recents: RecentProject[], forgotten: readonly string[] = [], discovered: ProjectChoice[] = []): ProjectChoice[] {
   const hidden = new Set(forgotten.map(projectKey));
   const byKey = new Map<string, ProjectChoice>();
   for (const p of board) {
@@ -145,6 +145,10 @@ export function pickerProjects(board: ProjectChoice[], recents: RecentProject[],
     const had = byKey.get(r.cwd);
     if (had) byKey.set(r.cwd, { ...had, at: Math.max(had.at ?? 0, r.at) });
     else byKey.set(r.cwd, { cwd: r.cwd, name: folderName(r.cwd), hue: sessionHue(r.cwd), at: r.at });
+  }
+  for (const p of discovered) {
+    const key = projectKey(p.cwd);
+    if (!hidden.has(key) && !byKey.has(key)) byKey.set(key, { ...p, cwd: key });
   }
   const all = [...byKey.values()];
   if (all.length < 2) return all;

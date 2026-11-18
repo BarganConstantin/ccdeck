@@ -167,6 +167,24 @@ The app keeps itself current from this repository's releases, and installs an up
 
 Step by step: [Install the ccdeck app on Mac, Windows or Linux](https://ccdeck.dev/guides/desktop-app/)
 
+### Starting in a project
+
+**New session** offers folders from current sessions and recent choices, followed
+by nearby Git repositories. Search by name or path, choose another folder, or
+enter a full path. Enter selects a project; the Start button (or ⌘/Ctrl+Enter)
+starts the chosen agent. Finding a project never starts an agent or changes files.
+
+Discovery looks in Desktop, Documents, Developer, Projects, repos, Code, src and
+workspace under your home folder, including lowercase Projects/Code variants.
+It checks directory entries and `.git` markers without reading project files or
+Git configuration. Hidden folders, dependencies and nested symlinks are skipped;
+separate Git worktrees remain available through recent choices or a full path.
+The scan goes at most three levels deep, with directory, entry and result caps
+and a short time budget; a partial-result message appears if a cap is reached
+or a directory cannot be read because of its permissions.
+Results are cached for 30 seconds. A folder outside these locations can always
+be chosen explicitly.
+
 ## Requirements
 
 - Node.js ≥ 18 — macOS, Linux and Windows. The floor is checked on every run: CI installs the packed release on Node 18 and boots it, so the badge is a measurement rather than a claim

@@ -62,6 +62,7 @@ import { panelProvenance, withProvenance } from "./panel-provenance.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { engineRefusal } from "./pro-engine-terminal.mjs";
 import { checkFolder } from "./terminal-folder.mjs";
+import { discoverProjects } from "./project-discovery.mjs";
 import { createTicketStore } from "./terminal-socket.mjs";
 
 /** The bodies here are an id, a provider and a folder. A few kilobytes is far
@@ -128,6 +129,19 @@ export async function handleTerminalStatus(req, res, options) {
   const d = terminalDeps(options);
   if (!d.enabled()) return notFound(res);
   return answer(d, req, res, "status", null);
+}
+
+/** Guarded, bounded suggestions from this user's working folders. */
+export async function handleTerminalProjects(_req, res, options) {
+  const d = terminalDeps(options);
+  if (!d.enabled()) return notFound(res);
+  if (!d.jsBackend && d.engine?.enabled !== true) {
+    const { status, body } = engineRefusal("not-installed");
+    return send(res, status, body);
+  }
+  const result = await (d.discoverProjects ?? discoverProjects)();
+  if (!d.enabled()) return notFound(res);
+  return send(res, 200, { ok: true, ...result });
 }
 
 /** GET /api/terminal/target?session=&provider=&cwd= → `{ ok: true, target }`. */
