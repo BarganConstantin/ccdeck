@@ -40,6 +40,34 @@ function fromExtension(stack: unknown, filename?: unknown): boolean {
   return typeof filename === "string" && EXTENSION_SCRIPT.test(filename);
 }
 
+/** What a frame of code evaluated in the page from outside it is called: by
+ *  Puppeteer, which chrome-devtools-mcp drives the browser with (`pptr:…`, and
+ *  `__puppeteer_evaluation_script__` before it), by Playwright (its
+ *  `UtilityScript`), and by DevTools' console or a bare CDP evaluate, which
+ *  name no script at all (`<anonymous>:1:221`). `(<anonymous>)` with no line
+ *  and column is a native frame, `Array.map`'s, and says nothing. */
+const AUTOMATION_SCRIPT = /\bpptr:|__puppeteer_evaluation_script__|\bUtilityScript\./;
+const EVALUATED = /<anonymous>:\d+:\d+/;
+
+/**
+ * Whether an error was raised by a script driving the page rather than by
+ * anyone using it. A test, or an agent working the deck through DevTools, that
+ * dispatches a synthetic keydown on `document` trips a handler that expects an
+ * element behind it (`n.hasAttribute is not a function`, in React Flow's): a
+ * report of that is a bug no user hits, and a new kind in Errors. It is the
+ * script's when the last `at` line of a V8 stack — where the chain of calls
+ * began — is code evaluated from outside the bundle (AUTOMATION_SCRIPT,
+ * EVALUATED). Code the bundle evaluated itself names the bundle's address in
+ * that frame (`eval at f (http://…)`), and stays ours; so does an error whose
+ * chain began in the deck, whatever ran above it.
+ */
+function fromAutomation(stack: unknown): boolean {
+  const frames = typeof stack === "string" ? stack.split("\n").filter(line => /^\s*at\s/.test(line)) : [];
+  const origin = frames[frames.length - 1];
+  if (!origin) return false;
+  return AUTOMATION_SCRIPT.test(origin) || (EVALUATED.test(origin) && !origin.match(SCRIPT_URL));
+}
+
 // The path and project-folder patterns of `scrub` in server/reports.mjs, the
 // same text (error-report-paths.test.ts holds the two together): see there.
 const NAME = String.raw`[^\s\\/:'"\`<>|?*;,]`;
@@ -170,7 +198,7 @@ export function forwardPageErrors(isOn: () => boolean, target: ErrorTarget = win
   const forward = (message: unknown, stack: unknown, filename?: unknown) => {
     const text = String(message ?? "").slice(0, MESSAGE_MAX).trim();
     if (!isOn() || !text || sent >= MAX_PER_PAGE || seen.has(text) || IGNORED.some(re => re.test(text))) return;
-    if (fromExtension(stack, filename)) return;
+    if (fromExtension(stack, filename) || fromAutomation(stack)) return;
     seen.add(text);
     sent++;
     send({ message: text, stack: typeof stack === "string" ? stack.slice(0, STACK_MAX) : undefined });
