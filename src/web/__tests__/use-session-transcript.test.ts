@@ -51,6 +51,17 @@ describe("when it asks", () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
+  it("loads Codex explicitly and clears a Claude result with the same session ID", async () => {
+    const fetchFn = vi.fn(async () => ready());
+    const h = setup(on, fetchFn);
+    await flush();
+    h.view.rerender({ ...on, provider: "codex" });
+    expect(h.source).toEqual({ state: "loading" });
+    await flush();
+    expect(fetchFn.mock.calls[1][0]).toBe("/api/session/transcript?session=abc&provider=codex");
+    expect(h.source.state).toBe("ready");
+  });
+
   // CHANGED ON PURPOSE: this used to expect no fetch once the session stopped
   // working. The final reply and the question a session waits on land just as the
   // status turns from working, after the last timed ask, so a status change is
@@ -173,11 +184,12 @@ describe("what it answers", () => {
 });
 
 describe("which pane has Chat on offer", () => {
-  it("only with the flag effective and a Claude session whose id has the route's shape", () => {
+  it("only with the flag effective and a supported session whose id has the route's shape", () => {
     const claude = { sessionId: "0d9c6f3e-1b2a-4c5d-8e7f-aabbccddeeff", provider: "claude" };
     expect(chatSessionFor(true, claude)).toBe(claude.sessionId);
     expect(chatSessionFor(false, claude)).toBeNull();
-    expect(chatSessionFor(true, { ...claude, provider: "codex" })).toBeNull();
+    expect(chatSessionFor(true, { ...claude, provider: "codex" })).toBe(claude.sessionId);
+    expect(chatSessionFor(true, { ...claude, provider: "unsupported" })).toBeNull();
     expect(chatSessionFor(true, null)).toBeNull();
     for (const sessionId of ["", "../x", "a/b", "a.b", "-a", "a".repeat(129)]) expect(chatSessionFor(true, { sessionId, provider: "claude" })).toBeNull();
   });

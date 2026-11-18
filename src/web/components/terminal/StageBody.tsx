@@ -84,7 +84,7 @@ export interface StageBodyProps {
   /** Open the waiting session, with the keys in its pane: N's answer. */
   onOpenWaiting?(): void;
   /** CHAT AND DECISION: what the pane is handed to draw, behind two flags that
-   *  are off (use-screens.ts). The stage hands them for a Claude session in
+   *  are off (use-screens.ts). The stage hands them for a supported session in
    *  Workspace, with the conversation read from its transcript. */
   screens?: ScreensProps;
 }
