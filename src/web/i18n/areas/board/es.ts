@@ -655,6 +655,8 @@ const catalog: Catalog = {
   "board.stage.identityUncertain": "ccdeck no pudo identificar con certeza el terminal de esta sesión. Puede estar ejecutándose en otra aplicación. Puedes iniciar una sesión nueva aquí; esta conversación no se ha vuelto a abrir.",
   "board.stage.elsewhere.idle": "La respuesta está lista, pero la sesión sigue abierta: te espera en una terminal fuera de ccdeck. Para continuarla aquí, ciérrala en esa terminal. ccdeck lo nota por sí solo y ofrece Reabrir aquí, con la misma conversación.",
   "board.stage.elsewhere.waiting": "Espera tu respuesta en una terminal fuera de ccdeck. Para continuarla aquí, ciérrala en esa terminal. ccdeck lo nota por sí solo y ofrece Reabrir aquí, con la misma conversación.",
+  "board.stage.handoff.move": "Mover la sesión aquí",
+  "board.stage.handoff.waiting": "Ejecuta /background en el terminal original de Claude. ccdeck abrirá la sesión continuada cuando esté disponible.",
   "board.stage.elsewhere.working": "Está trabajando en una terminal fuera de ccdeck. Para continuarla aquí, ciérrala en esa terminal. ccdeck lo nota por sí solo y ofrece Reabrir aquí, con la misma conversación.",
   "board.stage.elsewhere.running": "Sigue en marcha en una terminal fuera de ccdeck. Para continuarla aquí, ciérrala en esa terminal. ccdeck lo nota por sí solo y ofrece Reabrir aquí, con la misma conversación.",
   "board.stage.wsEmptyTitle": "Nada está esperando",

@@ -655,6 +655,8 @@ const catalog: Catalog = {
   "board.stage.identityUncertain": "ccdeck はこのセッションのターミナルを確実に特定できませんでした。別のアプリで実行中の可能性があります。ここで新しいセッションを開始できます。この会話は再開されていません。",
   "board.stage.elsewhere.idle": "応答は完了していますが、セッションはまだ開いています。ccdeck の外のターミナルで入力を待っています。ここで続けるには、そのターミナルで終了してください。ccdeck が自動で検知し、同じ会話のまま「ここで開き直す」を表示します。",
   "board.stage.elsewhere.waiting": "ccdeck の外のターミナルで、あなたの回答を待っています。ここで続けるには、そのターミナルで終了してください。ccdeck が自動で検知し、同じ会話のまま「ここで開き直す」を表示します。",
+  "board.stage.handoff.move": "セッションをここに移動",
+  "board.stage.handoff.waiting": "元の Claude ターミナルで /background を実行してください。ccdeck は移動先のセッションが利用可能になり次第開きます。",
   "board.stage.elsewhere.working": "ccdeck の外のターミナルで作業中です。ここで続けるには、そのターミナルで終了してください。ccdeck が自動で検知し、同じ会話のまま「ここで開き直す」を表示します。",
   "board.stage.elsewhere.running": "ccdeck の外のターミナルでまだ動いています。ここで続けるには、そのターミナルで終了してください。ccdeck が自動で検知し、同じ会話のまま「ここで開き直す」を表示します。",
   "board.stage.wsEmptyTitle": "待機中のものはありません",

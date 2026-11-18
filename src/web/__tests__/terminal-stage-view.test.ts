@@ -258,6 +258,23 @@ describe("the body's state cards, each at the terminal's origin", () => {
       .not.toContain("Reopen here");
   });
 
+  it("guides a Claude handoff and keeps waiting when the old process exits", () => {
+    const toggle = vi.fn();
+    const target = { kind: "C" as const, label: "External session", adoptable: true };
+    const external = { kind: "not-attachable" as const, target, stillRunning: true, busy: false };
+    const offer = StateCard(bodyProps(external, { handoff: { moving: false, toggle } }));
+    press(button(offer, "Move session here"));
+    expect(toggle).toHaveBeenCalledOnce();
+
+    const ended = { ...external, target: { ...target, kind: "gone" as const }, stillRunning: false };
+    const pending = bodyProps(ended, { handoff: { moving: true, toggle } });
+    expect(html(createElement(StateCard, pending))).toContain("/background");
+    const waiting = StateCard(pending);
+    expect(button(waiting, "Reopen here")).toBeNull();
+    press(button(waiting, "Cancel"));
+    expect(toggle).toHaveBeenCalledTimes(2);
+  });
+
   it("says what a session outside the deck is doing there and how to bring it here, by the board's state (#97)", () => {
     const target = { kind: "C" as const, label: "This session was started outside the deck, so there is no pane to attach to.", adoptable: true };
     const phase: StagePhase = { kind: "not-attachable", target, stillRunning: true, busy: false };

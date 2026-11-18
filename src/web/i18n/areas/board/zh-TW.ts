@@ -655,6 +655,8 @@ const catalog: Catalog = {
   "board.stage.identityUncertain": "ccdeck 無法可靠地識別此工作階段的終端機。它可能仍在其他應用程式中執行。你可以在這裡啟動新工作階段；此對話尚未重新開啟。",
   "board.stage.elsewhere.idle": "回覆已完成，但工作階段仍未結束：它正在 ccdeck 之外的終端機中等你輸入。要在這裡繼續，請在該終端機中結束它。ccdeck 會自動察覺，並提供「在此重新開啟」，對話保持不變。",
   "board.stage.elsewhere.waiting": "它正在 ccdeck 之外的終端機中等待你的回答。要在這裡繼續，請在該終端機中結束它。ccdeck 會自動察覺，並提供「在此重新開啟」，對話保持不變。",
+  "board.stage.handoff.move": "將工作階段移到這裡",
+  "board.stage.handoff.waiting": "在原本的 Claude 終端機執行 /background。移動後的工作階段可用時，ccdeck 會自動開啟。",
   "board.stage.elsewhere.working": "它正在 ccdeck 之外的終端機中工作。要在這裡繼續，請在該終端機中結束它。ccdeck 會自動察覺，並提供「在此重新開啟」，對話保持不變。",
   "board.stage.elsewhere.running": "它仍在 ccdeck 之外的終端機中執行。要在這裡繼續，請在該終端機中結束它。ccdeck 會自動察覺，並提供「在此重新開啟」，對話保持不變。",
   "board.stage.wsEmptyTitle": "沒有任何待處理項目",

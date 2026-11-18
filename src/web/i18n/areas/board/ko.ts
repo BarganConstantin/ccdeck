@@ -655,6 +655,8 @@ const catalog: Catalog = {
   "board.stage.identityUncertain": "ccdeck이 이 세션의 터미널을 확실하게 식별하지 못했습니다. 다른 앱에서 실행 중일 수 있습니다. 여기서 새 세션을 시작할 수 있으며, 이 대화는 다시 열리지 않았습니다.",
   "board.stage.elsewhere.idle": "응답은 끝났지만 세션은 아직 열려 있습니다. ccdeck 밖의 터미널에서 입력을 기다리고 있습니다. 여기서 이어가려면 그 터미널에서 종료하세요. ccdeck이 스스로 알아채고 같은 대화로 '여기서 다시 열기'를 제안합니다.",
   "board.stage.elsewhere.waiting": "ccdeck 밖의 터미널에서 답변을 기다리고 있습니다. 여기서 이어가려면 그 터미널에서 종료하세요. ccdeck이 스스로 알아채고 같은 대화로 '여기서 다시 열기'를 제안합니다.",
+  "board.stage.handoff.move": "세션을 여기로 이동",
+  "board.stage.handoff.waiting": "원래 Claude 터미널에서 /background를 실행하세요. ccdeck이 이동한 세션을 찾으면 자동으로 엽니다.",
   "board.stage.elsewhere.working": "ccdeck 밖의 터미널에서 작업 중입니다. 여기서 이어가려면 그 터미널에서 종료하세요. ccdeck이 스스로 알아채고 같은 대화로 '여기서 다시 열기'를 제안합니다.",
   "board.stage.elsewhere.running": "ccdeck 밖의 터미널에서 아직 실행 중입니다. 여기서 이어가려면 그 터미널에서 종료하세요. ccdeck이 스스로 알아채고 같은 대화로 '여기서 다시 열기'를 제안합니다.",
   "board.stage.wsEmptyTitle": "대기 중인 항목이 없습니다",

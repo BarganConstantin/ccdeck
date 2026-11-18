@@ -72,6 +72,7 @@ export interface StageBodyProps {
    *  that runs somewhere the stage cannot reach (#97). */
   boardState?: StageState | null;
   onAdopt(): void;
+  handoff?: { moving: boolean; toggle(): void };
   /** "Not now": leave the stage, the session untouched. */
   onNotNow(): void;
   onRetry(): void;
@@ -256,14 +257,22 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
       // button that could only ask the same question again. On Windows, a
       // session the deck cannot reach keeps its own sentence.
       const elsewhere = phase.stillRunning && !ours && !unsure;
-      const offer = adoptable && !phase.stillRunning;
+      const handoff = adoptable ? p.handoff : undefined;
+      const offer = adoptable && !phase.stillRunning && !handoff?.moving;
       return (
         <div className="ts-card">
           {p.context?.prompt && <div className="ts-ctx"><span className="ts-prompt">❯ </span>{p.context.prompt}</div>}
-          {elsewhere
+          {handoff?.moving
+            ? <p className="ts-text" role="status">{t("board.stage.handoff.waiting")}</p>
+            : elsewhere
             ? <p className="ts-text" role="status">{t(elsewhereLine(p.boardState))}</p>
             : <p className="ts-text">{ours ? t(LAUNCHED_UNREACHABLE_MSG) : unsure ? t(PROVENANCE_UNKNOWN_MSG) : target.label}</p>}
           <div className="ts-acts">
+            {handoff && (elsewhere || handoff.moving) && (
+              <button type="button" className="btn primary" data-stage-land onClick={handoff.toggle}>
+                {t(handoff.moving ? "common.cancel" : "board.stage.handoff.move")}
+              </button>
+            )}
             {offer && (
               <button type="button" className="btn primary" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onAdopt}>
                 {t("board.stage.reopenHere")}

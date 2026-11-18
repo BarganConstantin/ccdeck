@@ -655,6 +655,8 @@ const catalog: Catalog = {
   "board.stage.identityUncertain": "ccdeck konnte das Terminal dieser Sitzung nicht sicher identifizieren. Sie läuft möglicherweise in einer anderen App. Du kannst hier eine neue Sitzung starten; diese Unterhaltung wurde nicht erneut geöffnet.",
   "board.stage.elsewhere.idle": "Die Antwort ist fertig, aber die Sitzung ist noch offen: Sie wartet in einem Terminal außerhalb von ccdeck auf dich. Um sie hier fortzusetzen, beende sie in diesem Terminal. ccdeck bemerkt das von selbst und bietet „Hier erneut öffnen“ an, mit derselben Unterhaltung.",
   "board.stage.elsewhere.waiting": "Sie wartet in einem Terminal außerhalb von ccdeck auf deine Antwort. Um sie hier fortzusetzen, beende sie in diesem Terminal. ccdeck bemerkt das von selbst und bietet „Hier erneut öffnen“ an, mit derselben Unterhaltung.",
+  "board.stage.handoff.move": "Sitzung hierher verschieben",
+  "board.stage.handoff.waiting": "Führe /background im ursprünglichen Claude-Terminal aus. ccdeck öffnet die fortgesetzte Sitzung, sobald sie verfügbar ist.",
   "board.stage.elsewhere.working": "Sie arbeitet in einem Terminal außerhalb von ccdeck. Um sie hier fortzusetzen, beende sie in diesem Terminal. ccdeck bemerkt das von selbst und bietet „Hier erneut öffnen“ an, mit derselben Unterhaltung.",
   "board.stage.elsewhere.running": "Sie läuft noch in einem Terminal außerhalb von ccdeck. Um sie hier fortzusetzen, beende sie in diesem Terminal. ccdeck bemerkt das von selbst und bietet „Hier erneut öffnen“ an, mit derselben Unterhaltung.",
   "board.stage.wsEmptyTitle": "Nichts wartet",

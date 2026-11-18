@@ -675,6 +675,8 @@ const catalog: Catalog = {
   "board.stage.identityUncertain": "ccdeck nu a putut identifica sigur terminalul acestei sesiuni. Poate rula în altă aplicație. Poți porni o sesiune nouă aici; această conversație nu a fost redeschisă.",
   "board.stage.elsewhere.idle": "Răspunsul e gata, dar sesiunea e încă deschisă: te așteaptă într-un terminal din afara ccdeck. Ca s-o continui aici, închide-o în acel terminal. ccdeck observă singur și îți oferă Redeschide aici, cu aceeași conversație.",
   "board.stage.elsewhere.waiting": "Așteaptă răspunsul tău într-un terminal din afara ccdeck. Ca s-o continui aici, închide-o în acel terminal. ccdeck observă singur și îți oferă Redeschide aici, cu aceeași conversație.",
+  "board.stage.handoff.move": "Mută sesiunea aici",
+  "board.stage.handoff.waiting": "Rulează /background în terminalul Claude original. ccdeck va deschide sesiunea mutată imediat ce o găsește.",
   "board.stage.elsewhere.working": "Lucrează într-un terminal din afara ccdeck. Ca s-o continui aici, închide-o în acel terminal. ccdeck observă singur și îți oferă Redeschide aici, cu aceeași conversație.",
   "board.stage.elsewhere.running": "Încă rulează într-un terminal din afara ccdeck. Ca s-o continui aici, închide-o în acel terminal. ccdeck observă singur și îți oferă Redeschide aici, cu aceeași conversație.",
   "board.stage.wsEmptyTitle": "Nu așteaptă nimic",

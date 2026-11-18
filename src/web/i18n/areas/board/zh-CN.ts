@@ -655,6 +655,8 @@ const catalog: Catalog = {
   "board.stage.identityUncertain": "ccdeck 无法可靠地识别此会话的终端。它可能仍在其他应用中运行。你可以在这里启动新会话；此对话尚未重新打开。",
   "board.stage.elsewhere.idle": "回复已完成，但会话仍未结束：它正在 ccdeck 之外的终端中等你输入。要在这里继续，请在那个终端中退出它。ccdeck 会自动发现，并提供“在此重新打开”，对话保持不变。",
   "board.stage.elsewhere.waiting": "它正在 ccdeck 之外的终端中等待你的回答。要在这里继续，请在那个终端中退出它。ccdeck 会自动发现，并提供“在此重新打开”，对话保持不变。",
+  "board.stage.handoff.move": "将会话移到这里",
+  "board.stage.handoff.waiting": "在原 Claude 终端中运行 /background。ccdeck 会在移后的会话可用时将其打开。",
   "board.stage.elsewhere.working": "它正在 ccdeck 之外的终端中工作。要在这里继续，请在那个终端中退出它。ccdeck 会自动发现，并提供“在此重新打开”，对话保持不变。",
   "board.stage.elsewhere.running": "它仍在 ccdeck 之外的终端中运行。要在这里继续，请在那个终端中退出它。ccdeck 会自动发现，并提供“在此重新打开”，对话保持不变。",
   "board.stage.wsEmptyTitle": "没有等待处理的内容",
