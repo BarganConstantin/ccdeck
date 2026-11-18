@@ -234,7 +234,7 @@ const catalog: Catalog = {
   "settings.key.title": "Tastenkürzel",
   "settings.key.close": "Schließen (Esc)",
   "settings.key.openSettings": "Einstellungen öffnen",
-  "settings.key.tourText": "Acht Bilder davon, was ccdeck zeigt.",
+  "settings.key.tourText": "Sieben Bilder davon, was ccdeck zeigt.",
   "settings.key.tour": "Tour starten",
   "settings.keyboard.singleKeys": "Einzeltasten-Kürzel",
   "settings.keyboard.singleKeysNote": "Tasten wie L, U, M und ? öffnen Panels und schalten Dinge um. Schalte das aus, wenn du Sprachsteuerung nutzt oder sie versehentlich drückst.",

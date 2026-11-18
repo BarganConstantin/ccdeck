@@ -234,7 +234,7 @@ const catalog: Catalog = {
   "settings.key.title": "Raccourcis clavier",
   "settings.key.close": "Fermer (Esc)",
   "settings.key.openSettings": "Ouvrir les paramètres",
-  "settings.key.tourText": "Huit images de ce que montre ccdeck.",
+  "settings.key.tourText": "Sept images de ce que montre ccdeck.",
   "settings.key.tour": "Faire la visite",
   "settings.keyboard.singleKeys": "Raccourcis à une touche",
   "settings.keyboard.singleKeysNote": "Des touches comme L, U, M et ? ouvrent des panneaux et basculent des réglages. Désactivez-les si vous utilisez la commande vocale ou les pressez par erreur.",

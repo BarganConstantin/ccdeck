@@ -242,7 +242,7 @@ const catalog: Catalog = {
   "settings.key.title": "Comenzi rapide",
   "settings.key.close": "Închide (Esc)",
   "settings.key.openSettings": "Deschide setările",
-  "settings.key.tourText": "Opt imagini cu ce arată ccdeck.",
+  "settings.key.tourText": "Șapte imagini cu ce arată ccdeck.",
   "settings.key.tour": "Fă turul",
   "settings.keyboard.singleKeys": "Comenzi cu o singură tastă",
   "settings.keyboard.singleKeysNote": "Taste ca L, U, M și ? deschid panouri și comută lucruri. Oprește-le dacă folosești comenzi vocale sau le apeși din greșeală.",
