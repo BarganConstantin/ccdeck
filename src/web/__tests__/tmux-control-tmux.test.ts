@@ -593,6 +593,68 @@ describe("against a real tmux", () => {
     }
   }, 40_000);
 
+  // A seed lands between two of tmux's reads of one write whenever the pane
+  // is busy: a macOS pty hands tmux a large frame in pieces of about a
+  // kilobyte. These two place it there on purpose, between two writes of a
+  // program that waits for a key in the middle.
+  it("hands a seed taken inside a write the pen and the half character tmux holds, so the rest draws as tmux draws it", async () => {
+    if (!TMUX) return;
+    tm("new-session", "-d", "-s", "pen", "-x", "80", "-y", "24", NODE, FIXTURE, "pen");
+    await waitFor(() => tm("capture-pane", "-p", "-t", "pen").includes("ready"), "the program");
+    const c = open({ target: "pen" });
+    await c.ready;
+    await c.resize(80, 24);
+    const m = xterm() ? mirror(c) : null;
+    let reseeds = 0;
+    c.on("reseed", () => { reseeds++; });
+    await (m ? m.seed() : c.seed());
+    m?.touch();
+    await c.input("h");
+    // A new line, colour 126, AB, and two of 世's three bytes: tmux has
+    // drawn AB in that colour and holds the two bytes.
+    await waitFor(() => tm("display-message", "-p", "-t", "pen", "#{cursor_x},#{cursor_y}").trim() === "2,1",
+      "AB and the start of 世");
+    const s = await (m ? m.seed() : c.seed());
+    expect(s.bytes.subarray(-13).toString("latin1"), "the seed ends with the pen and the half character")
+      .toBe("\x1b[38;5;126m\xe4\xb8");
+    m?.touch();
+    await c.input("g");
+    await waitFor(() => tm("capture-pane", "-p", "-t", "pen").includes("AB世CD"), "the rest of the write");
+    if (m) {
+      await m.settle();
+      expect(await differences(m.term, "pen"), "世 whole and CD in colour 126, as tmux has them").toEqual([]);
+    }
+    expect(reseeds, "an exact seed needs no other").toBe(0);
+  }, 20_000);
+
+  it("hands a seed taken inside an escape sequence its start, so the rest finishes it instead of drawing as text", async () => {
+    if (!TMUX) return;
+    tm("new-session", "-d", "-s", "cutlive", "-x", "80", "-y", "24", NODE, FIXTURE, "cut");
+    await waitFor(() => tm("capture-pane", "-p", "-t", "cutlive").includes("ready"), "the program");
+    const c = open({ target: "cutlive" });
+    await c.ready;
+    await c.resize(80, 24);
+    const m = xterm() ? mirror(c) : null;
+    let reseeds = 0;
+    c.on("reseed", () => { reseeds++; });
+    await (m ? m.seed() : c.seed());
+    m?.touch();
+    await c.input("h");
+    await waitFor(() => tm("display-message", "-p", "-t", "cutlive", "#{cursor_x},#{cursor_y}").trim() === "0,1",
+      "the start of the colour change");
+    const s = await (m ? m.seed() : c.seed());
+    expect(s.bytes.subarray(-8).toString("latin1"), "the seed ends with the start of the sequence").toBe("\x1b[38;5;2");
+    m?.touch();
+    await c.input("g");
+    await waitFor(() => tm("capture-pane", "-p", "-t", "cutlive").includes("CUT"), "the rest of the sequence");
+    if (m) {
+      await m.settle();
+      expect((await m.snapshot()).some(row => row.includes("6m")), "no part of the sequence drew as text").toBe(false);
+      expect(await differences(m.term, "cutlive"), "CUT in colour 2, as tmux has it").toEqual([]);
+    }
+    expect(reseeds, "an exact seed needs no other").toBe(0);
+  }, 20_000);
+
   it("after a %pause whose seed lands inside a write, seeds again once the pane is quiet, and that seed matches tmux's screen", async () => {
     if (!TMUX) return;
     tm("new-session", "-d", "-s", "cut", "-x", "80", "-y", "24", NODE, FIXTURE, "cut");
@@ -614,9 +676,9 @@ describe("against a real tmux", () => {
     await waitFor(() => tm("display-message", "-p", "-t", "cut", "#{cursor_x},#{cursor_y}").trim() === "0,1",
       "the start of the colour change");
     // Then a %pause, the one pause-after sends, asked for here so that the
-    // seed after it is taken while tmux is inside that sequence. A seed that
-    // lands between two reads of one write (a macOS pty hands tmux small
-    // reads) is in the same place.
+    // seed after it is taken while tmux is inside that sequence. Without the
+    // pause the client would hand the start on (the case above); after one it
+    // cannot know it, because tmux may have skipped it.
     const client = tm("list-clients", "-t", "cut", "-F", "#{client_name}").trim();
     const pane = tm("display-message", "-p", "-t", "cut", "#{pane_id}").trim();
     tm("refresh-client", "-t", client, "-A", `${pane}:pause`);

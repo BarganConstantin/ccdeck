@@ -405,6 +405,43 @@ describe("the control client, against a fake tmux", () => {
     await c.close();
   });
 
+  it("hands the seed what tmux's parser holds at its boundary, read from output it dropped too, and after a %pause only what came since", async () => {
+    const manual = (l: string) => (l.includes("alternate_on=") || l.startsWith("capture-pane") ? null : undefined as unknown as Reply);
+    const fake = fakeTmux({ respond: answers(manual) });
+    const c = open(fake);
+    c.on("reseed", () => {});
+    await c.ready;
+    let n = 0;
+    /** One seed, its replies with `between` among them and `after` behind the last. */
+    const seed = async (between: string[], after: string[] = []) => {
+      const p = c.seed({ history: 0 });
+      const want = fake.written.filter(l => l.startsWith("capture-pane")).length + 2;
+      await until(() => fake.written.filter(l => l.startsWith("capture-pane")).length === want, "the seed's captures");
+      const block = (lines: string[]) => { n++; return [`%begin 1 ${n} 1`, ...lines, `%end 1 ${n} 1`]; };
+      fake.send([...block([SEED_INFO]), ...between, ...block(["screen row"]), ...block([]), ...after, ""].join("\n"));
+      return (await p).bytes.toString("latin1") as string;
+    };
+    // Before the seed and among its replies: dropped from the stream, read all the same.
+    fake.send("%output %0 \\033[1;31mred\\033[38;5\n");
+    let text = await seed(["%output %0 ;2"], ["%output %0 6mnew"]);
+    expect(text.indexOf("\x1b[1;31m\x1b[38;5;2"), "after the seed's own bytes").toBeGreaterThan(text.indexOf("screen row"));
+    expect(text.endsWith("\x1b[1;31m\x1b[38;5;26mnew"), JSON.stringify(text.slice(-40))).toBe(true);
+    text = await seed([]);
+    expect(text.endsWith("\x1b[1;31m\x1b[38;5;26m"), "a seed between writes hands on the pen alone").toBe(true);
+    fake.send("%output %0 \\033[0m\n");
+    await tick();
+    text = await seed([]);
+    expect(text.endsWith("m"), `the pen is reset: ${JSON.stringify(text.slice(-20))}`).toBe(false);
+    // A %pause: tmux skipped bytes, so what came before it says nothing.
+    fake.send("%output %0 \\033[32m\n%pause %0\n%output %0 lost;1m\n");
+    await tick();
+    text = await seed(["%output %0 x;4m"]);
+    expect(text.endsWith("m"), `nothing handed on after a %pause: ${JSON.stringify(text.slice(-20))}`).toBe(false);
+    text = await seed(["%output %0 \\033[33mx"]);
+    expect(text.endsWith("\x1b[33m"), "until the output says where the parser is").toBe(true);
+    await c.close();
+  });
+
   it("asks for a reseed when the pane changes size between the capture and the seed's delivery", async () => {
     const manual = (l: string) => (l.includes("alternate_on=") || l.startsWith("capture-pane") ? null : undefined as unknown as Reply);
     const fake = fakeTmux({ respond: answers(manual) });
