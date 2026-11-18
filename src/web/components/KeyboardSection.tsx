@@ -23,7 +23,8 @@ import { SettingRow, SettingsGroup } from "./SettingsParts";
 interface Props {
   singleKeys: boolean;
   onToggleSingleKeys: () => void;
-  /** The Command Panel is on, so Ctrl + backtick has a row (key-help.ts). */
+  /** The Command Panel is on, so Workspace and Terminal have their groups
+   *  (key-help.ts). */
   workspace?: boolean;
 }
 

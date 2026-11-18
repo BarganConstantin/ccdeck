@@ -76,11 +76,15 @@ describe("Keyboard shortcuts", () => {
     expect(decl(".kh-cols", "grid-template-columns")).toBe("repeat(2, minmax(0, 1fr))");
     expect(decl(".kh-cols", "column-gap")).toBe("40px");
   });
-  it("has V4's five groups in order, with Terminal only where the Command Panel is on", () => {
+  // CHANGED ON PURPOSE (first use of Workspace): where the Command Panel is
+  // on, Workspace and Terminal are two groups, so the sheet has six; Panels
+  // has F2, and D is the Inspector, V4's name for it.
+  it("has V4's groups in order, with Workspace and Terminal only where the Command Panel is on", () => {
     expect(KEY_HELP.map(g => g.title)).toEqual(["Deck", "The question", "Canvas", "Panels"]);
-    expect(keyHelpFor(true, () => true, true).map(g => g.title)).toEqual(["Deck", "The question", "Terminal", "Canvas", "Panels"]);
+    expect(keyHelpFor(true, () => true, true).map(g => g.title)).toEqual(["Deck", "The question", "Workspace", "Terminal", "Canvas", "Panels"]);
     expect(KEY_HELP.find(g => g.title === "The question")!.rows.map(r => r.cap)).toEqual(["W", "N", "Shift + N"]);
-    expect(KEY_HELP.find(g => g.title === "Panels")!.rows.map(r => r.cap)).toEqual(["Ctrl + K", "U", "L", "D", "H", "A", "S", "B", "I"]);
+    expect(KEY_HELP.find(g => g.title === "Panels")!.rows.map(r => r.cap)).toEqual(["Ctrl + K", "U", "L", "F2", "D", "H", "A", "S", "B", "I"]);
+    expect(KEY_HELP.find(g => g.title === "Panels")!.rows.find(r => r.cap === "D")!.action).toBe("Inspector");
   });
   it("keeps every shortcut the deck listed before: keys, chords, mouse and the Command Panel's", () => {
     const caps = keyHelpFor(true, () => true, true).flatMap(g => g.rows.map(r => r.cap));
@@ -89,17 +93,31 @@ describe("Keyboard shortcuts", () => {
       "Tab", "Enter", "Shift + Enter", "Esc", "drag", "shift-click", "click", "double-click", "hover", WORKSPACE_KEY_ROW.cap]) {
       expect(caps, cap).toContain(cap);
     }
-    expect(caps).toHaveLength(36);
+    // CHANGED ON PURPOSE (first use of Workspace): F2, Workspace's five rows
+    // after its chord and the Terminal group's five are new.
+    for (const cap of ["F2", "1 – 4", "Ctrl + Shift + X", "Ctrl + =", "Ctrl + -", "Ctrl + 0"]) expect(caps, cap).toContain(cap);
+    expect(caps).toHaveLength(47);
     expect(caps).not.toContain("Space");
   });
+  // CHANGED ON PURPOSE (first use of Workspace): with the Command Panel's two
+  // groups in, Workspace and Terminal open the right column and Panels moves
+  // to the left, so the columns stay about as long; without them, unchanged.
   it("splits the groups into V4's left (Deck, The question) and right columns", () => {
     const cols = splitColumns(keyHelpFor(true, () => true, true));
-    expect(cols[0].map(g => g.id)).toEqual(["deck", "question"]);
-    expect(cols[1].map(g => g.id)).toEqual(["terminal", "canvas", "panels"]);
+    expect(cols[0].map(g => g.id)).toEqual(["deck", "question", "panels"]);
+    expect(cols[1].map(g => g.id)).toEqual(["workspace", "terminal", "canvas"]);
+    const rows = (column: readonly { rows: readonly unknown[] }[]) => column.reduce((n, g) => n + g.rows.length + 1, 0);
+    expect(Math.abs(rows(cols[0]) - rows(cols[1])), "about as long").toBeLessThanOrEqual(3);
+    const off = splitColumns(keyHelpFor(true));
+    expect(off[0].map(g => g.id)).toEqual(["deck", "question"]);
+    expect(off[1].map(g => g.id)).toEqual(["canvas", "panels"]);
   });
   it("draws one chip per key: Ctrl and K on Linux and Windows, ⌘ and K on a Mac", () => {
     expect(capChips("Ctrl + K")).toEqual(["Ctrl", "K"]);
     expect(capChips("⌘ K")).toEqual(["⌘", "K"]);
+    expect(capChips("Ctrl + Shift + X")).toEqual(["Ctrl", "Shift", "X"]);
+    expect(capChips("⌃ ⇧ X")).toEqual(["⌃", "⇧", "X"]);
+    expect(capChips("1 – 4")).toEqual(["1 – 4"]);
     expect(capChips("double-click")).toEqual(["double-click"]);
     expect(sheet).toContain("apple && row.macCap ? row.macCap : row.cap");
   });

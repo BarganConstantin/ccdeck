@@ -138,7 +138,6 @@ const EXCEPTIONS_OUTSIDE: readonly Exception[] = [
   ...table("jira-board.ts", "The kanban column's identity in GroupDef.title; the heading a reader sees is groupTitle(), which reads integrations.group.*.", [
     "In Progress", "Done in the last 14 days",
   ]),
-  { file: "src/web/key-help.ts", text: "Shift + Enter", why: "Names the keys to press, written as the deck's own key labels, the same way as the Ctrl + K rows beside it; the deck does not translate its key labels." },
   { file: "src/web/provider-copy.ts", text: "GitHub Copilot", why: "A product's own name, as ccusage's agent table prints it." },
   { file: "src/web/radio-discovery.ts", text: "Lofi Girl ·", why: "The name of the Lofi Girl channel group, a proper name that stays as the channel writes it." },
 ];
