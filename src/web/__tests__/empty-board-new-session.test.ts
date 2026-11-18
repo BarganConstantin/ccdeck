@@ -9,6 +9,10 @@
 // button, and the stage gone again with the form closed unused) is
 // use-stage.test.ts's "the empty board's New session". This file draws the
 // hero, presses its button, and reads the one place App decides it is offered.
+// On a machine with no tmux the panel can use, the button stays: what the
+// launch its form starts does there — ccdeck's own tmux fetched, then the
+// session — is use-terminal-session.test.ts's "New session from the empty
+// board, on a machine with no tmux it can use".
 //
 // No DOM in this suite: the markup is drawn with renderToStaticMarkup, and the
 // press reads the element tree the hero returns.
@@ -24,6 +28,7 @@ import { LANGUAGES } from "../i18n";
 import boardEn from "../i18n/areas/board/en";
 import { ASSUMED } from "../providers";
 import { all, one, textOf } from "./fake-react";
+import { withoutComments } from "./tsx-scan";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const noop = () => {};
@@ -116,6 +121,19 @@ describe("where App decides it is offered", () => {
     expect(fn).not.toBe("");
     expect(fn).toContain("newSessionFromBoard(button);");
     expect(fn).toMatch(/if \(phone && sessionListOpen\) \{\s*paneFromListRef\.current = true;\s*closeSessionListToCanvas\(\);/);
+  });
+
+  it("stays where this machine has no tmux the panel can use, and the press asks nothing first", () => {
+    // The launch the form starts is what fetches ccdeck's own tmux there
+    // (use-terminal-session.test.ts): neither the offer nor the press waits on it.
+    const code = withoutComments(app);
+    const at = code.indexOf("const canStartSession");
+    const offer = code.slice(at, code.indexOf("const emptyHero", at));
+    expect(offer).toContain("newSessionFromBoard(button);");
+    expect(offer).not.toMatch(/tmux|status\(|await /i);
+    const press = /const newSessionFromBoard = useCallback\([\s\S]*?\n {2}\}, \[/.exec(withoutComments(read("../use-stage.ts")))?.[0] ?? "";
+    expect(press).toContain("openOn(EMPTY_TARGET, { el: button, focusPane: true });");
+    expect(press).not.toMatch(/tmux|status\(|await /i);
   });
 
   it("hangs the form off the empty stage's own button, whose id is one constant", () => {
