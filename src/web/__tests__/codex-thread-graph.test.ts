@@ -6,6 +6,7 @@ import { clusterBounds } from "../cluster-bounds";
 import { sessionGroupNodes } from "../session-group-nodes";
 import { groupBySession } from "../layout-geometry";
 import { branchSummaries } from "../node-face";
+import { buildRows } from "../components/SessionList";
 import type { HookPayload } from "../types";
 // @ts-expect-error server modules have no declaration files
 import { codexThreadLink } from "../../server/codex-lineage.mjs";
@@ -23,6 +24,27 @@ function graph() {
 }
 
 describe("Codex thread families", () => {
+  it("lists only main conversations while keeping active and finished child threads in the graph", () => {
+    const { state, start, send, link } = graph();
+    start("lead"); start("worker"); link("worker", "lead");
+    link("reviewer", "worker"); start("separate");
+    const listed = () => buildRows(state, 100_000).map(row => row.sessionId).sort();
+    expect(listed()).toEqual(["lead", "separate"]);
+    send({ session_id: "worker", hook_event_name: "Stop" }, 50_000);
+    expect(listed()).toEqual(["lead", "separate"]);
+    expect(state.agents.has("worker")).toBe(true);
+    expect(state.agents.has("reviewer")).toBe(true);
+    expect(canvasSessions(state.agents.values()).get("reviewer")).toBe("lead");
+  });
+
+  it("does not list a known child before its main conversation has loaded", () => {
+    const { state, start, link } = graph();
+    start("worker"); link("worker", "lead");
+    expect(buildRows(state, 100_000)).toEqual([]);
+    start("lead");
+    expect(buildRows(state, 100_000).map(row => row.sessionId)).toEqual(["lead"]);
+  });
+
   it("reads header ancestry and both activity encodings, without guessing from completion", () => {
     expect(codexThreadLink(meta("worker", "lead"), "worker", "/project")).toMatchObject({ session_id: "worker", parent_session_id: "lead", agent_nickname: "Ada" });
     for (const payload of [

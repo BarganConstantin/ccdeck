@@ -1,5 +1,23 @@
 # Owner's ccdeck work — continuation context
 
+## Single development host and main conversations — 2026-11-18
+
+The owner requested one ccdeck instance, serving the merged development code.
+The installed desktop shell now uses the built `ccdeck-ui-dev-preview` checkout
+on port 4317 with the normal local data. The synthetic preview on port 4479
+and the extra TUI client were stopped; provider sessions remain in tmux.
+The desktop shortcut `ccdeck dev.command` and the former v4 shortcut both use
+the same dev launcher. Its current commit and checkout are recorded locally
+in the user's cache under `ccdeck-dev/runtime.json`; recheck that marker and
+the listening process before changing the runtime.
+
+The owner also found Codex child threads in the main Sessions list. Their
+independent lifecycle makes them graph roots, but a known parent identifies
+them as delegated work. The list omits those children, including nested ones
+and children whose parent has not loaded yet. Their graph identities, tools
+and usage remain available inside the conversation. The regression exercises
+real lineage events and the list's row builder.
+
 ## Workspace UI integration requested — 2026-11-17
 
 The owner explicitly requested merging the reviewed UI batch into development.
