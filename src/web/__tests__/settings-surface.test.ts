@@ -492,7 +492,9 @@ describe("the README sends a reader to the section a setting is drawn in", () =>
       // Its rows wait for the stored history, so the group is what a first
       // render draws; the README names the group too.
       ["Keep history", /\*\*Keep history\*\* in \*\*Settings › ([^*›]+) › Tool history\*\*/, />Tool history<\/h3>/],
-      ["Clear history", /\*\*Clear\s+history…\*\* under \*\*Settings › ([^*›]+) › Tool history\*\*/, />Tool history<\/h3>/],
+      // The row is "Clear history" and its button "Clear…" (settings/en.ts,
+      // settings.tools.clear and settings.tools.clearBtn); the README names both.
+      ["Clear history", /\*\*Clear\s+history\*\* under \*\*Settings › ([^*›]+) › Tool history\*\*/, />Tool history<\/h3>/],
       // CHANGED ON PURPOSE: the two switches are rows of General's one
       // Sessions group now, each named for its provider, not groups of their own.
       ["startup recovery", /\*\*Settings › ([^*›]+)\*\* has a separate startup-recovery switch/, />Bring back unfinished Codex turns</],
