@@ -1,8 +1,7 @@
 // V4's two stripes (V4's Figma): a door stays on the side where its panel
-// opens. The left stripe holds Sessions, Accounts and the connected trackers,
-// with More (the capacity doors, Explore, Radio) and Settings at its foot; the
-// right one the Inspector, Usage and Machine, with More (the records and the
-// watchers) at its foot.
+// opens. The left stripe holds Sessions, Accounts, the capacity doors and the
+// integrations, with Radio and Settings at its foot; the right one the
+// Inspector, Usage and Machine, the records and the watchers, with no foot.
 // Both 40 wide, doors in runs between 16x1 rules, Settings gone from the top
 // bar. And V4's Tooltip: one line, 24 high, the name and a key chip.
 //
@@ -52,37 +51,25 @@ const ids = (group: { id: string }[]) => group.map(i => i.id);
 
 describe("the stripes' doors, in V4's order", () => {
   // CHANGED ON PURPOSE (V4's Figma): one bar's six runs are now two stripes'.
-  // CHANGED ON PURPOSE (V4 top-10 #4): the left stripe ran Sessions, Accounts |
-  // capacity, calendar | Explore → Sessions, Accounts, with capacity, calendar |
-  // Explore | Radio in its More, because the stripe keeps the everyday doors.
-  it("runs the left stripe Sessions, Accounts, and its More capacity, calendar | Explore | Radio", () => {
+  it("runs the left stripe Sessions, Accounts | capacity, calendar | Explore", () => {
     expect(rails.leftStripe.map(ids)).toEqual([
       ["session-list", "accounts"],
-    ]);
-    expect(rails.leftMore.map(ids)).toEqual([
       ["account-capacity", "reset-calendar"],
       ["explore-integrations"],
-      ["radio"],
     ]);
   });
 
-  // CHANGED ON PURPOSE (V4 top-10 #4): the three records and the watchers were
-  // runs of the right stripe → runs of its More, for the same reason.
-  it("runs the right stripe Inspector | Usage, Machine, and its More the three records | Browser watch, Radar", () => {
+  it("runs the right stripe Inspector | Usage, Machine | the three records | Browser watch, Radar", () => {
     expect(rails.rightStripe.map(ids)).toEqual([
       ["inspector"],
       ["usage", "machine"],
-    ]);
-    expect(rails.rightMore.map(ids)).toEqual([
       ["history", "tool-activity", "skill-activity"],
       ["browser-watch", "traffic-radar"],
     ]);
   });
 
-  // CHANGED ON PURPOSE (V4 top-10 #4): Radio left the foot for the left More;
-  // Settings stays, after the More.
-  it("puts Settings in the left foot, with no run of doors among them", () => {
-    expect(ids(rails.leftFoot)).toEqual(["settings"]);
+  it("puts Radio and Settings in the left foot, with no run of doors among them", () => {
+    expect(ids(rails.leftFoot)).toEqual(["radio", "settings"]);
     const all = [...rails.leftStripe.flat(), ...rails.rightStripe.flat()].map(i => i.id);
     expect(all).not.toContain("radio");
     expect(all).not.toContain("settings");
@@ -99,32 +86,30 @@ describe("the stripes' doors, in V4's order", () => {
   it("keeps a door the frame does not draw: Codex's own button, beside Sessions, where Codex is all there is", () => {
     const codexOnly = railItems({ ...base, providers: { kind: "reported", claude: false, codex: true } });
     // CHANGED ON PURPOSE (V4's Figma): the stripes are two lists now.
-    // CHANGED ON PURPOSE (V4 top-10 #4): Explore and the records moved into the
-    // stripes' Mores (see above).
     expect(codexOnly.leftStripe.map(ids)).toEqual([
       ["session-list", "codex-accounts"],
+      ["explore-integrations"],
     ]);
     expect(codexOnly.rightStripe.map(ids)).toEqual([
       ["inspector"],
       ["usage", "machine"],
+      ["history", "tool-activity", "skill-activity"],
+      ["browser-watch", "traffic-radar"],
     ]);
   });
 
-  // CHANGED ON PURPOSE (V4 top-10 #4): the tracker's run stood ahead of
-  // Explore → it is the stripe's last run, Explore being in the More, because
-  // someone connected it on purpose and it stays one press away.
-  it("keeps a connected tracker in a run of its own on the stripe, after Sessions and Accounts", () => {
+  it("keeps a connected tracker in a run of its own, ahead of Explore", () => {
     const Glyph = () => null;
     const withJira = railItems({
       ...base, providers: { kind: "reported", claude: true, codex: false },
       integrations: [{ provider: { kind: "jira", label: "Jira", Glyph, shortcut: "j", detail: { key: "x" } as never }, onPress: noop }],
     });
     // CHANGED ON PURPOSE (V4's Figma): the tracker is on the left stripe's list.
-    expect(withJira.leftStripe.slice(-2).map(ids)).toEqual([["session-list", "accounts"], ["integration-jira"]]);
+    expect(withJira.leftStripe.slice(-2).map(ids)).toEqual([["integration-jira"], ["explore-integrations"]]);
   });
 
   it("keeps every key it had", () => {
-    const keys = Object.fromEntries([...rails.leftStripe.flat(), ...rails.leftMore.flat(), ...rails.leftFoot, ...rails.rightStripe.flat(), ...rails.rightMore.flat()].map(i => [i.id, i.key?.cap]));
+    const keys = Object.fromEntries([...rails.leftStripe.flat(), ...rails.leftFoot, ...rails.rightStripe.flat()].map(i => [i.id, i.key?.cap]));
     expect(keys["session-list"]).toBe("L");
     expect(keys["accounts"]).toBe("A");
     expect(keys["usage"]).toBe("U");
@@ -137,8 +122,8 @@ describe("the stripes' doors, in V4's order", () => {
 
 describe("the stripes' markup", () => {
   // CHANGED ON PURPOSE (V4's Figma): one toolbar on the left is two toolbars.
-  const html = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Panels and tools", groups: rails.leftStripe, more: rails.leftMore, foot: rails.leftFoot }));
-  const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Usage and activity", groups: rails.rightStripe, more: rails.rightMore }));
+  const html = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Panels and tools", groups: rails.leftStripe, foot: rails.leftFoot }));
+  const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Usage and activity", groups: rails.rightStripe }));
 
   it("is a toolbar on the left, with the doors and the foot as its two groups", () => {
     expect(html.match(/role="toolbar"/g)).toHaveLength(1);
@@ -147,41 +132,34 @@ describe("the stripes' markup", () => {
     expect(html).toMatch(/<div class="rail-doors">[\s\S]*<\/div><div class="rail-foot" role="group"/);
   });
 
-  // CHANGED ON PURPOSE (V4 top-10 #4): the foot was Radio then Settings → More
-  // then Settings, Radio being a row of that More.
-  it("draws the doors in order and the foot last, More then Settings", () => {
+  it("draws the doors in order and the foot last, Radio then Settings", () => {
     const order = [...html.matchAll(/data-rail-item="([^"]+)"/g)].map(m => m[1]);
     // CHANGED ON PURPOSE (stripe words): the foot ends in the switch between
     // words and icons, after its two doors.
-    expect(order).toEqual([...rails.leftStripe.flat().map(i => i.id), "more", ...rails.leftFoot.map(i => i.id), "stripe-words"]);
-    expect(order.slice(-3)).toEqual(["more", "settings", "stripe-words"]);
+    expect(order).toEqual([...[...rails.leftStripe.flat(), ...rails.leftFoot].map(i => i.id), "stripe-words"]);
+    expect(order.slice(-3)).toEqual(["radio", "settings", "stripe-words"]);
   });
 
-  // CHANGED ON PURPOSE (V4 top-10 #4): the right stripe had no foot → its foot
-  // is its More, pushed down like the left one's.
-  it("draws the right stripe's doors in order, and its More alone in its foot", () => {
+  it("draws the right stripe's doors in order, with no foot", () => {
     expect(right).toContain('class="edge-rail edge-rail-right"');
-    expect(right).toContain('<div class="rail-foot"><button');
-    expect([...right.matchAll(/data-rail-item="([^"]+)"/g)].map(m => m[1])).toEqual([...rails.rightStripe.flat().map(i => i.id), "more"]);
+    expect(right).not.toContain("rail-foot");
+    expect([...right.matchAll(/data-rail-item="([^"]+)"/g)].map(m => m[1])).toEqual(rails.rightStripe.flat().map(i => i.id));
   });
 
-  // CHANGED ON PURPOSE (V4 top-10 #4): "Claude accounts", "Activity history"
-  // and "Watchers" are runs of the Mores now, set apart by the menu's rule; the
-  // foot is named "More, Settings, Hide words".
-  it("names its runs for a screen reader and the foot by all it holds", () => {
-    expect(html).toContain('role="group" aria-label="Accounts and sessions"');
-    expect(right).toContain('role="group" aria-label="Usage and machine"');
+  it("names its runs for a screen reader and the foot by its two doors", () => {
+    for (const name of ["Accounts and sessions", "Claude accounts"]) {
+      expect(html).toContain(`role="group" aria-label="${name}"`);
+    }
+    for (const name of ["Usage and machine", "Activity history", "Watchers"]) {
+      expect(right).toContain(`role="group" aria-label="${name}"`);
+    }
     // CHANGED ON PURPOSE (stripe words critique): the foot also holds the switch
     // between words and icons, and is named by all it holds.
-    expect(html).toContain('class="rail-foot" role="group" aria-label="More, Settings, Hide words"');
+    expect(html).toContain('class="rail-foot" role="group" aria-label="Radio, Settings, Hide words"');
   });
 
-  // CHANGED ON PURPOSE (V4 top-10 #4): Account capacity, the door this read,
-  // is a row of the left More now; the rule is the stripe door's, so it is
-  // read off that door drawn on a stripe.
   it("keeps a door's help line for assistive tech, off the tooltip", () => {
-    const drawn = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Panels and tools", groups: [rails.capacity] }));
-    expect(drawn).toMatch(/data-rail-item="account-capacity"[^>]*aria-description="[^"]+"/);
+    expect(html).toMatch(/data-rail-item="account-capacity"[^>]*aria-description="[^"]+"/);
   });
 });
 
