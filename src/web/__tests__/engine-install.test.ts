@@ -8,8 +8,9 @@
 // and its manifest is signed by a throwaway Ed25519 key handed in as the
 // deck's key: the deck's own release key signs none of them. Every folder is
 // a temporary one.
-import { afterEach, describe, expect, it } from "vitest";
-import { chmod, lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { chmod, lstat, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { promises as fileSystem } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -36,6 +37,7 @@ const TARBALL = `${REG}@ccdeck/engine/-/engine-1.0.0.tgz`;
 
 const roots: string[] = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(roots.splice(0).map((p) => rm(p, { recursive: true, force: true })));
 });
 
@@ -315,14 +317,29 @@ describe("installing from a file", () => {
     expect((await lstat(w.data)).mode & 0o777).toBe(0o755);
   });
 
+  // CHANGED ON PURPOSE: on Linux a 0775 folder above is now accepted when its
+  // group is the user's own alone (pro-engine-install.mjs ownGroup). The
+  // account files here give that group to a second account as well, so the
+  // folder is still one somebody else can write: left as it is, the check
+  // failed, and the deck's log names the folder and the fix.
   it.skipIf(process.platform === "win32")("leaves a folder above the data folder as it is, and the install says the check failed", async () => {
     const w = await world();
     const above = join(w.home, ".local", "share");
     await chmod(above, 0o775);
+    const real = fileSystem.readFile.bind(fileSystem);
+    vi.spyOn(fileSystem, "readFile").mockImplementation(async (file: any, ...rest: any[]) => {
+      const [uid, gid] = [process.getuid!(), process.getgid!()];
+      if (file === "/etc/passwd") return `me:x:${uid}:${gid}::/home/me:/bin/sh\nother:x:${uid + 1}:${gid}::/home/other:/bin/sh\n`;
+      if (file === "/etc/group") return `me:x:${gid}:\n`;
+      return (real as any)(file, ...rest);
+    });
+    const said = vi.spyOn(console, "error").mockImplementation(() => {});
     const i = installer(w, { env: { AGENTS_DECK_NO_DOWNLOAD: "1" } });
     await i.installFile(tgzOf(packageFiles(w)));
     expect((await settled(i)).last).toMatchObject({ outcome: "failed", code: "check-failed" });
     expect((await lstat(above)).mode & 0o777).toBe(0o775);
+    const folder = await realpath(above);
+    expect(said.mock.calls.map((call) => String(call[0])).filter((line) => line.includes(folder))).toEqual([expect.stringContaining(`chmod go-w '${folder}'`)]);
   });
 
   it.skipIf(!['darwin', 'linux'].includes(process.platform))("says wrong-machine for another platform's package", async () => {

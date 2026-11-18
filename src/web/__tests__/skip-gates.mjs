@@ -258,9 +258,11 @@ export const GATES = [
   // on the two platforms the installer accepts rather than on win32, so a
   // fourth platform skips rather than failing an installation it never accepts.
   // The step that brings the engine in from its npm package, on real files and
-  // symlinks, and the Windows rules against a mocked ACL reader, which write
-  // the same fixtures to disk: three blocks, on the same two platforms.
-  { file: "engine-package.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 3, cases: 26 },
+  // symlinks, the Windows rules against a mocked ACL reader, which write the
+  // same fixtures to disk, and a folder above the data folder that only the
+  // user's own group can write (Linux's rule, asked for as Linux on a Mac too,
+  // with mocked account files): four blocks, on the same two platforms.
+  { file: "engine-package.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 4, cases: 36 },
   // The install's tightening of the deck's own data folder before it checks
   // an engine there: a folder made 0775 under a 0002 umask ends 0755, and a
   // writable folder above it is left alone and makes the check fail. Both read

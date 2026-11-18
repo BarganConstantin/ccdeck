@@ -62,7 +62,11 @@ exact signed JSON bytes and the Ed25519 signature over those bytes. Signed JSON
 fields: `file`, `protocol` (1), `target` (Rust triple), `sha256`, `size`, `version`.
 Only flat filenames, matching platform, non-symlink regular files, verified
 ownership, safe Unix permissions, and matching hash/size may launch. Writable
-non-sticky ancestor directories are refused. No user-facing download is added.
+non-sticky ancestor directories are refused, except, on Linux only, one that
+only the user's own private group may write: the process's group, the user's
+primary group in `/etc/passwd`, nobody else's, and with no other member in
+`/etc/group` (either file unreadable, or the user or group not in it, refuses).
+No user-facing download is added.
 Windows installation ACL validation remains disabled pending native validation:
 the installer asks an injected ACL reader (owner, who may write, reparse point,
 link count, elevation) and refuses when none is given, and the panel stays
