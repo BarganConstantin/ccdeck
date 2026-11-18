@@ -156,6 +156,9 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
   const rows: Row[] = [];
   for (const a of state.agents.values()) {
     if (a.kind !== "root") continue;
+    // Codex child threads keep root nodes for their own lifecycle and usage,
+    // but the session list is for the main conversations the reader talks to.
+    if (a.provider === "codex" && a.parentId) continue;
     // `toolCount`, not `tools.length` — the reducer keeps only a bounded
     // window of recent calls, but the counter tracks every call ever made.
     let toolCount = a.toolCount;
