@@ -185,6 +185,7 @@ below), never answered some other way.
 | `terminal.launch` | `POST /api/terminal/launch` | `{ "body": B }` |
 | `terminal.hosts` | `GET /api/terminal/hosts` | `{ "body": null }` |
 | `terminal.endHosts` | `POST /api/terminal/hosts/end` | `{ "body": B }` |
+| `terminal.forgetTmux` | not a route | `{ "body": null }`, to a running engine once a tmux the deck fetched has landed, or when a status calls the one already in place `fixable` |
 
 `B` is the request's body when it is a JSON object, else null. The engine
 answers `{ status, body, handle?, log?, fixable? }`, and the deck sends
@@ -197,10 +198,28 @@ answers `{ status, body, handle?, log?, fixable? }`, and the deck sends
   The handle itself is never sent to the page.
 - `log` goes to the deck's log, where the deck's own route logs, never to the
   page.
-- `fixable` (status only, from an earlier engine): accepted with a `body.tmux`
-  and ignored. The deck fetches no tmux and sends `terminal.forgetTmux` no
-  more; with no usable tmux the panel shows the engine's answer, the
-  install line included.
+- `fixable` (status only, with a `body.tmux`): no tmux the engine can use,
+  `body.tmux.reason` `missing` or `too-old`, and one the deck could fetch. Only
+  this starts the deck's own tmux download (`tmux-download.mjs`, as before the
+  engine): ccdeck's own tmux 3.8 build for this machine, from this
+  repository's GitHub release `tmux-3.8-1`, checked against the SHA-256
+  pinned in the deck, unpacked and run once (`-V`) before it is moved into
+  `<deck data folder>/tools/tmux/tmux-3.8-1/tmux`, the managed path the
+  engine's tmux lookup reads after every other place. While it is out, the
+  status answers `tmux: { ok: false, reason: "installing", progress? }`, one
+  download however many panels ask; once it has landed, the deck sends
+  `terminal.forgetTmux` to a running engine, and the panel's next status finds
+  it. A download that failed is answered for five minutes as the engine's
+  answer plus `tmux.download` (`download_failed`, `too_large`,
+  `checksum_mismatch`, `extract_failed` or `does_not_run`), and is then tried
+  again. A build already in place is never fetched again: the deck sends
+  `terminal.forgetTmux` and asks the status once more, and when that is still
+  `fixable` it answers it with `tmux.download: "not_used"`. Nothing is fetched,
+  and the engine's answer (its install line included) is sent as it is, with
+  `AGENTS_DECK_NO_INSTALL=1` or `AGENTS_DECK_NO_DOWNLOAD=1`, on Windows, or on
+  an architecture with no build (other than x64 and arm64). The tag, and so
+  the folder, is the deck's and the engine's both: they must name the same
+  one.
 
 Any other shape is the deck's own 500.
 

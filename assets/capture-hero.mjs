@@ -505,6 +505,7 @@ const PAGE = {
   mark: "brand/ccdeck-mark-gradient-small-optical.svg",
   storage: {
     "agent-dag.tourSeen": "1",
+    "agent-dag.tourEdition": "2",
     "agent-dag.releaseNotesSeen": VERSION,
     // What a fresh install opens in (theme.ts, resolveTheme).
     "agent-dag.theme": "rider-black",

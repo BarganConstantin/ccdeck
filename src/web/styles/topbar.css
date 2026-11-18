@@ -301,4 +301,70 @@
   .topbar .readout .provider-incident :is(.pi-words, .pi-asof) { display: none; }
   .topbar .readout .provider-incident .pi-short { display: inline; }
 }
+/* THE COUNTS GIVE BEFORE THE MARK, from 641 to 1023. The full bar's end group
+   (the version chip, Board | Workspace and Search: 400px in Japanese at 641)
+   never gives, and the readout gives from the left, so at 641 with the chip up
+   it cut the mark off by 113px in English and 200 in Portuguese, then the
+   waiting pill, the first of the three, while working and done stayed whole at
+   the other end; it still cut the mark at 760, and again from 900, where
+   Search widens, to 960. Now the counts give first, whole, from their end: the
+   group may shrink, and a pill it has no room for wraps onto a second line its
+   one pill of height clips away, done first, then working. Waiting is the
+   first pill, so it is always on the line that is drawn. Clip, not hidden: a
+   scroll container's least width is nothing, and the group would cut into the
+   waiting pill; clipped, its least is its widest pill. With room for all
+   three nothing wraps and nothing moves. Not on a phone, whose bar draws the
+   waiting pill alone, 28 tall in a 44 target this would clip, and not from
+   1024, where the three fit beside the widest end group in all ten languages.
+   `.readout` in the selector because `.topbar .counts` comes later in the
+   cascade, in topbar-controls.css. */
+@media (min-width: 641px) and (max-width: 1023px) {
+  .topbar .readout .counts {
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    height: 24px;
+    overflow: clip;
+  }
+}
+/* THE MARK OUTLASTS THE NAME, while the version chip is up, under 390px and
+   from 641 to 679. The chip stands in the end group, which never gives, so at
+   320 the readout had 142px left for the mark, the name and the waiting count,
+   and the count's word runs to 109px ("1 aguardando", "1 în așteptare"): the
+   readout, clipping from the left, cut the mark itself off the bar, by 10px in
+   Japanese and 38 in Portuguese, and at 360 by 9 in Portuguese and Romanian.
+   The name goes first, whole, rather than the mark in part: the readout is
+   then the mark, a gap and the count. Only while the chip is drawn (without it
+   the bar holds the name), and on the phone's bar only under 390: from 390 it
+   holds the name beside the chip and nothing moves.
+   The full bar's first widths are the same squeeze again: from 641 the end
+   group adds Board | Workspace and Search, and with the counts down to the
+   waiting pill (above) the mark, the name and "11 aguardando" still needed
+   650px in Portuguese. The band runs to 679, where the widest end group
+   measured (Japanese), the chip's widest words and the widest two-digit count
+   fit beside the name together; from 680 the bar draws the name as it did.
+   The name leaves the screen and not the outline (it is the page's <h1>), so
+   it is hidden the way .vis-hidden hides, never with display. */
+@media (max-width: 389px), (min-width: 641px) and (max-width: 679px) {
+  .topbar:has(.tb-end button.v) .brand h1 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+/* AND UNDER 340 THE CHIP'S ICON GOES, ITS WORDS STAY. Without the name, 320
+   had 2px to spare beside the widest count, so chip words longer than "4.0.1
+   is ready" ("4.0.1 este gata") or a count of two digits still cost the mark 4
+   to 10 of its 19. The icon is the chip's decoration (aria-hidden), the words
+   are what it says, so the 18px of icon and gap go and the version and its
+   news stay readable, in the accessible name too. From 340 up the bar holds
+   both beside the count. */
+@media (max-width: 339px) {
+  .topbar button.v .v-icon { display: none; }
+}
 

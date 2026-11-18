@@ -106,9 +106,9 @@ const READ_LOST = new Map([
 ]);
 
 /** What an engine route answers: `status` and `body` for the page, and maybe
- *  a `handle` where that body's ticket is and a line for the deck's log.
- *  `fixable` is an older engine's offer of a tmux download, which the deck no
- *  longer makes: it is read as an answer and otherwise ignored. */
+ *  a `handle` where that body's ticket is, a line for the deck's log, and
+ *  `fixable` on a status with no tmux the engine can use, which the deck
+ *  could fetch its own of (terminal-routes.mjs' withOwnTmux). */
 const ANSWER_KEYS = new Set(["status", "body", "handle", "log", "fixable"]);
 const HANDLE = /^[0-9a-f]{64}$/;
 
@@ -117,15 +117,26 @@ const HANDLE = /^[0-9a-f]{64}$/;
  * (pro-engine-client.mjs), built once where the client is created and handed
  * to the routes and the upgrade as `engine`: whether the client is enabled,
  * the attach for an upgrade admitted with an engine ticket
- * (installTerminalUpgrade's `engine`), and the route methods
- * (terminal-routes.mjs).
+ * (installTerminalUpgrade's `engine`), the route methods
+ * (terminal-routes.mjs), and the forget the deck sends once its own tmux has
+ * landed.
  */
 export function engineTerminals(client) {
   return Object.freeze({
     get enabled() { return client.enabled === true; },
     attach: (handle, socket) => attachThroughEngine(client, handle, socket),
     route: (method, body) => routeThroughEngine(client, method, body),
+    forgetTmux: () => forgetTmuxInEngine(client),
   });
+}
+
+/** A tmux the deck fetched has landed: a running engine forgets the miss it
+ *  remembered, so its next status finds the build. One not running has none,
+ *  and is asked nothing. Answers once the engine has, and never rejects: a
+ *  forget that did not reach it leaves the miss it had. */
+function forgetTmuxInEngine(client) {
+  if (!client.running) return Promise.resolve();
+  return client.request("terminal.forgetTmux", { body: null }).then(() => {}, () => {});
 }
 
 /**
@@ -181,7 +192,7 @@ function isAnswer(a) {
   if (!a || typeof a !== "object" || Array.isArray(a) || !Object.keys(a).every((k) => ANSWER_KEYS.has(k))) return false;
   if (!Number.isInteger(a.status) || a.status < 200 || a.status > 599 || !("body" in a)) return false;
   const object = !!a.body && typeof a.body === "object" && !Array.isArray(a.body);
-  // A handle stands where the body's ticket is; `fixable` came with a tmux to answer for.
+  // A handle stands where the body's ticket is; `fixable` comes with a tmux to answer for.
   if (a.handle !== undefined && (typeof a.handle !== "string" || !HANDLE.test(a.handle) || !object || a.body.ticket !== null)) return false;
   if (a.fixable !== undefined && (typeof a.fixable !== "boolean" || !object || !a.body.tmux || typeof a.body.tmux !== "object")) return false;
   return a.log === undefined || typeof a.log === "string";

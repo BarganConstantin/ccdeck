@@ -527,17 +527,56 @@ export function writeSeen(store: Storeish | null | undefined, version: string): 
 /** Whether this profile has been shown the tour. Its own key, because the
  *  tour is about the deck and the notes are about a release: a person who
  *  upgraded into the version that introduced the tour has a version stored
- *  and has never seen a picture. */
+ *  and has never seen a picture. "1" here is the 3.x tour, and every deck up
+ *  to 3.x reads exactly that and nothing else. */
 export const TOUR_SEEN_KEY = "agent-dag.tourSeen";
 
-export function readTourSeen(store: Storeish | null | undefined): boolean {
-  if (!store) return false;
-  try { return store.getItem(TOUR_SEEN_KEY) === "1"; } catch { return false; }
+/** Which tour this profile has seen, as a number: the marker above is
+ *  edition 1, the pictures of the board, the tree and the cost. */
+export const TOUR_EDITION_KEY = "agent-dag.tourEdition";
+
+/**
+ * The tour this build shows. 2 is V4's: the two stripes, the terminal beside
+ * the board, Workspace and the Inspector.
+ *
+ * A NEW LAYOUT IS A NEW TOUR. Everybody upgrading from 3.x has the "1" above,
+ * and the deck they open no longer looks like the pictures they were shown —
+ * so "seen" means "seen THIS edition or a later one", and a 3.x profile sees
+ * the V4 tour once, with the release's notes after it. A number rather than a
+ * new key per tour, so the next layout raises it instead of adding a third.
+ *
+ * WHY THE OLD MARKER STAYS. A deck older than this reads tourSeen === "1" and
+ * nothing else, so writeTourSeen keeps writing it: the same browser pointed at
+ * an older deck (a downgrade, a second machine) stays quiet instead of
+ * replaying the 3.x pictures. The edition key is one that deck never reads.
+ */
+export const TOUR_EDITION = 2;
+
+/** The edition a stored value names, 0 for anything that is not one. */
+export function tourEditionOf(value: unknown): number {
+  const n = typeof value === "number" ? value : typeof value === "string" && /^\d{1,4}$/.test(value) ? Number(value) : 0;
+  return Number.isInteger(n) && n > 0 ? n : 0;
 }
 
+/** Whether this profile has seen this build's tour, or a later one. The 3.x
+ *  marker alone is not enough: that tour drew a deck that no longer exists. */
+export function readTourSeen(store: Storeish | null | undefined): boolean {
+  if (!store) return false;
+  try { return tourEditionOf(store.getItem(TOUR_EDITION_KEY)) >= TOUR_EDITION; } catch { return false; }
+}
+
+/** Records this build's tour as seen: the edition, and the 3.x marker that
+ *  older decks read. Answers whether the edition stuck, which is the one the
+ *  next load of this build asks about. The marker only rises: a newer tour
+ *  already recorded here is left as it is, for the reason readSeen's version
+ *  is a high-water mark. */
 export function writeTourSeen(store: Storeish | null | undefined): boolean {
   if (!store) return false;
-  try { store.setItem(TOUR_SEEN_KEY, "1"); return true; } catch { return false; }
+  try {
+    store.setItem(TOUR_SEEN_KEY, "1");
+    if (tourEditionOf(store.getItem(TOUR_EDITION_KEY)) < TOUR_EDITION) store.setItem(TOUR_EDITION_KEY, String(TOUR_EDITION));
+    return true;
+  } catch { return false; }
 }
 
 /**
@@ -552,20 +591,30 @@ export function writeTourSeen(store: Storeish | null | undefined): boolean {
  *
  * A first run still gets the tour and no changelog (#717's reasoning: what
  * changed since a version they never ran is nothing to them). An upgrade that
- * has not seen the tour gets the tour first and the notes AFTER it closes —
+ * has not seen the tour — or saw only an older edition of it, which is every
+ * 3.x profile opening 4.0 — gets the tour first and the notes AFTER it closes —
  * two dialogs, once, in the order a person wants them — and every later
  * upgrade gets the notes alone. A profile that cannot remember gets nothing
  * automatic, for the reason remembersSeen gives: a tour that cannot be
  * recorded comes back on every load.
+ *
+ * NOT ON A PHONE BY ITSELF. V4's pictures are the two edges, the terminal
+ * beside the board and the Workspace, and a phone has none of them: the Board
+ * alone, with a dock at its foot. So a phone's load opens the tour for nobody
+ * and leaves it unseen — the notes come as they would for somebody who has
+ * seen it, and the same profile in a wider window still gets the tour once.
+ * `Take the tour` opens it on a phone as anywhere.
  */
-export function decideWelcome({ tourSeen, decision }: {
+export function decideWelcome({ tourSeen, decision, phone = false }: {
   tourSeen: boolean;
   decision: Pick<ReleaseNotesDecision, "reason" | "show">;
+  phone?: boolean;
 }): { tour: boolean; notes: "now" | "after" | "none" } {
   if (decision.reason === "no-version" || decision.reason === "cannot-remember") return { tour: false, notes: "none" };
-  if (decision.reason === "welcome" || decision.reason === "first-run") return { tour: !tourSeen, notes: "none" };
+  const tour = !tourSeen && !phone;
+  if (decision.reason === "welcome" || decision.reason === "first-run") return { tour, notes: "none" };
   const notes = decision.show.length > 0;
-  if (!tourSeen) return { tour: true, notes: notes ? "after" : "none" };
+  if (tour) return { tour: true, notes: notes ? "after" : "none" };
   return { tour: false, notes: notes ? "now" : "none" };
 }
 

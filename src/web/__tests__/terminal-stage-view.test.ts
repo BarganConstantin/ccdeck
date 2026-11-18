@@ -490,6 +490,8 @@ describe("the body's state cards, each at the terminal's origin", () => {
     expect(downloadNote("checksum_mismatch")).toMatch(/not the build this deck trusts/);
     expect(downloadNote("does_not_run")).toMatch(/would not run/);
     expect(downloadNote("something new")).toBe("The deck could not set up its own tmux.");
+    // Its build is in place and the engine still finds no tmux it can use (terminal-routes.mjs' withOwnTmux).
+    expect(downloadNote("not_used")).toBe("The deck could not set up its own tmux.");
   });
 
   it("gives the empty stage New session as its only action", () => {
@@ -588,9 +590,14 @@ describe("the keys bar", () => {
     const line = out.match(/<span class="ts-first">([\s\S]*?)<\/span><button/)?.[1];
     expect(line, "the sentence is its own element, before Got it").toBeTruthy();
     const words = (s: string) => s.replace(/<[^>]+>/g, "");
-    expect(words(line!)).toBe("Typing goes to the session, Esc included. ✕ closes the Command Panel; the session keeps running.");
+    // CHANGED ON PURPOSE (first use of the terminal pane): the clause names the
+    // release chord too. While the line is up the bar's "Typing into …" and
+    // its chord are not drawn, and the status bar's hints are hidden behind
+    // the keys bar, so a newcomer told that Esc goes to the session read no
+    // way back. Under a fingertip it goes whole with Esc, as before.
+    expect(words(line!)).toBe("Typing goes to the session, Esc included — Ctrl+Shift+X gives the keys back. ✕ closes the Command Panel; the session keeps running.");
     const keys = line!.match(/<span class="ts-first-keys">([\s\S]*?)<\/span>/)?.[0];
-    expect(keys && words(keys)).toBe(", Esc included");
+    expect(keys && words(keys)).toBe(", Esc included — Ctrl+Shift+X gives the keys back");
     expect(words(line!.replace(keys!, ""))).toBe("Typing goes to the session. ✕ closes the Command Panel; the session keeps running.");
     // CHANGED ON PURPOSE: V4's first-run line is one plain sentence, no key chips.
     expect(line).not.toContain("<kbd");

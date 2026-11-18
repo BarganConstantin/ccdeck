@@ -1,25 +1,12 @@
-// V4 top-10 #9: the same number has the same colour everywhere. A 5-hour
-// window at 86% was calm cyan at the rail's foot and amber "⚠ 86% · high" in
-// the Usage panel, because each meter had its own rule. Now one function
-// (quotaLevel in QuotaBar.tsx) decides a quota reading's level for the whole
-// web UI, and every quota meter draws its figure (LevelMark) and its fill
-// (quotaFill) from it.
-//
-// What these pin: at 45, 86 and 97 the rail's meter, the Usage panel's bar, an
-// account's row (shut and open) and the Account capacity report's cell agree on
-// the level and on the fill; a rail meter split by session draws every part in
-// the one fill colour; and the reset calendar's reading wears the same level.
+// Quota colors agree across Usage and the Accounts views.
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import QuotaBar, { quotaFill, quotaLevel } from "../components/QuotaBar";
-import { RailUsage } from "../components/RailParts";
 import AccountRow from "../components/AccountRow";
 import { UsageReportBody } from "../components/AccountsUsageReport";
 import AccountResetCalendar from "../components/AccountResetCalendar";
-import { railSegments, usageMeter } from "../rail-usage";
 import type { Account } from "../claude-accounts";
-import type { QuotaData } from "../use-quota";
 import { sheetText } from "./sheet-source";
 
 const NOW = 1_800_000_000;
@@ -30,17 +17,7 @@ type Level = "warn" | "err" | null;
 /** The level the figure wears (LevelMark's tone), or null when it wears none. */
 const markTone = (html: string): Level => (/<span class="level-mark" data-tone="(warn|err)">/.exec(html)?.[1] as Level) ?? null;
 
-// ── The four surfaces, each asked for the same 5-hour reading ──────────────
-
-function rail(pct: number, shares?: number[]) {
-  const reading: QuotaData = { ok: true, planLabel: "Max 20x", session5hPct: pct, session5hResetAt: NOW + 2 * HOUR };
-  const meter = usageMeter({ reading, readAt: NOW * 1000, failed: false }, NOW * 1000)!;
-  // No caller passes a split today (rail-usage.ts); the meter draws one when given.
-  const drawn = shares ? { ...meter, segments: railSegments(shares) } : meter;
-  const html = renderToStaticMarkup(createElement(RailUsage, { meter: drawn, onPress: () => {} }));
-  const fills = [...html.matchAll(/class="sl-usage-seg" style="[^"]*background:(var\(--[\w-]+\))/g)].map(m => m[1]);
-  return { level: markTone(html), fills, html };
-}
+// Each surface is given the same reading.
 
 function usagePanel(pct: number) {
   const html = renderToStaticMarkup(createElement(QuotaBar, { pct, label: "5-hour window", nowSec: NOW }));
@@ -91,41 +68,23 @@ describe("one quota level for every meter (V4 top-10 #9)", () => {
     [45, null, "var(--accent)"],
     [86, "warn", "var(--warn)"],
     [97, "err", "var(--err)"],
-  ] as const)("at %d%% the rail, the Usage panel, an account row and the report say %s, in %s", (pct, level, fill) => {
+  ] as const)("at %d%% the Usage panel, an account row and the report say %s, in %s", (pct, level, fill) => {
     expect(quotaLevel(pct)).toBe(level);
     expect(quotaFill(quotaLevel(pct))).toBe(fill);
 
-    const r = rail(pct);
     const u = usagePanel(pct);
     const a = accountRow(pct);
     const open = accountRow(pct, true);
     const rep = reportCell(pct);
 
     // The figure's level, the same on every surface.
-    expect({ rail: r.level, usage: u.level, row: a.level, lane: open.laneLevel, report: rep.level })
-      .toEqual({ rail: level, usage: level, row: level, lane: level, report: level });
+    expect({ usage: u.level, row: a.level, lane: open.laneLevel, report: rep.level })
+      .toEqual({ usage: level, row: level, lane: level, report: level });
     // The fill, the same token on every surface.
-    expect({ rail: r.fills, usage: u.fill, row: a.fill, report: reportFill(rep.barLevel) })
-      .toEqual({ rail: [fill], usage: fill, row: fill, report: fill });
+    expect({ usage: u.fill, row: a.fill, report: reportFill(rep.barLevel) })
+      .toEqual({ usage: fill, row: fill, report: fill });
   });
 
-  it("says high in words beside the figure from 70, on the rail as in the Usage panel", () => {
-    expect(rail(86).html).toContain('<span class="level-mark-word">high</span>');
-    expect(rail(45).html).not.toContain("level-mark");
-  });
-});
-
-describe("a rail meter split by session", () => {
-  it("draws every part of an 86% fill in --warn: the split is shape, not colour", () => {
-    const { fills, level } = rail(86, [5, 3, 2]);
-    expect(level).toBe("warn");
-    expect(fills).toEqual(["var(--warn)", "var(--warn)", "var(--warn)"]);
-  });
-
-  it("keeps the parts apart by a 2px gap, and gives them no colour of their own in the sheet", () => {
-    expect(css).toMatch(/\.session-list \.sl-usage-fill \{[^}]*gap: 2px;/);
-    expect(css).not.toMatch(/\.sl-usage-seg[^{]*\{[^}]*background/);
-  });
 });
 
 describe("the reset calendar's reading", () => {

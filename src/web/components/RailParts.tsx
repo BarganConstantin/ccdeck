@@ -10,9 +10,6 @@ import { modelChipText, modelChipTitle } from "../model-label";
 import { RAIL_GROUP_LABEL_MSGS, type RailGroup } from "../rail-model";
 import { railFailed, railGlyph, railLine, railTime, rowSpoken, rowTooltip, twinStart, type CompactRowContext, type RailGlyphKind, type RailLine } from "../rail-row-copy";
 import { fadeIn, tokenMs } from "../rail-motion";
-import type { UsageMeter } from "../rail-usage";
-import { FadeFigure, useFillJump } from "./FadeFigure";
-import { LevelMark } from "./LevelMark";
 import { useT } from "../i18n";
 import SessionNameField, { useRenaming } from "./SessionNameField";
 import { isRenameKey, type RenameFacts } from "../session-rename";
@@ -301,45 +298,6 @@ function RowWords({ removed, failed, line }: { removed: boolean; failed: string 
         ? <><b className="sl-tool">{line.name}</b>{line.rest ? ` · ${line.rest}` : ""}</>
         : line.text)}
     </>
-  );
-}
-
-/** Rail / Usage (V4's Figma): the 5-hour window at the rail's foot, one
- *  button that opens the Usage panel (or closes it, as its stripe door does).
- *  Nothing at all without a reading (rail-usage.ts), not an empty box. */
-export function RailUsage({ meter, onPress }: { meter: UsageMeter | null; onPress: () => void }) {
-  const t = useT();
-  const jump = useFillJump(meter?.fill ?? 0);
-  if (!meter) return null;
-  // A stale reading leads with its age and drops the 7-day figure from the line
-  // (the one line has room for two things; the spoken name still has it).
-  const second = meter.stale ? [meter.readAgo, meter.reset] : [meter.reset, meter.week];
-  const line2 = second.flatMap((part, i) => (part ? [i > 0 && second[0] ? "·" : null, part] : [])).filter(Boolean);
-  return (
-    <div className="sl-usage">
-      <button type="button" className="sl-usage-btn" onClick={onPress} data-stale={meter.stale || undefined} aria-label={meter.spoken}>
-        <span className="sl-usage-line1" aria-hidden>
-          {meter.name && <span className="sl-usage-name" title={meter.name}>{meter.name}</span>}
-          <span className="sl-usage-what">{t("board.rail.fiveHour")}</span>
-          {/* The Usage panel's level, mark and word: "⚠ 86% · high" here as there. */}
-          <LevelMark tone={meter.level} word="high">
-            <FadeFigure className="sl-usage-pct" text={meter.pctText} value={meter.fill} />
-          </LevelMark>
-        </span>
-        <span className="sl-usage-bar" aria-hidden>
-          {/* Every part in the one fill colour: a split is shape, 2 apart. */}
-          <span className="sl-usage-fill" data-jump={jump || undefined} style={{ width: `${meter.fill}%` }}>
-            {meter.segments.map((seg, i) => <span key={i} className="sl-usage-seg" style={{ flexGrow: seg.share, background: meter.color }} />)}
-          </span>
-          <span className="sl-usage-track" />
-        </span>
-        {line2.length > 0 && (
-          <span className="sl-usage-line2" aria-hidden>
-            {line2.map((part, i) => <span key={i}>{part}</span>)}
-          </span>
-        )}
-      </button>
-    </div>
   );
 }
 

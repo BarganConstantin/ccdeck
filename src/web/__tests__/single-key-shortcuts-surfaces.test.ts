@@ -307,13 +307,15 @@ describe("the shortcuts sheet with the switch off", () => {
     // still reaches the panels, so their group keeps that row alone.
     // CHANGED ON PURPOSE (V4's Figma): the same rows, in V4's five groups (Deck,
     // Canvas, Panels), so the order follows the groups.
+    // CHANGED ON PURPOSE (first use of Workspace): F2, the list's rename, is a
+    // named key, so it stays with the letters off, after Ctrl + K.
     expect(rows.map(r => r.cap)).toEqual([
       "Ctrl + ,", "Ctrl + Z", "Esc",
       "Delete", "Tab", "Enter", "Shift + Enter",
       "drag", "shift-click", "click", "double-click", "hover",
-      "Ctrl + K",
+      "Ctrl + K", "F2",
     ]);
-    expect(keyHelpFor(false).find(g => g.title === "Panels")?.rows.map(r => r.cap)).toEqual(["Ctrl + K"]);
+    expect(keyHelpFor(false).find(g => g.title === "Panels")?.rows.map(r => r.cap)).toEqual(["Ctrl + K", "F2"]);
     expect(rows.find(r => r.cap === "Delete")?.action).toBe("take the selected card off the board — the session list brings it back");
     expect(keyHelpFor(true)).toBe(KEY_HELP);
   });

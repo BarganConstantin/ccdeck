@@ -269,9 +269,12 @@ export default function KeysBar(p: KeysBarProps) {
     // hands its bar's height to stage-geometry.ts). A fingertip has no Esc,
     // so the clause that names it goes whole under a coarse pointer; ✕, the
     // header's control, stays.
+    // The clause names the way out with the warning: while the line is up it
+    // stands in for "Typing into …" and its chord, and the status bar's own
+    // hints are hidden behind it, so the release chord is said here or nowhere.
     left = (
       <div className="ts-keys" data-owner={p.owner} data-split>
-        <span className="ts-first">{t("board.keys.typingGoes")}<span className="ts-first-keys">{t("board.keys.escIncluded")}</span>. {firstRunClause(p.workspace === true)}</span>
+        <span className="ts-first">{t("board.keys.typingGoes")}<span className="ts-first-keys">{t("board.keys.escIncluded", { chord: p.chordLabel })}</span>. {firstRunClause(p.workspace === true)}</span>
         <button type="button" className="btn" onClick={p.onFirstRunDone}>{t("board.keys.gotIt")}</button>
       </div>
     );

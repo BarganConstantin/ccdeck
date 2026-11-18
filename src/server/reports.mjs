@@ -167,6 +167,8 @@ const ERRORS_PER_HOUR = 20;
 const SAME_ERROR_QUIET_MS = 60 * 60 * 1000;
 const MESSAGE_MAX = 500;
 const STACK_MAX = 4000;
+/** A disk with no room left, or a quota used up: see reportError. */
+const NO_SPACE = new Set(["ENOSPC", "EDQUOT"]);
 
 /** Why somebody uninstalled, when they said: the answers `ccdeck --uninstall`
  *  offers (bin/cli/leaving.js), and nothing else ever leaves as a reason. */
@@ -576,12 +578,40 @@ export const HOST_PATTERN = String.raw`(?<![\w.@/\\%-])(?!localhost(?![\w-]|\.\w
 
 const escapeRegExp = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** What the path patterns end a path at and encodeURIComponent writes escaped:
+ *  whitespace, a quote, an angle bracket, and `|?;,`. Kept escaped when the run
+ *  around it is read back, see decodeEscapes. */
+const KEPT_ESCAPED = /[\s"\x60<>|?;,]/g;
+
+/**
+ * Every run of percent-escapes read back into the characters it stands for,
+ * before any pattern below looks. A stack that went through encodeURIComponent
+ * on its way — Puppeteer names the code it evaluates `pptr:…;` and the call
+ * site, encoded, `file%3A%2F%2F%2FUsers%2Falice%2F…` — hid the home folder and
+ * every path in it from each of them, and a page report sent one like that.
+ *
+ * A character the patterns end a path at stays escaped: read back,
+ * `Work%20Drive` would be two words, and only the first would go. A run that
+ * is not UTF-8 is left as it was, and a `%` with no two hex digits after it
+ * (`50% done`) is no run at all.
+ */
+function decodeEscapes(text) {
+  return text.replace(/(?:%[0-9A-Fa-f]{2})+/g, run => {
+    try {
+      return decodeURIComponent(run).replace(KEPT_ESCAPED, c => encodeURIComponent(c));
+    } catch {
+      return run;
+    }
+  });
+}
+
 /** Every spelling of `dir` a stack or a message can use — the path, and the
- *  file:// URL an ES module's frames carry — as a pattern for `dir` and the
- *  separator after it, so `/x/ccdeck-fork` is not taken for `/x/ccdeck`. */
+ *  file:// URL an ES module's frames carry, read back as scrub reads the text
+ *  (decodeEscapes) — as a pattern for `dir` and the separator after it, so
+ *  `/x/ccdeck-fork` is not taken for `/x/ccdeck`. */
 function spellings(dir) {
   const windows = /^(?:[A-Za-z]:[\\/]|\\\\)/.test(dir);
-  const url = pathToFileURL(dir, { windows }).href.replace(/\/$/, "");
+  const url = decodeEscapes(pathToFileURL(dir, { windows }).href).replace(/\/$/, "");
   return new RegExp(`(?:${escapeRegExp(url)}|${escapeRegExp(dir)})(?=[\\\\/])`, windows ? "gi" : "g");
 }
 
@@ -594,7 +624,8 @@ function spellings(dir) {
  * machine; so does a dependency npx put beside it (`node_modules/ws/…`). Every
  * other path becomes `<path>` (`~/.claude/<path>` under the home folder, see
  * hidePath), and a project folder in Claude Code's encoding `<project>`: either
- * would name what somebody works on.
+ * would name what somebody works on. A path written percent-encoded is read
+ * back first (decodeEscapes), so it goes the same way.
  *
  * No host leaves either. The page's frames name the machine the deck was opened
  * by (`http://alices-macbook.local:4317/assets/…`); they become `<deck>/assets/…`,
@@ -615,7 +646,7 @@ function spellings(dir) {
  * and addresses, email addresses, and strings shaped like keys and tokens.
  */
 export function scrub(text, home = homedir(), root = PKG_ROOT) {
-  let out = String(text ?? "");
+  let out = decodeEscapes(String(text ?? ""));
   if (root && root.length > 1) {
     out = out.replace(spellings(root), "ccdeck");
     if (basename(dirname(root)) === "node_modules") out = out.replace(spellings(dirname(root)), "node_modules");
@@ -1438,8 +1469,17 @@ export function createReporter({
    * Report an error, scrubbed. At most ERRORS_PER_HOUR an hour, and the same
    * message is not repeated within SAME_ERROR_QUIET_MS: a handler that fails on
    * every poll would otherwise send the same line all day.
+   *
+   * Never for a write that found the disk full (ENOSPC, EDQUOT). That is the
+   * state of the machine, not a bug of the deck's, and no report can fix it:
+   * the person whose disk it is has to free some space. It came in as an
+   * error all the same, from every route that writes a file and lets the
+   * failure fall to `guard` — the settings route names it to the page now
+   * (prefs-refusal.mjs), the others still answer a bare 500. The deck's own
+   * log still says it, with the path, for whoever looks.
    */
   async function reportError(where, error) {
+    if (NO_SPACE.has(error?.code)) return false;
     const p = prefs.current();
     if (!reportsOn(p, env) || !p.report.installId) return false;
     const message = scrub(error?.message ?? error, home, root).slice(0, MESSAGE_MAX).trim();

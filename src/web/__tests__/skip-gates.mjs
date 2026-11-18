@@ -252,7 +252,7 @@ export const GATES = [
   // launched on macOS and Linux only — Windows' ownership and ACL checks are
   // not there yet — so neither block can start one on Windows. What a deck
   // with no engine does is pro-engine-terminal-off, un-gated, on every leg.
-  { file: "pro-engine-terminal.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 27 },
+  { file: "pro-engine-terminal.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 28 },
   // The optional engine's own boundary: install verification, the signed
   // handshake and the request lifecycle, against the same test double. Written
   // on the two platforms the installer accepts rather than on win32, so a
@@ -280,7 +280,7 @@ export const GATES = [
   // The panel's routes answered by the same signed double started as the
   // engine, on a real deck, on the same two platforms. What a deck with no
   // engine answers is pro-engine-routes-off, un-gated, on every leg.
-  { file: "pro-engine-routes.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 1, cases: 10 },
+  { file: "pro-engine-routes.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 1, cases: 17 },
   // The test-only Windows preview's client started against the same double,
   // answering as a Windows engine under an `.exe` name: a script with a
   // shebang, which macOS and Linux run and Windows cannot, as it is not a PE

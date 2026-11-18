@@ -44,9 +44,15 @@ export function TabCapHero({ reservedRight = 0 }: { reservedRight?: number }) {
   );
 }
 
-export function EmptyHero({ live, everConnected, providers, workspace, onTour, reservedRight = 0 }: {
+export function EmptyHero({ live, everConnected, providers, workspace, onTour, onNewSession, reservedRight = 0 }: {
   live: boolean; everConnected: boolean; providers: Providers; workspace: string | null;
-  onTour: () => void; reservedRight?: number;
+  onTour: () => void;
+  /** Start a session from the deck (use-stage.ts newSessionFromBoard), handed
+   *  the button the stage grows out of. Absent where the deck cannot start one
+   *  — the Command Panel off, a platform without it, its code not loaded — and
+   *  with it the button: the hero is then the one it always was. */
+  onNewSession?: (button: HTMLElement) => void;
+  reservedRight?: number;
 }) {
   const t = useT();
   const offline = !live;
@@ -62,15 +68,17 @@ export function EmptyHero({ live, everConnected, providers, workspace, onTour, r
               where to look. */}
           <p>{coded(t(everConnected ? "board.hero.lost" : "board.hero.cannotReach", { product: PRODUCT }), [PRODUCT])}</p>
         </>
-      ) : agentNoneCopy(providers, workspace, t)}
+      ) : agentNoneCopy(providers, workspace, t, onNewSession)}
       {/* THE WAY BACK TO THE TOUR, on the one screen a person who has not yet
           seen anything is looking at. It is a control on a hero that is
           pointer-transparent by design (a drag starting here still pans), so
           the sheet gives this one element its pointer back. Offline, the hero
           is about the server, and the tour would be a promise about a canvas
-          that cannot fill. */}
+          that cannot fill. Beside New session the tour is a quiet way to learn
+          the deck, as the film beside it is (`data-quiet`, guides.css): one
+          primary on the screen, and it is the one that starts something. */}
       {!offline && (
-        <div className="empty-actions" role="group" aria-label={t("board.hero.explore")}>
+        <div className="empty-actions" role="group" aria-label={t("board.hero.explore")} data-quiet={onNewSession ? "" : undefined}>
           <button type="button" className="btn empty-tour" onClick={onTour}>{t("board.hero.tour")}</button>
           <FilmLink film="tour" action />
         </div>
@@ -79,7 +87,10 @@ export function EmptyHero({ live, everConnected, providers, workspace, onTour, r
   );
 }
 
-function agentNoneCopy(providers: Providers, workspace: string | null, t: TFunction) {
+/** The two commands the hero's second way names, set in <code>. */
+const RUN_COMMANDS = ["claude", "codex"] as const;
+
+function agentNoneCopy(providers: Providers, workspace: string | null, t: TFunction, start?: (button: HTMLElement) => void) {
   // THE SCOPE SENTENCE BELONGS HERE, not only in the detail rail (#802). This
   // hero said "run it in any folder" whatever the deck was watching, and the
   // one user for whom the canvas stays empty is exactly the one who started it
@@ -94,14 +105,28 @@ function agentNoneCopy(providers: Providers, workspace: string | null, t: TFunct
   // PLAIN WORDS (V4 top-10 #10): a title and one line. The line said how the
   // canvas draws a session — a node that grows as subagents fork — to somebody
   // who has not started one; it says what to do now, in the products' names.
+  //
+  // A WAY IN WHERE THE DECK HAS ONE (V4 onboarding). A deck that can start a
+  // session says so first: New session, the screen's one primary, under the
+  // title, and the terminal as the second way in the line under it. Where it
+  // cannot, there is no button that would lead nowhere, and the line is the
+  // one way there is.
   const scope = emptyScope(workspace, t);
   return (
     <>
       <h2>{t("board.hero.noSessions")}</h2>
+      {start && (
+        <button type="button" className="btn primary empty-new" aria-haspopup="dialog" title={t("board.newSession.hint")}
+          onClick={e => start(e.currentTarget)}>
+          {t("board.newSession.title")}
+        </button>
+      )}
       {scope.kind === "scoped" ? (
         <p>
           {scope.lead} <code>{scope.workspace}</code>{scope.tail}
         </p>
+      ) : start ? (
+        <p className="empty-or">{coded(t("board.hero.orRun"), RUN_COMMANDS)}</p>
       ) : (
         <p>{t("board.hero.startHint")}</p>
       )}

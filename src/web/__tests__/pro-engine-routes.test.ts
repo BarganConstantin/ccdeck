@@ -8,20 +8,25 @@
 // sends the engine's status and body as they are; mints the ticket where the
 // engine answered a handle, bound to `{ handle, origin }`, in the same store
 // with the same single use, and the upgrade relays exactly that ticket to the
-// engine; keeps the engine's log line off the page; and fetches nothing for a
-// status an older engine calls fixable. And where the engine did not take a
+// engine; keeps the engine's log line off the page; and, for a status the
+// engine calls fixable, fetches ccdeck's own tmux the way it did before the
+// engine (tmux-download.mjs) and tells the engine to look again once it has
+// landed. And where the engine did not take a
 // question — would not start, no terminal, a refusal before it ran, a read it
 // could not answer — the deck answers a refusal the page can draw, `{ ok:
 // false, error, code }`, and nothing else answers it; a mutation that may have
 // reached the engine is the deck's 500 and is never asked again.
 //
 // One deck for the file. Its `terminal.engine` is engineTerminals(client) for
-// whichever client the case switched to, through a box the deck was given at
-// boot.
+// whichever client the case switched to, and its `terminal.ownTmux` the
+// download the case set up, each through a box the deck was given at boot.
+// Nothing is downloaded and nothing is run: the download's `fetchImpl` hands
+// back bytes, and its `execImpl` plays tar and the build's `-V`, as
+// tmux-download.test.ts does.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { spawn } from "node:child_process";
 import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { mkdirSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, statSync, writeFileSync } from "node:fs";
 import { request, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -51,9 +56,64 @@ const { createTicketStore } = await import("../../server/terminal-socket.mjs");
 const { createProEngineClient } = await import("../../server/pro-engine-client.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { engineTerminals } = await import("../../server/pro-engine-terminal.mjs");
+// @ts-expect-error — plain .mjs server module, no types
+const { ownTmux } = await import("../../server/terminal-routes.mjs");
+// @ts-expect-error — plain .mjs server module, no types
+const dl = await import("../../server/tmux-download.mjs");
 
 const SID = "0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f";
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+// ── ccdeck's own tmux, from a stand-in ────────────────────────────────────────
+
+const ARCHIVE = Buffer.from("tmux build archive; extraction is played by execImpl");
+/** A build whose linux-x64 hash is the archive's, under the deck's real tag:
+ *  the folder it lands in is the one the engine looks in. */
+const BUILD = Object.freeze({
+  tag: dl.TMUX_BUILD.tag, version: dl.TMUX_BUILD.version,
+  sha256: { "linux-x64": createHash("sha256").update(ARCHIVE).digest("hex"), "linux-arm64": "", "darwin-x64": "", "darwin-arm64": "" },
+});
+const ASSET_URL = `https://github.com/BarganConstantin/ccdeck/releases/download/${dl.TMUX_BUILD.tag}/tmux-${dl.TMUX_BUILD.version}-linux-x64.tar.gz`;
+
+/** A fetch answering `body` (or `status`), every ask recorded. When `held`, the
+ *  headers come at once and the bytes only on `release()`, so a case can look
+ *  while the download is out. */
+function fetching(body: Buffer = ARCHIVE, { status = 200, held = false }: { status?: number; held?: boolean } = {}) {
+  const asked: string[] = [];
+  const waits: (() => void)[] = [];
+  const impl = async (url: string) => {
+    asked.push(url);
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      headers: { get: (h: string) => (h === "content-length" ? String(body.length) : null) },
+      arrayBuffer: async () => {
+        if (held) await new Promise<void>(r => waits.push(r));
+        return body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength);
+      },
+    };
+  };
+  return { asked, impl, release: () => { for (const w of waits.splice(0)) w(); }, waiting: () => waits.length };
+}
+
+/** tar that unpacks a tmux answering `version` to -V (or nothing when null). */
+function running(version: string | null) {
+  const ran: string[][] = [];
+  const impl = async (file: string, args: string[]) => {
+    ran.push([file, ...args]);
+    if (file === "tar") { writeFileSync(join(args[3], "tmux"), "#!/fake/tmux\n"); return { code: 0, stdout: "" }; }
+    return version === null ? { code: 1, stdout: "" } : { code: 0, stdout: `tmux ${version}\n` };
+  };
+  return { ran, impl };
+}
+
+let homes = 0;
+/** The deck's own tmux for a case: Linux x64 unless said, in a data folder of its own. */
+function ownTmuxFor({ env = {}, platform = "linux", arch = "x64", fetch = fetching(), exec = running("3.8") }: Record<string, any> = {}) {
+  const dataDir = join(DIR, `own-tmux-${++homes}`);
+  const own = ownTmux({ env: { CCDECK_HOME: dataDir, ...env }, platform, arch, build: BUILD, fetchImpl: fetch.impl, execImpl: exec.impl });
+  return { own, fetch, exec, dataDir, binary: dl.managedTmuxPath(dataDir, BUILD) };
+}
 
 // ── the double as an installed, signed engine ────────────────────────────────
 
@@ -93,10 +153,21 @@ const routeCalls = async (client: any) => (await engineLog(client)).filter(x => 
 let enabled: boolean;
 const tickets = createTicketStore();
 const box: { current: any } = { current: null };
+// The deck's own tmux for the case: by default one whose every fetch is
+// recorded, which the cases that never expect one hold to nothing.
+const own: { current: any } = { current: null };
+let quiet: ReturnType<typeof ownTmuxFor>;
 
 beforeEach(() => {
   enabled = true;
   box.current = null;
+  dl.resetTmuxDownload();
+  quiet = ownTmuxFor();
+  own.current = quiet.own;
+});
+afterEach(() => {
+  expect(own.current.out, "no download of this case is still out").toBe(false);
+  if (own.current === quiet.own) expect(quiet.fetch.asked, "nothing fetched").toEqual([]);
 });
 
 let server: Server;
@@ -111,6 +182,15 @@ beforeAll(async () => {
         get enabled() { return box.current?.enabled === true; },
         attach: (handle: string, socket: unknown) => box.current.attach(handle, socket),
         route: (method: string, body: unknown) => box.current.route(method, body),
+        forgetTmux: () => box.current.forgetTmux(),
+      },
+      ownTmux: {
+        blocked: () => own.current.blocked(),
+        landed: () => own.current.landed(),
+        recentFailure: () => own.current.recentFailure(),
+        get out() { return own.current.out; },
+        progress: () => own.current.progress(),
+        start: (then: () => unknown) => own.current.start(then),
       },
     },
   });
@@ -236,16 +316,158 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))("the Command Pa
     }
   });
 
-  it("fetches nothing for a status an older engine calls fixable: the engine's answer as it is, and nothing more asked", async () => {
-    const client = await useEngine();
+  describe("ccdeck's own tmux, for a status the engine calls fixable", () => {
     const missing = { ok: false, reason: "missing", install: "sudo apt install tmux" };
-    await answers(client, { "terminal.status": { data: { status: 200, body: { ok: true, platform: process.platform, tmux: missing }, fixable: true } } });
-    for (let i = 0; i < 2; i++) {
+    const tooOld = { ok: false, reason: "too-old", version: "3.1", install: "brew install tmux" };
+    const status = (tmux: object, fixable = true) => ({ data: { status: 200, body: { ok: true, platform: "linux", tmux }, ...(fixable ? { fixable: true } : {}) } });
+    const forgets = async (client: any) => (await routeCalls(client)).filter(c => c.route === "terminal.forgetTmux");
+    const tmuxNow = async () => (await ask("GET", "/api/terminal/status")).body.tmux;
+
+    it("fetches it when there is none, says how far it has got, and tells the engine to look again once it has landed", async () => {
+      const client = await useEngine();
+      const t = ownTmuxFor({ fetch: fetching(ARCHIVE, { held: true }) });
+      own.current = t.own;
+      await answers(client, { "terminal.status": status(missing), "terminal.forgetTmux": { data: { forgot: true } } });
+      const first = await ask("GET", "/api/terminal/status");
+      expect([first.status, first.body], "answered at once, before the download has said anything").toEqual([200, { ok: true, platform: "linux", tmux: { ok: false, reason: "installing" } }]);
+      await vi.waitFor(() => expect(t.fetch.waiting()).toBe(1));
+      expect(await tmuxNow(), "the bytes are on their way").toEqual({ ok: false, reason: "installing", progress: { stage: "downloading", received: 0, total: ARCHIVE.length } });
+      expect(await forgets(client), "nothing has landed yet").toEqual([]);
+      // The engine finds the build once it has forgotten its miss.
+      await answers(client, { "terminal.status": status({ ok: true, version: "3.8" }, false) });
+      t.fetch.release();
+      await vi.waitFor(async () => expect((await forgets(client)).map(c => c.params)).toEqual([{ body: null }]));
+      await vi.waitFor(() => expect(t.own.out).toBe(false));
+      expect(await tmuxNow()).toEqual({ ok: true, version: "3.8" });
+      expect(t.fetch.asked, "once, this machine's build, from the deck's own release").toEqual([ASSET_URL]);
+      expect(existsSync(t.binary), "in the folder the engine looks in").toBe(true);
+      expect(statSync(t.binary).mode & 0o777).toBe(0o755);
+      expect((await routeCalls(client)).map(c => c.route)).toEqual(["terminal.status", "terminal.status", "terminal.forgetTmux", "terminal.status"]);
+    });
+
+    it("fetches it for a tmux older than 3.2 too, and keeps the engine's platform", async () => {
+      const client = await useEngine();
+      const t = ownTmuxFor();
+      own.current = t.own;
+      await answers(client, { "terminal.status": status(tooOld), "terminal.forgetTmux": { data: { forgot: true } } });
+      expect((await ask("GET", "/api/terminal/status")).body).toEqual({ ok: true, platform: "linux", tmux: { ok: false, reason: "installing" } });
+      await vi.waitFor(async () => expect(await forgets(client)).toHaveLength(1));
+      await vi.waitFor(() => expect(t.own.out).toBe(false));
+      expect(t.fetch.asked).toEqual([ASSET_URL]);
+    });
+
+    it("starts one download for two panes asking at once, and tells the engine once", async () => {
+      const client = await useEngine();
+      const t = ownTmuxFor({ fetch: fetching(ARCHIVE, { held: true }) });
+      own.current = t.own;
+      await answers(client, { "terminal.status": status(missing), "terminal.forgetTmux": { data: { forgot: true } } });
+      const both = await Promise.all([ask("GET", "/api/terminal/status"), ask("GET", "/api/terminal/status")]);
+      expect(both.map(g => g.body.tmux.reason)).toEqual(["installing", "installing"]);
+      await vi.waitFor(() => expect(t.fetch.waiting()).toBe(1));
+      expect((await tmuxNow()).reason, "a third ask while it is out").toBe("installing");
+      expect(t.fetch.asked).toHaveLength(1);
+      t.fetch.release();
+      await vi.waitFor(() => expect(t.own.out).toBe(false));
+      expect(t.fetch.asked, "one download in all").toHaveLength(1);
+      expect(await forgets(client), "one forget in all").toHaveLength(1);
+    });
+
+    it("answers a download that failed, came back other than pinned or would not run as the plain fact with why, and does not try again yet", async () => {
+      const client = await useEngine();
+      await answers(client, { "terminal.status": status(missing), "terminal.forgetTmux": { data: { forgot: true } } });
+      for (const [fetch, exec, reason] of [
+        [fetching(ARCHIVE, { status: 404 }), running("3.8"), "download_failed"],
+        [fetching(Buffer.from("swapped after publication")), running("3.8"), "checksum_mismatch"],
+        [fetching(), running(null), "does_not_run"],
+        [fetching(), running("3.6"), "does_not_run"],
+      ] as const) {
+        dl.resetTmuxDownload();
+        const t = ownTmuxFor({ fetch, exec });
+        own.current = t.own;
+        expect((await tmuxNow()).reason, reason).toBe("installing");
+        await vi.waitFor(() => expect(t.own.out).toBe(false));
+        for (let i = 0; i < 2; i++) {
+          const got = await ask("GET", "/api/terminal/status");
+          expect([got.status, got.body], reason).toEqual([200, { ok: true, platform: "linux", tmux: { ...missing, download: reason } }]);
+        }
+        expect(t.fetch.asked, `${reason}: asked once, not again while the failure is believed`).toEqual([ASSET_URL]);
+        expect(existsSync(t.binary), `${reason}: nothing put in place`).toBe(false);
+        if (reason === "checksum_mismatch") expect(t.exec.ran, "an archive that is not the pinned one is never unpacked or run").toEqual([]);
+      }
+      expect(await forgets(client), "nothing landed, nothing to forget").toEqual([]);
+    });
+
+    it("fetches nothing with AGENTS_DECK_NO_INSTALL or AGENTS_DECK_NO_DOWNLOAD, on Windows, or where there is no build: the engine's answer, install line and all", async () => {
+      const client = await useEngine();
+      await answers(client, { "terminal.status": status(missing), "terminal.forgetTmux": { data: { forgot: true } } });
+      for (const options of [
+        { env: { AGENTS_DECK_NO_INSTALL: "1" } },
+        { env: { AGENTS_DECK_NO_DOWNLOAD: "1" } },
+        { platform: "win32" },
+        { arch: "ia32" },
+        { arch: "arm64" }, // no hash for it in this build
+      ]) {
+        const t = ownTmuxFor(options);
+        own.current = t.own;
+        const got = await ask("GET", "/api/terminal/status");
+        expect([got.status, got.body], JSON.stringify(options)).toEqual([200, { ok: true, platform: "linux", tmux: missing }]);
+        await delay(20);
+        expect(t.fetch.asked, JSON.stringify(options)).toEqual([]);
+      }
+      expect(await forgets(client)).toEqual([]);
+    });
+
+    it("fetches nothing for a tmux that works, or one the engine did not call fixable", async () => {
+      const client = await useEngine();
+      await answers(client, { "terminal.status": { data: { status: 200, body: { ok: true, platform: "linux", tmux: { ok: true, version: "3.4" } }, fixable: true } } });
+      expect((await tmuxNow()), "fixable beside a tmux that works").toEqual({ ok: true, version: "3.4" });
+      await answers(client, { "terminal.status": status(missing, false) });
+      expect(await tmuxNow(), "only the engine's fixable starts a download").toEqual(missing);
+      await answers(client, { "terminal.status": status({ ok: false, reason: "unsupported-platform" }) });
+      expect(await tmuxNow()).toEqual({ ok: false, reason: "unsupported-platform" });
+      await delay(20);
+      // `quiet` (afterEach): nothing fetched.
+    });
+
+    it("fetches nothing for a build already in place: the engine is told to forget and asked once more, and what it then says is the answer", async () => {
+      const client = await useEngine();
+      const t = ownTmuxFor();
+      own.current = t.own;
+      mkdirSync(join(t.binary, ".."), { recursive: true });
+      writeFileSync(t.binary, "#!/fake/tmux\n");
+      await answers(client, { "terminal.status": status(missing), "terminal.forgetTmux": { data: { forgot: true } } });
       const got = await ask("GET", "/api/terminal/status");
-      expect([got.status, got.body], "the tmux-missing state, with its install line").toEqual([200, { ok: true, platform: process.platform, tmux: missing }]);
-    }
-    await delay(50);
-    expect((await routeCalls(client)).map(c => c.route), "no forgetTmux, no download").toEqual(["terminal.status", "terminal.status"]);
+      expect([got.status, got.body], "still none: not fetched again, said as the plain fact").toEqual([200, { ok: true, platform: "linux", tmux: { ...missing, download: "not_used" } }]);
+      expect((await routeCalls(client)).map(c => c.route)).toEqual(["terminal.status", "terminal.forgetTmux", "terminal.status"]);
+      expect(t.fetch.asked).toEqual([]);
+      // An engine that finds it once it has forgotten (a stand-in: the double answers one status).
+      const asked: string[] = [];
+      let forgot = false;
+      box.current = {
+        enabled: true,
+        attach: async () => ({ ok: false, status: 503 }),
+        forgetTmux: async () => { asked.push("forget"); forgot = true; },
+        route: async (method: string) => {
+          asked.push(method);
+          return forgot ? { status: 200, body: { ok: true, platform: "linux", tmux: { ok: true, version: "3.8" } } } : { status: 200, body: { ok: true, platform: "linux", tmux: missing }, fixable: true };
+        },
+      };
+      expect(await tmuxNow()).toEqual({ ok: true, version: "3.8" });
+      expect(asked).toEqual(["status", "forget", "status"]);
+      expect(t.fetch.asked).toEqual([]);
+    });
+
+    it("tells only a running engine to forget, and asks nothing of one that is not", async () => {
+      const client = await useEngine();
+      await engineTerminals(client).forgetTmux();
+      expect(client.running, "not started for a forget").toBe(false);
+      await answers(client, { "terminal.forgetTmux": { data: { forgot: true } } });
+      await engineTerminals(client).forgetTmux();
+      expect((await forgets(client)).map(c => c.params)).toEqual([{ body: null }]);
+      // An engine that does not know the method: the forget still settles, and says nothing.
+      await answers(client, { "terminal.forgetTmux": { error: "unavailable" } });
+      await expect(engineTerminals(client).forgetTmux()).resolves.toBeUndefined();
+    });
   });
 
   it("answers what the engine turned away before running it, and a read it did not answer, as a refusal: nothing else answers it", async () => {

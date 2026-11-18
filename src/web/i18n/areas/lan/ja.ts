@@ -28,6 +28,7 @@ const catalog: Catalog = {
   "lan.fail.errorCode": " エラーコード：{code}。",
   "lan.fail.prefsUnreadable": "この ccdeck は設定ファイルを読み取れないため、上書きしません。たとえば ccdeck を sudo で実行した後などに、ファイルが別のユーザーのものになっている可能性があります。ファイルは ccdeck のログに記載されています。",
   "lan.fail.prefsNotWritable": "この ccdeck は設定を保存する権限がありません。たとえば ccdeck を sudo で実行した後などに、設定フォルダーが別のユーザーのものになっているか、別のプログラムがファイルを使用中の可能性があります。フォルダーは ccdeck のログに記載されています。",
+  "lan.fail.prefsNoSpace": "この ccdeck が設定を保存するディスクがいっぱいのため、設定は保存されませんでした。空き容量を増やしてから、もう一度お試しください。",
   "lan.fail.badJson": "設定ファイルが破損しており、退避できなかったため、上書きしません。ファイルは ccdeck のログに記載されています。",
   "lan.fail.folderOther": "この ccdeck は設定フォルダーを開けません。たとえば ccdeck を sudo で実行した後などに、フォルダーが別のユーザーのものになっています。元に戻すコマンドは ccdeck のログに記載されています。",
   "lan.fail.folderYou": "この ccdeck は自分の設定フォルダーを開けないため、中身を上書きしません。フォルダーは ccdeck のログに記載されています。",

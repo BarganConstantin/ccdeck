@@ -98,6 +98,13 @@ export const DEFAULTS = Object.freeze({
   // Its tour marker must outlive that origin; browser tabs still use their
   // own localStorage marker and never read this preference.
   tourSeen: false,
+  // Which tour that was, as a number (release-notes.ts TOUR_EDITION): 0 is
+  // none recorded. `tourSeen: true` alone is the 3.x tour, and 4.0 shows its
+  // own once, so this is what the page reads now. tourSeen stays, written
+  // beside it, because it is all a 3.x deck understands of this file — and a
+  // 3.x deck that rewrites the file drops this key (normalise), which costs
+  // the V4 tour one more showing after a downgrade, never a crash.
+  tourEdition: 0,
   // Whether the deck may update itself: restart into code already on disk once
   // it is idle, and — while nobody is looking — install a newer release and
   // restart into that (auto-update.mjs). ON, because this is the banner's
@@ -380,6 +387,9 @@ export function normalise(raw) {
     notifyStopped: flagOr(src.notifyStopped, DEFAULTS.notifyStopped),
     continueStopped: flagOr(src.continueStopped, DEFAULTS.continueStopped),
     tourSeen: flagOr(src.tourSeen, DEFAULTS.tourSeen),
+    // A whole number, or none: a string, a fraction or a negative from a
+    // hand-edited file is not an edition anybody was shown.
+    tourEdition: Number.isInteger(src.tourEdition) && src.tourEdition > 0 && src.tourEdition < 10_000 ? src.tourEdition : DEFAULTS.tourEdition,
     autoUpdate: flagOr(src.autoUpdate, DEFAULTS.autoUpdate),
     terminal: flagOr(src.terminal, DEFAULTS.terminal),
     account: flagOr(src.account, DEFAULTS.account),
@@ -768,7 +778,7 @@ export function publicPrefs(prefs) {
 export const PAGE_FIELDS = Object.freeze({
   top: Object.freeze([
     "notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "continueStopped",
-    "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions", "terminal",
+    "tourSeen", "tourEdition", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions", "terminal",
   ]),
   lan: Object.freeze([
     "enabled", "name", "shared", "manual", "shareActive", "sendInUse", "pairingMode",
