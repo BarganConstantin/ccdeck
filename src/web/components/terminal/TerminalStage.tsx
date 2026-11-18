@@ -365,12 +365,12 @@ export default function TerminalStage(p: TerminalStageProps) {
   const workspace = p.geometry.fill === true;
   const name = stageName(p.show, workspace);
 
-  // CHAT. Offered only with its flag effective here and for a Claude session
-  // whose id the deck knows: the conversation is read from that session's own
-  // transcript, which a Codex session does not have in the deck. "Term" is
-  // where every pane starts, and where one goes back to when Chat is not on offer.
+  // Term is the starting view for both providers.
   const screenFlags = useScreenFlags(workspace);
-  const chatSession = chatSessionFor(screenFlags.chat, p.show.kind === "session" ? p.show.session.ref : null);
+  const chatRef = p.show.kind === "session" ? p.show.session.ref : null;
+  const chatSession = chatSessionFor(screenFlags.chat, chatRef);
+  const chatProvider = chatRef?.provider ?? "claude";
+  const chatDraftKey = `${chatProvider}:${chatSession}`;
   const [view, setView] = useState<"chat" | "term">("term");
   const chatOn = chatSession !== null && view === "chat";
   // Drafts belong to session IDs, so switching panes or Chat/Term cannot
@@ -379,6 +379,7 @@ export default function TerminalStage(p: TerminalStageProps) {
   const [chatSent, setChatSent] = useState(0);
   const chatSource = useSessionTranscript({
     session: chatSession,
+    provider: chatProvider,
     shown: chatOn,
     working: p.show.kind === "session" && p.show.session.status.state === "working",
     ended: p.show.kind === "session" && p.show.session.status.state === "ended",
@@ -576,9 +577,9 @@ export default function TerminalStage(p: TerminalStageProps) {
   const hosts = useOlderHosts(p.windows === true, key, s => onAnnounce.current?.(s), p.hostsApi);
 
   const composer = chatOn && chatSession !== null ? <ChatComposerSlot
-    key={chatSession}
-    value={chatDrafts[chatSession] ?? ""}
-    onChange={value => setChatDrafts(drafts => ({ ...drafts, [chatSession]: value }))}
+    key={chatDraftKey}
+    value={chatDrafts[chatDraftKey] ?? ""}
+    onChange={value => setChatDrafts(drafts => ({ ...drafts, [chatDraftKey]: value }))}
     unavailable={chatUnavailable}
     onShowTerm={() => showView("term")}
     onSend={text => {
@@ -672,7 +673,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         workspace={workspace && p.show.kind === "empty"}
         waiting={workspace ? p.waiting ?? null : null}
         onOpenWaiting={openWaiting(p.waiting, p.onOpenWaiting)}
-        screens={chatSession !== null ? { view, source: chatSource } : undefined}
+        screens={chatSession !== null ? { view, source: chatSource, provider: chatProvider } : undefined}
       />
       <KeysBar
         primary={p.split?.primary ?? true}
