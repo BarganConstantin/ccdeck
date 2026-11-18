@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile, symlink } from 'node:fs/promises';
+import { mkdir, mkdtemp, open, readFile, realpath, rm, writeFile, symlink } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
@@ -70,10 +70,19 @@ describe('local projects offered without an existing session', () => {
     const pointer = await readFile(join(linked, '.git'), 'utf8');
     const admin = await realpath(pointer.trim().slice('gitdir: '.length));
     await writeFile(join(admin, 'gitdir'), relative(admin, join(expected.cwd, '.git')) + '\r\n');
-    await writeFile(join(linked, '.git'), 'gitdir: ' + relative(expected.cwd, admin) + '\r\n');
-    expect((await scanProjectFolders({ roots: [root, outside] })).projects.slice(1)).toEqual([expected]);
-    await writeFile(join(linked, '.git'), 'gitdir: ' + join(main, '.git') + '\n');
-    expect((await scanProjectFolders({ roots: [root] })).projects).toHaveLength(1);
+    // Git for Windows marks this file hidden. Node's default 'w' flag
+    // cannot overwrite a hidden file; 'r+' can update it in place.
+    const marker = await open(join(linked, '.git'), 'r+');
+    try {
+      await marker.truncate(0);
+      await marker.write('gitdir: ' + relative(expected.cwd, admin) + '\r\n', 0);
+      expect((await scanProjectFolders({ roots: [root, outside] })).projects.slice(1)).toEqual([expected]);
+      await marker.truncate(0);
+      await marker.write('gitdir: ' + join(main, '.git') + '\n', 0);
+      expect((await scanProjectFolders({ roots: [root] })).projects).toHaveLength(1);
+    } finally {
+      await marker.close();
+    }
   });
   it('reports partial results when directory, entry or time budgets stop discovery', async () => {
     const root = await lab(); await repo(join(root, 'one')); await repo(join(root, 'two'));
