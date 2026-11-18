@@ -136,6 +136,41 @@ describe("desktop onboarding survives a change of localhost origin (#1212)", () 
   });
 });
 
+describe("which tour the desktop window saw (V4)", () => {
+  // `tourSeen: true` is all a 3.x deck wrote, and the 3.x tour; 4.0 reads the
+  // edition beside it, and keeps `tourSeen` for the older deck reading the
+  // same file.
+  it("is a whole number, and none for anything else", () => {
+    expect(normalise({}).tourEdition).toBe(0);
+    expect(normalise({ tourSeen: true }).tourEdition).toBe(0);
+    expect(normalise({ tourEdition: 2 }).tourEdition).toBe(2);
+    for (const junk of ["2", 1.5, -1, 0, null, true, 10_000, {}]) {
+      expect(normalise({ tourEdition: junk }).tourEdition, String(junk)).toBe(0);
+    }
+  });
+
+  it("is kept beside the 3.x marker, and survives a write of something else", async () => {
+    let onDisk: string | null = null;
+    const writes: Staged[] = [];
+    const deps = {
+      readFile: async () => {
+        if (onDisk === null) throw fsError("ENOENT");
+        return onDisk;
+      },
+      mkdir: async () => {},
+      createTemp: recordingTemp(writes),
+      chmod: async () => {},
+      rename: async () => { onDisk = writes.at(-1)!.body; },
+    };
+    await writePrefs({ tourSeen: true, tourEdition: 2 }, "/tmp/tour-edition-test", deps);
+    const once = publicPrefs(normalise(JSON.parse(onDisk!)));
+    expect([once.tourSeen, once.tourEdition]).toEqual([true, 2]);
+    await writePrefs({ notifications: true }, "/tmp/tour-edition-test", deps);
+    const twice = publicPrefs(normalise(JSON.parse(onDisk!)));
+    expect([twice.tourSeen, twice.tourEdition]).toEqual([true, 2]);
+  });
+});
+
 describe("the shape on disk", () => {
   it("is on, and pairs only when the other machine says yes", () => {
     expect(DEFAULTS.lan.enabled).toBe(true);
