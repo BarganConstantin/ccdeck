@@ -155,7 +155,7 @@ In a browser tab, the browser keeps `Ctrl+W`, `Ctrl+T` and `Ctrl+N` for itself; 
 - **One pane has the keys**, and the others keep running. `Enter` on a row shows that session in the pane with the keys, ready to type; `1` to `4` move the keys to that pane, counted left to right, then top to bottom.
 - **✕** empties a pane, and its session keeps running. **⤢** fills the Workspace with one pane. The lines between panes, and the Sessions list's edge, drag to resize.
 - **Rename** a session where its name is drawn: double-click it, press `F2` on its row, or use the pencil in the pane's header. The name shows everywhere in the deck, and is saved in the session's own conversation too, where Claude Code and Codex keep a session's name.
-- **Chat | Term**: a Claude Code session's pane offers both. **Chat** shows the conversation, and you can reply from it while the session's terminal is open here; **Term** is the terminal itself.
+- **Chat | Term**: a Claude Code or Codex session's pane offers both. **Chat** shows the conversation, and you can reply from it while the session's terminal is open here; **Term** is the terminal itself.
 
 A window too narrow for the panes shows the one with the keys, and a strip names the others. Phones have no Workspace: a session you tap opens in a pane of its own, with **‹** back to the board, and **More** in the dock has **Open the Command Panel**.
 
