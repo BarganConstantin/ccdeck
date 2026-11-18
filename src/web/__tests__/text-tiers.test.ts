@@ -211,7 +211,8 @@ describe("what was migrated to the secondary tier", () => {
       ".detail .plan-mark",
       ".detail h3:not(.ctx-section-title)",
       ".detail-hero .hero-state",
-      ".insp-none-title",
+      // CHANGED ON PURPOSE (owner 2026-11-18): .insp-none-title is gone. The empty
+      // Inspector says one muted line at every width, Workspace's column included.
       // The sentence behind the info mark beside an Inspector tab's title
       // (Agents: who started whom, read from the transcript), read in its hint.
       ".ap-peek.insp-hint",

@@ -802,8 +802,6 @@ const catalog: Catalog = {
   "board.inspector.detail": "상세",
   "board.inspector.agents": "에이전트",
   "board.inspector.agentsNote": "트랜스크립트에서 읽은, 누가 누구를 시작했는지입니다. 각 카드에 자체 모델, 비용, 시간이 표시됩니다.",
-  "board.inspector.emptyTitle": "포커스된 세션이 없습니다",
-  "board.inspector.emptyLine": "목록에서 하나를 여세요.",
   "board.inspector.chooseSession": "세부 정보를 보려면 세션을 선택하세요.",
   "board.inspector.tabAgents": "에이전트",
   "board.inspector.tabTime": "시간",

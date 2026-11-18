@@ -105,7 +105,9 @@ describe("the door", () => {
     expect(app).toContain("const inspectNothing = useCallback(() => { setInspectingNothing(true); setDetailOpen(true); }, [setDetailOpen]);");
   });
 
-  it("in Workspace's sheet (1100 to 1319) opens it on the line; the column (1320 up) is its own empty Inspector", () => {
+  // CHANGED ON PURPOSE (owner 2026-11-18): the column draws the same Inspector, its one line
+  // included (below, "what it draws"); the door still never asks for it there.
+  it("in Workspace's sheet (1100 to 1319) opens it on the line; the column (1320 up) draws it by itself", () => {
     expect(inspectorDoorPress({ workspace: true, column: false, sheet: true, open: false })).toBe("show");
     const at = app.indexOf("const showInspector = useCallback(");
     const body = app.slice(at, app.indexOf("}, [", at));
@@ -130,7 +132,9 @@ describe("the door", () => {
 });
 
 describe("what it draws", () => {
-  const nothing = renderToStaticMarkup(createElement(EmptyInspector, { nothing: true }));
+  // CHANGED ON PURPOSE (owner 2026-11-18): no `nothing` prop any more. The one line is
+  // all EmptyInspector ever says, Workspace's column included.
+  const nothing = renderToStaticMarkup(createElement(EmptyInspector));
 
   it("is the Inspector's own region, which the door controls", () => {
     expect(nothing).toMatch(new RegExp(`^<aside id="${INSPECTOR_REGION_ID}" class="detail"`));
@@ -163,19 +167,37 @@ describe("what it draws", () => {
   });
 
   it("comes and goes as DetailAside does: leaving on the way out, and the sheet's entry in Workspace", () => {
-    const leaving = renderToStaticMarkup(createElement(EmptyInspector, { nothing: true, leaving: true }));
+    const leaving = renderToStaticMarkup(createElement(EmptyInspector, { leaving: true }));
     expect(leaving).toContain('class="detail leaving"');
     // Drawn off the edge first; the layout effect moves it in, which a static render never runs.
-    const sheet = renderToStaticMarkup(createElement(EmptyInspector, { nothing: true, sheet: true }));
+    const sheet = renderToStaticMarkup(createElement(EmptyInspector, { sheet: true }));
     expect(sheet).toContain('data-sheet="pre"');
     expect(nothing).not.toContain("data-sheet");
   });
 
-  it("leaves Workspace's empty column as it was: its title and its line", () => {
+  // CHANGED ON PURPOSE (owner 2026-11-18): Workspace's column (1320 up) said two lines of
+  // its own, "No session in focus" over "Open one from the list.". It now says the one
+  // line the Board, the sheet and the phone say, so the deck says the same at every width.
+  it("is what Workspace's column says with no session in focus: exactly the one line", () => {
+    const at = app.indexOf("{inWorkspace && inspectorColumn && !inspectorFolded && !(detailOpen && selected) ? (");
+    expect(at).toBeGreaterThan(-1);
+    const slot = app.slice(at, app.indexOf("{detailOnScreen ? (", at));
+    // A session in focus: its Inspector. None: EmptyInspector as it is, with nothing to change what it says.
+    expect(slot).toMatch(/^\{inWorkspace && inspectorColumn && !inspectorFolded && !\(detailOpen && selected\) \? \(\s*selected \? \(\s*<DetailAside[\s\S]*\) : <EmptyInspector \/>\s*\) : null\}\s*$/);
     const column = renderToStaticMarkup(createElement(EmptyInspector));
-    expect(column).toContain("No session in focus");
-    expect(column).toContain("Open one from the list.");
-    expect(column).not.toContain("Choose a session");
+    expect(/<div class="insp-b insp-none">([\s\S]*?)<\/div>/.exec(column)?.[1]).toBe('<p class="insp-note">Choose a session to see its details.</p>');
+    expect(column).not.toContain("insp-none-title");
+    expect(column).not.toContain("No session in focus");
+    expect(column).not.toContain("Open one from the list.");
+  });
+
+  it("leaves no catalog with the column's old two lines", () => {
+    const dir = here("../i18n/areas/board/");
+    for (const f of readdirSync(dir).filter(f => /^[a-zA-Z-]+\.ts$/.test(f))) {
+      const text = readFileSync(dir + f, "utf8");
+      expect(text, f).not.toContain('"board.inspector.emptyTitle"');
+      expect(text, f).not.toContain('"board.inspector.emptyLine"');
+    }
   });
 
   it("is said in all ten languages, each its own", () => {
@@ -198,7 +220,9 @@ describe("a selected session", () => {
     const at = app.indexOf("{detailOnScreen ? (");
     const slot = app.slice(at, app.indexOf("</div>", at));
     expect(slot.indexOf("<DetailAside")).toBeGreaterThan(-1);
-    expect(slot.indexOf("<DetailAside")).toBeLessThan(slot.indexOf("nothingOnScreen ? <EmptyInspector nothing"));
+    // CHANGED ON PURPOSE (owner 2026-11-18): drawn without `nothing`, which is gone.
+    expect(slot.indexOf("nothingOnScreen ? <EmptyInspector leaving")).toBeGreaterThan(-1);
+    expect(slot.indexOf("<DetailAside")).toBeLessThan(slot.indexOf("nothingOnScreen ? <EmptyInspector leaving"));
   });
 
   it("ends the line: choosing a session, or any close of the panel, clears it", () => {

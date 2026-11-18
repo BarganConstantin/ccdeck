@@ -586,6 +586,11 @@ export default function NewSessionPopover(p: NewSessionPopoverProps) {
       // aligned popover from the stage's button would hang out over the
       // navigator instead of opening on the stage.
       align="start"
+      // The empty stage's button sits halfway down the window, where neither
+      // side held the whole form at 1440 × 860 and it scrolled with its title
+      // or its closing note out of view. A form is read top to bottom, so it
+      // covers that button rather than scroll, wherever the window holds it.
+      overAnchor
     >
       <NewSessionForm
         searchRef={searchRef}

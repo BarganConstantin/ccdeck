@@ -54,7 +54,7 @@ function scrollingBox(content: number) {
   return el;
 }
 
-function popoverOnPhone(content: number) {
+function popoverOnPhone(content: number, overAnchor = false) {
   const g = globalThis as Record<string, unknown>;
   const window = { innerWidth: 320, innerHeight: 640, addEventListener: () => {}, removeEventListener: () => {} };
   // New session, about a third of the way down a 640px phone.
@@ -64,11 +64,37 @@ function popoverOnPhone(content: number) {
   const el = scrollingBox(content);
   box.ref.current = el;
   const view = mount(AnchoredPopover, {
-    anchorId: "anchor", id: "ns-pop", role: "dialog", labelledBy: "t", onClose: () => {}, align: "start",
+    anchorId: "anchor", id: "ns-pop", role: "dialog", labelledBy: "t", onClose: () => {}, align: "start", overAnchor,
     children: "the form",
   } as never);
   return { view, el, window };
 }
+
+// New session asks to stay whole (popover-place.ts, overAnchor): where the
+// window holds the form it covers its anchor rather than scroll, and only a
+// window shorter than the form leaves it something to scroll.
+describe("a form that asks to stay whole, as New session does", () => {
+  it("covers its anchor rather than scroll, where the window holds it", () => {
+    const { el, view } = popoverOnPhone(473, true);
+    expect(el.style.maxHeight).toBe("");
+    expect(el.offsetHeight).toBe(473);
+    expect(el.style.top).toBe(`${640 - POPOVER_MARGIN - 473}px`);
+    expect(el.dataset.side).toBe("below");
+    view.unmount();
+  });
+
+  it("in a window shorter than itself takes all the window has, and keeps a scroll down to Cancel and Start", () => {
+    const { el, view } = popoverOnPhone(700, true);
+    expect(el.style.top).toBe(`${POPOVER_MARGIN}px`);
+    expect(el.style.maxHeight).toBe(`${640 - POPOVER_MARGIN * 2}px`);
+    el.scrollTop = 1e6;
+    const end = el.scrollTop;
+    expect(end, "it can be scrolled to its end at all").toBeGreaterThan(0);
+    view.rerender();
+    expect(el.scrollTop, "still at Cancel and Start after the render").toBe(end);
+    view.unmount();
+  });
+});
 
 describe("a popover taller than the window, as it renders again", () => {
   it("refits an expanding native disclosure even when its wrapper did not rerender", () => {

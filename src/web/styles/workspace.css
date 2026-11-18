@@ -282,9 +282,9 @@ body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column) {
 }
 .ts-ws-open .kbd { background: var(--bg); }
 
-/* The Inspector with no session in focus: two centred lines. */
+/* The Inspector with no session in focus: one centred line, the hint line's
+   muted ink (Inspector.tsx, EmptyInspector). */
 .insp-none { align-items: center; justify-content: center; text-align: center; gap: 4px; padding: 8px 12px 12px; }
-.insp-none-title { margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; line-height: 20px; color: var(--text-secondary); }
 /* The empty Inspector's tabs are chips, not buttons: the chosen one is
    marked as the Inspector's chosen tab is (detail-panel.css), with no shadow. */
 .insp-tab[aria-current="true"] {

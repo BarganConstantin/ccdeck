@@ -621,8 +621,8 @@ function Inner() {
   // Inspector on one line saying what to do instead (Inspector.tsx,
   // EmptyInspector), until the door, D or Escape closes it or a session is
   // chosen. Set with the panel's own open flag, so every way that closes the
-  // panel closes it too. Workspace's column has its own empty Inspector and
-  // never sets it.
+  // panel closes it too. Workspace's column draws the same Inspector by itself
+  // whenever no session is in focus, and never sets it.
   const [inspectingNothing, setInspectingNothing] = useState(false);
   /** Whether `.detail` is in the DOM, which is what the sheet keys the rail's
    *  horizontal position off: `--rail-r` is 368px with it and 8px without
@@ -840,14 +840,14 @@ function Inner() {
   const clearInspection = useCallback(() => { clearSelection(); setInspectingNothing(false); }, [clearSelection]);
   // The line is done once the panel closes or a session is chosen, so a later
   // open (leaving Workspace gives the Board its own back) never brings it back
-  // unasked. Workspace's column says it its own way.
+  // unasked. Workspace's column draws the line by itself.
   useEffect(() => {
     if (!detailOpen || primarySelectedId || (inWorkspace && inspectorColumn)) setInspectingNothing(false);
   }, [detailOpen, primarySelectedId, inWorkspace, inspectorColumn]);
   const showInspector = useCallback(() => {
     setInspectorFolded(false);
     if (primarySelectedIdRef.current) setDetailOpen(true);
-    // The column, unfolded, is its own empty Inspector; the sheet needs the line.
+    // The column, unfolded, draws the line by itself; the sheet needs it asked for.
     else if (!pickSessionForInspector(stateRef.current, focusSession, stepAgent) && inspectorSheet) inspectNothing();
     // The door is not what the keys are for once the Inspector is drawn: they go into it.
     requestAnimationFrame(() => { document.querySelector<HTMLElement>(".detail .insp-tab[aria-selected=\"true\"]")?.focus(); });
@@ -1682,7 +1682,7 @@ function Inner() {
           onOpenSession={stage.enabled ? openSessionWithKeys : undefined} stageSession={stage.enabled && stageClaimsKeys(stage.shell.phase) ? targetSession(stage.shell.target) : null}
           onClose={inWorkspace && (inspectorColumn || inspectorSheet) ? foldInspector : sheetClose("inspector", () => { panelReturn.detail(); setDetailOpen(false); })}
         />
-      ) : nothingOnScreen ? <EmptyInspector nothing leaving={detailLeaving} sheet={inspectorSheet} /> : null}
+      ) : nothingOnScreen ? <EmptyInspector leaving={detailLeaving} sheet={inspectorSheet} /> : null}
       </div>
 
       {/* A phone's sheets lie over a scrim; a press on it closes the one up. */}

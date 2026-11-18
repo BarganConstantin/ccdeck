@@ -802,8 +802,6 @@ const catalog: Catalog = {
   "board.inspector.detail": "详情",
   "board.inspector.agents": "代理",
   "board.inspector.agentsNote": "谁启动了谁，读取自对话记录。每张卡片显示各自的模型、费用和时间。",
-  "board.inspector.emptyTitle": "没有聚焦的会话",
-  "board.inspector.emptyLine": "从列表中打开一个。",
   "board.inspector.chooseSession": "选择一个会话以查看其详情。",
   "board.inspector.tabAgents": "代理",
   "board.inspector.tabTime": "时间",

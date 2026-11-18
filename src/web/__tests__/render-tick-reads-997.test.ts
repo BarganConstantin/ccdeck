@@ -219,7 +219,9 @@ describe("the rail inset is measured when something can have moved it", () => {
     expect(app).toMatch(/const nothingOnScreen = !\(inWorkspace && inspectorColumn\) && \(detailShown \? selected == null : detailLeaving && lastNothing\.current\);/);
     expect(app).toMatch(/if \(detailShown\) lastNothing\.current = selected == null;/);
     expect(app).toMatch(/\{detailOnScreen \? \(/);
-    expect(app).toMatch(/\) : nothingOnScreen \? <EmptyInspector nothing leaving=\{detailLeaving\} sheet=\{inspectorSheet\} \/> : null\}/);
+    // CHANGED ON PURPOSE (owner 2026-11-18): EmptyInspector has no `nothing` any more;
+    // it says its one line wherever it is drawn, Workspace's column included.
+    expect(app).toMatch(/\) : nothingOnScreen \? <EmptyInspector leaving=\{detailLeaving\} sheet=\{inspectorSheet\} \/> : null\}/);
   });
 
   it("keeps railCover to the two callers that are not on the render path", () => {

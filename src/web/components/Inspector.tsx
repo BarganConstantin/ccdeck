@@ -134,24 +134,22 @@ export function useSheetEntry(sheet: boolean, leaving: boolean) {
   return { asideRef, sheetState };
 }
 
-/** WORKSPACE, the pane empty: the Inspector's column with no session in focus
- *  (Figma, "Empty workspace"). The same header and tabs, none of them
- *  pressable, over two lines saying so. No Fold: the Inspector is a column
- *  here (workspace.css), not a panel to close.
+/** THE INSPECTOR WITH NO SESSION TO SHOW. The same header and tabs, none of
+ *  them pressable, over one muted line: no title, no button (the owner's call,
+ *  2026-11-18).
  *
- *  NO SESSION TO SHOW (`nothing`): the door or D with nothing selected and no
- *  session to pick, a first run's empty board above all, opened nothing at all
- *  and a new user pressed it again. The Inspector opens there, wherever D opens
- *  it (the Board's column, Workspace's sheet, a phone's sheet), and says one
- *  muted line: no title, no button (the owner's call, 2026-11-18). The door, D
- *  and Escape close it, and choosing a session shows that session instead. */
-export const EMPTY_INSPECTOR_TITLE_MSG = "board.inspector.emptyTitle";
-export const EMPTY_INSPECTOR_LINE_MSG = "board.inspector.emptyLine";
+ *  The door or D with nothing selected and no session to pick, a first run's
+ *  empty board above all, opened nothing at all and a new user pressed it
+ *  again. The Inspector opens there, wherever D opens it (the Board's column,
+ *  Workspace's sheet, a phone's sheet), until the door, D or Escape closes it
+ *  or a session is chosen. Workspace's column (1320 up) draws it too with its
+ *  pane empty (Figma, "Empty workspace"), with no Fold: the Inspector is a
+ *  column there (workspace.css), not a panel to close. It said two lines of its
+ *  own there, "No session in focus" over "Open one from the list."; the deck
+ *  now says the one line at every width. */
 export const NOTHING_INSPECTOR_LINE_MSG = "board.inspector.chooseSession";
 
-export function EmptyInspector({ nothing = false, leaving = false, sheet = false }: {
-  /** No session to show at all: the one line, in place of the two. */
-  nothing?: boolean;
+export function EmptyInspector({ leaving = false, sheet = false }: {
   /** On its way out, as DetailAside's (a phone's sheet down the bottom edge,
    *  Workspace's off the right). */
   leaving?: boolean;
@@ -177,12 +175,7 @@ export function EmptyInspector({ nothing = false, leaving = false, sheet = false
         </div>
       </header>
       <div className="insp-b insp-none">
-        {nothing ? <p className="insp-note">{tr(NOTHING_INSPECTOR_LINE_MSG)}</p> : (
-          <>
-            <p className="insp-none-title">{tr(EMPTY_INSPECTOR_TITLE_MSG)}</p>
-            <p className="insp-note">{tr(EMPTY_INSPECTOR_LINE_MSG)}</p>
-          </>
-        )}
+        <p className="insp-note">{tr(NOTHING_INSPECTOR_LINE_MSG)}</p>
       </div>
     </aside>
   );

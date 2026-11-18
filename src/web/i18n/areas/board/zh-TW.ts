@@ -802,8 +802,6 @@ const catalog: Catalog = {
   "board.inspector.detail": "詳細資料",
   "board.inspector.agents": "代理",
   "board.inspector.agentsNote": "誰啟動了誰，依對話紀錄讀取。每張卡片顯示自己的模型、花費與時間。",
-  "board.inspector.emptyTitle": "沒有聚焦的工作階段",
-  "board.inspector.emptyLine": "請從清單開啟一個。",
   "board.inspector.chooseSession": "選擇一個工作階段以查看其詳細資料。",
   "board.inspector.tabAgents": "代理",
   "board.inspector.tabTime": "時間",

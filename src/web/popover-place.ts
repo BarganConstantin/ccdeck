@@ -31,6 +31,16 @@
 //   inside itself only when neither side can hold it whole — a zoomed-in
 //   window, a short one — which is the one case where showing part of it is
 //   better than showing it in the wrong place.
+//
+//   OVER ITS ANCHOR, for a form that asks. A menu scrolls on the roomier side
+//   rather than cover the control it belongs to. A form is read from its title
+//   down to its buttons, and New session's anchor can sit halfway down the
+//   window (the empty stage's own button): at 1440 × 860 neither side held its
+//   588px, and it scrolled inside a 445px cap with its title or its closing
+//   note out of view. Asked (`overAnchor`), it stays whole instead wherever
+//   the window holds it, moved over its anchor from the roomier side only as
+//   far as it must, and scrolls only in a window shorter than itself, then in
+//   all the window has.
 
 /** The four edges of a box, in window coordinates — a DOMRect is one. */
 export interface Edges {
@@ -122,14 +132,18 @@ export function placeReadingHint(anchor: Edges, size: Size, viewport: Size, mini
   };
 }
 
-export function placePopover(anchor: Edges, size: Size, viewport: Size, align: PopoverAlign = "end"): Placement {
+export function placePopover(anchor: Edges, size: Size, viewport: Size, align: PopoverAlign = "end", overAnchor = false): Placement {
   const below = viewport.height - POPOVER_MARGIN - (anchor.bottom + POPOVER_GAP);
   const above = anchor.top - POPOVER_GAP - POPOVER_MARGIN;
   const side = size.height <= below || below >= above ? "below" : "above";
-  const room = side === "below" ? below : above;
+  // Over its anchor: the window's whole height is the room, not one side's.
+  const room = overAnchor ? viewport.height - POPOVER_MARGIN * 2 : side === "below" ? below : above;
   const fits = size.height <= room;
   const height = fits ? size.height : Math.max(0, room);
-  const top = side === "below" ? anchor.bottom + POPOVER_GAP : anchor.top - POPOVER_GAP - height;
+  const beside = side === "below" ? anchor.bottom + POPOVER_GAP : anchor.top - POPOVER_GAP - height;
+  // Beside the anchor where that holds it, else pulled back inside the
+  // window's foot: over the anchor no further than it has to go.
+  const top = overAnchor ? Math.min(beside, viewport.height - POPOVER_MARGIN - height) : beside;
   // Right edge under the anchor's (or left under left), then pulled back inside
   // the window. The left clamp is applied last so that a window narrower than
   // the popover keeps its start edge — the words — on screen and lets the end
