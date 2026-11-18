@@ -83,6 +83,21 @@ export const ADDRESS_PATTERN = String.raw`(?<![\w:.%-])(?:\[(?!${KEPT_IPV6}\])${
 const HOST = String.raw`(?=[\w.-]*[A-Za-z])[A-Za-z0-9][\w-]*(?:\.[\w-]+)*`;
 export const HOST_PATTERN = String.raw`(?<![\w.@/\\%-])(?!localhost(?![\w-]|\.\w))(?:(?<=\b(?:(?:getaddrinfo|connect) E[A-Z_]+|ENOTFOUND|EAI_AGAIN) )${HOST}|${HOST}(?=:\d{1,5}(?![\w:-]|\.\w))|${HOST}\.(?:local|lan|home|internal|ts\.net)(?![\w-]|\.\w))`;
 
+// How `scrub` in server/reports.mjs reads back a path written percent-encoded
+// (`file%3A%2F%2F%2FUsers%2Falice%2F…`, the way Puppeteer names the code it
+// evaluates), the same steps (error-report-encoded-paths.test.ts runs both on
+// the same text): see there.
+const KEPT_ESCAPED = /[\s"\x60<>|?;,]/g;
+function decodeEscapes(text: string): string {
+  return text.replace(/(?:%[0-9A-Fa-f]{2})+/g, run => {
+    try {
+      return decodeURIComponent(run).replace(KEPT_ESCAPED, c => encodeURIComponent(c));
+    } catch {
+      return run;
+    }
+  });
+}
+
 /**
  * Take out of an error text what could say who someone is, for text that is
  * shown or seeded on the page rather than sent — the crash report the error
@@ -91,7 +106,8 @@ export const HOST_PATTERN = String.raw`(?<![\w.@/\\%-])(?!localhost(?![\w-]|\.\w
  * `<path>`), project folders in Claude Code's encoding (`<project>`), the host
  * of every address (`<deck>`, `<host>`), every bare IP address and the machine
  * name a network error carries (`<host>`, the loopback kept), email addresses
- * and strings shaped like keys or tokens. That server scrub is still the one that runs on every
+ * and strings shaped like keys or tokens, each found in a percent-encoded path
+ * too, read back first. That server scrub is still the one that runs on every
  * error the page forwards, and the one the README's promise rests on; this is
  * the same shape done in the browser for the words a person reads before Send —
  * feedback is not scrubbed on its way through the server, so a path must never
@@ -101,7 +117,7 @@ export const HOST_PATTERN = String.raw`(?<![\w.@/\\%-])(?!localhost(?![\w-]|\.\w
  * the bundle (`<deck>/assets/…`).
  */
 export function scrubReport(text: string): string {
-  return String(text ?? "")
+  return decodeEscapes(String(text ?? ""))
     .replace(/\/(?:home|Users)\/[^/\s:'"]+/g, "~")
     .replace(/[A-Za-z]:\\(?:Users|Documents and Settings)\\[^\\\r\n:'"]+/gi, "~")
     .replace(new RegExp(PATH_PATTERN, "g"), hidePath)
