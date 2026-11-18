@@ -268,6 +268,7 @@ const catalog: Catalog = {
   "board.hero.notShowing": "会话没有出现？",
   "board.hero.noSessions": "还没有会话",
   "board.hero.startHint": "在终端中启动 Claude Code 或 Codex，会话就会出现在这里。",
+  "board.hero.orRun": "或者在任何文件夹运行 claude 或 codex，会话就会出现在这里。",
   "board.controls.zoomIn": "放大",
   "board.controls.zoomOut": "缩小",
   "board.controls.recenterOn": "重新居中视图并重新启用自动适应",

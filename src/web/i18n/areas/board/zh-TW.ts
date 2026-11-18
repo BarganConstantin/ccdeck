@@ -268,6 +268,7 @@ const catalog: Catalog = {
   "board.hero.notShowing": "工作階段沒有出現？",
   "board.hero.noSessions": "還沒有工作階段",
   "board.hero.startHint": "在終端機中啟動 Claude Code 或 Codex，工作階段就會出現在這裡。",
+  "board.hero.orRun": "或在任何資料夾執行 claude 或 codex，工作階段就會出現在這裡。",
   "board.controls.zoomIn": "放大",
   "board.controls.zoomOut": "縮小",
   "board.controls.recenterOn": "重新置中檢視並重新啟用自動調整",

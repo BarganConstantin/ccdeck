@@ -268,6 +268,7 @@ const catalog: Catalog = {
   "board.hero.notShowing": "세션이 나타나지 않나요?",
   "board.hero.noSessions": "아직 세션이 없습니다",
   "board.hero.startHint": "터미널에서 Claude Code 또는 Codex를 시작하면 여기에 나타납니다.",
+  "board.hero.orRun": "또는 아무 폴더에서나 claude 또는 codex를 실행하면 여기에 나타납니다.",
   "board.controls.zoomIn": "확대",
   "board.controls.zoomOut": "축소",
   "board.controls.recenterOn": "보기 중앙으로 + 자동 맞춤 다시 켜기",

@@ -268,6 +268,7 @@ const catalog: Catalog = {
   "board.hero.notShowing": "セッションが表示されない？",
   "board.hero.noSessions": "まだセッションがありません",
   "board.hero.startHint": "ターミナルで Claude Code か Codex を起動すると、ここに表示されます。",
+  "board.hero.orRun": "または任意のフォルダーで claude か codex を実行すると、ここに表示されます。",
   "board.controls.zoomIn": "拡大",
   "board.controls.zoomOut": "縮小",
   "board.controls.recenterOn": "ビューを中央に戻して自動フィットを再開",
