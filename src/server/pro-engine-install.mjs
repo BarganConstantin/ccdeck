@@ -41,6 +41,12 @@ export const TARGETS = {
 const WINDOWS_WRITERS_REFUSED = /^(?:everyone|authenticated users|users|builtin\\users|nt authority\\authenticated users|s-1-1-0|s-1-5-11|s-1-5-32-545)$/i;
 const invalid = () => new Error('The installed terminal engine could not be verified.');
 
+/** The one refusal that carries a code: a folder above the engine that other
+ *  accounts can change (refuseFolder). The page then says which check it was,
+ *  not that the signature failed; the folder itself goes to the log alone. */
+export const UNSAFE_FOLDER = 'unsafe-folder';
+const folderRefused = () => Object.assign(invalid(), { code: UNSAFE_FOLDER });
+
 /** Where Linux keeps who has which primary group, and who else is in a group. */
 const ACCOUNT_FILES = Object.freeze({ passwd: '/etc/passwd', group: '/etc/group' });
 
@@ -98,7 +104,8 @@ const named = new Set();
 /** Refuses the engine for a folder above it that someone else may change, and
  *  says once in the deck's log which folder and what would let it run. The
  *  path goes to the log only, never to the page: a route's body is readable by
- *  a DNS-rebound page, and a path names the user. */
+ *  a DNS-rebound page, and a path names the user. The page gets the code
+ *  alone (UNSAFE_FOLDER). */
 function refuseFolder(folder, ownedByOther) {
   const key = `${ownedByOther ? 'owner' : 'write'} ${folder}`;
   if (!named.has(key)) {
@@ -108,7 +115,7 @@ function refuseFolder(folder, ownedByOther) {
       ? `${PRODUCT}: terminal: the engine is refused: ${folder}, a folder above it, belongs to another account, which could replace it. Set CCDECK_HOME to a folder under your own.`
       : `${PRODUCT}: terminal: the engine is refused: other accounts can write ${folder}, a folder above it, and could replace it. If nobody else should: chmod go-w ${quoted}`);
   }
-  throw invalid();
+  throw folderRefused();
 }
 
 /**
@@ -283,5 +290,5 @@ export async function verifyEngineInstallation({ directory, publicKey, minimumVe
     const { data, stat } = await readTrusted(executable, entry.size, gate, true);
     if (stat.size !== entry.size || createHash('sha256').update(data).digest('hex') !== entry.sha256) throw invalid();
     return Object.freeze({ executable, digest: entry.sha256, target, version: entry.version });
-  } catch { throw invalid(); }
+  } catch (error) { throw error?.code === UNSAFE_FOLDER ? folderRefused() : invalid(); }
 }

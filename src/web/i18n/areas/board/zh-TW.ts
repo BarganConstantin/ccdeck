@@ -628,6 +628,8 @@ const catalog: Catalog = {
   "board.engine.checkBody": "該檔案與 ccdeck 的簽章不符，因此已刪除，從未執行。改寫下載內容的代理伺服器或防毒軟體可能造成這種情況。",
   "board.engine.wrongMachineBody": "該套件是為其他平台組建的，因此已刪除，從未執行。",
   "board.engine.downgradeBody": "該套件比 ccdeck 已信任的引擎更舊，因此已刪除，從未執行。",
+  "board.engine.folderTitle": "未使用該引擎",
+  "board.engine.folderBody": "這台電腦上的其他使用者可以修改引擎上層的一個資料夾，進而替換引擎。ccdeck 的記錄檔中寫明了該資料夾和修正方式。",
   "board.engine.noMatch": "不相符",
   "board.engine.checkNote": "「複製詳細資料」包含步驟、版本與錯誤代碼，不含終端機中的任何內容。",
   "board.engine.copyDetails": "複製詳細資料",

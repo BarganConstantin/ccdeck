@@ -37,7 +37,7 @@ import {
   EngineDownloadError, ENGINE_REGISTRY, enginePin, fetchEngineTarball, placePackage, readPackageTarball,
 } from "./engine-download.mjs";
 import { ENGINE_PACKAGE_NAMES, importEngine } from "./engine-package.mjs";
-import { TARGETS, compareVersions, verifyEngineInstallation } from "./pro-engine-install.mjs";
+import { TARGETS, UNSAFE_FOLDER, compareVersions, verifyEngineInstallation } from "./pro-engine-install.mjs";
 import { RUNNING_VERSION } from "./running-version.mjs";
 
 /** The lock file beside the engine folder. */
@@ -302,7 +302,7 @@ export function createEngineInstaller({
         if (result?.status === "imported" || result?.status === "current") {
           last = { id, outcome: "done", version: (await installed())?.version ?? manifest.version, at: now() };
         } else {
-          const code = result?.reason === "downgrade" ? "downgrade" : result?.reason === "wrong-machine" ? "wrong-machine" : "check-failed";
+          const code = ["downgrade", "wrong-machine", UNSAFE_FOLDER].includes(result?.reason) ? result.reason : "check-failed";
           last = { id, outcome: "failed", code, step: "verify", version: manifest.version, at: now() };
         }
       } catch (error) {

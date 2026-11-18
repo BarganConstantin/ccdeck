@@ -26,6 +26,7 @@
 // Neither terminal-socket.mjs nor terminal-routes.mjs reaches a client from
 // here: the deck builds engineTerminals(client) where it creates the client
 // and passes it to the routes and the upgrade as `engine`.
+import { UNSAFE_FOLDER } from "./pro-engine-install.mjs";
 
 /**
  * The refusals the panel's routes answer when the engine cannot take the
@@ -40,6 +41,7 @@ const REFUSALS = Object.freeze({
   unsupported: [409, "The Command Panel is not available on this platform yet."],
   "not-installed": [409, "The Command Panel's engine is not installed on this machine."],
   "not-verified": [409, "The Command Panel's engine could not be verified, so it was not started."],
+  "unsafe-folder": [409, "The Command Panel's engine was not started: other users can change a folder above it."],
   "no-terminal": [409, "The Command Panel's engine here cannot open sessions."],
   failed: [409, "The Command Panel's engine would not start."],
   restarting: [503, "The Command Panel's engine is restarting."],
@@ -180,11 +182,13 @@ export async function routeThroughEngine(client, method, body) {
 }
 
 /** The refusal for a client that would not start, by its error's code. A
- *  verification failure has none (pro-engine-install.mjs). */
+ *  verification failure has none (pro-engine-install.mjs), but for a folder
+ *  above the engine that other accounts can change, which says so. */
 function startRefusal(code) {
   if (code === "backoff" || code === "closed") return "restarting";
   if (code === "timeout") return "no-answer";
   if (code === undefined) return "not-verified";
+  if (code === UNSAFE_FOLDER) return UNSAFE_FOLDER;
   return "failed";
 }
 

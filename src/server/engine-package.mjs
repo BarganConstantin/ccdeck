@@ -58,7 +58,7 @@ import { dirname, join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deckDataDir } from "./deck-home.mjs";
 import {
-  ENGINE_MANIFEST_MAX, TARGETS, compareVersions, executableMatchesMachine, readTrusted, signedEntry, trustGate,
+  ENGINE_MANIFEST_MAX, TARGETS, UNSAFE_FOLDER, compareVersions, executableMatchesMachine, readTrusted, signedEntry, trustGate,
   verifyEngineInstallation,
 } from "./pro-engine-install.mjs";
 
@@ -169,8 +169,9 @@ async function writeFloor(dataDir, version) {
  *   "absent"    no package for this machine (nothing is read from anywhere else);
  *   "current"   the installation already is this package's engine, left alone;
  *   "imported"  installed now;
- *   "refused"   with `reason` "unverified", "wrong-machine" or "downgrade":
- *               nothing was changed.
+ *   "refused"   with `reason` "unverified", "unsafe-folder" (a folder above
+ *               the data folder that other accounts can change), "wrong-machine"
+ *               or "downgrade": nothing was changed.
  * `minimumVersion` is what the installer is to hold the engine to, when
  * there is one. Never throws.
  *
@@ -255,8 +256,10 @@ export async function importEngine({
     const kept = higher(minimum, entry.version);
     await writeFloor(dataDir, kept);
     return { status: "imported", minimumVersion: kept };
-  } catch {
-    return { status: "refused", reason: "unverified" };
+  } catch (error) {
+    // Refused all the same; a folder above says so, so the page does not
+    // blame the signature (pro-engine-install.mjs UNSAFE_FOLDER).
+    return { status: "refused", reason: error?.code === UNSAFE_FOLDER ? UNSAFE_FOLDER : "unverified" };
   } finally {
     if (staging) await fs.rm(staging, { recursive: true, force: true }).catch(() => {});
     if (aside) await fs.rm(aside, { recursive: true, force: true }).catch(() => {});

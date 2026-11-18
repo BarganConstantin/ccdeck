@@ -628,6 +628,8 @@ const catalog: Catalog = {
   "board.engine.checkBody": "Le fichier ne correspond pas à la signature de ccdeck : il a donc été supprimé et ne s’est jamais exécuté. Un proxy ou un antivirus qui réécrit les téléchargements peut en être la cause.",
   "board.engine.wrongMachineBody": "Le paquet est conçu pour une autre plateforme : il a donc été supprimé et ne s’est jamais exécuté.",
   "board.engine.downgradeBody": "Le paquet est plus ancien que le moteur auquel ccdeck fait déjà confiance : il a donc été supprimé et ne s’est jamais exécuté.",
+  "board.engine.folderTitle": "Le moteur n’a pas été utilisé",
+  "board.engine.folderBody": "D’autres utilisateurs de cette machine peuvent modifier un dossier au-dessus du moteur et pourraient le remplacer. Le journal de ccdeck indique le dossier et la correction.",
   "board.engine.noMatch": "aucune correspondance",
   "board.engine.checkNote": "« Copier les détails » contient l’étape, les versions et le code d’erreur. Rien de votre terminal.",
   "board.engine.copyDetails": "Copier les détails",

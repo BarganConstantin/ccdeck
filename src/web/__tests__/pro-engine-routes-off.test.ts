@@ -201,6 +201,7 @@ describe("routeThroughEngine's refusals", () => {
     expect(await code(client({ start: "closed" }))).toEqual([503, "restarting"]);
     expect(await code(client({ start: "timeout" }))).toEqual([503, "no-answer"]);
     expect(await code(client({ start: null })), "a verification failure carries no code").toEqual([409, "not-verified"]);
+    expect(await code(client({ start: "unsafe-folder" })), "but for a folder above it that others can change").toEqual([409, "unsafe-folder"]);
     for (const c of ["disabled", "startup", "exited", "incompatible", "protocol"]) expect(await code(client({ start: c }), "launch"), c).toEqual([409, "failed"]);
     const none = client({ backend: "unavailable" });
     expect(await code(none, "launch")).toEqual([409, "no-terminal"]);
@@ -236,7 +237,7 @@ describe("routeThroughEngine's refusals", () => {
 
   it("answers an unknown refusal code as failed, and every refusal in one shape", () => {
     expect(engineRefusal("no-such-code")).toEqual(engineRefusal("failed"));
-    for (const c of ["unsupported", "not-installed", "not-verified", "no-terminal", "failed", "restarting", "busy", "no-answer", "bad-request"]) {
+    for (const c of ["unsupported", "not-installed", "not-verified", "unsafe-folder", "no-terminal", "failed", "restarting", "busy", "no-answer", "bad-request"]) {
       const { status, body } = engineRefusal(c);
       expect(Object.keys(body).sort(), c).toEqual(["code", "error", "ok"]);
       expect([body.ok, body.code, typeof body.error], c).toEqual([false, c, "string"]);

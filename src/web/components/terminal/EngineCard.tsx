@@ -27,7 +27,7 @@ export const READY_HOLD_MS = 900;
 
 /** The engine refusals the card answers (terminal-api's PANEL_UNAVAILABLE but
  *  no-terminal, which is the engine's own choice and not an install's). */
-export const ENGINE_CARD_CODES = ["not-installed", "not-verified", "unsupported", "failed"] as const;
+export const ENGINE_CARD_CODES = ["not-installed", "not-verified", "unsafe-folder", "unsupported", "failed"] as const;
 export const engineCardCode = (code?: string | null): boolean => (ENGINE_CARD_CODES as readonly string[]).includes(code ?? "");
 
 type Step = { label: string; state: "done" | "now" | "todo" | "fail"; aside?: string };
@@ -343,6 +343,17 @@ export default function EngineCard(p: EngineCardProps) {
           ]} />
           <div className="ts-eng-acts">{tryAgain(() => { void eng.install(); })}{detailsButton}{back}</div>
           <p className="ts-eng-note">{t("board.engine.checkNote")}</p>
+        </>
+      );
+      break;
+    case "folder":
+      // Not the signature: a folder above the engine. Which one, and the
+      // command that fixes it, are in the deck's log only, never here.
+      body = (
+        <>
+          <Head glyph="lock" tone="danger" title={t("board.engine.folderTitle")} />
+          <p className="ts-eng-text">{t("board.engine.folderBody")}</p>
+          <div className="ts-eng-acts">{tryAgain(view.install ? () => { void eng.install(); } : onRetry)}{back}</div>
         </>
       );
       break;
