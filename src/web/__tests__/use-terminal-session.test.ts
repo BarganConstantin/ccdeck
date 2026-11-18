@@ -1767,6 +1767,108 @@ describe("while the deck sets up its own tmux", () => {
   });
 });
 
+// THE EMPTY BOARD'S NEW SESSION ON A MACHINE WITH NO TMUX IT CAN USE (V4
+// onboarding). The button stays, and asks nothing first: its form's Start is a
+// launch like any other (use-stage.test.ts, "stays on the launch a Start
+// made"). The engine refuses that launch for want of tmux, 409
+// `tmux-unavailable`, which the page keeps no code for (terminal-api.test.ts),
+// so the stage asks the status — the route that, where the engine calls the
+// machine fixable, fetches ccdeck's own tmux for a missing one or one older
+// than 3.2 alike (terminal-routes.mjs withOwnTmux, pro-engine-routes.test.ts)
+// — shows the fetch with its progress, and starts the session once tmux is
+// there. Each case starts from the deck's real 409, read by terminal-api.
+describe("New session from the empty board, on a machine with no tmux it can use", () => {
+  const LAUNCH: StageSubject = { kind: "launch", agent: "claude", cwd: "/home/u/code/paycore", key: "hero-1" };
+  /** The deck's 409 for a launch, read by the page's own terminal-api. */
+  const refusedWith = (r: Rig, body: Record<string, unknown>) =>
+    r.launch.mockImplementationOnce(req => launchTerminal(req as Parameters<typeof launchTerminal>[0], {
+      fetchFn: async () => ({ ok: false, status: 409, json: async () => body }) as unknown as Response,
+    }));
+  const noTmux = (r: Rig) => refusedWith(r, { ok: false, error: "tmux is not available on this machine.", code: "tmux-unavailable" });
+  const status = (tmux: TerminalStatus["tmux"], platform = "linux") => ({ ok: true, platform, tmux }) as TerminalStatus;
+
+  it("with a tmux it can use, starts the session at once and asks nothing about tmux", async () => {
+    const { r, ctl } = rig();
+    ctl.show(LAUNCH);
+    expect(r.last().phase).toEqual({ kind: "starting", agent: "claude", cwd: "/home/u/code/paycore" });
+    await flush();
+    expect(r.launch).toHaveBeenCalledTimes(1);
+    expect(r.status, "no question before the launch: the press waits on nothing").not.toHaveBeenCalled();
+    expect(r.launched).toHaveLength(1);
+    expect(r.sockets).toHaveLength(1);
+  });
+
+  it("with none, or one too old, that the deck can fetch: shows the fetch and how far it has got, then starts the session it was asked for, once", async () => {
+    const half = { stage: "downloading", received: 550_000, total: 1_100_000 } as const;
+    const { r, ctl } = rig();
+    noTmux(r);
+    r.status.mockResolvedValueOnce(status({ ok: false, reason: "installing" }))
+      .mockResolvedValueOnce(status({ ok: false, reason: "installing", progress: half }))
+      .mockResolvedValueOnce(status({ ok: true, version: "3.8" }));
+    ctl.show(LAUNCH);
+    await flush();
+    await flush();
+    expect(r.last().phase, "the deck's own tmux on its way, before it has said how far").toEqual({ kind: "tmux-installing" });
+    await vi.advanceTimersByTimeAsync(TMUX_SETUP_POLL_MS);
+    expect(r.last().phase).toEqual({ kind: "tmux-installing", progress: half });
+    expect(r.launch, "nothing started while it is on its way").toHaveBeenCalledTimes(1);
+    expect(r.launched).toEqual([]);
+    await vi.advanceTimersByTimeAsync(TMUX_SETUP_POLL_MS);
+    await flush();
+    expect(r.status).toHaveBeenCalledTimes(3);
+    expect(r.launch).toHaveBeenCalledTimes(2);
+    expect(r.launch.mock.calls[1][0], "the same launch, by its key: one agent").toMatchObject({ agent: "claude", cwd: "/home/u/code/paycore", key: "hero-1" });
+    const kinds = r.snaps.map(s => s.phase.kind);
+    expect(kinds.slice(kinds.lastIndexOf("tmux-installing")), "starting again once tmux is there").toContain("starting");
+    expect(r.launched, "one session started").toHaveLength(1);
+    expect(r.sockets).toHaveLength(1);
+  });
+
+  it("where the fetch failed, or the deck cannot fetch one here, says the tmux message it always has, and starts nothing by itself", async () => {
+    const cases: Array<[TerminalStatus[], unknown]> = [
+      // Offline, or a build that was not the pinned one: the plain fact, why, and the install line.
+      [[status({ ok: false, reason: "installing" }), status({ ok: false, reason: "missing", install: "brew install tmux", download: "download_failed" })],
+        { kind: "tmux-missing", reason: "missing", install: "brew install tmux", download: "download_failed", busy: false }],
+      // No fetch here (downloads switched off, no build for this machine): the engine's answer as it is.
+      [[status({ ok: false, reason: "too-old", version: "3.1", install: "sudo apt install tmux" })],
+        { kind: "tmux-missing", reason: "too-old", install: "sudo apt install tmux", busy: false }],
+    ];
+    for (const [answers, card] of cases) {
+      const { r, ctl } = rig();
+      noTmux(r);
+      for (const answer of answers) r.status.mockResolvedValueOnce(answer);
+      ctl.show(LAUNCH);
+      await flush();
+      await flush();
+      await vi.advanceTimersByTimeAsync(TMUX_SETUP_POLL_MS * (answers.length - 1));
+      expect(r.last().phase).toEqual(card);
+      await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+      expect(r.status, "asked no more once it is a fact").toHaveBeenCalledTimes(answers.length);
+      expect(r.launch, "the launch is not asked again by itself").toHaveBeenCalledTimes(1);
+      expect(r.launched).toEqual([]);
+      ctl.dispose();
+    }
+  });
+
+  it("on Windows, which needs no tmux, is as it was: a launch goes through, a refusal is said as it is, and tmux is never asked about", async () => {
+    const started = rig({ windows: true });
+    started.ctl.show({ kind: "launch", agent: "claude", cwd: "C:\\lab\\paycore", key: "hero-2" });
+    await flush();
+    expect(started.r.launched).toHaveLength(1);
+    expect(started.r.status).not.toHaveBeenCalled();
+
+    const { r, ctl } = rig({ windows: true });
+    refusedWith(r, { ok: false, error: "The session host could not start the session." });
+    ctl.show({ kind: "launch", agent: "claude", cwd: "C:\\lab\\paycore", key: "hero-3" });
+    await flush();
+    await flush();
+    expect(r.last().phase).toEqual({ kind: "error", message: "The session host could not start the session." });
+    await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+    expect(r.status, "no tmux to ask about").not.toHaveBeenCalled();
+    expect(r.launch).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("the controller's own life", () => {
   it("closes the socket and the terminal on dispose, and ignores answers that come back after", async () => {
     const { r, ctl } = rig();

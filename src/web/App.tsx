@@ -1241,9 +1241,14 @@ function Inner() {
   // Panel on, on a platform that has it, its code loaded. Those are what the
   // deck's other ways to a New session stand on (the canvas's Command Panel
   // button, the navigator's +); the engine is not asked here, because a stage
-  // without it shows the engine's own card, which installs it. On a phone the
-  // hero is the Sessions list's, and the list covers the pane: it makes way, as
-  // a row's press does, and comes back when the pane is left.
+  // without it shows the engine's own card, which installs it. Nor is tmux,
+  // and the button stays on a Mac or Linux machine with none it can use: the
+  // engine refuses the launch the form starts, the stage asks the deck's
+  // status, which fetches ccdeck's own tmux where it can, shows how far it
+  // has got and then starts the session, or says the tmux message where it
+  // cannot (use-terminal-session.ts tmuxOr, terminal-routes.mjs withOwnTmux).
+  // On a phone the hero is the Sessions list's, and the list covers the pane:
+  // it makes way, as a row's press does, and comes back when the pane is left.
   const canStartSession = stage.enabled && stage.supported !== false && !stage.chunkFailed;
   const { newSessionFromBoard } = stage;
   const newSessionFromHero = useCallback((button: HTMLElement) => {
