@@ -628,6 +628,8 @@ const catalog: Catalog = {
   "board.engine.checkBody": "ファイルが ccdeck の署名と一致しないため、削除され、一度も実行されていません。ダウンロードを書き換えるプロキシやウイルス対策ソフトが原因の場合があります。",
   "board.engine.wrongMachineBody": "パッケージが別のプラットフォーム向けに作られているため、削除され、一度も実行されていません。",
   "board.engine.downgradeBody": "パッケージが、ccdeck がすでに信頼しているエンジンより古いため、削除され、一度も実行されていません。",
+  "board.engine.folderTitle": "エンジンは使用されませんでした",
+  "board.engine.folderBody": "このマシンの他のユーザーがエンジンの上位フォルダーを変更でき、エンジンを置き換えられる状態です。そのフォルダーと直し方は ccdeck のログに記載されています。",
   "board.engine.noMatch": "一致しません",
   "board.engine.checkNote": "「詳細をコピー」には、ステップ、バージョン、エラーコードが含まれます。ターミナルの内容は含まれません。",
   "board.engine.copyDetails": "詳細をコピー",

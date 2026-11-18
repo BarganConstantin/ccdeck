@@ -648,6 +648,8 @@ const catalog: Catalog = {
   "board.engine.checkBody": "Fișierul nu corespunde semnăturii ccdeck, deci a fost șters și nu a rulat niciodată. Un proxy sau un antivirus care rescrie descărcările poate cauza asta.",
   "board.engine.wrongMachineBody": "Pachetul este construit pentru altă platformă, deci a fost șters și nu a rulat niciodată.",
   "board.engine.downgradeBody": "Pachetul este mai vechi decât motorul în care ccdeck are deja încredere, deci a fost șters și nu a rulat niciodată.",
+  "board.engine.folderTitle": "Motorul nu a fost folosit",
+  "board.engine.folderBody": "Alți utilizatori ai acestui computer pot modifica un folder de deasupra motorului și l-ar putea înlocui. Jurnalul ccdeck indică folderul și remedierea.",
   "board.engine.noMatch": "nu corespunde",
   "board.engine.checkNote": "„Copiază detaliile” conține pasul, versiunile și codul de eroare. Nimic din terminalul tău.",
   "board.engine.copyDetails": "Copiază detaliile",

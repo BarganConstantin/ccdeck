@@ -26,10 +26,12 @@ export type EngineBlock = "unsupported" | "no-keys" | "not-published" | "downloa
 
 export type EnginePhase = "downloading" | "verifying" | "installing";
 
-/** Why an install failed: the codes engine-install.mjs answers. */
+/** Why an install failed: the codes engine-install.mjs answers.
+ *  `unsafe-folder`: other accounts can change a folder above the engine (the
+ *  deck's log names it; the status never does). */
 export type EngineFailureCode =
   | "offline" | "download-failed" | "not-published" | "check-failed" | "wrong-machine" | "downgrade"
-  | "no-permission" | "no-space" | "elsewhere" | "failed";
+  | "unsafe-folder" | "no-permission" | "no-space" | "elsewhere" | "failed";
 
 export interface EngineJob {
   id: string;

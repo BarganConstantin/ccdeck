@@ -3,11 +3,21 @@
 // words the card and Settings print. The deck's side (download, checks, lock,
 // recovery, routes) is engine-install.test.ts.
 
-import { describe, it, expect, beforeEach } from "vitest";
-import { engineView, speedOf, type ViewInput } from "../use-engine-install";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { engineView, speedOf, type EngineInstall, type ViewInput } from "../use-engine-install";
 import { engineStatusOf, mb, olderVersion, platformLabel, type EngineStatus } from "../engine-install-api";
-import { bytesLine, engineCardCode } from "../components/terminal/EngineCard";
+import EngineCard, { bytesLine, engineCardCode } from "../components/terminal/EngineCard";
 import { resetLanguageForTest, t, type TFunction } from "../i18n";
+
+// The card reads the deck's status through its hook; drawn here server-side,
+// the hook hands it the status a test sets, and the rest of the module is real.
+const held = vi.hoisted(() => ({ install: null as unknown }));
+vi.mock("../use-engine-install", async (orig) => ({
+  ...(await orig<typeof import("../use-engine-install")>()),
+  useEngineInstall: () => held.install,
+}));
 
 const T = t as TFunction;
 
@@ -64,6 +74,7 @@ describe("which state the install card draws", () => {
     expect(failed("check-failed")).toEqual({ state: "check", code: "check-failed", step: "downloading" });
     expect(failed("wrong-machine").state).toBe("check");
     expect(failed("downgrade").state).toBe("check");
+    expect(failed("unsafe-folder"), "a folder above the engine, not the signature").toEqual({ state: "folder", install: true });
     expect(failed("not-published")).toEqual({ state: "unavailable", file: true });
     expect(failed("elsewhere")).toEqual({ state: "elsewhere", job: null });
     expect(failed("failed")).toEqual({ state: "failed", step: "downloading" });
@@ -87,11 +98,19 @@ describe("which state the install card draws", () => {
     expect(view({ status: status({ supported: false }) }).state).toBe("unsupported");
     expect(view({ code: "unsupported" }).state).toBe("unsupported");
   });
+
+  it("says a folder above the engine is why for the panel's unsafe-folder, never Install, until an engine verifies again", () => {
+    expect(view({ code: "unsafe-folder" })).toEqual({ state: "folder", install: false });
+    expect(view({ code: "unsafe-folder", status: status({ present: true }) })).toEqual({ state: "folder", install: false });
+    expect(view({ code: "unsafe-folder", status: status({ blocked: "download-disabled" }) })).toEqual({ state: "folder", install: false });
+    // Put right in the meantime: the engine verifies, and the stage asks again.
+    expect(view({ code: "unsafe-folder", status: status({ installed: { version: "0.4.0", bytes: 1 }, present: true }) })).toEqual({ state: "ready", version: "0.4.0" });
+  });
 });
 
 describe("the card's words", () => {
   it("draws the card only for the codes the engine names", () => {
-    for (const code of ["not-installed", "not-verified", "unsupported", "failed"]) expect(engineCardCode(code), code).toBe(true);
+    for (const code of ["not-installed", "not-verified", "unsafe-folder", "unsupported", "failed"]) expect(engineCardCode(code), code).toBe(true);
     for (const code of [undefined, null, "", "exists", "full", "agent-missing"]) expect(engineCardCode(code), String(code)).toBe(false);
   });
 
@@ -138,5 +157,40 @@ describe("the card's words", () => {
     expect(s.installed).toEqual({ version: "0.4.0", bytes: 7 });
     expect(s.job).toEqual({ id: "j", phase: "downloading", received: 0, total: null, source: "download", startedAt: 0 });
     expect(s.canInstallFile).toBe(false);
+  });
+});
+
+describe("the card for a folder above the engine", () => {
+  /** The card as the stage draws it for `code`, over the install `over` says. */
+  function card(over: Partial<EngineInstall>, code = "not-installed"): string {
+    held.install = {
+      status: status(), mine: null, watched: new Set<string>(), speed: null, pending: false, refused: null,
+      refresh: async () => null, install: async () => {}, installFile: async () => {}, cancel: async () => {}, remove: async () => true,
+      ...over,
+    } satisfies EngineInstall;
+    return renderToStaticMarkup(createElement(EngineCard, { code, message: "", onRetry: () => {}, onNotNow: () => {}, plain: null }));
+  }
+
+  // The page used to say the file did not match ccdeck's signature, with the
+  // Signature step marked failed, when the check that failed was a folder's.
+  it("says the folder, not the signature, after an install this tab watched and for the panel's own refusal", () => {
+    const last = { id: "j", outcome: "failed" as const, code: "unsafe-folder" as const, step: "verify", at: 1 };
+    for (const html of [card({ status: status({ last }), watched: new Set(["j"]) }), card({}, "unsafe-folder")]) {
+      expect(html).toContain('data-engine="folder"');
+      expect(html).toContain(T("board.engine.folderTitle"));
+      expect(html).toContain(T("board.engine.folderBody"));
+      expect(html).not.toContain(T("board.engine.checkBody"));
+      expect(html).not.toContain(T("board.engine.stepSignature"));
+      expect(html).not.toContain(T("board.engine.install"));
+      expect(html).toContain(T("board.stage.tryAgain"));
+      expect(html).toContain(T("board.engine.back"));
+    }
+  });
+
+  it("still blames the signature for a check that was the signature's", () => {
+    const last = { id: "j", outcome: "failed" as const, code: "check-failed" as const, step: "verify", at: 1 };
+    const html = card({ status: status({ last }), watched: new Set(["j"]) });
+    expect(html).toContain(T("board.engine.checkBody"));
+    expect(html).not.toContain(T("board.engine.folderBody"));
   });
 });

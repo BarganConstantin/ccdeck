@@ -37,7 +37,7 @@ import {
   EngineDownloadError, ENGINE_REGISTRY, enginePin, fetchEngineTarball, placePackage, readPackageTarball,
 } from "./engine-download.mjs";
 import { ENGINE_PACKAGE_NAMES, importEngine } from "./engine-package.mjs";
-import { TARGETS, compareVersions, verifyEngineInstallation } from "./pro-engine-install.mjs";
+import { TARGETS, UNSAFE_FOLDER, compareVersions, verifyEngineInstallation } from "./pro-engine-install.mjs";
 import { RUNNING_VERSION } from "./running-version.mjs";
 
 /** The lock file beside the engine folder. */
@@ -48,9 +48,11 @@ export const LOCK_STALE_MS = 10 * 60_000;
 /**
  * ccdeck's own data folder, made writable by its owner alone. The engine is
  * verified only where no parent folder is writable by anyone else
- * (pro-engine-install.mjs), and several of the deck's writers create this
- * folder with the default mode, so under a 0002 umask (Ubuntu's default) it
- * can be 0775 and every engine in it refused, read as a check that failed.
+ * (pro-engine-install.mjs), and older decks' writers created this folder
+ * with the default mode, so under a 0002 umask (Ubuntu's default) it can be
+ * 0775 and every engine in it refused, read as a check that failed. The
+ * deck's writers now make it, and any missing folder above it, 0700; one
+ * made before that is still put right here.
  * Only this one folder, only when it is the user's own and never on Windows,
  * whose ACLs are checked their own way; any parent above it is left as is.
  */
@@ -302,7 +304,7 @@ export function createEngineInstaller({
         if (result?.status === "imported" || result?.status === "current") {
           last = { id, outcome: "done", version: (await installed())?.version ?? manifest.version, at: now() };
         } else {
-          const code = result?.reason === "downgrade" ? "downgrade" : result?.reason === "wrong-machine" ? "wrong-machine" : "check-failed";
+          const code = ["downgrade", "wrong-machine", UNSAFE_FOLDER].includes(result?.reason) ? result.reason : "check-failed";
           last = { id, outcome: "failed", code, step: "verify", version: manifest.version, at: now() };
         }
       } catch (error) {

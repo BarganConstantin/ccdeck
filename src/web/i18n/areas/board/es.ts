@@ -628,6 +628,8 @@ const catalog: Catalog = {
   "board.engine.checkBody": "El archivo no coincide con la firma de ccdeck, así que se borró y nunca se ejecutó. Puede deberse a un proxy o antivirus que reescribe las descargas.",
   "board.engine.wrongMachineBody": "El paquete está hecho para otra plataforma, así que se borró y nunca se ejecutó.",
   "board.engine.downgradeBody": "El paquete es más antiguo que el motor en el que ccdeck ya confía, así que se borró y nunca se ejecutó.",
+  "board.engine.folderTitle": "No se usó el motor",
+  "board.engine.folderBody": "Otros usuarios de este equipo pueden cambiar una carpeta por encima del motor y podrían reemplazarlo. El registro de ccdeck indica la carpeta y la solución.",
   "board.engine.noMatch": "no coincide",
   "board.engine.checkNote": "“Copiar detalles” incluye el paso, las versiones y el código de error. Nada de tu terminal.",
   "board.engine.copyDetails": "Copiar detalles",

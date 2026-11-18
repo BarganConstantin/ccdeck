@@ -158,8 +158,8 @@ HTTP, all under `/api/terminal/` (`src/server/terminal-routes.mjs`):
 | `POST hosts/end` | End the sessions on one older host, as reviewed |
 
 A refusal is `{ ok: false, error, code }`: 409 for a state of this machine the
-panel can say (`unsupported`, `not-installed`, `not-verified`, `no-terminal`,
-`failed`), 503 for a moment it waits out (`restarting`, `busy`, `no-answer`).
+panel can say (`unsupported`, `not-installed`, `not-verified`, `unsafe-folder`,
+`no-terminal`, `failed`), 503 for a moment it waits out (`restarting`, `busy`, `no-answer`).
 `error` is one sentence with no path in it; the page matches on `code`.
 
 The page never names a pane. It names a session (an id, a provider, a folder);

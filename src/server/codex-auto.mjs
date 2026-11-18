@@ -77,7 +77,7 @@ async function load(o) {
 
 async function save(o, state) {
   const target = filePath(o);
-  await mkdir(dirname(target), { recursive: true });
+  await mkdir(dirname(target), { recursive: true, mode: 0o700 });
   const { tmp, handle } = await createTemp(target, { mode: 0o600 });
   try {
     try { await handle.writeFile(JSON.stringify(state) + '\n', 'utf8'); await handle.sync(); }
