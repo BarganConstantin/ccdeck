@@ -64,8 +64,8 @@ describe("no session hue on the board", () => {
     for (const f of files) expect(read(`../themes/${f}`), f).not.toMatch(/"session-[a-z-]+-l"/);
   });
 
-  it("draws the Term stage's session dot and the LAN view's recap mark in neutral ink", () => {
-    expect(bare(read("../styles/terminal-stage.css"))).toMatch(/\.ns-dot \{[^}]*background: var\(--muted-dim\);/);
+  it("draws the project picker's folder glyph and the LAN view's recap mark in neutral ink", () => {
+    expect(bare(read("../styles/terminal-stage.css"))).toMatch(/\.ns-folder \{[^}]*color: var\(--muted\);/);
     expect(read("../components/terminal/NewSessionPopover.tsx")).not.toMatch(/--ns-hue/);
     expect(bare(read("../styles/lan-sync.css"))).toMatch(/\.recap-peek-mark \{[^}]*color: var\(--text\);/);
   });

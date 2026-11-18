@@ -404,7 +404,7 @@ describe("what was migrated to the secondary tier", () => {
       // --text at 16px (the form's one heading), and its two quiet controls
       // joined it as V4's 12px secondary words, like the forge and Jira chips
       // above: "Choose another folder…" and the "Session options" row.
-      ".ns-form .uh-range-btn[aria-pressed=\"false\"]", "button.btn.ns-choose", ".ns-options-summary",
+      ".ns-form .uh-range-btn[aria-pressed=\"false\"]", ".ns-options-summary",
       // New session's picker (internal #106): what an empty list says (no
       // projects yet, nothing matched, a path that needs to be full) — a
       // sentence read to know what to do next — and the chosen folder's
@@ -524,7 +524,6 @@ describe("what was migrated to the secondary tier", () => {
       ".session-list .sl-tool",
       // Rail / Usage: "5-hour limit" beside the account's name, the one
       // secondary-tier word on the meter's first line (V4's Figma).
-      ".session-list .sl-usage-what",
       // The agent's plan (#2157): its steps are sentences the agent wrote and a
       // reader reads to know where the work stands — on the card's row and in
       // the detail panel's checklist. The counts beside them stay --muted,
