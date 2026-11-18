@@ -490,6 +490,8 @@ describe("the body's state cards, each at the terminal's origin", () => {
     expect(downloadNote("checksum_mismatch")).toMatch(/not the build this deck trusts/);
     expect(downloadNote("does_not_run")).toMatch(/would not run/);
     expect(downloadNote("something new")).toBe("The deck could not set up its own tmux.");
+    // Its build is in place and the engine still finds no tmux it can use (terminal-routes.mjs' withOwnTmux).
+    expect(downloadNote("not_used")).toBe("The deck could not set up its own tmux.");
   });
 
   it("gives the empty stage New session as its only action", () => {
