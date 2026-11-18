@@ -335,6 +335,10 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))("bringing the e
 // makes) is 0775. The account files are handed in by a mock of the one read the
 // installer makes, so the answer does not hang on the machine's own accounts,
 // and the rule is Linux's, so it is asked for as Linux on a Mac too.
+//
+// CHANGED ON PURPOSE: a folder refused here was `reason: "unverified"`, the
+// same as a bad signature, and the page said the signature failed. It is
+// refused all the same, as "unsafe-folder", so the page can say which check.
 describe.skipIf(!['darwin', 'linux'].includes(process.platform))("a folder above the data folder that the user's own group can write", () => {
   // A skipped describe's body still runs while the file is collected, and
   // Windows has no getuid: the ids are read only where they exist.
@@ -399,10 +403,10 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))("a folder above
     quiet();
     const { w } = await underProfile(0o775);
     const spy = accounts({ passwd: passwd(`other:x:${uid + 1}:${gid}::/home/other:/bin/sh`), group: group() });
-    expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+    expect(await run(w)).toEqual({ status: "refused", reason: "unsafe-folder" });
     spy.mockRestore();
     accounts({ passwd: passwd(`other:x:${uid + 1}:${uid + 1}::/home/other:/bin/sh`), group: group("me,other") });
-    expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+    expect(await run(w)).toEqual({ status: "refused", reason: "unsafe-folder" });
     expect(await readdir(w.home).catch(() => [])).not.toContain("engine");
   });
 
@@ -410,10 +414,10 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))("a folder above
     quiet();
     const { w } = await underProfile(0o775);
     const spy = accounts({ passwd: passwd(), group: group("", `extra:x:${gid}:other`) });
-    expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+    expect(await run(w)).toEqual({ status: "refused", reason: "unsafe-folder" });
     spy.mockRestore();
     accounts({ passwd: passwd(`me:x:${uid + 1}:${uid + 1}::/home/x:/bin/sh`), group: group("me") });
-    expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+    expect(await run(w)).toEqual({ status: "refused", reason: "unsafe-folder" });
   });
 
   it("refuses when the account files cannot say: unreadable, the user or the group not there, NIS, a line it cannot read", async () => {
@@ -434,7 +438,7 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))("a folder above
       { passwd: passwd("broken"), group: group() },
     ]) {
       const spy = accounts(files);
-      expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+      expect(await run(w)).toEqual({ status: "refused", reason: "unsafe-folder" });
       spy.mockRestore();
     }
     accounts({ passwd: passwd(), group: group() });
@@ -446,11 +450,11 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))("a folder above
     accounts({ passwd: passwd(), group: group() });
     for (const mode of [0o777, 0o757, 0o707]) {
       const { w } = await underProfile(mode);
-      expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+      expect(await run(w)).toEqual({ status: "refused", reason: "unsafe-folder" });
     }
     const { w, profile } = await underProfile(0o755);
     const spy = statAs(profile, { uid: uid + 1 });
-    expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+    expect(await run(w)).toEqual({ status: "refused", reason: "unsafe-folder" });
     spy.mockRestore();
     expect(await run(w)).toMatchObject({ status: "imported" });
   });
@@ -460,7 +464,7 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))("a folder above
     accounts({ passwd: passwd(), group: group() });
     const { w, profile } = await underProfile(0o775);
     statAs(profile, { gid: gid + 1 });
-    expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+    expect(await run(w)).toEqual({ status: "refused", reason: "unsafe-folder" });
   });
 
   it("keeps the engine folder and the engine itself owner-only under such a folder", async () => {
@@ -469,6 +473,7 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))("a folder above
     expect(await run(w)).toMatchObject({ status: "imported" });
     await chmod(w.dest, 0o770);
     await expect(verifiedAs(w)).rejects.toThrow("could not be verified");
+    await expect(verifiedAs(w), "the engine's own folder is not a folder above it").rejects.not.toHaveProperty("code");
     await chmod(w.dest, 0o700);
     await chmod(join(w.dest, w.engineFile), 0o770);
     await expect(verifiedAs(w)).rejects.toThrow("could not be verified");
@@ -480,7 +485,7 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))("a folder above
     quiet();
     accounts({ passwd: passwd(), group: group() });
     const { w, profile } = await underProfile(0o775, "darwin");
-    expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+    expect(await run(w)).toEqual({ status: "refused", reason: "unsafe-folder" });
     await chmod(profile, 0o755);
     expect(await run(w)).toMatchObject({ status: "imported" });
   });
@@ -489,10 +494,27 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))("a folder above
     const said = quiet();
     accounts({ passwd: passwd(), group: group() });
     const { w, profile } = await underProfile(0o777);
-    expect(await run(w)).toEqual({ status: "refused", reason: "unverified" });
+    expect(await run(w)).toEqual({ status: "refused", reason: "unsafe-folder" });
     await expect(verifiedAs(w)).rejects.toThrow(/^The installed terminal engine could not be verified\.$/);
     const lines = said.mock.calls.map((call) => String(call[0])).filter((line) => line.includes(profile));
     expect(lines).toEqual([expect.stringContaining(`chmod go-w '${profile}'`)]);
+    // The panel's routes: the code alone, whether the engine is still to come
+    // from its package or already stands in the folder, and never the folder.
+    const panel = () => commandPanelEngine({ platform: w.platform, env: w.env, keys: w.keys, importPackage: (o: Record<string, unknown>) => pkg.importEngine({ ...o, arch: w.arch, from: w.from }) });
+    const toCome = panel();
+    const first = await toCome.route("status", null);
+    expect(first).toEqual({ status: 409, body: { ok: false, code: "unsafe-folder", error: expect.any(String) } });
+    toCome.stop();
+    await chmod(profile, 0o755);
+    expect(await run(w)).toMatchObject({ status: "imported" });
+    await chmod(profile, 0o777);
+    await expect(verifiedAs(w)).rejects.toThrow(/^The installed terminal engine could not be verified\.$/);
+    await expect(verifiedAs(w)).rejects.toMatchObject({ code: "unsafe-folder" });
+    const standing = panel();
+    const then = await standing.route("status", null);
+    expect([then.status, then.body.code]).toEqual([409, "unsafe-folder"]);
+    standing.stop();
+    for (const answer of [first, then]) expect(JSON.stringify(answer)).not.toContain(w.base);
   });
 });
 
@@ -549,6 +571,9 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))("the Command Pa
     const missing = async () => { throw Object.assign(new Error("none"), { code: "ENOENT" }); };
     const refused = commandPanelEngine({ platform: "linux", env: {}, keys: [key], lstat: missing, importPackage: async () => ({ status: "refused", reason: "downgrade" }) });
     expect((await refused.route("status", null)).body.code).toBe("not-verified");
+    // But unsafe-folder for one refused for a folder above the data folder.
+    const folder = commandPanelEngine({ platform: "linux", env: {}, keys: [key], lstat: missing, importPackage: async () => ({ status: "refused", reason: "unsafe-folder" }) });
+    expect((await folder.route("status", null)).body.code).toBe("unsafe-folder");
     const absent = commandPanelEngine({ platform: "linux", env: {}, keys: [key], lstat: missing, importPackage: async () => ({ status: "absent" }) });
     expect((await absent.route("status", null)).body.code).toBe("not-installed");
   });

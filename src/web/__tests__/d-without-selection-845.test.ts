@@ -49,8 +49,11 @@ describe("D with nothing selected picks something first (#845)", () => {
     if (at < 0) throw new Error("pickSessionForInspector is gone");
     return appCode.slice(at, appCode.indexOf("\n}\n", at));
   };
+  // CHANGED ON PURPOSE (owner, 2026-11-18): the pick says whether it found a
+  // session, and with none at all (a first run's empty board) D presses the
+  // Inspector's door, which opens the Inspector on one line saying so.
   it("asks for the pick when nothing is selected", () => {
-    expect(block).toContain("else pickSessionForInspector(stateRef.current, focusSession, stepAgent);");
+    expect(block).toContain("else if (!pickSessionForInspector(stateRef.current, focusSession, stepAgent)) inspectorDoorRef?.current?.();");
   });
 
   it("goes to the session that has waited longest, as the waiting button does", () => {
@@ -63,8 +66,10 @@ describe("D with nothing selected picks something first (#845)", () => {
     expect(appCode).toMatch(/waitingCursorRef\.current = id;\s*close\(\);\s*focusSession\(id\);/);
   });
 
+  // CHANGED ON PURPOSE (owner, 2026-11-18): returned, so D knows when j had no
+  // card to land on.
   it("otherwise lands where j would", () => {
-    expect(pick()).toMatch(/else stepAgent\(1\);/);
+    expect(pick()).toMatch(/return stepAgent\(1\);/);
   });
 
   it("re-registers the key handler when focusSession changes", () => {

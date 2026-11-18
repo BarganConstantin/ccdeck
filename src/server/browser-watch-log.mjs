@@ -97,7 +97,7 @@ export async function appendLog(episodes, home = claudeConfigDir(), deps = {}) {
   if (!episodes.length) return;
   const mk = deps.mkdir ?? mkdir;
   const add = deps.appendFile ?? appendFile;
-  await mk(storeDir(home), { recursive: true });
+  await mk(storeDir(home), { recursive: true, mode: 0o700 });
   const text = episodes.map(logBlock).join("\n") + "\n";
   await rollIfFull(home, Buffer.byteLength(text, "utf8"), deps);
   await add(logPath(home), text, "utf8");

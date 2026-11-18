@@ -227,8 +227,11 @@ function isOurEntry(g) {
   return withoutOurCommands(g) !== g;
 }
 
+/** Every folder this makes, and any missing one above it, is its owner's
+ *  alone (0700): agent-dag is the deck's data folder when CLAUDE_CONFIG_DIR
+ *  is set. A folder already there keeps its mode. */
 async function ensureDir(p) {
-  if (!existsSync(p)) await mkdir(p, { recursive: true });
+  if (!existsSync(p)) await mkdir(p, { recursive: true, mode: 0o700 });
 }
 
 /**

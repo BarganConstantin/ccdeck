@@ -574,7 +574,7 @@ export function installService({
     // and both answer a missing one by failing the job silently. On a machine
     // where the deck has never run — which is every machine `--install-service`
     // is typed on first — that directory does not exist yet.
-    fs.mkdirSync(logPathDir(logPath), { recursive: true });
+    fs.mkdirSync(logPathDir(logPath), { recursive: true, mode: 0o700 });
     if (platform === "win32") {
       // The XML goes to a temp file beside the deck's own data rather than to
       // %TEMP%: schtasks reads it once and this way a machine that refuses the

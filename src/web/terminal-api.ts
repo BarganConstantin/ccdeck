@@ -209,7 +209,7 @@ export interface ApiFailure {
 
 /** Refusals that are a state of this machine (HTTP 409): the panel says so
  *  and stops there, until the reader asks it to check again. */
-export const PANEL_UNAVAILABLE = ["unsupported", "not-installed", "not-verified", "no-terminal", "failed"] as const;
+export const PANEL_UNAVAILABLE = ["unsupported", "not-installed", "not-verified", "unsafe-folder", "no-terminal", "failed"] as const;
 /** Refusals of a moment (HTTP 503): an engine restarting, busy, or slow to
  *  answer, which the panel waits out where waiting is safe. */
 export const PANEL_RECOVERING = ["restarting", "busy", "no-answer"] as const;

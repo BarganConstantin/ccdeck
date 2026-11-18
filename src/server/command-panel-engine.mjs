@@ -22,7 +22,9 @@
 // be signed by one of ENGINE_PUBLIC_KEYS — the one release key the published
 // @ccdeck/engine-* packages are signed with — so a folder whose manifest that
 // key did not sign answers `not-verified` without the deck reading the
-// executable. A deck that is handed an engine by its caller instead
+// executable, and one under a folder other accounts can change answers
+// `unsafe-folder` (pro-engine-install.mjs), the folder named in the deck's
+// log alone. A deck that is handed an engine by its caller instead
 // (startServer's `terminal.engine`) never uses this.
 //
 // WHERE THE FOLDER COMES FROM. Given keys, the first question that finds the
@@ -63,6 +65,7 @@ import { deckDataDir } from "./deck-home.mjs";
 import { ENGINE_ON_WINDOWS, importEngine } from "./engine-package.mjs";
 import { createEngineInstaller, tightenDataFolder, withEngineLock } from "./engine-install.mjs";
 import { createProEngineClient } from "./pro-engine-client.mjs";
+import { UNSAFE_FOLDER } from "./pro-engine-install.mjs";
 import { engineRefusal, engineTerminals } from "./pro-engine-terminal.mjs";
 import { RUNNING_VERSION } from "./running-version.mjs";
 
@@ -183,7 +186,8 @@ export function commandPanelEngine({
         await lstat(directory);
       } catch (error) {
         if (error?.code !== "ENOENT" && error?.code !== "ENOTDIR") return { refusal: "not-verified" };
-        return { refusal: brought?.status === "refused" ? "not-verified" : "not-installed" };
+        if (brought?.status !== "refused") return { refusal: "not-installed" };
+        return { refusal: brought.reason === UNSAFE_FOLDER ? UNSAFE_FOLDER : "not-verified" };
       }
       // Nothing to verify a manifest against: the executable is never read.
       if (keys.length === 0) return { refusal: "not-verified" };

@@ -54,6 +54,10 @@ export type EngineView =
   | { state: "unsupported" }
   | { state: "unavailable"; file: boolean }
   | { state: "check"; code: "check-failed" | "wrong-machine" | "downgrade"; step: string }
+  /** Other accounts can change a folder above the engine, so it was not
+   *  used. `install`: an install this card watched was refused for it, so
+   *  Try again installs again; otherwise the stage asks again. */
+  | { state: "folder"; install: boolean }
   | { state: "update"; installed: string; pinned: string; download: boolean; file: boolean }
   | { state: "elsewhere"; job: EngineJob | null }
   | { state: "recovered"; version: string }
@@ -96,6 +100,7 @@ export function engineView({ status, code, mine, watched, retried = false }: Vie
       if (failure === "offline") return { state: "offline", received: last.received ?? 0, total: last.total ?? null };
       if (failure === "no-permission") return { state: "permission", fixPath: status.fixPath };
       if (CHECK_CODES.has(failure)) return { state: "check", code: failure as "check-failed", step: last.step };
+      if (failure === "unsafe-folder") return { state: "folder", install: true };
       if (failure === "no-space") return { state: "no-space" };
       if (failure === "not-published") return { state: "unavailable", file: status.canInstallFile };
       if (failure === "elsewhere") return { state: "elsewhere", job: null };
@@ -115,6 +120,9 @@ export function engineView({ status, code, mine, watched, retried = false }: Vie
     // ago, by another tab or deck. The stage asks again.
     return { state: "ready", version: status.installed.version };
   }
+  // Not an engine to install: the one here, or the one beside the deck, sits
+  // under a folder other accounts can change. Install would end the same way.
+  if (code === "unsafe-folder") return { state: "folder", install: false };
   if (status.blocked === "no-keys" || status.blocked === "not-published" || status.blocked === "unsupported") {
     return { state: "unavailable", file };
   }

@@ -110,7 +110,8 @@ export interface DeckShortcuts {
   clearSelection: () => void;
   selectAgent: (id: string, additive: boolean, inspect?: boolean) => void;
   focusAgent: (id: string) => void;
-  stepAgent: (direction: 1 | -1) => void;
+  /** j and k's move; true when it landed on a card. */
+  stepAgent: (direction: 1 | -1) => boolean;
   focusSession: (sessionId: string) => void;
   requestClear: (source: ClearSource) => void;
   handleRelayout: () => void;
@@ -149,18 +150,23 @@ export interface DeckShortcuts {
    *  it. Null otherwise. Escape with the keys inside the sheet folds it; Escape
    *  in the pane never gets here (the terminal's is the agent's). */
   inspectorSheetFoldRef?: Read<(() => void) | null>;
+  /** The Inspector door's press (rail-items.tsx, App's toggleInspector): what
+   *  D does with nothing selected and no session to pick. */
+  inspectorDoorRef?: Read<(() => void) | null>;
 }
 
-/** With nothing selected, what D (and the Inspector's tab) picks for the
+/** With nothing selected, what D (and the Inspector's door) picks for the
  *  panel to be about: the session that has waited longest, else the card j
- *  would land on. Selecting opens the panel by itself. */
+ *  would land on. Selecting opens the panel by itself. False when there was
+ *  nothing to pick: no session on the board, as on a first run. */
 export function pickSessionForInspector(
   state: GraphState,
   focusSession: (sessionId: string) => void,
-  stepAgent: (direction: 1 | -1) => void,
-): void {
+  stepAgent: (direction: 1 | -1) => boolean,
+): boolean {
   const waiting = blockedSessions(state.agents.values());
-  if (waiting.length > 0) focusSession(waiting[0].id); else stepAgent(1);
+  if (waiting.length > 0) { focusSession(waiting[0].id); return true; }
+  return stepAgent(1);
 }
 
 /** N's move (Shift+N's with `back`): the next session blocked on the reader
@@ -217,6 +223,7 @@ export function useDeckShortcuts({
   handleRelayout, undoRearrange, handleFit, togglePause, toggleSessionList, toggleAccountsPanel,
   setDetailOpen, setUsageHistoryOpen, setUsagePanelOpen, setMachinePanelOpen,
   setBrowserWatchOpen, setKeyHelpOpen, setTheme, openSettings, openIntegrationRef, openQuickOpen, stageRef, viewRef, lodRef, inspectorSheetFoldRef,
+  inspectorDoorRef,
 }: DeckShortcuts): void {
   // keyboard shortcuts
   useEffect(() => {
@@ -598,9 +605,12 @@ export function useDeckShortcuts({
       // panel to be about: the session that has waited longest, which is what
       // somebody reaching for it with nothing selected most likely wants, or
       // else the card j would land on. Selecting opens the panel by itself.
+      // With no session to pick at all (a first run's empty board) that did
+      // nothing, so there D is the Inspector door's press, which opens the
+      // Inspector on one line saying so (the owner's call, 2026-11-18).
       if (e.key === "d" || e.key === "D") {
         if (primarySelectedIdRef.current) setDetailOpen(o => !o);
-        else pickSessionForInspector(stateRef.current, focusSession, stepAgent);
+        else if (!pickSessionForInspector(stateRef.current, focusSession, stepAgent)) inspectorDoorRef?.current?.();
       }
       if (e.key === "h" || e.key === "H") setUsageHistoryOpen(o => !o);
       if (e.key === "u" || e.key === "U") setUsagePanelOpen(o => !o);

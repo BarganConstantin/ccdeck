@@ -75,7 +75,7 @@ function updateChoice(change) {
     const next = normaliseChoice(change(before));
     if (JSON.stringify(next) === JSON.stringify(before)) return before;
     const path = choicePath();
-    await mkdir(dirname(path), { recursive: true });
+    await mkdir(dirname(path), { recursive: true, mode: 0o700 });
     await writeFileAtomic(path, `${JSON.stringify(next)}\n`);
     _held = next;
     return next;

@@ -41,26 +41,38 @@ describe("the sheet", () => {
 });
 
 describe("the Inspector's door and D", () => {
+  // CHANGED ON PURPOSE (the Inspector with no session to show, owner
+  // 2026-11-18): the pick now says whether it found a session. With none, the
+  // sheet's unfold opens the Inspector on its one line (the column is its own
+  // empty Inspector), and D presses the door.
   it("the door's unfold does what D does: opens with a selection, and with none picks the session D would pick", () => {
     const at = app.indexOf("const showInspector = useCallback(");
     const body = app.slice(at, app.indexOf("const sheetFoldRef", at));
     expect(body).toContain("setInspectorFolded(false)");
     expect(body).toContain("if (primarySelectedIdRef.current) setDetailOpen(true);");
-    expect(body).toContain("else pickSessionForInspector(stateRef.current, focusSession, stepAgent);");
+    expect(body).toContain("else if (!pickSessionForInspector(stateRef.current, focusSession, stepAgent) && inspectorSheet) inspectNothing();");
     expect(shortcuts).toContain("if (primarySelectedIdRef.current) setDetailOpen(o => !o);");
-    expect(shortcuts).toContain("else pickSessionForInspector(stateRef.current, focusSession, stepAgent);");
+    expect(shortcuts).toContain("else if (!pickSessionForInspector(stateRef.current, focusSession, stepAgent)) inspectorDoorRef?.current?.();");
   });
 
   it("picks the session that has waited longest, else steps on to the next card", () => {
     const focusSession = vi.fn();
-    const stepAgent = vi.fn();
-    pickSessionForInspector({ agents: new Map() } as unknown as GraphState, focusSession, stepAgent);
+    const stepAgent = vi.fn(() => true);
+    expect(pickSessionForInspector({ agents: new Map() } as unknown as GraphState, focusSession, stepAgent)).toBe(true);
     expect(stepAgent).toHaveBeenCalledWith(1);
     expect(focusSession).not.toHaveBeenCalled();
     const waiting = (id: string, since: number) => [id, { id, kind: "root", label: id, waiting: { kind: "permission", since } }] as const;
     const state = { agents: new Map([waiting("late", 20), waiting("early", 10)]) } as unknown as GraphState;
-    pickSessionForInspector(state, focusSession, stepAgent);
+    expect(pickSessionForInspector(state, focusSession, stepAgent)).toBe(true);
     expect(focusSession).toHaveBeenCalledWith("early");
+  });
+
+  it("says when there is nothing to pick: no session waiting and no card for j to land on", () => {
+    const focusSession = vi.fn();
+    const stepAgent = vi.fn(() => false);
+    expect(pickSessionForInspector({ agents: new Map() } as unknown as GraphState, focusSession, stepAgent)).toBe(false);
+    expect(stepAgent).toHaveBeenCalledWith(1);
+    expect(focusSession).not.toHaveBeenCalled();
   });
 });
 
@@ -144,10 +156,16 @@ describe("the sheet's motion", () => {
     expect(app).toContain("sheet={inspectorSheet}");
   });
 
+  // CHANGED ON PURPOSE (the Inspector with no session to show, owner
+  // 2026-11-18): the entry moved word for word into Inspector.tsx's
+  // useSheetEntry, so that aside comes in the same way; DetailAside uses it.
   it("is drawn off the edge first and moved in after a style flush", () => {
-    const aside = read("components/DetailAside.tsx");
-    expect(aside).toContain("void asideRef.current?.offsetWidth;");
-    expect(aside).toContain('const sheetState = !sheet ? undefined : leaving ? "out" : entered ? "in" : "pre";');
+    const entry = read("components/Inspector.tsx");
+    expect(entry).toContain("export function useSheetEntry(sheet: boolean, leaving: boolean) {");
+    expect(entry).toContain("void asideRef.current?.offsetWidth;");
+    expect(entry).toContain('const sheetState = !sheet ? undefined : leaving ? "out" : entered ? "in" : "pre";');
+    expect(read("components/DetailAside.tsx")).toContain("const { asideRef, sheetState } = useSheetEntry(sheet, leaving);");
+    expect(entry).toContain("const { asideRef, sheetState } = useSheetEntry(sheet, leaving);");
   });
 
   it("leaves Zoom's own rules alone: the sheet's rules do not match under data-zoom", () => {
