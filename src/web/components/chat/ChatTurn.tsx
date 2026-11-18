@@ -9,6 +9,7 @@ import {
 } from "./chat-icons";
 import { t as tNow, useT, type TFunction } from "../../i18n";
 import type { ChatSince, ChatTurn as Turn } from "./chat-model";
+import type { Provider } from "../../types";
 import ProviderAvatar from "../ProviderAvatar";
 import ChatMarkdown from "./ChatMarkdown";
 import { useEffect, useState } from "react";
@@ -60,8 +61,9 @@ export function ToolGroup({ turns }: { turns: Extract<Turn, { kind: "tool" }>[] 
   </details>;
 }
 
-/** Chat currently reads Claude transcripts only. Identify each response once. */
-export function AssistantBlock({ turns }: { turns: Turn[] }) {
+/** Identify each response once. */
+export function AssistantBlock({ turns, provider = "claude" }: { turns: Turn[]; provider?: Provider }) {
+  const author = provider === "codex" ? "Codex" : "Claude Code";
   const t = useT();
   const [copied, setCopied] = useState(false);
   const answer = turns.filter((turn): turn is Extract<Turn, { kind: "assistant" }> => turn.kind === "assistant").map(turn => turn.text).join("\n\n");
@@ -72,8 +74,8 @@ export function AssistantBlock({ turns }: { turns: Turn[] }) {
     if (turn.kind === "tool" && last?.turns[0]?.kind === "tool") last.turns.push(turn);
     else parts.push({ index, turns: [turn] });
   });
-  return <section className="chat-response" aria-label="Claude Code">
-    <div className="chat-response-author"><ProviderAvatar provider="claude" /><span>Claude Code</span>
+  return <section className="chat-response" aria-label={author}>
+    <div className="chat-response-author"><ProviderAvatar provider={provider} /><span>{author}</span>
       {answer && <button type="button" className="glyph-btn chat-copy" title={t(copied ? "board.stage.copied" : "board.stage.copy")}
         aria-label={t(copied ? "board.stage.copied" : "board.stage.copy")}
         onClick={() => { void copyText(answer).then(ok => setCopied(ok)); }}><CopyGlyph /></button>}
