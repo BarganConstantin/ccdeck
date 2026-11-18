@@ -15,9 +15,6 @@ import { useLanguage, t } from "../i18n";
 import { useHint } from "./use-hint";
 import { UPGRADE_BLOCK_TEXT } from "./VersionBanner";
 
-/** The English line, for About (settings), which reads it as a constant; tourWhy() is the translated one. */
-export const TOUR_WHY = "Eight pictures of what the deck shows.";
-export const tourWhy = (): string => t("shell.notes.tourWhy");
 export const restartWhy = (): string => t("shell.notes.restartWhy");
 
 /** Everything the update check needs from the deck: the chip's check, the
