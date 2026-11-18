@@ -95,8 +95,11 @@ export function trayMenuItems({ now, snapshot, deck, starting, restarting, start
     { label: "Open ccdeck", enabled: !!deck, click: () => on.openWindow() },
     { label: "Open in browser", enabled: !!deck, click: () => on.openInBrowser() },
     { type: "separator" },
+    // Settings' words for the same switch (Settings › Notifications, "While the
+    // deck is closed"), with the section's name in front because a tray row has
+    // no heading above it: one switch, one name, on both surfaces.
     {
-      label: "Notifications while closed",
+      label: "Notifications while the deck is closed",
       type: "checkbox",
       checked: notifyOn === true,
       enabled: !!deck && notifyOn !== null,
