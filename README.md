@@ -54,40 +54,38 @@ ccdeck draws the tree instead. It is local and needs no configuration: it regist
 
 One canvas. No tabs. No kanban.
 
-The deck opens on these eight pictures the first time it runs — they are the whole tour, and `Take the tour` on an empty canvas brings them back.
+The deck opens on these seven pictures the first time it runs — they are the whole tour, and `Take the tour` on an empty canvas brings them back.
 
 <table>
 <tr>
-<td><img src="assets/guide/welcome-1.svg" width="440" alt="Sessions waiting on you top the session list, longest wait first."></td>
-<td><img src="assets/guide/welcome-2.svg" width="440" alt="Every agent and subagent is a node. Tool calls light up as they run."></td>
+<td><img src="assets/guide/welcome-1.svg" width="440" alt="Sessions waiting on you lead the session list, under Needs you."></td>
+<td><img src="assets/guide/welcome-2.svg" width="440" alt="Click a card: its terminal opens beside the board, so you can answer there."></td>
 </tr>
 <tr>
-<td align="center"><sub>Sessions waiting on you top the session list, longest wait first.</sub></td>
-<td align="center"><sub>Every agent and subagent is a node. Tool calls light up as they run.</sub></td>
+<td align="center"><sub>Sessions waiting on you lead the session list, under Needs you.</sub></td>
+<td align="center"><sub>Click a card: its terminal opens beside the board, so you can answer there.</sub></td>
 </tr>
 <tr>
-<td><img src="assets/guide/welcome-3.svg" width="440" alt="Double-click any node: its prompt, every tool call, tokens and timing."></td>
-<td><img src="assets/guide/welcome-4.svg" width="440" alt="What each session costs, and how much quota is left."></td>
+<td><img src="assets/guide/welcome-3.svg" width="440" alt="Workspace puts up to four sessions side by side. Ctrl+` switches to it."></td>
+<td><img src="assets/guide/welcome-4.svg" width="440" alt="The Inspector shows every agent, subagent and tool call, with cost and time."></td>
 </tr>
 <tr>
-<td align="center"><sub>Double-click any node: its prompt, every tool call, tokens and timing.</sub></td>
-<td align="center"><sub>What each session costs, and how much quota is left.</sub></td>
+<td align="center"><sub>Workspace puts up to four sessions side by side. <kbd>Ctrl+`</kbd> switches to it.</sub></td>
+<td align="center"><sub>The Inspector shows every agent, subagent and tool call, with cost and time.</sub></td>
 </tr>
 <tr>
-<td><img src="assets/guide/welcome-5.svg" width="440" alt="Cores, memory and heat while the agents run, and what is hogging them."></td>
-<td><img src="assets/guide/welcome-6.svg" width="440" alt="Several Claude and Codex accounts: switch, add one, share one to another machine."></td>
+<td><img src="assets/guide/welcome-5.svg" width="440" alt="Left edge: Sessions, Accounts, Settings at its foot. Right: Usage and This machine."></td>
+<td><img src="assets/guide/welcome-6.svg" width="440" alt="Switch Claude and Codex accounts. Paired machines repair each other's expired logins."></td>
 </tr>
 <tr>
-<td align="center"><sub>Cores, memory and heat while the agents run, and what is hogging them.</sub></td>
-<td align="center"><sub>Several Claude and Codex accounts: switch, add one, share one to another machine.</sub></td>
+<td align="center"><sub>Left edge: Sessions, Accounts, Settings at its foot. Right: Usage and This machine.</sub></td>
+<td align="center"><sub>Switch Claude and Codex accounts. Paired machines repair each other's expired logins.</sub></td>
 </tr>
 <tr>
-<td><img src="assets/guide/welcome-7.svg" width="440" alt="Your machines repair each other's expired logins over the local network."></td>
-<td><img src="assets/guide/welcome-8.svg" width="440" alt="Run claude or codex in any folder. It shows up here on its own."></td>
+<td colspan="2" align="center"><img src="assets/guide/welcome-7.svg" width="440" alt="Run claude or codex in any folder, or use New session. It appears here."></td>
 </tr>
 <tr>
-<td align="center"><sub>Your machines repair each other's expired logins over the local network.</sub></td>
-<td align="center"><sub>Run <code>claude</code> or <code>codex</code> in any folder. It shows up here on its own.</sub></td>
+<td colspan="2" align="center"><sub>Run <code>claude</code> or <code>codex</code> in any folder, or use New session. It appears here.</sub></td>
 </tr>
 </table>
 
