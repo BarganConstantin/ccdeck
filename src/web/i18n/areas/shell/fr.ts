@@ -283,7 +283,9 @@ const catalog: Catalog = {
   "shell.chip.noticeUpgrade": "la v{to} est disponible sur npm",
   "shell.chip.noticeShow": "afficher les nouveautés",
   "shell.chip.noticeShowBanner": "afficher les nouveautés et l’avis",
-  "shell.chip.noticeLabel": "{to} est prête. Version v{from} en cours ; {what} — {does}",
+  "shell.chip.textUpgrade": "{to} est sortie",
+  "shell.chip.textRestart": "{to} est prête",
+  "shell.chip.noticeLabel": "{text}. Version v{from} en cours ; {what} — {does}",
   "shell.chip.runningRestart": "v{from} en cours ; la v{to} est installée sur le disque. Redémarrez pour la charger · cliquez pour les nouveautés",
   "shell.chip.runningUpgrade": "v{from} en cours ; la v{to} est sur npm · cliquez pour les nouveautés",
 

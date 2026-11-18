@@ -279,7 +279,9 @@ const catalog: Catalog = {
   "shell.chip.noticeUpgrade": "npm に v{to} がある",
   "shell.chip.noticeShow": "新機能を表示",
   "shell.chip.noticeShowBanner": "新機能とお知らせを表示",
-  "shell.chip.noticeLabel": "{to} の準備ができました。v{from} で動作中。{what} — {does}",
+  "shell.chip.textUpgrade": "{to} 公開済み",
+  "shell.chip.textRestart": "{to} 準備完了",
+  "shell.chip.noticeLabel": "{text}。v{from} で動作中。{what} — {does}",
   "shell.chip.runningRestart": "v{from} で動作中。v{to} はディスクにインストール済み。再起動で反映 · クリックで新機能を表示",
   "shell.chip.runningUpgrade": "v{from} で動作中。v{to} が npm にある · クリックで新機能を表示",
 

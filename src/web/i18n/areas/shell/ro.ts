@@ -287,7 +287,9 @@ const catalog: Catalog = {
   "shell.chip.noticeUpgrade": "v{to} este disponibil pe npm",
   "shell.chip.noticeShow": "arată noutățile",
   "shell.chip.noticeShowBanner": "arată noutățile și anunțul",
-  "shell.chip.noticeLabel": "{to} este gata. Rulează v{from}; {what} — {does}",
+  "shell.chip.textUpgrade": "{to} a apărut",
+  "shell.chip.textRestart": "{to} este gata",
+  "shell.chip.noticeLabel": "{text}. Rulează v{from}; {what} — {does}",
   "shell.chip.runningRestart": "Rulează v{from}; v{to} este instalat pe disc. Repornește pentru a o prelua · clic pentru noutăți",
   "shell.chip.runningUpgrade": "Rulează v{from}; v{to} este pe npm · clic pentru noutăți",
 

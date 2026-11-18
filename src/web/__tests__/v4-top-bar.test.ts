@@ -166,7 +166,10 @@ describe("the version chip, only when needed", () => {
     const chip = sourceOf("components/VersionChip.tsx");
     expect(chip).toContain("if (!versionChipNeeded({ readyAppUpdate, notice })) return null;");
     expect(chip).not.toMatch(/className=\{versionChecking/);
-    expect(chip).toContain("{`${notice.to} is ready`}");
+    // CHANGED ON PURPOSE: the words come from the catalog (versionNoticeText),
+    // not an English template in the component.
+    expect(chip).toContain("{versionNoticeText(notice)}");
+    expect(chip).not.toContain("is ready`");
   });
   it("is 24 tall, r6, --accent-16, no stroke, padded 0 6, 4 apart, a 14px icon first", () => {
     expect(decl(".topbar button.v", "height")).toBe("24px");

@@ -1,6 +1,6 @@
 // V4's top bar, three looks (V4's Figma): the waiting chip
 // draws the rail's Waiting glyph and no pulsing dot; the newer-version chip
-// reads "{to} is ready"; the right group is a search field with its sentence
+// reads "{to} is out" or "{to} is ready"; the right group is a search field with its sentence
 // and chord. Feedback keeps its word (#1853), though Figma draws a bare icon.
 // Every handler, name and key stays as it was.
 import { describe, expect, it } from "vitest";
@@ -16,7 +16,8 @@ import { railHint, UtilityRun } from "../components/EdgeRails";
 import { WaitingStat } from "../components/TopbarReadouts";
 import VersionChip from "../components/VersionChip";
 import { KitIcon } from "../components/kit-icons";
-import { versionNoticeLabel } from "../version-chip";
+import { versionNoticeLabel, versionNoticeText } from "../version-chip";
+import { setLanguage } from "../i18n";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const strip = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, "");
@@ -74,22 +75,53 @@ describe("the newer-version chip", () => {
     openReleaseNotes: noop, showNotice: noop, loadVersion: async () => {},
   }));
 
-  it("reads '{to} is ready' with no leading v, after the kit's still Update icon", () => {
+  it("reads '{to} is out' or '{to} is ready' with no leading v, after the kit's still Update icon", () => {
     // CHANGED ON PURPOSE (V4's Figma): the chip leads with the kit's Update
     // icon, not a dot.
+    // CHANGED ON PURPOSE: it read "4.0.1 is ready" for both kinds; a release
+    // on npm now says what the notice under the bar says (the next test).
     const updateIcon = renderToStaticMarkup(createElement(KitIcon, { name: "update" }));
-    for (const kind of ["upgrade", "restart"] as const) {
+    for (const [kind, words] of [["upgrade", "4.0.1 is out"], ["restart", "4.0.1 is ready"]] as const) {
       const html = render(kind);
-      expect(html).toContain("4.0.1 is ready");
+      expect(html).toContain(words);
       expect(html).not.toMatch(/>v4\.0\.0</);
       expect(html).toContain(`<span class="v-icon" aria-hidden="true">${updateIcon}</span>`);
       expect(html).not.toContain("v-dot");
     }
   });
 
+  it("claims no more than the notice under the bar: a release on npm is out, one on disk is ready", () => {
+    // "is ready" promised an npm release this deck had not fetched: that chip
+    // now says the notice's own "is out". One already installed and waiting
+    // for a restart is ready, which is what its notice says in two sentences.
+    expect(en["shell.banner.isOutShort"]).toContain("is out");
+    expect(en["shell.chip.textUpgrade"]).toBe("{to} is out");
+    expect(en["shell.banner.isInstalled"]).toBe("v{to} is installed.");
+    expect(en["shell.banner.restartNeeded"]).toBe("Restart it to pick up the new code.");
+    expect(en["shell.chip.textRestart"]).toBe("{to} is ready");
+    expect(versionNoticeText({ kind: "upgrade", to: "4.0.1" })).toBe("4.0.1 is out");
+    expect(versionNoticeText({ kind: "restart", to: "4.0.1" })).toBe("4.0.1 is ready");
+  });
+
+  it("says it in the language on show", () => {
+    try {
+      setLanguage("de");
+      expect(versionNoticeText({ kind: "upgrade", to: "4.0.1" })).toBe("4.0.1 ist da");
+      expect(versionNoticeText({ kind: "restart", to: "4.0.1" })).toBe("4.0.1 ist bereit");
+      expect(versionNoticeLabel({ kind: "upgrade", from: "4.0.0", to: "4.0.1", open: false }).startsWith("4.0.1 ist da. ")).toBe(true);
+      setLanguage("ja");
+      expect(versionNoticeText({ kind: "upgrade", to: "4.0.1" })).toBe("4.0.1 公開済み");
+    } finally {
+      setLanguage("en");
+    }
+  });
+
   it("carries the visible words at the start of its name (2.5.3)", () => {
-    expect(versionNoticeLabel({ kind: "upgrade", from: "4.0.0", to: "4.0.1", open: false }).startsWith("4.0.1 is ready")).toBe(true);
-    expect(render("upgrade")).toContain('aria-label="4.0.1 is ready. Running v4.0.0');
+    // CHANGED ON PURPOSE: the visible words are "4.0.1 is out" now (above).
+    expect(versionNoticeLabel({ kind: "upgrade", from: "4.0.0", to: "4.0.1", open: false }).startsWith("4.0.1 is out")).toBe(true);
+    expect(render("upgrade")).toContain('aria-label="4.0.1 is out. Running v4.0.0');
+    expect(versionNoticeLabel({ kind: "restart", from: "4.0.0", to: "4.0.1", open: false }).startsWith("4.0.1 is ready")).toBe(true);
+    expect(render("restart")).toContain('aria-label="4.0.1 is ready. Running v4.0.0');
   });
 });
 

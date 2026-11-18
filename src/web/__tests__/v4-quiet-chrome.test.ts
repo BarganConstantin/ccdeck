@@ -18,6 +18,9 @@ import { sourceOf } from "./client-source";
 import { BoardEmptyContext } from "../board-empty";
 import { CountPill, ReadoutGroup, WaitingStat } from "../components/TopbarReadouts";
 import { en } from "../i18n/en";
+import { LANGUAGES } from "../i18n/registry";
+import { translate } from "../i18n/translate";
+import { DONE_WORD_MSG, WORKING_WORD_MSG } from "../topbar-counts";
 import { KEY_USES_KEY } from "../storage";
 
 const noop = () => {};
@@ -75,6 +78,36 @@ describe("the top bar's counts: a zero is not drawn", () => {
     expect(working).toContain("count-working");
     expect(working).not.toContain("count-done");
     expect(working).not.toContain("waiting-stat");
+  });
+
+  it("agrees each count's word with its figure, in every language that tells one from many", () => {
+    // German wrote "1 arbeiten" (a plural verb after one); Spanish, French and
+    // Portuguese wrote a plural participle after one done session. A render to
+    // a string always draws the default language, so the other languages are
+    // read from their catalogs, the way the bar reads them: with the figure.
+    const bar = sourceOf("components/TopbarReadouts.tsx");
+    expect(bar).toContain("word={t(WORKING_WORD_MSG, { count: counts.working })}");
+    expect(bar).toContain("word={t(DONE_WORD_MSG, { count: counts.done })}");
+    const pills = (code: string, working: number, done: number) => {
+      const catalog = LANGUAGES.find(l => l.code === code)!.catalog;
+      return [`${working} ${translate(code, catalog, WORKING_WORD_MSG, { count: working })}`, `${done} ${translate(code, catalog, DONE_WORD_MSG, { count: done })}`];
+    };
+    expect(pills("de", 1, 1)).toEqual(["1 arbeitet", "1 fertig"]);
+    expect(pills("de", 2, 3)).toEqual(["2 arbeiten", "3 fertig"]);
+    expect(pills("es", 1, 1)).toEqual(["1 trabajando", "1 hecha"]);
+    expect(pills("es", 2, 2)).toEqual(["2 trabajando", "2 hechas"]);
+    expect(pills("fr", 1, 1)).toEqual(["1 au travail", "1 terminée"]);
+    expect(pills("fr", 2, 2)).toEqual(["2 au travail", "2 terminées"]);
+    expect(pills("pt-BR", 1, 1)).toEqual(["1 trabalhando", "1 concluída"]);
+    expect(pills("pt-BR", 2, 2)).toEqual(["2 trabalhando", "2 concluídas"]);
+    expect(pills("ro", 1, 1)).toEqual(["1 lucrează", "1 gata"]);
+    expect(pills("ro", 3, 20)).toEqual(["3 lucrează", "20 gata"]);
+    // English says the same word for one and for many, and the bar draws it.
+    for (const n of [1, 2]) {
+      const html = readouts({ counts: { working: n, done: n } });
+      expect(html).toContain(`<b>${n}</b><span class="count-word">working</span>`);
+      expect(html).toContain(`<b>${n}</b><span class="count-word">done</span>`);
+    }
   });
 
   it("keeps the waiting pill's press and its name when somebody waits", () => {
