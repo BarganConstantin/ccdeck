@@ -479,7 +479,7 @@ const catalog: Catalog = {
   "insights.session.note.scenario": "Cenário de preço · não altera configurações nem cobrança.",
   "insights.session.note.whole": "Inclui a sessão inteira.",
   "insights.session.details": "Detalhes da estimativa",
-  "insights.session.detail.auto": "O ccusage estima a partir das configurações Standard, Fast e Flex registradas; o uso sem marcação pode usar sua config atual do Codex. Modos solicitados não confirmam as tarifas cobradas.",
+  "insights.session.detail.auto": "O ccusage estima a partir das configurações Standard, Fast, Flex e Ultrafast registradas; o uso sem marcação pode usar sua config atual do Codex. Modos solicitados não confirmam as tarifas cobradas.",
   "insights.session.detail.scenario": "Este cenário aplica um modo à sessão inteira. Não altera o Codex nem sua cobrança. Modelos sem multiplicador publicado mantêm o preço standard.",
   "insights.session.detail.claude": "O custo é a estimativa do ccusage a partir de logs locais, não uma fatura.",
   "insights.session.detail.period": "A sessão inteira pode ir além do período selecionado em Uso.",

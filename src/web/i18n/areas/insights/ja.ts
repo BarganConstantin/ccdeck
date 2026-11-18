@@ -479,7 +479,7 @@ const catalog: Catalog = {
   "insights.session.note.scenario": "料金シナリオ · 設定や請求は変更されません。",
   "insights.session.note.whole": "セッション全体を含みます。",
   "insights.session.details": "見積もりの詳細",
-  "insights.session.detail.auto": "ccusage は記録された Standard・Fast・Flex の設定から見積もります。記録のない使用分には、現在の Codex の設定が使われることがあります。要求されたモードは、実際の請求レートを保証するものではありません。",
+  "insights.session.detail.auto": "ccusage は記録された Standard・Fast・Flex・Ultrafast の設定から見積もります。記録のない使用分には、現在の Codex の設定が使われることがあります。要求されたモードは、実際の請求レートを保証するものではありません。",
   "insights.session.detail.scenario": "このシナリオはセッション全体に1つのモードを適用します。Codex や請求は変更されません。倍率が公開されていないモデルは標準料金のままです。",
   "insights.session.detail.claude": "コストは ccusage がローカルのログから推定した値であり、請求書ではありません。",
   "insights.session.detail.period": "セッション全体は、使用量で選択した期間を超えることがあります。",

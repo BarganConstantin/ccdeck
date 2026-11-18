@@ -496,7 +496,7 @@ const catalog: Catalog = {
   "insights.session.note.scenario": "Scenariu de preț · nu schimbă setările sau facturarea.",
   "insights.session.note.whole": "Include toată sesiunea.",
   "insights.session.details": "Detaliile estimării",
-  "insights.session.detail.auto": "ccusage estimează din setările Standard, Fast și Flex înregistrate; utilizarea nemarcată poate folosi configurația ta Codex curentă. Modurile solicitate nu confirmă tarifele facturate.",
+  "insights.session.detail.auto": "ccusage estimează din setările Standard, Fast, Flex și Ultrafast înregistrate; utilizarea nemarcată poate folosi configurația ta Codex curentă. Modurile solicitate nu confirmă tarifele facturate.",
   "insights.session.detail.scenario": "Acest scenariu aplică un singur mod întregii sesiuni. Nu schimbă Codex sau facturarea ta. Modelele fără multiplicator publicat păstrează prețul standard.",
   "insights.session.detail.claude": "Costul este estimarea ccusage din jurnalele locale, nu o factură.",
   "insights.session.detail.period": "Toată sesiunea poate depăși perioada aleasă la Utilizare.",

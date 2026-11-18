@@ -23,10 +23,8 @@ export interface ModelRates {
   output: number;      // $/Mtok
   cacheRead: number;   // $/Mtok — hits & refreshes
   cacheWrite: number;  // $/Mtok — 5-minute writes (1.25× input)
-  /** $/Mtok for a 1-hour cache write (2× input). Anthropic is the only
-   *  family here that publishes a second cache-write price — OpenAI has one
-   *  cache tier and its usage never carries a TTL split — so the Codex rows
-   *  leave this unset and costForUsage falls back to `cacheWrite`. */
+  /** $/Mtok for an Anthropic 1-hour cache write (2× input). The Codex
+   *  counters used here do not carry a TTL split, so Codex uses `cacheWrite`. */
   cacheWrite1h?: number;
 }
 

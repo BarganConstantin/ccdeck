@@ -479,7 +479,7 @@ const catalog: Catalog = {
   "insights.session.note.scenario": "가격 시나리오 · 설정이나 청구에는 영향을 주지 않습니다.",
   "insights.session.note.whole": "세션 전체를 포함합니다.",
   "insights.session.details": "추정 상세",
-  "insights.session.detail.auto": "ccusage는 기록된 Standard, Fast, Flex 설정으로 추정하며, 표시가 없는 사용량에는 현재 Codex 구성을 쓸 수 있습니다. 요청한 모드가 실제 청구 요금을 보장하지는 않습니다.",
+  "insights.session.detail.auto": "ccusage는 기록된 Standard, Fast, Flex, Ultrafast 설정으로 추정하며, 표시가 없는 사용량에는 현재 Codex 구성을 쓸 수 있습니다. 요청한 모드가 실제 청구 요금을 보장하지는 않습니다.",
   "insights.session.detail.scenario": "이 시나리오는 세션 전체에 한 가지 모드를 적용합니다. Codex나 청구에는 영향을 주지 않습니다. 공개된 배율이 없는 모델은 표준 가격을 유지합니다.",
   "insights.session.detail.claude": "비용은 로컬 로그를 바탕으로 한 ccusage 추정값이며 청구서가 아닙니다.",
   "insights.session.detail.period": "세션 전체는 사용량에서 선택한 기간을 넘어설 수 있습니다.",

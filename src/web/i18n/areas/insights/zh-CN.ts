@@ -479,7 +479,7 @@ const catalog: Catalog = {
   "insights.session.note.scenario": "定价场景 · 不会更改设置或账单。",
   "insights.session.note.whole": "包含整个会话。",
   "insights.session.details": "估算详情",
-  "insights.session.detail.auto": "ccusage 根据已记录的 Standard、Fast 和 Flex 设置估算；未标记的用量可能采用您当前的 Codex 配置。所请求的模式并不代表实际计费费率。",
+  "insights.session.detail.auto": "ccusage 根据已记录的 Standard、Fast、Flex 和 Ultrafast 设置估算；未标记的用量可能采用您当前的 Codex 配置。所请求的模式并不代表实际计费费率。",
   "insights.session.detail.scenario": "此场景会把单一模式应用到整个会话，不会更改 Codex 或您的账单。没有公开倍率的模型保持标准定价。",
   "insights.session.detail.claude": "费用是 ccusage 根据本机日志估算的结果，并非账单。",
   "insights.session.detail.period": "整个会话可能超出“用量”中所选的时间范围。",

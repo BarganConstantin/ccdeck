@@ -479,7 +479,7 @@ const catalog: Catalog = {
   "insights.session.note.scenario": "定價情境 · 不會變更設定或帳單。",
   "insights.session.note.whole": "包含整個工作階段。",
   "insights.session.details": "估算詳情",
-  "insights.session.detail.auto": "ccusage 依據已記錄的 Standard、Fast 與 Flex 設定估算；未標記的使用量可能採用您目前的 Codex 設定。所要求的模式並不代表實際計費費率。",
+  "insights.session.detail.auto": "ccusage 依據已記錄的 Standard、Fast、Flex 與 Ultrafast 設定估算；未標記的使用量可能採用您目前的 Codex 設定。所要求的模式並不代表實際計費費率。",
   "insights.session.detail.scenario": "此情境會把單一模式套用到整個工作階段，不會變更 Codex 或您的帳單。沒有公開倍率的模型維持標準定價。",
   "insights.session.detail.claude": "費用是 ccusage 依本機記錄檔估算的結果，並非帳單。",
   "insights.session.detail.period": "整個工作階段可能超出使用量中所選的期間。",

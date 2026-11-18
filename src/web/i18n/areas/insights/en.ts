@@ -479,7 +479,7 @@ const catalog: Catalog = {
   "insights.session.note.scenario": "Pricing scenario · does not change settings or billing.",
   "insights.session.note.whole": "Includes the whole session.",
   "insights.session.details": "Estimate details",
-  "insights.session.detail.auto": "ccusage estimates from recorded Standard, Fast and Flex settings; unmarked usage can use your current Codex config. Requested modes do not confirm billed rates.",
+  "insights.session.detail.auto": "ccusage estimates from recorded Standard, Fast, Flex and Ultrafast settings; unmarked usage can use your current Codex config. Requested modes do not confirm billed rates.",
   "insights.session.detail.scenario": "This scenario applies one mode to the whole session. It does not change Codex or your billing. Models without a published multiplier keep standard pricing.",
   "insights.session.detail.claude": "Cost is the ccusage estimate from local logs, not an invoice.",
   "insights.session.detail.period": "The whole session can extend beyond the period selected in Usage.",

@@ -479,7 +479,7 @@ const catalog: Catalog = {
   "insights.session.note.scenario": "Preisszenario · ändert weder Einstellungen noch Abrechnung.",
   "insights.session.note.whole": "Enthält die ganze Sitzung.",
   "insights.session.details": "Details zur Schätzung",
-  "insights.session.detail.auto": "ccusage schätzt anhand der aufgezeichneten Standard-, Fast- und Flex-Einstellungen; nicht markierte Nutzung kann deine aktuelle Codex-Konfiguration verwenden. Angeforderte Modi bestätigen keine abgerechneten Preise.",
+  "insights.session.detail.auto": "ccusage schätzt anhand der aufgezeichneten Standard-, Fast-, Flex- und Ultrafast-Einstellungen; nicht markierte Nutzung kann deine aktuelle Codex-Konfiguration verwenden. Angeforderte Modi bestätigen keine abgerechneten Preise.",
   "insights.session.detail.scenario": "Dieses Szenario wendet einen Modus auf die ganze Sitzung an. Es ändert weder Codex noch deine Abrechnung. Modelle ohne veröffentlichten Faktor behalten den Standardpreis.",
   "insights.session.detail.claude": "Die Kosten sind die ccusage-Schätzung aus lokalen Logs, keine Rechnung.",
   "insights.session.detail.period": "Die ganze Sitzung kann über den in Nutzung gewählten Zeitraum hinausgehen.",
