@@ -236,6 +236,30 @@ describe("the Command Panel's engine, made by the deck", () => {
     expect(e.running).toBe(true);
   });
 
+  it("tells the engine it runs to forget its tmux miss once the deck's own tmux has landed, and makes none for it", async () => {
+    const client = fakeClient();
+    const asked: unknown[][] = [];
+    client.request = async (...args: unknown[]) => {
+      asked.push(args);
+      return args[0] === "terminal.forgetTmux" ? { forgot: true } : { status: 200, body: { ok: true } };
+    };
+    const createClient = vi.fn(() => client);
+    const e = cpe.commandPanelEngine({ platform: "darwin", env: { CCDECK_HOME: "/x/deck" }, keys: ["K"], lstat: async () => ({}), createClient });
+    await expect(e.forgetTmux(), "none running: nothing to forget").resolves.toBeUndefined();
+    expect(createClient, "and none made for it").not.toHaveBeenCalled();
+    await e.route("status", null);
+    asked.length = 0;
+    await e.forgetTmux();
+    expect(asked).toEqual([["terminal.forgetTmux", { body: null }]]);
+    // A forget that fails changes nothing, and never rejects.
+    client.request = async () => { throw fail("unavailable"); };
+    await expect(e.forgetTmux()).resolves.toBeUndefined();
+    e.stop();
+    asked.length = 0;
+    await e.forgetTmux();
+    expect(asked, "stopped: nothing to forget").toEqual([]);
+  });
+
   it("stops a grace after the switch goes off, unless asked again, and at once at shutdown without waiting", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const clients: ReturnType<typeof fakeClient>[] = [];

@@ -4,11 +4,16 @@
 // The Command Panel is served only through the optional local engine
 // (terminal-routes.mjs, terminal-socket.mjs). The JS backend that served it
 // before — terminal-js-routes.mjs and the bridge, tmux client, target
-// resolver, session launcher and tmux download behind it — stays as the
-// parity oracle the engine is checked against, handed to startServer by a
-// test as `terminal.jsBackend`. So the claim is about the graph: from
-// bin/deck.js and src/server/index.mjs, by every way a module here reaches
-// another, none of those files is reachable.
+// resolver and session launcher behind it — stays as the parity oracle the
+// engine is checked against, handed to startServer by a test as
+// `terminal.jsBackend`. So the claim is about the graph: from bin/deck.js and
+// src/server/index.mjs, by every way a module here reaches another, none of
+// those files is reachable.
+//
+// One file of the old path is on the product's path again, and only that one:
+// tmux-download.mjs, ccdeck's own tmux, which the deck fetches when the
+// engine's status says the machine has none it can use (terminal-routes.mjs'
+// withOwnTmux). It names nothing of the backend, and nothing it names does.
 //
 // "Every way" is over-approximated on purpose. A file is an edge of another
 // if any string in its code — not its comments — names it: a static import
@@ -37,8 +42,11 @@ const JS_BACKEND = [
   "src/server/terminal-target.mjs",
   "src/server/terminal-sessions.mjs",
   "src/server/tmux.mjs",
-  "src/server/tmux-download.mjs",
 ];
+
+/** The one file of the old path the product reaches: the deck's own tmux
+ *  download, and everything it names. */
+const OWN_TMUX = "src/server/tmux-download.mjs";
 
 /** The imports of a computed name the walk cannot follow, and what each loads:
  *  pinned-build's loop over PINNED_MODULES (followed as bare names), the
@@ -121,5 +129,17 @@ describe("the JS terminal backend, from what the deck runs", () => {
 
   it("knows every import of a computed name it cannot follow", () => {
     expect(computed).toEqual(COMPUTED_IMPORTS);
+  });
+
+  it("reaches the deck's own tmux download, which names only the deck's data folder: nothing of the backend comes with it", () => {
+    expect(reached.has(OWN_TMUX), "the status route fetches the deck's own tmux again").toBe(true);
+    const own = edges(resolve(PKG_ROOT, OWN_TMUX));
+    expect(own.to.map(rel)).toEqual(["src/server/deck-home.mjs"]);
+    expect(own.computed).toBe(false);
+    // And from the routes, the only way in: the backend is still out of reach
+    // of everything the download and the routes name.
+    const fromRoutes = reach(["src/server/terminal-routes.mjs"]).files;
+    expect(JS_BACKEND.filter(f => fromRoutes.has(resolve(PKG_ROOT, f)))).toEqual([]);
+    expect(fromRoutes.has(resolve(PKG_ROOT, OWN_TMUX))).toBe(true);
   });
 });

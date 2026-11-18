@@ -105,7 +105,8 @@ export interface TmuxStatus {
   install?: string;
   /** Why the deck's own tmux could not be fetched, when it tried and failed:
    *  download_failed, checksum_mismatch, too_large, extract_failed or
-   *  does_not_run. */
+   *  does_not_run; or not_used, when its build is in place and the engine
+   *  still finds no tmux it can use. */
   download?: string;
   /** While "installing": how far the download has got, once it has said. */
   progress?: TmuxProgress;

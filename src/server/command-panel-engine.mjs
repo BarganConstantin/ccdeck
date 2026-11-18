@@ -129,7 +129,8 @@ async function importBesideDeck(options) {
 /**
  * The Command Panel's engine as the routes and the upgrade take it (the shape
  * engineTerminals gives, with `route` answering a refusal of its own while
- * there is no client), plus `switchedOff()`, `switchedOn()` and `stop()`.
+ * there is no client, and `forgetTmux` doing nothing), plus `switchedOff()`,
+ * `switchedOn()` and `stop()`.
  *
  * `installer` is the page's Install (engine-install.mjs), made here with the
  * same platform, keys and import unless one is given; it stops this engine
@@ -252,6 +253,12 @@ export function commandPanelEngine({
     async attach(handle, socket) {
       // A ticket outlives nothing: with no engine there is nothing it names.
       return held ? held.terminals.attach(handle, socket) : { ok: false, status: 503 };
+    },
+    /** The deck's own tmux has landed (terminal-routes.mjs): the engine
+     *  running now forgets the miss it remembered. One being made, or the
+     *  next, looks afresh; nothing is started for this. Never rejects. */
+    forgetTmux() {
+      return held ? held.terminals.forgetTmux() : Promise.resolve();
     },
     /** The switch went off: stop the engine once its panels have closed —
      *  one running, or one a question asked while on is making now, which
