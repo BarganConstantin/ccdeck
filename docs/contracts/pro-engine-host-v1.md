@@ -293,8 +293,10 @@ carries nothing secret. It fixes the hello's `terminal` for the engine's life:
   `attachExternalTmux` and `surviveEngineRestart` true,
   `attachExternalConsole` false, `backend: "tmux"`;
 - on, on Windows: a backend other than `unavailable`, its sessions in the
-  session host (Windows session host, above). The deck reads the backend
-  alone, and of each flag checks only that it is a boolean;
+  session host (Windows session host, above). Without ConPTY, or when the
+  engine cannot reach its session host, it advertises what off advertises.
+  The deck reads the backend alone, and of each flag checks only that it
+  is a boolean;
 - off (absent, any other value such as `0`, `true`, ` 1` or `1\n`, or any
   platform but Linux, macOS and Windows whatever it says): every flag false,
   `backend: "unavailable"`, and every `terminal.*` call answers `unavailable`.
