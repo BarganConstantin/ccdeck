@@ -234,7 +234,7 @@ const catalog: Catalog = {
   "settings.key.title": "Keyboard shortcuts",
   "settings.key.close": "Close (Esc)",
   "settings.key.openSettings": "Open Settings",
-  "settings.key.tourText": "Eight pictures of what the deck shows.",
+  "settings.key.tourText": "Seven pictures of what the deck shows.",
   "settings.key.tour": "Take the tour",
   "settings.keyboard.singleKeys": "Single-key shortcuts",
   "settings.keyboard.singleKeysNote": "Keys like L, U, M and ? open panels and toggle things. Turn this off if you use voice control or press them by accident.",

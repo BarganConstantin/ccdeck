@@ -251,7 +251,7 @@ const catalog: Catalog = {
   "settings.key.title": "Atalhos de teclado",
   "settings.key.close": "Fechar (Esc)",
   "settings.key.openSettings": "Abrir configurações",
-  "settings.key.tourText": "Oito imagens do que o ccdeck mostra.",
+  "settings.key.tourText": "Sete imagens do que o ccdeck mostra.",
   "settings.key.tour": "Fazer o tour",
   "settings.keyboard.singleKeys": "Atalhos de uma tecla",
   "settings.keyboard.singleKeysNote": "Teclas como L, U, M e ? abrem painéis e alternam coisas. Desligue se você usa controle por voz ou as aperta sem querer.",

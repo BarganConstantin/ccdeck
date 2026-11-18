@@ -29,7 +29,9 @@ const EXCEPTIONS: readonly Exception[] = [
   { file: "src/web/components/terminal/stage-model.ts", text: "The provider must be claude or codex.", why: "The engine's own refusal, matched as it arrives to be replaced by the panel's sentence; never shown." },
   { file: "src/web/components/guide-art.tsx", text: "Bash(npm test)", why: "A line of Claude Code's own terminal, drawn as it prints it." },
   { file: "src/web/components/guide-art.tsx", text: "&gt; 1. Yes 2. No", why: "Claude Code's own permission prompt, drawn as it prints it." },
-  ...["Read", "Grep", "Bash", "Edit"].map(text => ({ file: "src/web/components/guide-art.tsx", text, why: "A Claude Code tool name, which Claude Code prints in English." })),
+  // V4's tour draws two chips on the Inspector's agent, where the 3.x tour
+  // drew four on its nodes.
+  ...["Read", "Bash"].map(text =>({ file: "src/web/components/guide-art.tsx", text, why: "A Claude Code tool name, which Claude Code prints in English." })),
 ];
 
 /** The string as the scan prints it: spaces folded, trimmed, cut at 90. An

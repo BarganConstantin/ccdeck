@@ -164,6 +164,9 @@ const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   // until somebody turns it on (#2193).
   ["continueStopped", { continueStopped: true }, p => p.continueStopped, true],
   ["tourSeen", { tourSeen: true }, p => p.tourSeen, true],
+  // V4's tour (use-welcome-and-notes.ts TOUR_SEEN_PREFS): the edition, posted
+  // beside the 3.x marker in the one body.
+  ["tourEdition", { tourSeen: true, tourEdition: 2 }, p => p.tourEdition, 2],
   ["autoUpdate", { autoUpdate: false }, p => p.autoUpdate, false],
   ["recoverClaudeSessions", { recoverClaudeSessions: false }, p => p.recoverClaudeSessions, false],
   ["recoverCodexSessions", { recoverCodexSessions: false }, p => p.recoverCodexSessions, false],
@@ -251,10 +254,13 @@ describe("the fields a page may write", () => {
   // post to the deck's port may set it, so a new preference stays the deck's
   // own until somebody makes that decision in PAGE_FIELDS and in this test.
   it("are these, and no others", () => {
+    // CHANGED ON PURPOSE (V4's tour): `tourEdition` joined, decided here — it
+    // is the desktop window's record of WHICH tour it saw, written by the same
+    // page that writes `tourSeen`, and worth nothing to anybody else.
     expect(PAGE_FIELDS).toEqual({
       top: [
         "notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "continueStopped",
-        "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions", "terminal",
+        "tourSeen", "tourEdition", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions", "terminal",
       ],
       lan: [
         "enabled", "name", "shared", "manual", "shareActive", "sendInUse", "pairingMode",

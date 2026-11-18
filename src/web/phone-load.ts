@@ -56,7 +56,8 @@ export function rightPanelsCrowd(leftColumnW: number): boolean {
   return w - 2 * stripeWidth() - leftColumnW - RIGHT_PANELS_W < BOARD_MIN_W;
 }
 
-/** Whether this load is a phone's. Asked once, where the panels are restored;
+/** Whether this load is a phone's. Asked once, where the panels are restored,
+ *  and by the welcome, which opens no tour on a phone (use-welcome-and-notes.ts);
  *  a browser with no window, no matchMedia, or one that throws is not a phone. */
 export function loadsOnPhone(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;

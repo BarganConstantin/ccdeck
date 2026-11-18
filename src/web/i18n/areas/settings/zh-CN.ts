@@ -234,7 +234,7 @@ const catalog: Catalog = {
   "settings.key.title": "键盘快捷键",
   "settings.key.close": "关闭（Esc）",
   "settings.key.openSettings": "打开设置",
-  "settings.key.tourText": "用八张图看看 ccdeck 呈现的内容。",
+  "settings.key.tourText": "用七张图看看 ccdeck 呈现的内容。",
   "settings.key.tour": "开始导览",
   "settings.keyboard.singleKeys": "单键快捷键",
   "settings.keyboard.singleKeysNote": "L、U、M 和 ? 等按键可以打开面板或切换功能。如果您使用语音控制，或经常不小心按到，可以关闭此项。",

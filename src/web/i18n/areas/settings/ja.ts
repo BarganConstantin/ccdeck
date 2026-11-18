@@ -234,7 +234,7 @@ const catalog: Catalog = {
   "settings.key.title": "キーボードショートカット",
   "settings.key.close": "閉じる（Esc）",
   "settings.key.openSettings": "設定を開く",
-  "settings.key.tourText": "ccdeck の表示内容を8枚の図で紹介。",
+  "settings.key.tourText": "ccdeck の表示内容を7枚の図で紹介。",
   "settings.key.tour": "ツアーを開始",
   "settings.keyboard.singleKeys": "1キーショートカット",
   "settings.keyboard.singleKeysNote": "L、U、M、?などのキーでパネルを開いたり切り替えたりできます。音声コントロールを使う場合や、誤って押してしまう場合はオフにしてください。",

@@ -234,7 +234,7 @@ const catalog: Catalog = {
   "settings.key.title": "단축키",
   "settings.key.close": "닫기 (Esc)",
   "settings.key.openSettings": "설정 열기",
-  "settings.key.tourText": "ccdeck가 보여 주는 내용을 그림 여덟 장으로 소개합니다.",
+  "settings.key.tourText": "ccdeck가 보여 주는 내용을 그림 일곱 장으로 소개합니다.",
   "settings.key.tour": "둘러보기",
   "settings.keyboard.singleKeys": "한 키 단축키",
   "settings.keyboard.singleKeysNote": "L, U, M, ? 같은 키로 패널을 열거나 항목을 전환합니다. 음성 제어를 쓰거나 실수로 누르는 경우에는 끄세요.",

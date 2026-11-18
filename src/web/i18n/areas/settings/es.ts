@@ -234,7 +234,7 @@ const catalog: Catalog = {
   "settings.key.title": "Atajos de teclado",
   "settings.key.close": "Cerrar (Esc)",
   "settings.key.openSettings": "Abrir la configuración",
-  "settings.key.tourText": "Ocho imágenes de lo que muestra el deck.",
+  "settings.key.tourText": "Siete imágenes de lo que muestra el deck.",
   "settings.key.tour": "Hacer el recorrido",
   "settings.keyboard.singleKeys": "Atajos de una sola tecla",
   "settings.keyboard.singleKeysNote": "Teclas como L, U, M y ? abren paneles y activan opciones. Desactívalos si usas control por voz o los pulsas sin querer.",

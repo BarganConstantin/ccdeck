@@ -42,6 +42,7 @@ try {
     await context.addInitScript(theme => {
       localStorage.setItem("agent-dag.theme", theme);
       localStorage.setItem("agent-dag.tourSeen", "1");
+      localStorage.setItem("agent-dag.tourEdition", "2");
       localStorage.setItem("agent-dag.releaseNotesSeen", "3.46.0");
     }, theme);
     const page = await context.newPage();
