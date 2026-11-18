@@ -98,7 +98,11 @@ jobs:
     # A safety net against a hung child process, not a flake allowance. The
     # suite is ~1 minute on a dev machine; 20 leaves generous headroom while
     # still killing a wedged run long before the 6-hour default.
-    timeout-minutes: 20
+    # macOS gets 30. The hosted Mac runners vary from about 6 to over 20
+    # minutes for the same suite, and in November 2026 two runs were
+    # cancelled at 20 with every test passed and none failed (#2610, #2620).
+    # A wedged run is still killed long before the 6-hour default.
+    timeout-minutes: ${{ matrix.os == 'macos-latest' && 30 || 20 }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7

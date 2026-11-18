@@ -33,7 +33,7 @@ import * as useNowClock from "../use-now";
 import type { VersionInfo } from "../use-version-check";
 import { UPGRADE_BLOCK_TEXT } from "../components/VersionBanner";
 import ReleaseNotesModal from "../components/ReleaseNotesModal";
-import ReleaseActions, { useReleaseUpdateCheck, restartWhy, TOUR_WHY, UpdateLineView } from "../components/ReleaseActions";
+import ReleaseActions, { useReleaseUpdateCheck, restartWhy, UpdateLineView } from "../components/ReleaseActions";
 
 const NPM_UNREACHABLE = npmUnreachable(), DECK_UNREACHABLE = deckUnreachable(), RESTART_WHY = restartWhy();
 
