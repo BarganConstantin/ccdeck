@@ -150,7 +150,7 @@ export function launcherScript(app, platform = process.platform) {
 /** Write the launcher next to the deck's hook, and return its path. */
 export function writeLauncher(app, { env = process.env, platform = process.platform } = {}) {
   const dir = join(claudeDir(env), "agent-dag");
-  mkdirSync(dir, { recursive: true });
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
   const path = join(dir, platform === "win32" ? "ccdeck-node.cmd" : "ccdeck-node");
   writeFileSync(path, launcherScript(app, platform));
   if (platform !== "win32") chmodSync(path, 0o755);

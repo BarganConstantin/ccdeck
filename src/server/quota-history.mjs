@@ -159,7 +159,7 @@ export function startQuotaHistory() {
         return JSON.parse((await readFile(file, "utf8")).replace(/^\uFEFF/, ""));
       } catch (e) { if (e?.code === "ENOENT") return null; throw e; }
     },
-    save: async raw => { await mkdir(dirname(file), { recursive: true }); await writeFileAtomic(file, JSON.stringify(raw)); },
+    save: async raw => { await mkdir(dirname(file), { recursive: true, mode: 0o700 }); await writeFileAtomic(file, JSON.stringify(raw)); },
   });
 }
 export function noteQuotaHistory(provider, account, reading) {

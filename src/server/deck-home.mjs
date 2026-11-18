@@ -74,6 +74,12 @@ export function legacyDeckDir(env = process.env, home = homedir(), platform = pr
  * machine-wide deck would collapse two profiles into one on upgrade, which is
  * exactly the kind of silent change this file exists to stop. They keep what
  * they have; everybody else moves.
+ *
+ * A WRITER THAT MAKES THIS FOLDER, or the log folder (deckLogDir), makes it and any
+ * missing folder above it 0700 (`mode: 0o700` beside `recursive`): the
+ * optional engine is used only where no folder above it is writable by
+ * another account. A folder already there keeps its mode. Windows ignores the
+ * mode. deck-folders-private.test.ts holds every writer to it.
  */
 export function deckDataDir(platform = process.platform, env = process.env, home = homedir()) {
   // THE TARGET PLATFORM'S SEPARATOR, NOT THE HOST'S — the same reason

@@ -274,7 +274,7 @@ export async function detachAndWatch({
   exit = (code) => process.exit(code),
 } = {}) {
   const path = join(logDir, DECK_LOG);
-  try { mkdirSync(logDir, { recursive: true }); } catch { /* reported by the open below */ }
+  try { mkdirSync(logDir, { recursive: true, mode: 0o700 }); } catch { /* reported by the open below */ }
 
   if (startsFresh(liveCount, booting)) {
     try { renameSync(path, `${path}.1`); } catch { /* no log yet, or held where it cannot move: carry on in it */ }

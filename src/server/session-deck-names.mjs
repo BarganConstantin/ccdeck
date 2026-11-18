@@ -126,7 +126,7 @@ export function writeDeckName(provider, sessionId, name, { path = deckNamesPath(
     if (clean === null) next.delete(key); else next.set(key, { name: clean, at: now });
     const kept = capDeckNames(next);
     const body = { version: 1, names: Object.fromEntries(kept) };
-    await mkdir(dirname(path), { recursive: true });
+    await mkdir(dirname(path), { recursive: true, mode: 0o700 });
     await writeFile(path, `${JSON.stringify(body)}\n`);
     _held = kept;
     return clean;
