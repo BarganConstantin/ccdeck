@@ -111,6 +111,19 @@ describe("what the deck tells the page about a read it was refused", () => {
     expect(prefs.prefsRefusalDetail(undefined)).toBeNull();
   });
 
+  it("only the reason, for a write the disk had no room left for", async () => {
+    // Where the report came from: the temp file the write stages through
+    // (atomic-write.mjs) could not be made. No owner or folder to name.
+    for (const code of ["ENOSPC", "EDQUOT"]) {
+      const err = await prefs.writePrefs({ notifications: true }, home(), {
+        warn: () => {},
+        createTemp: async () => { throw fsError(code); },
+      }).then(() => null, (e: unknown) => e);
+      expect(prefs.prefsWriteRefusal(err), code).toBe("prefs_no_space");
+      expect(prefs.prefsRefusalDetail(err), code).toBeNull();
+    }
+  });
+
   it("never the path, the uid or anything outside its closed sets", async () => {
     const { dir, err } = await refusal({ folder: ROOT, statFile: "EACCES" });
     const sent = JSON.stringify(prefs.prefsRefusalDetail(err));

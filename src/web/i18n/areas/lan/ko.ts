@@ -28,6 +28,7 @@ const catalog: Catalog = {
   "lan.fail.errorCode": " 오류 코드: {code}.",
   "lan.fail.prefsUnreadable": "이 ccdeck이 설정 파일을 읽을 수 없어 덮어쓰지 않습니다. 예를 들어 sudo로 ccdeck을 실행한 경우처럼 파일이 다른 사용자 소유일 수 있습니다. 파일 이름은 ccdeck 로그에 있습니다.",
   "lan.fail.prefsNotWritable": "이 ccdeck에 설정을 저장할 권한이 없습니다. 예를 들어 sudo로 ccdeck을 실행한 경우처럼 설정 폴더가 다른 사용자 소유이거나, 다른 프로그램이 파일을 사용 중일 수 있습니다. 폴더 이름은 ccdeck 로그에 있습니다.",
+  "lan.fail.prefsNoSpace": "이 ccdeck이 설정을 저장하는 디스크가 가득 차서 설정이 저장되지 않았습니다. 공간을 확보한 후 다시 시도하세요.",
   "lan.fail.badJson": "설정 파일이 손상되었고 다른 곳으로 옮길 수도 없어 덮어쓰지 않습니다. 파일 이름은 ccdeck 로그에 있습니다.",
   "lan.fail.folderOther": "이 ccdeck이 다른 사용자 소유의 설정 폴더를 열 수 없습니다. 예를 들어 sudo로 ccdeck을 실행한 경우입니다. 소유권을 되돌리는 명령은 ccdeck 로그에 있습니다.",
   "lan.fail.folderYou": "이 ccdeck이 자신의 설정 폴더를 열 수 없어 그 안의 내용을 덮어쓰지 않습니다. 폴더 이름은 ccdeck 로그에 있습니다.",
