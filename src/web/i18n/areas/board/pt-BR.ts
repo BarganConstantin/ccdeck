@@ -658,6 +658,7 @@ const catalog: Catalog = {
   "board.stage.handoff.move": "Mover sessão para cá",
   "board.stage.handoff.waiting": "Movendo a sessão para o ccdeck…",
   "board.stage.handoff.failed": "O ccdeck não conseguiu mover esta sessão. Use o Ghostty 1.4 ou posterior com o campo do Claude vazio.",
+  "board.stage.handoff.offer": "Ela está aberta em uma janela do Ghostty fora do ccdeck. O ccdeck pode movê-la para cá, com a mesma conversa.",
   "board.stage.elsewhere.working": "Ela está trabalhando em um terminal fora do ccdeck. Para continuar aqui, saia dela naquele terminal. O ccdeck percebe sozinho e oferece Reabrir aqui, com a mesma conversa.",
   "board.stage.elsewhere.running": "Ela ainda está rodando em um terminal fora do ccdeck. Para continuar aqui, saia dela naquele terminal. O ccdeck percebe sozinho e oferece Reabrir aqui, com a mesma conversa.",
   "board.stage.wsEmptyTitle": "Nada aguardando",

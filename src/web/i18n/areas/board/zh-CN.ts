@@ -658,6 +658,7 @@ const catalog: Catalog = {
   "board.stage.handoff.move": "将会话移到这里",
   "board.stage.handoff.waiting": "正在将会话移到 ccdeck…",
   "board.stage.handoff.failed": "ccdeck 未能自动移动此会话。请使用 Ghostty 1.4 或更新版本，并确保 Claude 输入框为空。",
+  "board.stage.handoff.offer": "它在 ccdeck 之外的 Ghostty 窗口中打开。ccdeck 可以将它移到这里，对话保持不变。",
   "board.stage.elsewhere.working": "它正在 ccdeck 之外的终端中工作。要在这里继续，请在那个终端中退出它。ccdeck 会自动发现，并提供“在此重新打开”，对话保持不变。",
   "board.stage.elsewhere.running": "它仍在 ccdeck 之外的终端中运行。要在这里继续，请在那个终端中退出它。ccdeck 会自动发现，并提供“在此重新打开”，对话保持不变。",
   "board.stage.wsEmptyTitle": "没有等待处理的内容",

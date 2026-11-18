@@ -678,6 +678,7 @@ const catalog: Catalog = {
   "board.stage.handoff.move": "Mută sesiunea aici",
   "board.stage.handoff.waiting": "Mutăm sesiunea în ccdeck…",
   "board.stage.handoff.failed": "ccdeck nu a putut muta automat sesiunea. Folosește Ghostty 1.4 sau mai nou, cu promptul Claude gol.",
+  "board.stage.handoff.offer": "E deschisă într-o fereastră Ghostty din afara ccdeck. ccdeck o poate muta aici, cu aceeași conversație.",
   "board.stage.elsewhere.working": "Lucrează într-un terminal din afara ccdeck. Ca s-o continui aici, închide-o în acel terminal. ccdeck observă singur și îți oferă Redeschide aici, cu aceeași conversație.",
   "board.stage.elsewhere.running": "Încă rulează într-un terminal din afara ccdeck. Ca s-o continui aici, închide-o în acel terminal. ccdeck observă singur și îți oferă Redeschide aici, cu aceeași conversație.",
   "board.stage.wsEmptyTitle": "Nu așteaptă nimic",

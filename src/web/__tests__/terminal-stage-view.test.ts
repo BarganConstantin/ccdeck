@@ -282,6 +282,14 @@ describe("the body's state cards, each at the terminal's origin", () => {
     const target = { kind: "C" as const, label: "External session", adoptable: true };
     const external = { kind: "not-attachable" as const, target, stillRunning: true, busy: false };
     expect(button(StateCard(bodyProps(external)), "Move session here")).toBeNull();
+    // With the move offered, the card says ccdeck can move it, not "quit it
+    // there and Reopen here"; without it, the card keeps that instruction.
+    const offered = html(createElement(StateCard, bodyProps(external, { handoff: { moving: false, toggle: vi.fn() } })));
+    expect(offered).toContain(en["board.stage.handoff.offer"]);
+    expect(offered).not.toContain(en["board.stage.elsewhere.running"]);
+    const plain = html(createElement(StateCard, bodyProps(external)));
+    expect(plain).toContain(en["board.stage.elsewhere.running"]);
+    expect(plain).not.toContain(en["board.stage.handoff.offer"]);
     const stage = withoutComments(readFileSync(fileURLToPath(new URL("../components/terminal/TerminalStage.tsx", import.meta.url)), "utf8"));
     expect(stage).toMatch(/cwd: handoffCwd, check: true \}/);
     expect(stage).toMatch(/if \(!controller\.signal\.aborted && movable === true\) setMovableFor\(claudeSource\);/);

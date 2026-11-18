@@ -658,6 +658,7 @@ const catalog: Catalog = {
   "board.stage.handoff.move": "セッションをここに移動",
   "board.stage.handoff.waiting": "セッションを ccdeck に移動中…",
   "board.stage.handoff.failed": "ccdeck はセッションを自動で移動できませんでした。Ghostty 1.4 以降を使用し、Claude の入力欄を空にしてください。",
+  "board.stage.handoff.offer": "ccdeck の外の Ghostty ウィンドウで開いています。ccdeck は同じ会話のままここに移動できます。",
   "board.stage.elsewhere.working": "ccdeck の外のターミナルで作業中です。ここで続けるには、そのターミナルで終了してください。ccdeck が自動で検知し、同じ会話のまま「ここで開き直す」を表示します。",
   "board.stage.elsewhere.running": "ccdeck の外のターミナルでまだ動いています。ここで続けるには、そのターミナルで終了してください。ccdeck が自動で検知し、同じ会話のまま「ここで開き直す」を表示します。",
   "board.stage.wsEmptyTitle": "待機中のものはありません",

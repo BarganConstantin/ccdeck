@@ -658,6 +658,7 @@ const catalog: Catalog = {
   "board.stage.handoff.move": "세션을 여기로 이동",
   "board.stage.handoff.waiting": "세션을 ccdeck으로 이동 중…",
   "board.stage.handoff.failed": "ccdeck이 세션을 자동으로 이동하지 못했습니다. Ghostty 1.4 이상을 사용하고 Claude 입력란을 비워 주세요.",
+  "board.stage.handoff.offer": "ccdeck 밖의 Ghostty 창에서 열려 있습니다. ccdeck이 같은 대화로 여기로 옮길 수 있습니다.",
   "board.stage.elsewhere.working": "ccdeck 밖의 터미널에서 작업 중입니다. 여기서 이어가려면 그 터미널에서 종료하세요. ccdeck이 스스로 알아채고 같은 대화로 '여기서 다시 열기'를 제안합니다.",
   "board.stage.elsewhere.running": "ccdeck 밖의 터미널에서 아직 실행 중입니다. 여기서 이어가려면 그 터미널에서 종료하세요. ccdeck이 스스로 알아채고 같은 대화로 '여기서 다시 열기'를 제안합니다.",
   "board.stage.wsEmptyTitle": "대기 중인 항목이 없습니다",

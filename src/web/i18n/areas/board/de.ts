@@ -658,6 +658,7 @@ const catalog: Catalog = {
   "board.stage.handoff.move": "Sitzung hierher verschieben",
   "board.stage.handoff.waiting": "Sitzung wird zu ccdeck verschoben…",
   "board.stage.handoff.failed": "ccdeck konnte die Sitzung nicht automatisch verschieben. Verwende Ghostty 1.4 oder neuer und ein leeres Claude-Eingabefeld.",
+  "board.stage.handoff.offer": "Sie ist in einem Ghostty-Fenster außerhalb von ccdeck geöffnet. ccdeck kann sie hierher verschieben, mit derselben Unterhaltung.",
   "board.stage.elsewhere.working": "Sie arbeitet in einem Terminal außerhalb von ccdeck. Um sie hier fortzusetzen, beende sie in diesem Terminal. ccdeck bemerkt das von selbst und bietet „Hier erneut öffnen“ an, mit derselben Unterhaltung.",
   "board.stage.elsewhere.running": "Sie läuft noch in einem Terminal außerhalb von ccdeck. Um sie hier fortzusetzen, beende sie in diesem Terminal. ccdeck bemerkt das von selbst und bietet „Hier erneut öffnen“ an, mit derselben Unterhaltung.",
   "board.stage.wsEmptyTitle": "Nichts wartet",

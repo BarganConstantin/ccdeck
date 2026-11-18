@@ -266,8 +266,11 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
             ? <p className="ts-text" role="status">{t("board.stage.handoff.waiting")}</p>
             : handoff?.failed
             ? <p className="ts-text" role="status">{t("board.stage.handoff.failed")}</p>
+            // With the move offered, the line says so instead of "quit it there
+            // and Reopen here", which would sit above a button that does it for
+            // you. The header still says whether it is working or waiting.
             : elsewhere
-            ? <p className="ts-text" role="status">{t(elsewhereLine(p.boardState))}</p>
+            ? <p className="ts-text" role="status">{t(handoff ? "board.stage.handoff.offer" : elsewhereLine(p.boardState))}</p>
             : <p className="ts-text">{ours ? t(LAUNCHED_UNREACHABLE_MSG) : unsure ? t(PROVENANCE_UNKNOWN_MSG) : target.label}</p>}
           <div className="ts-acts">
             {handoff && (elsewhere || handoff.moving) && (
