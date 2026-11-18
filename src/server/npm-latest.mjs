@@ -261,7 +261,7 @@ export function lastKnownLatest(name = PUBLISHED_NAME) {
 function writeMarker(name, marker) {
   const path = markerPath(name);
   try {
-    mkdirSync(dirname(path), { recursive: true });
+    mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     writeFileSync(path, JSON.stringify(marker));
   } catch { /* a read-only home must not break the deck */ }
 }

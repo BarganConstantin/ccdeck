@@ -14,7 +14,7 @@ export function capturePreferences(directory = join(homedir(), '.agents-deck'), 
     async read(port) { try { return JSON.parse(await readFile(file(port), 'utf8')); } catch { return null; } },
     write(port, value) {
       writes = writes.catch(() => {}).then(async () => {
-        await mkdir(directory, { recursive: true });
+        await mkdir(directory, { recursive: true, mode: 0o700 });
         const target = file(port), temp = target + `.${process.pid}.tmp`;
         await writeFile(temp, JSON.stringify(value), { mode: 0o600 });
         await chmod(temp, 0o600); await renameWithRetry(temp, target);

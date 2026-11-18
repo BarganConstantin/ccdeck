@@ -11,6 +11,11 @@
 // gives that mode to every folder the call creates and to no other: a folder
 // that is already there keeps its mode.
 //
+// ~/.agents-deck, beside the data folder, holds the tools the deck downloads
+// and runs (uv, ccusage, macmon), the Radar capture script that root runs, and
+// the deck's markers and logs. Its writers ask for 0700 too, so that under
+// the same umask nobody else in the group can swap a tool the deck then runs.
+//
 // Two halves. The first runs real writers against folders that do not exist
 // yet, under a 0002 umask, and reads the modes back. It is gated off Windows,
 // which has no POSIX mode to read and ignores the one asked for. The second
@@ -55,6 +60,10 @@ const { openEventLog } = await import("../../server/event-log.mjs");
 const { writeStore } = await import("../../server/browser-watch-store.mjs");
 // @ts-expect-error plain server module
 const { appendLog } = await import("../../server/browser-watch-log.mjs");
+// @ts-expect-error plain server module
+const { appendSwap } = await import("../../server/swap-log.mjs");
+// @ts-expect-error plain server module
+const { capturePreferences } = await import("../../server/traffic-radar-monitor.mjs");
 // @ts-expect-error plain desktop module
 const { writeLauncher } = await import("../../../desktop/deck-host.mjs");
 
@@ -148,6 +157,18 @@ describe.skipIf(process.platform === "win32")("the folders the deck's writers ma
     expectPrivate("desktop launcher", join(t, "a"), join(claude, "agent-dag"));
   });
 
+  it("are 0700 for ~/.agents-deck and each folder below it they make", async () => {
+    let t = fresh();
+    let tools = join(t, "a", ".agents-deck");
+    await appendSwap({ at: 1_700_000_000_000, slot: 1 }, join(tools, "log", "account-active.jsonl"));
+    expectPrivate("account switch log", join(t, "a"), join(tools, "log"));
+
+    t = fresh();
+    tools = join(t, "a", ".agents-deck");
+    await capturePreferences(tools).write(4317, { enabled: true });
+    expectPrivate("Radar preferences", join(t, "a"), tools);
+  });
+
   it("leave a folder that is already there as it is", async () => {
     // Above: a shared folder the deck did not make keeps its 0775, and only
     // the two below it, which the write made, are 0700.
@@ -207,37 +228,19 @@ function recursiveMkdirs() {
   return { found, unread };
 }
 
-const AGENTS_DECK = "~/.agents-deck, the deck's tools, caches and markers: beside the data folder, not above it, and home is its one parent";
-
-/** Folders a deck writer makes that are not the data or log folder or above
- *  them, and so keep the default mode. File, then the folder as written. */
+/** Folders a deck writer makes that are not the deck's own (the data, log and
+ *  agent-dag folders, ~/.agents-deck) or above them, and so keep the default
+ *  mode. File, then the folder as written. */
 const NOT_THE_DECKS: Record<string, string> = {
   "desktop/login-item.mjs dirname(path)": "the desktop's autostart folder",
   "src/server/login-service.mjs dirOf(path)": "the service manager's folder (LaunchAgents, systemd's user units)",
   "src/server/claude-settings.mjs paths.dir": "Claude Code's own settings folder",
   "src/server/traffic-radar-config.mjs dir": "Claude Code's own settings folder",
   "src/server/codex-terminal.mjs join(rc, '..')": "the folder of the shell's startup file",
-  "src/server/account-projects.mjs dirname(stateFile)": AGENTS_DECK,
-  "src/server/ccusage-install.mjs CACHE_DIR": AGENTS_DECK,
-  "src/server/ccusage-registry.mjs root": AGENTS_DECK,
-  "src/server/ccusage-registry.mjs target": AGENTS_DECK,
-  "src/server/ccusage-registry.mjs path.dirname(target)": AGENTS_DECK,
-  "src/server/ccusage-registry.mjs path.dirname(pkgDir)": AGENTS_DECK,
-  "src/server/claude-accounts.mjs dirname(SEED_MARKER)": AGENTS_DECK,
-  "src/server/cswap-auto-loop.mjs STATE_DIR": AGENTS_DECK,
-  "src/server/cswap-install.mjs join(homedir(), \".agents-deck\")": AGENTS_DECK,
-  "src/server/macmon.mjs dir": AGENTS_DECK,
-  "src/server/npm-latest.mjs dirname(path)": AGENTS_DECK,
-  "src/server/restart-note.mjs dirname(path)": AGENTS_DECK,
-  "src/server/swap-log.mjs join(path, \"..\")": AGENTS_DECK,
-  "src/server/traffic-radar-monitor.mjs directory": AGENTS_DECK,
-  "src/server/traffic-radar-permission.mjs directory": AGENTS_DECK,
-  "src/server/uv-bootstrap.mjs TOOL_DIR": AGENTS_DECK,
-  "src/server/uv-bootstrap.mjs UV_DIR": AGENTS_DECK,
 };
 
 describe("the writers of the deck's folders, as written", () => {
-  it("name 0700 for every folder they make, apart from folders that are not the deck's data or log folder", () => {
+  it("name 0700 for every folder they make, apart from folders that are not the deck's own", () => {
     const { found, unread } = recursiveMkdirs();
     expect(unread, "mkdir calls this scan cannot read").toEqual([]);
     const plain = [...new Set(found.filter((c) => !c.private).map((c) => `${c.file} ${c.folder}`))].sort();
@@ -252,6 +255,9 @@ describe("the writers of the deck's folders, as written", () => {
       "src/server/event-log.mjs pdirname(persistPath)",
       "src/server/installer.mjs p",
       "desktop/deck-host.mjs dir",
+      "src/server/uv-bootstrap.mjs TOOL_DIR",
+      "src/server/ccusage-registry.mjs root",
+      "src/server/traffic-radar-permission.mjs directory",
     ]));
   });
 });

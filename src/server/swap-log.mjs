@@ -97,7 +97,7 @@ export async function readSwapLog(path = swapLogPath(), { strict = false } = {})
 /** Append one swap line. Creates the log directory on first use. Best-effort:
  *  a failure to record must never break a switch, so callers ignore rejection. */
 export async function appendSwap(entry, path = swapLogPath()) {
-  await mkdir(join(path, ".."), { recursive: true });
+  await mkdir(join(path, ".."), { recursive: true, mode: 0o700 });
   await appendFile(path, JSON.stringify(entry) + "\n", "utf8");
 }
 

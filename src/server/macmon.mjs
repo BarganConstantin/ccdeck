@@ -271,7 +271,7 @@ export async function bootstrapMacmon({
     // rather than accepting a directory somebody else made.
     // Staged beside the destination rather than in the system temp directory,
     // so the rename below is same-filesystem and therefore atomic.
-    await mkdir(dir, { recursive: true });
+    await mkdir(dir, { recursive: true, mode: 0o700 });
     staging = await mkdtemp(join(dir, "macmon-staging-"));
     const archivePath = join(staging, "macmon.tar.gz");
     await writeFile(archivePath, archive);
