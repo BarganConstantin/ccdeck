@@ -798,6 +798,7 @@ const catalog: Catalog = {
   "board.inspector.agentsNote": "Wer wen gestartet hat, aus dem Transkript gelesen. Jede Karte zeigt ihr eigenes Modell, ihre Kosten und ihre Zeit.",
   "board.inspector.emptyTitle": "Keine Sitzung im Fokus",
   "board.inspector.emptyLine": "Öffne eine aus der Liste.",
+  "board.inspector.chooseSession": "Wähle eine Sitzung, um ihre Details zu sehen.",
   "board.inspector.tabAgents": "Agents",
   "board.inspector.tabTime": "Zeit",
   "board.inspector.tabContext": "Kontext",

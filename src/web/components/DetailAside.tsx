@@ -4,7 +4,7 @@
 // Moved out of App.tsx's markup unchanged, with exportSessionJson, the one
 // thing only this panel does with the graph. App.tsx mounts it while an agent
 // is selected and the panel is open.
-import { useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
+import type { MutableRefObject } from "react";
 
 import { useFeatureUse } from "../feature-use";
 import type { GraphState } from "../reducer";
@@ -13,7 +13,7 @@ import type { AgentNodeData } from "../types";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { useInspectorStatus } from "../inspector-state";
 import Detail from "./Detail";
-import Inspector from "./Inspector";
+import Inspector, { useSheetEntry } from "./Inspector";
 import { useT } from "../i18n";
 import SheetHandle from "./SheetHandle";
 import { INSPECTOR_REGION_ID } from "../inspector-corner";
@@ -74,17 +74,9 @@ export default function DetailAside({ selected, now, openTool, setSummaryFor, on
   useFeatureUse("detail-panel");
   const singleKeys = useSingleKeyShortcuts();
   const status = useInspectorStatus(selected, stateRef.current.agents, now, workspace);
-  // The sheet is drawn off the right edge first and moved in on the next
-  // style flush (a style read in between makes the browser take the start as
-  // computed), so the entry is a transition and not a pop.
-  const asideRef = useRef<HTMLElement>(null);
-  const [entered, setEntered] = useState(!sheet);
-  useLayoutEffect(() => {
-    if (!sheet) return;
-    void asideRef.current?.offsetWidth;
-    setEntered(true);
-  }, [sheet]);
-  const sheetState = !sheet ? undefined : leaving ? "out" : entered ? "in" : "pre";
+  // The sheet comes in as a transition, not a pop (Inspector.tsx says how);
+  // the Inspector with no session to show comes in the same way.
+  const { asideRef, sheetState } = useSheetEntry(sheet, leaving);
   return (
     // Already the right element and still an unnamed one: the rotor listed
     // it as a bare "complementary" beside the session list's "Sessions",

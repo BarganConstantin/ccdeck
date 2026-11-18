@@ -179,7 +179,10 @@ describe("the Inspector's door", () => {
   it("is the id both Inspector asides carry, so what it controls is there whichever is drawn", () => {
     expect(INSPECTOR_REGION_ID).toBe("inspector");
     expect(source("../components/DetailAside.tsx")).toContain("id={INSPECTOR_REGION_ID}");
-    expect(source("../components/Inspector.tsx")).toMatch(/<aside id=\{INSPECTOR_REGION_ID\} className="detail"/);
+    // CHANGED ON PURPOSE (owner, 2026-11-18): the empty Inspector also opens as
+    // the Board's panel and the sheets, so it takes their ref, leaving class
+    // and sheet state; the id is the same.
+    expect(source("../components/Inspector.tsx")).toMatch(/<aside ref=\{asideRef\} id=\{INSPECTOR_REGION_ID\} className=\{leaving \? "detail leaving" : "detail"\}/);
     expect(source("../rail-items.tsx")).toContain("controls: INSPECTOR_REGION_ID");
   });
 
@@ -239,8 +242,14 @@ describe("the Inspector's door", () => {
       expect(body).toContain('else if (press === "show") showInspector();');
       // D's own two lines (use-deck-shortcuts.ts), word for word.
       expect(body).toContain("else if (primarySelectedIdRef.current) setDetailOpen(o => !o);");
-      expect(body).toContain("else pickSessionForInspector(stateRef.current, focusSession, stepAgent);");
+      // CHANGED ON PURPOSE (owner, 2026-11-18): with nothing to pick the door
+      // opens the Inspector on one line, and pressed again closes it; D with
+      // nothing to pick presses the door.
+      expect(body).toContain("else if (inspectorOpen) setInspectingNothing(false);");
+      expect(body).toContain("else if (!pickSessionForInspector(stateRef.current, focusSession, stepAgent)) inspectNothing();");
       expect(app).toContain("inspectorOpen, toggleInspector,");
+      expect(app).toContain("const inspectorDoorRef = useMirroredRef<(() => void) | null>(toggleInspector);");
+      expect(app).toContain("inspectorSheetFoldRef: sheetFoldRef, inspectorDoorRef,");
     });
 
     it("keeps Escape and the fold paths: the sheet's Esc, ›, D and the door fold it; the pane's Esc is the agent's", () => {
