@@ -959,8 +959,6 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // its shared keyboard outline is the action's only ring boundary.
       ".ts-chat-handoff > button.btn:focus-visible",
       ".uh-bar-col.sel .uh-bar",
-      ".ui-button:focus-visible",
-      ".ui-input:focus-visible",
       // CHANGED ON PURPOSE (internal #102): the line between two panes of a
       // split Workspace is the same kind of grab strip, 1px drawn, so the
       // keyboard ring drawn round it is the whole of its boundary.

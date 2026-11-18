@@ -7,9 +7,12 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: "default" | "icon";
 }
 
+const variants = { outline: "", primary: "ui-button-primary", ghost: "ui-button-ghost" } as const;
+const sizes = { default: "", icon: "ui-button-icon" } as const;
+
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className = "", variant = "outline", size = "default", type = "button", ...props }, ref) => (
-    <button ref={ref} type={type} className={`ui-button ui-button-${variant} ui-button-${size} ${className}`} {...props} />
+    <button ref={ref} type={type} className={["ui-button", variants[variant], sizes[size], className].filter(Boolean).join(" ")} {...props} />
   ),
 );
 Button.displayName = "Button";

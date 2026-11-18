@@ -122,6 +122,9 @@
    length. No !important: each selector is spelled as the rule it
    answers, and this block comes last. */
 @media (forced-colors: active) {
+  .ui-button-primary { border-color: Highlight; }
+  .ui-input[aria-invalid="true"] { border-color: Mark; }
+  .ns-worktree-toggle[aria-pressed="true"] { forced-color-adjust: none; color: HighlightText; background: Highlight; }
   .provider-avatar::before { forced-color-adjust: none; background-color: CanvasText; }
   .pane-badge { border: 1px solid CanvasText; }
   .pane-badge[data-active] { forced-color-adjust: none; color: HighlightText; background: Highlight; border-color: Highlight; }

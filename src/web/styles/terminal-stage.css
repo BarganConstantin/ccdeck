@@ -779,7 +779,7 @@
   line-height: 24px;
   color: var(--text);
 }
-.ns-label { display: block; margin: 0 0 8px; font-size: 12px; font-weight: 500; line-height: 16px; color: var(--text-secondary); }
+.ns-label { display: block; margin: 0 0 8px; font-size: 12px; font-weight: 500; line-height: 16px; color: var(--muted); }
 /* The strips are V4's chips here: 26 high, the control radius, --bg-soft on a --line-soft edge,
    12/500 in --text-secondary; the chosen one keeps the deck's solid accent state. */
 .ns-form .uh-range { gap: 6px; padding: 0; border: 0; background: none; }
@@ -831,6 +831,7 @@
 .ns-worktree-toggle { min-height: max(32px, var(--ui-control-floor, 24px)); padding: 0 8px; }
 .ns-worktree-toggle[aria-pressed="true"] { background: var(--selected); color: var(--text); }
 .ns-worktree-count { color: var(--muted); font-variant-numeric: tabular-nums; }
+.ns-worktree-toggle[aria-pressed="true"] .ns-worktree-count { color: inherit; }
 .ns-project-group { padding-bottom: 4px; }
 .ns-worktree-heading {
   margin: 0 8px;
@@ -842,19 +843,15 @@
 }
 .ns-option[data-worktree] { margin-left: 14px; }
 @media (pointer: coarse) { .ns-worktree-toggle { min-height: 44px; } }
-@media (forced-colors: active) {
-  .ns-worktree-toggle[aria-pressed="true"] { forced-color-adjust: none; color: HighlightText; background: Highlight; }
-  .ns-worktree-toggle[aria-pressed="true"] .ns-worktree-count { color: inherit; }
-}
 .ns-folder { flex: none; display: inline-flex; width: 18px; align-items: center; justify-content: center; color: var(--muted); }
 .ns-project-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ns-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; line-height: 18px; }
 .ns-path { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 400 11px/16px var(--font-mono); color: var(--muted); }
 /* The search (internal #106): words first, so the field reads in the deck's
    own face; a typed path is still a path in it. 6px above the list. */
-.ns-search { position: relative; margin-bottom: 8px; }
+.ns-search { position: relative; display: grid; margin-bottom: 8px; }
 .ns-search > svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
-.ns-form .ns-field { padding-left: 34px; min-height: 38px; }
+.ns-form .ns-field { padding-left: 32px; min-height: 38px; }
 /* The chosen project's tick, in the accent the list's selection uses. */
 .ns-check { flex: none; color: var(--accent); }
 /* × takes a project off the list (nothing on disk): drawn on the row the
