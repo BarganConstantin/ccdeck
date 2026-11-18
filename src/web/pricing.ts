@@ -1,5 +1,6 @@
 import { AUTO_REVIEW_MODEL, FREE_AUTO_REVIEW_TIER } from "../server/codex-review-policy.mjs";
-// Live Anthropic API pricing → dollar cost per agent.
+import { GPT_62, ULTRAFAST_INTRO_TIER } from "../server/codex-ultrafast.mjs";
+// Live API pricing → dollar cost per agent.
 //
 // The rates themselves, and where and when each was read, are in
 // rate-table.ts. This file is the arithmetic over them.
@@ -22,10 +23,8 @@ export interface ModelRates {
   output: number;      // $/Mtok
   cacheRead: number;   // $/Mtok — hits & refreshes
   cacheWrite: number;  // $/Mtok — 5-minute writes (1.25× input)
-  /** $/Mtok for a 1-hour cache write (2× input). Anthropic is the only
-   *  family here that publishes a second cache-write price — OpenAI has one
-   *  cache tier and its usage never carries a TTL split — so the Codex rows
-   *  leave this unset and costForUsage falls back to `cacheWrite`. */
+  /** $/Mtok for an Anthropic 1-hour cache write (2× input). The Codex
+   *  counters used here do not carry a TTL split, so Codex uses `cacheWrite`. */
   cacheWrite1h?: number;
 }
 
@@ -48,6 +47,21 @@ export interface ModelRates {
 function isCodexModel(modelId: string | undefined): boolean {
   if (!modelId) return false;
   return /^(?:gpt[-_]|codex[-_]|o\d)/i.test(modelId);
+}
+
+// OpenAI's model pricing pages and the ccusage Codex guide list the
+// supported Fast/Flex families. Keep unknown model/tier pairs unpriced.
+const CODEX_FAST_FLEX = /^gpt[-_](?:5[-_.]6[-_](?:sol|terra|luna)|6[-_](?:astra|sol|luna)|6[-_.]1[-_](?:sol|terra))\b(?![-_][A-Za-z])/i;
+const CODEX_ULTRAFAST = /^gpt[-_]6(?:[-_]astra|[-_.]1[-_]sol)\b(?![-_][A-Za-z])/i;
+
+function codexTierFactor(model: string, speed: string): number | undefined {
+  switch (speed) {
+    case "fast": return GPT_62.test(model) || CODEX_FAST_FLEX.test(model) ? 2 : undefined;
+    case "flex": return CODEX_FAST_FLEX.test(model) ? 0.5 : undefined;
+    case "ultrafast": return GPT_62.test(model) || CODEX_ULTRAFAST.test(model) ? 6 : undefined;
+    case ULTRAFAST_INTRO_TIER: return GPT_62.test(model) ? 3 : undefined;
+    default: return undefined;
+  }
 }
 
 /** `now` is injectable so a dated rate can be exercised on both sides of its
@@ -74,12 +88,8 @@ export function ratesForModel(
   if (modelId === AUTO_REVIEW_MODEL && speed === FREE_AUTO_REVIEW_TIER) {
     return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
   }
-  // OpenAI's published short-context tiers, checked 2026-10-19 at
-  // developers.openai.com/api/docs/pricing. Only supported families get a
-  // multiplier: an unknown tier/model remains unpriced.
   if (speed !== STANDARD_SPEED && isCodexModel(modelId)) {
-    const known = /^gpt[-_]6(?:[-_.]1)?[-_](?:astra|sol|luna)\b(?![-_][A-Za-z])/i.test(modelId);
-    const factor = known ? new Map([["fast", 2], ["flex", 0.5]]).get(speed) : undefined;
+    const factor = codexTierFactor(modelId, speed);
     const base = factor === undefined ? null : ratesForModel(modelId, now);
     return base && factor !== undefined ? {
       input: base.input * factor, output: base.output * factor,

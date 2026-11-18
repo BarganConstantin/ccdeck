@@ -1,3 +1,4 @@
+import { ULTRAFAST_INTRO_TIER } from "../server/codex-ultrafast.mjs";
 import { FREE_AUTO_REVIEW_TIER } from "../server/codex-review-policy.mjs";
 // The card's cost tooltip: the multiplication behind the figure in its chip,
 // written out so it can be checked by hand.
@@ -82,7 +83,7 @@ function singleRateTooltip(usage: TokenUsage, modelId: string | undefined, speed
   const base = ratesForModel(modelId, Date.now(), speed);
   const rates = base ? contextRates(base, long) : null;
   const tier = long ? ` · ${t("board.cost.longPrompt")}` : "";
-  const heading = (speed === FREE_AUTO_REVIEW_TIER ? t("board.cost.headingFree", { model: String(modelId) }) : speed === STANDARD_SPEED ? t("board.cost.heading", { model: String(modelId) }) : t("board.cost.headingSpeed", { model: String(modelId), speed })) + tier;
+  const heading = (speed === FREE_AUTO_REVIEW_TIER ? t("board.cost.headingFree", { model: String(modelId) }) : speed === STANDARD_SPEED ? t("board.cost.heading", { model: String(modelId) }) : t("board.cost.headingSpeed", { model: String(modelId), speed: speed === ULTRAFAST_INTRO_TIER ? "ultrafast" : speed })) + tier;
   // This branch was unreachable until #400: the only element carrying this
   // tooltip was gated on the same ratesForModel call that returns null here, so
   // the graceful answer existed and could never be read. It names the model now
@@ -186,7 +187,7 @@ function tipSection(usage: TokenUsage, modelId: string | undefined, speed: strin
   const base = ratesForModel(modelId, Date.now(), speed);
   const rates = base ? contextRates(base, long) : null;
   const tier = long ? ` · ${t("board.cost.longPrompt")}` : "";
-  const title = (speed === FREE_AUTO_REVIEW_TIER ? t("board.cost.headingFree", { model: String(modelId) }) : speed === STANDARD_SPEED ? t("board.cost.heading", { model: String(modelId) }) : t("board.cost.headingSpeed", { model: String(modelId), speed })) + tier;
+  const title = (speed === FREE_AUTO_REVIEW_TIER ? t("board.cost.headingFree", { model: String(modelId) }) : speed === STANDARD_SPEED ? t("board.cost.heading", { model: String(modelId) }) : t("board.cost.headingSpeed", { model: String(modelId), speed: speed === ULTRAFAST_INTRO_TIER ? "ultrafast" : speed })) + tier;
   if (!rates) return { title, rows: [], noRate: true };
   const row = (label: string, tokens: number, rate: number, usd: number): CostTipRow =>
     ({ label, value: `${fmtTokens(tokens)} × ${perMTok(rate)} = ${fmtCost(usd)}` });

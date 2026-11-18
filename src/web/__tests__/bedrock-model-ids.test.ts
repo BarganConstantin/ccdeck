@@ -101,6 +101,9 @@ const PINNED: Array<[string, ModelRates]> = [
   ["claude-sonnet-4@20250514",     A(3, 15, 0.3, 3.75, 6)],
   ["claude-haiku-4-5@20251001",    A(1, 5, 0.1, 1.25, 2)],
   // OpenAI / Codex — one per row, plus the aliases the rows name.
+  ["gpt-6.2-astra",       O(8, 40, 0.4, 10)],
+  ["gpt-6.2-sol",         O(2, 10, 0.1, 2.5)],
+  ["gpt-6.1-terra",       O(1, 5, 0.05, 1.25)],
   ["gpt-6-astra",         O(10, 50, 1, 12.5)],          // #754 — was unpriced
   ["gpt-6.1-sol",         O(2, 10, 0.1, 2.5)],          // #1885 — was unpriced
   ["gpt-6-sol",           O(2, 10, 0.2, 2.5)],          // #1885 — was unpriced

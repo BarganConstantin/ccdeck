@@ -118,7 +118,15 @@ export default function SessionUsageModal({ session, onClose }: { session: Sessi
               <table>
                 <thead><tr><th scope="col">{t("insights.usage.model")}</th><th scope="col">{t("insights.usage.tokensCol")}</th></tr></thead>
                 <tbody>{detail.models.map(model => <tr key={model.model}>
-                  <th scope="row" title={model.model}>{shortModel(model.model)}{model.missingPricing && <span className="su-unpriced"> · {t("insights.cost.notPriced")}</span>}</th>
+                  <th scope="row" title={model.model}>
+                    {shortModel(model.model)}{model.missingPricing && <span className="su-unpriced"> · {t("insights.cost.notPriced")}</span>}
+                    {model.cacheCreation1hTokens !== undefined && <span className="su-model-cache">
+                      {t("insights.session.cacheWriteSplit", {
+                        short: count(model.cacheCreationTokens - model.cacheCreation1hTokens),
+                        long: count(model.cacheCreation1hTokens),
+                      })}
+                    </span>}
+                  </th>
                   <td title={count(model.totalTokens)}>{fmtTokens(model.totalTokens)}</td>
                 </tr>)}</tbody>
               </table>
