@@ -66,6 +66,13 @@ export function projectKey(cwd: string): string {
   return /^[A-Za-z]:$/.test(trimmed) ? `${trimmed}${cwd.slice(2, 3) || "\\"}` : trimmed;
 }
 
+/** Windows tools can report either separator. Keep the real path for launch. */
+export function projectIdentity(cwd: string): string {
+  const key = projectKey(cwd);
+  if (!/^[A-Za-z]:[\\/]|^\\\\/.test(key)) return key;
+  return key.replace(/\\/g, "/").replace(/^[a-z]:/, drive => drive.toUpperCase());
+}
+
 /** The remembered folders, newest first, each once, at most RECENT_MAX. */
 export function readRecents(store: ProjectStore | null = browserStore()): RecentProject[] {
   const raw = readJson(store, RECENT_KEY);
@@ -133,26 +140,47 @@ export function withoutRecent(kept: KeptProjects, cwd: string): KeptProjects {
  * as projectChoices orders them) and the remembered ones, each folder once,
  * the rest newest first, without the ones the reader removed.
  */
-export function pickerProjects(board: ProjectChoice[], recents: RecentProject[], forgotten: readonly string[] = []): ProjectChoice[] {
-  const hidden = new Set(forgotten.map(projectKey));
+export function pickerProjects(board: ProjectChoice[], recents: RecentProject[], forgotten: readonly string[] = [], discovered: ProjectChoice[] = []): ProjectChoice[] {
+  const hidden = new Set(forgotten.map(projectIdentity));
   const byKey = new Map<string, ProjectChoice>();
   for (const p of board) {
-    const key = projectKey(p.cwd);
-    if (!hidden.has(key) && !byKey.has(key)) byKey.set(key, { ...p, cwd: key });
+    const key = projectIdentity(p.cwd);
+    if (!hidden.has(key) && !byKey.has(key)) byKey.set(key, { ...p, cwd: projectKey(p.cwd) });
   }
   for (const r of recents) {
-    if (hidden.has(r.cwd)) continue;
-    const had = byKey.get(r.cwd);
-    if (had) byKey.set(r.cwd, { ...had, at: Math.max(had.at ?? 0, r.at) });
-    else byKey.set(r.cwd, { cwd: r.cwd, name: folderName(r.cwd), hue: sessionHue(r.cwd), at: r.at });
+    const key = projectIdentity(r.cwd);
+    if (hidden.has(key)) continue;
+    const had = byKey.get(key);
+    if (had) byKey.set(key, { ...had, at: Math.max(had.at ?? 0, r.at) });
+    else byKey.set(key, { cwd: r.cwd, name: folderName(r.cwd), hue: sessionHue(r.cwd), at: r.at });
+  }
+  for (const p of discovered) {
+    const key = projectIdentity(p.cwd);
+    if (hidden.has(key)) continue;
+    const had = byKey.get(key);
+    if (!had) byKey.set(key, p);
+    else if (p.worktree) byKey.set(key, { ...had, name: p.name, worktree: p.worktree });
   }
   const all = [...byKey.values()];
   if (all.length < 2) return all;
   // The stage's own project stays first, as the board put it; the rest by
   // when they were last used (a stable sort keeps the board's order on ties).
-  const leads = board.length > 0 && projectKey(board[0].cwd) === all[0].cwd;
+  const leads = board.length > 0 && projectIdentity(board[0].cwd) === projectIdentity(all[0].cwd);
   const rest = (leads ? all.slice(1) : all).sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
   return leads ? [all[0], ...rest] : rest;
+}
+
+/** Preserve project order while putting each worktree beside its own checkout. */
+export function groupProjects(projects: ProjectChoice[]) {
+  const groups = new Map<string, { key: string; main?: ProjectChoice; worktrees: ProjectChoice[] }>();
+  for (const project of projects) {
+    const key = projectIdentity(project.worktree?.projectCwd ?? project.cwd);
+    const group = groups.get(key) ?? { key, worktrees: [] };
+    if (project.worktree) group.worktrees.push(project);
+    else group.main = project;
+    groups.set(key, group);
+  }
+  return [...groups.values()];
 }
 
 /** The search's words, lower case. */
@@ -172,7 +200,9 @@ export function matchProjects(projects: ProjectChoice[], query: string): Project
   projects.forEach((p, i) => {
     const name = p.name.toLowerCase();
     const path = p.cwd.toLowerCase();
-    if (!ws.every(w => name.includes(w) || path.includes(w))) return;
+    const worktree = p.worktree;
+    const context = worktree ? `${worktree.projectName} ${worktree.projectCwd} ${worktree.branch ?? ""}`.toLowerCase() : "";
+    if (!ws.every(w => name.includes(w) || path.includes(w) || context.includes(w))) return;
     const rank = name.startsWith(ws[0]) ? 0 : ws.every(w => name.includes(w)) ? 1 : 2;
     ranked.push({ p, rank, i });
   });
@@ -185,7 +215,7 @@ export function typedFolder(projects: ProjectChoice[], query: string): ProjectCh
   const path = query.trim();
   if (!isAbsolutePath(path)) return null;
   const key = projectKey(path);
-  if (projects.some(p => p.cwd === key)) return null;
+  if (projects.some(p => projectIdentity(p.cwd) === projectIdentity(key))) return null;
   return { cwd: key, name: folderName(key), hue: sessionHue(key) };
 }
 

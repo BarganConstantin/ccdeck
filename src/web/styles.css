@@ -22,6 +22,7 @@
 @import "./styles/themes.css";                   /* generated JSON palettes and previews */
 @import "./styles/tokens.css";                   /* shared model mappings, geometry and motion */
 @import "./styles/utilities.css";                /* shared utilities */
+@import "./styles/ui-controls.css";              /* local shadcn/ui form controls */
 @import "./styles/loader.css";                   /* V4's Loader: the grid the app shows while it waits on data */
 @import "./styles/segmented.css";               /* V4's segmented control: the thumb that slides to the chosen segment */
 @import "./styles/desktop-titlebar.css";
