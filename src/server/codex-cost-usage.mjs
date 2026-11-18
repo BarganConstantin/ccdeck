@@ -1,8 +1,9 @@
 import { FREE_AUTO_REVIEW_TIER, isFreeAutoReview } from "./codex-review-policy.mjs";
+import { GPT_62, ULTRAFAST_INTRO_END, ULTRAFAST_INTRO_TIER } from "./codex-ultrafast.mjs";
 // Price only observed increases under recorded settings, never a whole session
 // at its latest tier. These are API-equivalent estimates, not billing evidence.
 const FIELDS = ["input_tokens", "output_tokens", "cached_input_tokens", "cache_write_input_tokens"];
-const TIERS = new Map([["default", "standard"], ["standard", "standard"], ["priority", "fast"], ["fast", "fast"], ["flex", "flex"]]);
+const TIERS = new Map([["default", "standard"], ["standard", "standard"], ["priority", "fast"], ["fast", "fast"], ["flex", "flex"], ["ultrafast", "ultrafast"]]);
 const count = n => typeof n === "number" && Number.isFinite(n) && n >= 0 ? n : 0;
 const empty = () => Object.fromEntries(FIELDS.map(k => [k, 0]));
 export function codexCostState() {
@@ -51,7 +52,11 @@ export function foldCodexCost(state, obj) {
   const free = isFreeAutoReview(state.model, state.creator, obj.timestamp)
     && (isFreeAutoReview(state.model, state.creator, priorUsageAt)
       || isFreeAutoReview(state.model, state.creator, state.startedAt));
-  const billedTier = free ? FREE_AUTO_REVIEW_TIER : state.tier;
+  let billedTier = free ? FREE_AUTO_REVIEW_TIER : state.tier;
+  if (billedTier === "ultrafast" && GPT_62.test(state.model)) {
+    const at = Date.parse(obj.timestamp);
+    billedTier = !Number.isFinite(at) ? "unknown" : at < ULTRAFAST_INTRO_END ? ULTRAFAST_INTRO_TIER : "ultrafast";
+  }
   if (billedTier && billedTier !== "standard") {
     const share = bucket.speeds.get(billedTier) ?? empty();
     for (const k of FIELDS) share[k] += delta[k];

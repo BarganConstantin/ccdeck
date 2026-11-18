@@ -12,7 +12,7 @@ export interface SessionDetail extends SessionTokens {
   sessionId: string; agent: "claude" | "codex"; speed: SessionSpeed;
   totalCost: number; totalTokens: number; firstActivity: string | null;
   lastActivity: string | null; entries: number | null;
-  models: (SessionTokens & { model: string; totalTokens: number; missingPricing: boolean })[];
+  models: (SessionTokens & { model: string; totalTokens: number; missingPricing: boolean; cacheCreation1hTokens?: number })[];
 }
 export interface SessionReply { ok: boolean; detail?: SessionDetail; reason?: string; error?: string }
 
