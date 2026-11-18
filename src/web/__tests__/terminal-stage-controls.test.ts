@@ -163,6 +163,31 @@ describe("the New session form", () => {
     failed.unmount();
   });
 
+  it('groups worktrees by project and starts in the selected worktree on Windows', async () => {
+    const windowsRoot = "C:/work/paycore";
+    const existing = "C:/trees/login";
+    const p = props({ projects: [{ cwd: windowsRoot, name: "paycore", hue: 1 }], windows: true }, {
+      loadProjects: async () => ({ projects: [
+        { cwd: "C:\\work\\paycore", name: "paycore" },
+        { cwd: existing, name: "login", worktree: { projectCwd: "C:\\work\\paycore", projectName: "paycore", branch: "fix/oauth" } },
+      ] }),
+    });
+    const view = mount(NewSessionForm, p);
+    await flush();
+    expect(names(view.tree)).toEqual(["paycore"]);
+    click(one(view.tree, el => String(el.props.className).includes("ns-worktree-toggle"))!);
+    const group = one(view.tree, el => el.props.role === "group" && el.props["aria-label"] === "Worktrees · paycore");
+    expect(names(group)).toEqual(["paycore", "login"]);
+    type(view, "paycore oauth");
+    expect(names(view.tree)).toEqual(["login"]);
+    press(view, "Enter");
+    expect(p.onStart).not.toHaveBeenCalled();
+    click(startButton(view.tree));
+    await flush();
+    expect(p.onStart).toHaveBeenCalledWith("claude", existing);
+    view.unmount();
+  });
+
   it("starts Claude in the first project by default, once the deck has said the folder is there", async () => {
     const p = props();
     const m = mount(NewSessionForm, p);

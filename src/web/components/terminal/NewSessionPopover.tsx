@@ -59,7 +59,7 @@ import { canChooseFolder, chooseFolder } from "../../desktop-folder";
 import { isApplePlatform, platformName } from "../../platform";
 import { elidePath, folderName, type ProjectChoice } from "./stage-model";
 import {
-  browserStore, looksRelative, matchProjects, pickerProjects, projectKey, projectPaths, readKept, saveKept, typedFolder,
+  browserStore, groupProjects, looksRelative, matchProjects, pickerProjects, projectIdentity, projectKey, projectPaths, readKept, saveKept, typedFolder,
   withRecent, withoutRecent, type KeptProjects, type ProjectStore,
 } from "./project-picker";
 import { ProviderGlyph } from "./stage-icons";
@@ -199,7 +199,8 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
   }, [deps]);
   const [chosen, setChosen] = useState<Chosen | null>(() => (all[0] ? { cwd: all[0].cwd, name: all[0].name } : null));
   const [query, setQuery] = useState("");
-  const [active, setActive] = useState(0);
+  const [active, setActive] = useState<string | null>(() => all[0]?.cwd ?? null);
+  const [showWorktrees, setShowWorktrees] = useState(false);
   const [agent, setAgent] = useState<TerminalProvider>(initialAgent);
   const [model, setModel] = useState<LaunchOptions["model"] | null>(null);
   const [mode, setMode] = useState<LaunchOptions["permissionMode"] | null>(null);
@@ -217,19 +218,24 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
 
   const searching = query.trim() !== "";
   const typed = searching ? typedFolder(all, query) : null;
-  const shown = searching ? [...(typed ? [typed] : []), ...matchProjects(all, query)] : all;
-  const at = shown.length ? Math.min(Math.max(active, 0), shown.length - 1) : -1;
+  const worktreeCount = all.filter(project => project.worktree).length;
+  const matches = searching
+    ? [...(typed ? [typed] : []), ...matchProjects(all, query)]
+    : all.filter(project => showWorktrees || !project.worktree || project.cwd === chosen?.cwd);
+  const groups = groupProjects(matches);
+  const shown = groups.flatMap(({ main, worktrees }) => main ? [main, ...worktrees] : worktrees);
+  const positions = new Map(shown.map((project, index) => [project.cwd, index]));
+  const at = shown.length ? positions.get(active ?? "") ?? 0 : -1;
   useEffect(() => {
     const list = listRef.current;
-    const row = list?.children[at];
+    const row = list?.querySelector('[data-highlighted="true"]');
     if (!list || !row) return;
     const box = list.getBoundingClientRect(), item = row.getBoundingClientRect();
     // Move only this scroller: scrollIntoView can also move the dialog/page.
     if (item.top < box.top) list.scrollTop -= box.top - item.top;
     else if (item.bottom > box.bottom) list.scrollTop += item.bottom - box.bottom;
-  }, [at, query, shown.length]);
+  }, [at, query, shown[at]?.cwd, shown.length]);
   const paths = projectPaths(all);
-  const place = (cwd: string) => Math.max(0, all.findIndex(p => p.cwd === cwd));
 
   const keep = (change: (k: KeptProjects) => KeptProjects) => {
     setKept(k => {
@@ -246,7 +252,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
   const choose = (p: ProjectChoice) => {
     setChosen({ cwd: p.cwd, name: p.name });
     setQuery("");
-    setActive(place(p.cwd));
+    setActive(p.cwd);
     clearSays();
   };
 
@@ -268,7 +274,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
     keep(k => withRecent(k, cwd, deps.now()));
     setChosen({ cwd, name: folderName(cwd) });
     setQuery("");
-    setActive(0);
+    setActive(cwd);
   };
 
   const pickOption = (p: ProjectChoice) => {
@@ -280,7 +286,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
     const next = withoutRecent(kept, p.cwd);
     saveKept(next, deps.store);
     setKept(next);
-    if (chosen && projectKey(chosen.cwd) === projectKey(p.cwd)) {
+    if (chosen && projectIdentity(chosen.cwd) === projectIdentity(p.cwd)) {
       const rest = pickerProjects(projects, next.recents, next.forgotten, discovered);
       setChosen(rest[0] ? { cwd: rest[0].cwd, name: rest[0].name } : null);
     }
@@ -341,7 +347,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
       if (!shown.length) return;
       e.preventDefault();
       const step = e.key === "ArrowDown" ? 1 : shown.length - 1;
-      setActive((at < 0 ? 0 : at + step) % shown.length);
+      setActive(shown[(at < 0 ? 0 : at + step) % shown.length].cwd);
     } else if (e.key === "Enter") {
       e.preventDefault();
       if (e.ctrlKey || e.metaKey) { void start(); return; }
@@ -357,7 +363,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
       e.preventDefault();
       e.stopPropagation();
       setQuery("");
-      setActive(chosen ? place(chosen.cwd) : 0);
+      setActive(chosen?.cwd ?? null);
     }
   };
 
@@ -369,13 +375,68 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
   const problemText = problem && problem.code !== "unavailable" ? t(FOLDER_PROBLEM_MSG[problem.code]) : null;
   const keysHint = t("board.newSession.keysHint", { mod: deps.apple ? "⌘" : "Ctrl" });
 
+  const renderOption = (q: ProjectChoice) => {
+    const i = positions.get(q.cwd)!;
+    const isTyped = !!typed && q.cwd === typed.cwd;
+    const isChosen = !!chosen && chosen.cwd === q.cwd && !isTyped;
+    return (
+      <div
+        key={`${isTyped ? "typed:" : ""}${q.cwd}`}
+        id={optionId(i)}
+        className="ns-option"
+        role="option"
+        aria-selected={isChosen}
+        data-highlighted={i === at || undefined}
+        data-chosen={isChosen || undefined}
+        data-worktree={!!q.worktree || undefined}
+        title={q.cwd}
+        // The field keeps the keyboard: a press on a row is not a press
+        // that moves focus out of it.
+        onMouseDown={e => e.preventDefault()}
+        onClick={() => pickOption(q)}
+      >
+        <span className="ns-folder" aria-hidden="true"><KitIcon name="folder" /></span>
+        <span className="ns-project-copy">
+          <span className="ns-name">{isTyped ? t("board.newSession.usePath", { name: q.name }) : q.name}</span>
+          <span className="ns-path">
+            {q.worktree?.branch && q.worktree.branch !== q.name ? `${q.worktree.branch} · ` : ""}
+            {isTyped ? elidePath(q.cwd, 56) : paths.get(q.cwd) ?? elidePath(q.cwd, 56)}
+          </span>
+        </span>
+        {isChosen && (
+          <svg className="ns-check" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M2.5 6.5l2.25 2.25L9.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+        {!isTyped && (
+          <span
+            className="ns-forget"
+            aria-hidden="true"
+            title={t("board.newSession.forget", { name: q.name })}
+            onClick={e => { e.stopPropagation(); forget(q); }}
+          >
+            ×
+          </span>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="ns-form" data-searching={searching || undefined} aria-busy={busy ? true : undefined}>
       <div className="ns-head">
         <h3 id={TITLE_ID} className="ns-title">{t("board.newSession.title")}</h3>
         <Button variant="ghost" size="icon" className="ns-close" aria-label={t("common.close")} onClick={onCancel}><KitIcon name="close" /></Button>
       </div>
-      <label className="ns-label" id="ns-project-label" htmlFor={FIELD_ID}>{t("board.newSession.project")}</label>
+      <div className="ns-project-heading">
+        <label className="ns-label" id="ns-project-label" htmlFor={FIELD_ID}>{t("board.newSession.project")}</label>
+        {worktreeCount > 0 && !searching && (
+          <Button variant="ghost" className="ns-worktree-toggle" aria-pressed={showWorktrees} aria-controls={LIST_ID}
+            onClick={() => setShowWorktrees(visible => !visible)}>
+            {t("board.newSession.worktrees")} <span className="ns-worktree-count">{worktreeCount}</span>
+          </Button>
+        )}
+      </div>
       <div className="ns-search">
       <KitIcon name="search" />
       <Input
@@ -395,50 +456,21 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
         autoComplete="off"
         placeholder={t("board.newSession.searchLabel")}
         value={query}
-        onChange={e => { setQuery(e.target.value); setActive(0); clearSays(); }}
+        onChange={e => { setQuery(e.target.value); setActive(null); clearSays(); }}
         onKeyDown={onFieldKey}
       />
       </div>
       <span id={KEYS_ID} className="ns-keys">{keysHint}</span>
       <div ref={listRef} className="ns-list" id={LIST_ID} role="listbox" aria-labelledby="ns-project-label" hidden={shown.length === 0}>
-        {shown.map((q, i) => {
-          const isTyped = !!typed && q.cwd === typed.cwd;
-          const isChosen = !!chosen && chosen.cwd === q.cwd && !isTyped;
+        {groups.map(group => {
+          const tree = group.worktrees[0]?.worktree;
+          if (!tree) return group.main && renderOption(group.main);
+          const label = t("board.newSession.worktreeGroup", { project: tree.projectName });
           return (
-            <div
-              key={`${isTyped ? "typed:" : ""}${q.cwd}`}
-              id={optionId(i)}
-              className="ns-option"
-              role="option"
-              aria-selected={isChosen}
-              data-highlighted={i === at || undefined}
-              data-chosen={isChosen || undefined}
-              title={q.cwd}
-              // The field keeps the keyboard: a press on a row is not a press
-              // that moves focus out of it.
-              onMouseDown={e => e.preventDefault()}
-              onClick={() => pickOption(q)}
-            >
-              <span className="ns-folder" aria-hidden="true"><KitIcon name="folder" /></span>
-              <span className="ns-project-copy">
-                <span className="ns-name">{isTyped ? t("board.newSession.usePath", { name: q.name }) : q.name}</span>
-                <span className="ns-path">{isTyped ? elidePath(q.cwd, 56) : paths.get(q.cwd) ?? elidePath(q.cwd, 56)}</span>
-              </span>
-              {isChosen && (
-                <svg className="ns-check" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-                  <path d="M2.5 6.5l2.25 2.25L9.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              )}
-              {!isTyped && (
-                <span
-                  className="ns-forget"
-                  aria-hidden="true"
-                  title={t("board.newSession.forget", { name: q.name })}
-                  onClick={e => { e.stopPropagation(); forget(q); }}
-                >
-                  ×
-                </span>
-              )}
+            <div className="ns-project-group" role="group" aria-label={label} key={group.key}>
+              {group.main && renderOption(group.main)}
+              <div className="ns-worktree-heading" aria-hidden="true" title={tree.projectCwd}>{label}</div>
+              {group.worktrees.map(renderOption)}
             </div>
           );
         })}

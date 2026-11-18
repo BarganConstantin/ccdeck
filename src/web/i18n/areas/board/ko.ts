@@ -475,6 +475,8 @@ const catalog: Catalog = {
   "board.drop.pathsUnavailable": "브라우저에서 로컬 파일 경로를 가져올 수 없습니다. ccdeck 데스크톱 앱을 사용하거나 전체 경로를 붙여 넣으세요.",
   "board.newSession.options": "세션 옵션",
   "board.newSession.worktreeShort": "Worktree",
+  "board.newSession.worktreeGroup": "워크트리 · {project}",
+  "board.newSession.worktrees": "워크트리",
   "board.newSession.title": "새 세션",
   "board.newSession.discovery.loading": "로컬 프로젝트를 찾는 중…",
   "board.newSession.discovery.partial": "다른 프로젝트가 더 있을 수 있습니다. 폴더를 선택하거나 전체 경로를 입력하세요.",

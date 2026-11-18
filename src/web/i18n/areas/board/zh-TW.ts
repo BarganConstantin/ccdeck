@@ -475,6 +475,8 @@ const catalog: Catalog = {
   "board.drop.pathsUnavailable": "瀏覽器無法提供本機檔案路徑。請使用 ccdeck 桌面應用程式或貼上完整路徑。",
   "board.newSession.options": "工作階段選項",
   "board.newSession.worktreeShort": "Worktree",
+  "board.newSession.worktreeGroup": "工作樹 · {project}",
+  "board.newSession.worktrees": "工作樹",
   "board.newSession.title": "新工作階段",
   "board.newSession.discovery.loading": "正在尋找本機專案…",
   "board.newSession.discovery.partial": "可能還有其他專案。請選擇資料夾或輸入完整路徑。",

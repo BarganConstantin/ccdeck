@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdir, mkdtemp, rm, writeFile, symlink } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile, symlink } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 // @ts-expect-error server module
 import { scanProjectFolders, createProjectDiscovery } from '../../server/project-discovery.mjs';
 // @ts-expect-error server module
@@ -50,6 +51,29 @@ describe('local projects offered without an existing session', () => {
     const root = await lab(), outside = await lab(); await repo(join(outside, 'external'));
     await symlink(outside, join(root, 'linked'), process.platform === 'win32' ? 'junction' : 'dir');
     expect((await scanProjectFolders({ roots: [root] })).projects).toEqual([]);
+  });
+  it('groups real Git worktrees outside the roots, including relative pointers, and skips stale links', async () => {
+    const root = await lab(), outside = await lab();
+    const main = join(root, 'project'), linked = join(outside, 'fix login'), stale = join(outside, 'stale');
+    const git = (...args: string[]) => execFileSync('git', args, { stdio: 'pipe' });
+    git('init', main);
+    git('-C', main, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
+      '-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-m', 'fixture');
+    git('-C', main, 'worktree', 'add', '-b', 'fix/login', linked);
+    git('-C', main, 'worktree', 'add', '--detach', stale);
+    await rm(stale, { recursive: true, force: true });
+    const expected = {
+      cwd: await realpath(linked), name: 'fix login',
+      worktree: { projectCwd: await realpath(main), projectName: 'project', branch: 'fix/login' },
+    };
+    expect((await scanProjectFolders({ roots: [root] })).projects.slice(1)).toEqual([expected]);
+    const pointer = await readFile(join(linked, '.git'), 'utf8');
+    const admin = await realpath(pointer.trim().slice('gitdir: '.length));
+    await writeFile(join(admin, 'gitdir'), relative(admin, join(expected.cwd, '.git')) + '\r\n');
+    await writeFile(join(linked, '.git'), 'gitdir: ' + relative(expected.cwd, admin) + '\r\n');
+    expect((await scanProjectFolders({ roots: [root, outside] })).projects.slice(1)).toEqual([expected]);
+    await writeFile(join(linked, '.git'), 'gitdir: ' + join(main, '.git') + '\n');
+    expect((await scanProjectFolders({ roots: [root] })).projects).toHaveLength(1);
   });
   it('reports partial results when directory, entry or time budgets stop discovery', async () => {
     const root = await lab(); await repo(join(root, 'one')); await repo(join(root, 'two'));

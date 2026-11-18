@@ -475,6 +475,8 @@ const catalog: Catalog = {
   "board.drop.pathsUnavailable": "This browser cannot provide local file paths. Use the ccdeck desktop app or paste the full path.",
   "board.newSession.options": "Session options",
   "board.newSession.worktreeShort": "Worktree",
+  "board.newSession.worktreeGroup": "Worktrees · {project}",
+  "board.newSession.worktrees": "Worktrees",
   "board.newSession.title": "New session",
   "board.newSession.discovery.loading": "Looking for local projects…",
   "board.newSession.discovery.partial": "More projects may be available. Choose a folder or enter its full path.",

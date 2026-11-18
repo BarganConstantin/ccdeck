@@ -170,15 +170,16 @@ Step by step: [Install the ccdeck app on Mac, Windows or Linux](https://ccdeck.d
 ### Starting in a project
 
 **New session** offers folders from current sessions and recent choices, followed
-by nearby Git repositories. Search by name or path, choose another folder, or
-enter a full path. Enter selects a project; the Start button (or ⌘/Ctrl+Enter)
-starts the chosen agent. Finding a project never starts an agent or changes files.
+by nearby Git repositories. Open **Worktrees** to see linked checkouts grouped
+by repository. Search by project, worktree name, branch or path. You can also
+choose another folder or enter a full path. Enter selects a folder. Start
+(or ⌘/Ctrl+Enter) launches the chosen agent in that folder.
 
 Discovery looks in Desktop, Documents, Developer, Projects, repos, Code, src and
 workspace under your home folder, including lowercase Projects/Code variants.
-It checks directory entries and `.git` markers without reading project files or
-Git configuration. Hidden folders, dependencies and nested symlinks are skipped;
-separate Git worktrees remain available through recent choices or a full path.
+It checks directory entries and Git worktree metadata. Hidden folders, dependencies
+and nested symlinks are skipped during the folder scan. Linked worktrees registered
+with an indexed repository can appear even when they live outside the scanned folders.
 The scan goes at most three levels deep, with directory, entry and result caps
 and a short time budget; a partial-result message appears if a cap is reached
 or a directory cannot be read because of its permissions.

@@ -826,6 +826,26 @@
   cursor: pointer;
 }
 .ns-option[data-highlighted] { background: var(--selected); }
+.ns-project-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; min-height: 32px; }
+.ns-project-heading .ns-label { margin: 0; }
+.ns-worktree-toggle { min-height: max(32px, var(--ui-control-floor, 24px)); padding: 0 8px; }
+.ns-worktree-toggle[aria-pressed="true"] { background: var(--selected); color: var(--text); }
+.ns-worktree-count { color: var(--muted); font-variant-numeric: tabular-nums; }
+.ns-project-group { padding-bottom: 4px; }
+.ns-worktree-heading {
+  margin: 0 8px;
+  padding: 6px 0 3px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.ns-option[data-worktree] { margin-left: 14px; }
+@media (pointer: coarse) { .ns-worktree-toggle { min-height: 44px; } }
+@media (forced-colors: active) {
+  .ns-worktree-toggle[aria-pressed="true"] { forced-color-adjust: none; color: HighlightText; background: Highlight; }
+  .ns-worktree-toggle[aria-pressed="true"] .ns-worktree-count { color: inherit; }
+}
 .ns-folder { flex: none; display: inline-flex; width: 18px; align-items: center; justify-content: center; color: var(--muted); }
 .ns-project-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ns-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; line-height: 18px; }

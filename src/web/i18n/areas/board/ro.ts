@@ -495,6 +495,8 @@ const catalog: Catalog = {
   "board.drop.pathsUnavailable": "Browserul nu poate furniza căile fișierelor locale. Folosește aplicația desktop ccdeck sau lipește calea completă.",
   "board.newSession.options": "Opțiuni de sesiune",
   "board.newSession.worktreeShort": "Worktree",
+  "board.newSession.worktreeGroup": "Worktree-uri · {project}",
+  "board.newSession.worktrees": "Worktree-uri",
   "board.newSession.title": "Sesiune nouă",
   "board.newSession.discovery.loading": "Se caută proiecte locale…",
   "board.newSession.discovery.partial": "Pot exista și alte proiecte. Alege un folder sau introdu calea completă.",

@@ -475,6 +475,8 @@ const catalog: Catalog = {
   "board.drop.pathsUnavailable": "Este navegador não fornece caminhos locais. Use o aplicativo ccdeck ou cole o caminho completo.",
   "board.newSession.options": "Opções da sessão",
   "board.newSession.worktreeShort": "Worktree",
+  "board.newSession.worktreeGroup": "Árvores de trabalho · {project}",
+  "board.newSession.worktrees": "Árvores de trabalho",
   "board.newSession.title": "Nova sessão",
   "board.newSession.discovery.loading": "Buscando projetos locais…",
   "board.newSession.discovery.partial": "Pode haver mais projetos. Escolha uma pasta ou digite o caminho completo.",

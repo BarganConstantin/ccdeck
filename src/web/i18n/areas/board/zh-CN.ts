@@ -475,6 +475,8 @@ const catalog: Catalog = {
   "board.drop.pathsUnavailable": "浏览器无法提供本地文件路径。请使用 ccdeck 桌面应用或粘贴完整路径。",
   "board.newSession.options": "会话选项",
   "board.newSession.worktreeShort": "Worktree",
+  "board.newSession.worktreeGroup": "工作树 · {project}",
+  "board.newSession.worktrees": "工作树",
   "board.newSession.title": "新建会话",
   "board.newSession.discovery.loading": "正在查找本地项目…",
   "board.newSession.discovery.partial": "可能还有其他项目。请选择文件夹或输入完整路径。",

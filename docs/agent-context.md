@@ -18,29 +18,6 @@ and children whose parent has not loaded yet. Their graph identities, tools
 and usage remain available inside the conversation. The regression exercises
 real lineage events and the list's row builder.
 
-## Project picker discovery and form controls — 2026-11-18
-
-Local work is on `fix/project-picker-discovery` in
-`~/.cache/ccdeck-wt/project-picker-discovery`, based on `origin/development`.
-New session merges current/recent projects with bounded local Git discovery;
-it does not read project contents or start an agent while discovering folders.
-Hidden/dependency folders, nested symlinks and separate worktrees are excluded
-from discovery, while manual paths and recent choices remain available.
-Incomplete or unavailable discovery is disclosed in the form.
-
-Button and Input are manual, MIT-attributed shadcn/ui source adaptations using
-ccdeck's existing CSS tokens. There is no Tailwind reset or app-wide migration.
-See `src/web/components/ui/README.md` before introducing more controls.
-
-The isolated frontend preview is `http://127.0.0.1:5203`; it proxies the existing
-backend and adds the actual discovery handler for review, without starting a
-second agent host. Its temporary helper is `/tmp/ccdeck-project-picker-preview.mjs`.
-Recheck that process before relying on the URL. The owner's app on 4317 is
-unchanged by this preview. Browser checks exercised desktop and 390/320px form
-layouts, short windows, Rider Black/Light/Ink, keyboard scrolling, Escape/focus
-restoration, provider/options controls and discovery failure recovery.
-No live agent was launched for these checks. Public push/PR/merge is pending.
-
 ## Workspace UI integration requested — 2026-11-17
 
 The owner explicitly requested merging the reviewed UI batch into development.

@@ -475,6 +475,8 @@ const catalog: Catalog = {
   "board.drop.pathsUnavailable": "ブラウザーはローカルファイルのパスを取得できません。ccdeck デスクトップアプリを使うか、フルパスを貼り付けてください。",
   "board.newSession.options": "セッションの設定",
   "board.newSession.worktreeShort": "Worktree",
+  "board.newSession.worktreeGroup": "ワークツリー · {project}",
+  "board.newSession.worktrees": "ワークツリー",
   "board.newSession.title": "新しいセッション",
   "board.newSession.discovery.loading": "ローカルプロジェクトを検索しています…",
   "board.newSession.discovery.partial": "他にもプロジェクトがある可能性があります。フォルダーを選択するか、フルパスを入力してください。",
