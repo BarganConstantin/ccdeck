@@ -418,7 +418,30 @@ export default function TerminalStage(p: TerminalStageProps) {
   continuationRef.current = p.onContinuation;
   const claudeSource = chatRef?.provider === "claude" && !p.windows ? chatRef.sessionId : null;
   const handoffCwd = chatRef?.cwd ?? "";
-  const canMove = !!p.onContinuation && !!claudeSource && !!handoffCwd && phase.kind === "not-attachable";
+  const couldMove = !!p.onContinuation && !!claudeSource && !!handoffCwd && phase.kind === "not-attachable";
+  // The move works only for Claude in a Ghostty window on a Mac. The server
+  // makes every lookup of the real move without sending anything, and the
+  // button shows only when it says yes, so nobody gets a button that fails.
+  const [movableFor, setMovableFor] = useState<string | null>(null);
+  useEffect(() => {
+    if (!couldMove || !claudeSource) return;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch("/api/terminal/background", {
+          method: "POST",
+          signal: controller.signal,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId: claudeSource, provider: "claude", cwd: handoffCwd, check: true }),
+        });
+        if (!response.ok) return;
+        const { movable } = await response.json() as { movable?: unknown };
+        if (!controller.signal.aborted && movable === true) setMovableFor(claudeSource);
+      } catch { /* No answer: the button stays hidden. */ }
+    })();
+    return () => controller.abort();
+  }, [couldMove, claudeSource, handoffCwd]);
+  const canMove = couldMove && movableFor === claudeSource;
   const moving = canMove && handoffFrom === claudeSource;
   useEffect(() => {
     setHandoffFrom(null);

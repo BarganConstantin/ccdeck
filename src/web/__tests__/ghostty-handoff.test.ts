@@ -36,4 +36,18 @@ describe("Ghostty background handoff", () => {
   it("does not report success if Ghostty cannot match the surface", async () => {
     expect(await backgroundInGhostty(session, setup([agent], undefined, "unmatched"))).toBe(false);
   });
+
+  it("a check makes the same lookups and never asks Ghostty anything", async () => {
+    const deps = setup();
+    expect(await backgroundInGhostty(session, { ...deps, check: true })).toBe(true);
+    expect(deps.exec.mock.calls.map(([bin]) => bin)).toEqual(["/local/bin/claude", "/bin/ps"]);
+  });
+
+  it("a check says no outside a Mac, outside Ghostty, and for an unknown session", async () => {
+    const terminalApp = "1245 1244 1245 1245 ttys003 /local/bin/claude\n1244 400 1244 1245 ttys003 /usr/bin/login\n400 1 400 -1 ?? /System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal";
+    for (const deps of [{ ...setup(), platform: "linux" }, setup([agent], terminalApp), setup([])]) {
+      expect(await backgroundInGhostty(session, { ...deps, check: true })).toBe(false);
+      expect(deps.exec.mock.calls.some(([bin]) => bin === "/usr/bin/osascript")).toBe(false);
+    }
+  });
 });

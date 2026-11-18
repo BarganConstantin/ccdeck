@@ -27,9 +27,13 @@ on run argv
 end run
 `;
 
+// `check`: answer whether the move could be asked, by every lookup the real
+// move makes, and stop before Ghostty is asked anything. The pane offers the
+// move only where this says yes, so Linux, Windows and a Mac terminal other
+// than Ghostty never show a button that can only fail.
 export async function backgroundInGhostty(session, {
   exec = run, resolvePath = realpath, cli = adminClaudeBin, platform = process.platform,
-  enabled = () => true,
+  enabled = () => true, check = false,
 } = {}) {
   if (platform !== "darwin") return false;
   const listed = await exec(cli(), ["agents", "--json", "--cwd", session.cwd], LOOKUP_OPTIONS);
@@ -65,6 +69,7 @@ export async function backgroundInGhostty(session, {
     const app = parent.command.match(/^(\/[^\r\n]+\/Ghostty\.app)\/Contents\/MacOS\/ghostty$/)?.[1];
     if (app) {
       if (!enabled()) return false;
+      if (check) return true;
       const result = await exec("/usr/bin/osascript", ["-e", sendLeft(app), String(surface.pid), `/dev/${claude.tty}`],
         { timeout: 30_000, maxBuffer: 8192 });
       return result.ok && result.stdout.trim() === "sent";

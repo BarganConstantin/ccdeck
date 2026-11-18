@@ -272,7 +272,10 @@ export async function handleTerminalAdopt(req, res, options) {
 const backgroundRequests = new Map();
 const BACKGROUND_REQUEST_COOLDOWN = 15_000;
 
-/** A local request to use Claude's background shortcut on its exact Ghostty surface. */
+/** A local request to use Claude's background shortcut on its exact Ghostty surface.
+ *  With `check: true` it sends nothing and answers `{ ok: true, movable }`:
+ *  whether the same request without `check` could be made. The pane offers
+ *  the move only when `movable` is true. */
 export async function handleTerminalBackground(req, res, options) {
   const d = terminalDeps(options);
   if (!d.enabled()) return notFound(res);
@@ -287,6 +290,16 @@ export async function handleTerminalBackground(req, res, options) {
     return send(res, 400, { ok: false });
   }
   const session = { sessionId: body.sessionId.toLowerCase(), provider: "claude", cwd: body.cwd };
+  if (body.check === true) {
+    let movable = false;
+    if (d.engine?.enabled === true) {
+      const answer = await d.engine.route("target", session);
+      if (answer.status === 200 && answer.body?.target?.kind === "C") {
+        movable = await (d.background ?? backgroundInGhostty)(session, { enabled: d.enabled, check: true });
+      }
+    }
+    return send(res, 200, { ok: true, movable: movable === true });
+  }
   if (backgroundRequests.has(session.sessionId)) return send(res, 409, { ok: false });
   backgroundRequests.set(session.sessionId, true);
   let sent = false;
