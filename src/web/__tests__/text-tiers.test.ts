@@ -524,7 +524,6 @@ describe("what was migrated to the secondary tier", () => {
       ".session-list .sl-tool",
       // Rail / Usage: "5-hour limit" beside the account's name, the one
       // secondary-tier word on the meter's first line (V4's Figma).
-      ".session-list .sl-usage-what",
       // The agent's plan (#2157): its steps are sentences the agent wrote and a
       // reader reads to know where the work stands — on the card's row and in
       // the detail panel's checklist. The counts beside them stay --muted,

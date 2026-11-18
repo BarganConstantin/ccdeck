@@ -487,10 +487,8 @@ function Inner() {
   // the board's clock, so an answer the page is still holding expires on
   // screen even while the deck itself has stopped answering.
   const providerStatus = useProviderStatus(providers.claude || providers.codex);
-  // Claude's 5-hour reading for the rail's usage meter: the usual /api/quota
-  // read once a minute while the page is open and visible, never forced
-  // (the owner's OK, 2026-11-01). The Usage panel keeps its own useQuota.
-  const meterQuota = useMeterQuota(providers.claude);
+  // The active Claude account's plan label comes from its quota reading.
+  const accountQuota = useMeterQuota(accountsDrawn && providers.claude);
   const incidents = incidentsOf(providerStatus, now);
 
   // An account the deck signed in whose login has stopped working, asked about
@@ -1299,7 +1297,7 @@ function Inner() {
           onRoster={attention.observe} onClose={sheetClose("accounts", closeAccounts)}
           lanWanted={lanWanted} onLanShown={lanShown} onLanAccounts={setClaudeLan} codexLanAccounts={codexLan} switcher={accountsSwitch}
           side={sideState("claude")} onNotice={accountSide.noteClaude}
-          planLabel={meterQuota.reading?.planLabel ?? null} />
+          planLabel={accountQuota.reading?.planLabel ?? null} />
       )}
       {accountsDrawn && (shownAccountProvider === "codex" || accountSide.bothMounted) && (
         <CodexAccountsPanel leaving={isLeaving(accountsOnScreen, accountsPhase)}
@@ -1447,9 +1445,6 @@ function Inner() {
               landed={landed}
               watching={watchingSessions}
               openPanes={openPanes}
-              quota={meterQuota}
-              activeAlias={attention.accounts?.find(a => a.active)?.alias ?? null}
-              onOpenUsage={() => usageRail.set(o => !o)}
               onOpenKeys={inWorkspace ? openSessionWithKeys : undefined}
               onOpenBeside={inWorkspace && stage.enabled ? openSessionBeside : undefined}
               onNewSession={inWorkspace && stage.enabled ? stage.newSessionFrom : undefined}
