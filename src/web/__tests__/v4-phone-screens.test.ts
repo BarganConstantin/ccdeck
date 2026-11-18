@@ -82,7 +82,6 @@ describe("every rule this phase added sits inside the phone query", () => {
     const squash = (css: string) => css.replace(/\s+/g, "");
     const phoneDecls: Record<string, string[]> = {
       "styles/session-list.css": [
-        ".session-list .sl-usage-btn { min-height: 44px; }",
         ".session-list .sl-row { min-height: 62px; }",
         ".session-list .sl-more, .session-list .sl-fold-btn { min-height: 44px; }",
         // Changed for V4's header: the × shows only here, 24 to see and a 44 target via ::after.

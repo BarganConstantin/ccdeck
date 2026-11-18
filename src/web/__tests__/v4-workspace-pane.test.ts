@@ -1,7 +1,7 @@
 // V4 Workspace: the pane. One pane that fills its cell; ✕ empties it (and on the
 // empty pane leaves for the Board); ⤢ is Zoom; the empty pane says what the
 // frames say; and the Board's stage is not touched by any of it.
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { all, one } from "./fake-react";
@@ -12,8 +12,12 @@ import StageHeader, {
   BACK_EMPTY_LABEL_MSG, CLOSE_LABEL_MSG, FULL_LABEL_MSG, FULL_LEAVE_LABEL_MSG, PANE_CLOSE_LABEL_MSG, ZOOM_LABEL_MSG, ZOOM_OFF_LABEL_MSG,
   expandLabelFor, zoomLabelFor, type StageHeaderProps,
 } from "../components/terminal/StageHeader";
-import { StateCard, WS_EMPTY_LINE_MSG, WS_EMPTY_TITLE_MSG, type StageBodyProps } from "../components/terminal/StageBody";
+import {
+  StateCard, WS_EMPTY_BESIDE_MSG, WS_EMPTY_LINE_MSG, WS_EMPTY_PANES_MSG, WS_EMPTY_TITLE_MSG, type StageBodyProps,
+} from "../components/terminal/StageBody";
 import { en } from "../i18n/en";
+import { setSingleKeyShortcuts } from "../single-key-shortcuts";
+import { MAX_PANES } from "../workspace-split";
 
 // CHANGED ON PURPOSE (the UI in every language): these words are read through
 // their keys now, and the English catalog holds them.
@@ -181,12 +185,60 @@ describe("the empty pane", () => {
   it("says what the frame says when nothing waits, with New session as its one action", () => {
     const out = html(createElement(StateCard, bodyProps({ workspace: true })));
     expect(WS_EMPTY_TITLE).toBe("Nothing is waiting");
-    expect(WS_EMPTY_LINE).toBe("Open a session from the list, or start a new one.");
+    // CHANGED ON PURPOSE (first use of Workspace): the line names the click
+    // that opens a session here, the first thing a newcomer has to know.
+    expect(WS_EMPTY_LINE).toBe("Click a session in the list, or start a new one.");
     expect(out).toContain(">Nothing is waiting<");
-    expect(out).toContain(">Open a session from the list, or start a new one.<");
+    expect(out).toContain(">Click a session in the list, or start a new one.<");
     expect(out).toContain("New session");
     expect(out).toContain("data-stage-land");
     expect(out).not.toContain("Click a session on the board");
+  });
+
+  // The first time in Workspace this card is all there is to read, so one
+  // quiet line under New session says what comes after the first pane: the
+  // keys and the limits are the ones the list and the deck answer.
+  describe("its quiet line, for a first visit", () => {
+    afterEach(() => setSingleKeyShortcuts(true));
+    const words = (s: string) => s.replace(/<span class="kbd-spoken">[^<]*<\/span>/g, "").replace(/<[^>]+>/g, "");
+    const more = (out: string) => out.match(/<p class="ts-ws-more">([\s\S]*?)<\/p>/)?.[1];
+
+    it("says Shift + Enter or a drag opens another pane beside, four at most, and 1 to 4 move between them", () => {
+      expect(en[WS_EMPTY_BESIDE_MSG]).toBe("{keys} or a drag opens another beside it, up to four panes.");
+      expect(en[WS_EMPTY_PANES_MSG]).toBe("{keys} move between them.");
+      const line = more(html(createElement(StateCard, bodyProps({ workspace: true }))));
+      expect(line, "the line is drawn, after New session").toBeTruthy();
+      expect(words(line!)).toBe("⇧↵ or a drag opens another beside it, up to four panes. 1–4 move between them.");
+      // The caps are the kit's Kbd, each said in words.
+      expect(line).toContain('<kbd class="kbd" aria-hidden="true">⇧↵</kbd><span class="kbd-spoken">Shift Enter</span>');
+      expect(line).toContain('<kbd class="kbd" aria-hidden="true">1–4</kbd><span class="kbd-spoken">1 to 4</span>');
+      expect(MAX_PANES, "four, as the line says").toBe(4);
+    });
+
+    it("leaves 1 to 4 out with the single keys off, where the deck does not answer them", () => {
+      setSingleKeyShortcuts(false);
+      const line = more(html(createElement(StateCard, bodyProps({ workspace: true }))));
+      expect(words(line!)).toBe("⇧↵ or a drag opens another beside it, up to four panes.");
+      expect(line).not.toContain("1–4");
+    });
+
+    it("is not on the Board's empty Command Panel, nor on the card that names a waiting session", () => {
+      expect(html(createElement(StateCard, bodyProps()))).not.toContain("ts-ws-more");
+      const waiting = { id: "s1", name: "web-api", waited: "6m 42s", ask: "Allow this command?", command: null };
+      expect(html(createElement(StateCard, bodyProps({ workspace: true, waiting })))).not.toContain("ts-ws-more");
+    });
+
+    it("is muted 12px, 8 under the button, and gone under a fingertip", () => {
+      const quiet = rule(wsCss, ".ts-ws-more");
+      expect(decl(quiet, "font-size")).toBe("12px");
+      expect(decl(quiet, "color")).toBe("var(--muted)");
+      expect(decl(quiet, "padding-top")).toBe("8px");
+      const touch = sheet("styles/touch-and-forced-colours.css");
+      const start = touch.indexOf("@media (pointer: coarse)");
+      expect(start, "the coarse-pointer block").toBeGreaterThan(-1);
+      const coarse = touch.slice(start, touch.indexOf("\n}", start));
+      expect(coarse).toMatch(/\.ts-ws-more \{ display: none; \}/);
+    });
   });
 
   it("names the oldest waiting session when someone waits, with no New session", () => {

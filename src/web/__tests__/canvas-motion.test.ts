@@ -414,7 +414,6 @@ const PRESSES: Press[] = [
   // Renamed from .sl-close for V4's header, which has two such buttons.
   [".session-list .sl-icon-btn:active", "0.94", "transform"],
   // The rail's usage meter, a labelled row that opens Usage: the rows' tier.
-  [".session-list .sl-usage-btn:active", "0.97", "transform"],
   // Browser Watch's episode disclosure. Same tier and same number as the row
   // above it: a full-width row that opens to show what it is summarising.
   [".bw-ep-head:active", "0.97", "transform"],

@@ -29,7 +29,9 @@ const EXCEPTIONS: readonly Exception[] = [
   { file: "src/web/components/terminal/stage-model.ts", text: "The provider must be claude or codex.", why: "The engine's own refusal, matched as it arrives to be replaced by the panel's sentence; never shown." },
   { file: "src/web/components/guide-art.tsx", text: "Bash(npm test)", why: "A line of Claude Code's own terminal, drawn as it prints it." },
   { file: "src/web/components/guide-art.tsx", text: "&gt; 1. Yes 2. No", why: "Claude Code's own permission prompt, drawn as it prints it." },
-  ...["Read", "Grep", "Bash", "Edit"].map(text => ({ file: "src/web/components/guide-art.tsx", text, why: "A Claude Code tool name, which Claude Code prints in English." })),
+  // V4's tour draws two chips on the Inspector's agent, where the 3.x tour
+  // drew four on its nodes.
+  ...["Read", "Bash"].map(text =>({ file: "src/web/components/guide-art.tsx", text, why: "A Claude Code tool name, which Claude Code prints in English." })),
 ];
 
 /** The string as the scan prints it: spaces folded, trimmed, cut at 90. An
@@ -75,7 +77,7 @@ describe.each([
 // writes the English they translate are not listed: they hold English by
 // design, matched as it arrives.
 const OUTSIDE_COMPONENTS: readonly string[] = [
-  "board-header.ts", "topbar-counts.ts", "node-face.ts", "rail-items.tsx", "rail-model.ts", "rail-row-copy.ts", "rail-usage.ts",
+  "board-header.ts", "topbar-counts.ts", "node-face.ts", "rail-items.tsx", "rail-model.ts", "rail-row-copy.ts",
   "board-navigator.ts", "use-asks.ts", "tab-keys.ts", "terminal-api.ts", "terminal-protocol.ts", "terminal-keys.ts",
   "use-terminal-session.ts", "use-stage.ts", "workspace-pane.ts", "status-hints.ts", "inspector-tree.ts", "inspector-tab.ts",
   "account-ui-fields.ts", "settings.ts", "settings-search.ts", "feedback.ts", "feedback-conversations.ts",
@@ -138,7 +140,6 @@ const EXCEPTIONS_OUTSIDE: readonly Exception[] = [
   ...table("jira-board.ts", "The kanban column's identity in GroupDef.title; the heading a reader sees is groupTitle(), which reads integrations.group.*.", [
     "In Progress", "Done in the last 14 days",
   ]),
-  { file: "src/web/key-help.ts", text: "Shift + Enter", why: "Names the keys to press, written as the deck's own key labels, the same way as the Ctrl + K rows beside it; the deck does not translate its key labels." },
   { file: "src/web/provider-copy.ts", text: "GitHub Copilot", why: "A product's own name, as ccusage's agent table prints it." },
   { file: "src/web/radio-discovery.ts", text: "Lofi Girl ·", why: "The name of the Lofi Girl channel group, a proper name that stays as the channel writes it." },
 ];

@@ -94,9 +94,17 @@ describe("with the flags off nothing names a Decision key", () => {
     expect(read("components/KeyboardHelp.tsx")).toContain("extraGroups?:");
   });
 
-  it("the documented keys of the deck do not claim the digits", () => {
-    const documented = documentedKeys();
-    for (const key of ["1", "2", "3"]) expect(documented.has(key), key).toBe(false);
+  // CHANGED ON PURPOSE (first use of Workspace): the deck's own 1 to 4, which
+  // move the keys between Workspace's panes (use-deck-shortcuts.ts), are on
+  // the sheet now, in the Workspace group where the Command Panel is on. The
+  // digits stay unclaimed by every other row, and by the Decision card.
+  it("the documented keys of the deck claim the digits only as Workspace's 1 to 4", () => {
+    expect(KEY_HELP.flatMap(g => g.rows).flatMap(r => r.binds).filter(b => /^\d$/.test(b))).toEqual([]);
+    const digits = keyHelpFor(true, undefined, true).flatMap(g => g.rows)
+      .filter(r => !r.chord && r.binds.some(b => /^\d$/.test(b)));
+    expect(digits.map(r => [r.cap, r.binds])).toEqual([["1 – 4", ["1", "2", "3", "4"]]]);
+    expect(digits[0].action).not.toContain("pick");
+    expect(documentedKeys().has("5")).toBe(false);
   });
 });
 

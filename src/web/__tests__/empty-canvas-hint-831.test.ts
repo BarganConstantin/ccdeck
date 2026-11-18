@@ -35,6 +35,8 @@ describe("the empty canvas does not ask a connected reader to check the connecti
   });
 
   it("is only ever the live branch", () => {
-    expect(code).toMatch(/\{offline \? \([\s\S]*?\) : agentNoneCopy\(providers, workspace, t\)\}/);
+    // CHANGED ON PURPOSE (V4 onboarding, the empty board's New session): the
+    // copy is also handed the deck's way to start a session, where it has one.
+    expect(code).toMatch(/\{offline \? \([\s\S]*?\) : agentNoneCopy\(providers, workspace, t, onNewSession\)\}/);
   });
 });

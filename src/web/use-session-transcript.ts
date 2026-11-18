@@ -1,4 +1,4 @@
-// What Chat reads: one Claude session's conversation, from the deck's read-only
+// What Chat reads: one session's conversation, from the deck's read-only
 // transcript route (src/server/session-transcript-routes.mjs).
 //
 // ASKS ONLY WHILE SHOWN. Nothing is fetched while the Chat view is not on
@@ -12,6 +12,7 @@
 // reaches a message already on screen.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChatSource, ChatTurn } from "./components/chat/chat-model";
+import type { Provider } from "./types";
 import { useT } from "./i18n";
 
 /** How often a working session's conversation is asked for again. */
@@ -22,11 +23,9 @@ export const TRANSCRIPT_ROUTE = "/api/session/transcript";
 /** The shape the route accepts for a session id (the server's own test, spelled again). */
 export const TRANSCRIPT_SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 
-/** The Claude session id Chat can show, or null: the flag is effective, the
- *  session is Claude's (a Codex session has no transcript the deck reads) and
- *  its id has the shape the route takes. */
+/** A supported session ID when Chat is enabled in this pane. */
 export function chatSessionFor(chatFlag: boolean, ref: { sessionId: string; provider: string } | null): string | null {
-  if (!chatFlag || !ref || ref.provider !== "claude") return null;
+  if (!chatFlag || !ref || (ref.provider !== "claude" && ref.provider !== "codex")) return null;
   return TRANSCRIPT_SESSION_ID.test(ref.sessionId) ? ref.sessionId : null;
 }
 
@@ -40,9 +39,12 @@ export async function readTranscript(
   session: string,
   fetchFn: (input: string, init?: RequestInit) => Promise<Response> = (input, init) => fetch(input, init),
   signal?: AbortSignal,
+  provider: Provider = "claude",
 ): Promise<TranscriptRead> {
   try {
-    const res = await fetchFn(`${TRANSCRIPT_ROUTE}?session=${encodeURIComponent(session)}`, { cache: "no-store", signal });
+    const query = new URLSearchParams({ session });
+    if (provider === "codex") query.set("provider", provider);
+    const res = await fetchFn(`${TRANSCRIPT_ROUTE}?${query}`, { cache: "no-store", signal });
     if (res.status === 404) return { kind: "unknown" };
     if (!res.ok) return { kind: "failed" };
     const body = await res.json() as { ok?: unknown; complete?: unknown; turns?: unknown };
@@ -54,8 +56,9 @@ export async function readTranscript(
 }
 
 export interface SessionTranscriptInput {
-  /** The Claude session id, or null when this pane has no conversation to show. */
+  /** The session id, or null when this pane has no conversation to show. */
   session: string | null;
+  provider?: Provider;
   /** The Chat view is on screen. */
   shown: boolean;
   /** The session is working: only then is it asked again on a timer. */
@@ -75,11 +78,11 @@ export interface SessionTranscriptDeps {
   pollMs?: number;
 }
 
-type Held = { session: string; read: TranscriptRead } | null;
+type Held = { session: string; provider: Provider; read: TranscriptRead } | null;
 
 export function useSessionTranscript(input: SessionTranscriptInput, deps: SessionTranscriptDeps = {}): ChatSource {
   const t = useT();
-  const { session, shown, working, change, ended } = input;
+  const { session, provider = "claude", shown, working, change, ended } = input;
   const [held, setHeld] = useState<Held>(null);
   const [again, setAgain] = useState(0);
   const dep = useRef(deps);
@@ -90,10 +93,10 @@ export function useSessionTranscript(input: SessionTranscriptInput, deps: Sessio
   // One ask: the answer is kept only if it is still the one wanted.
   const ask = useCallback((id: string, signal: AbortSignal) => {
     const mine = ++latest.current;
-    readTranscript(id, dep.current.fetchFn, signal).then(read => {
-      if (!signal.aborted && mine === latest.current) setHeld({ session: id, read });
+    readTranscript(id, dep.current.fetchFn, signal, provider).then(read => {
+      if (!signal.aborted && mine === latest.current) setHeld({ session: id, provider, read });
     });
-  }, []);
+  }, [provider]);
 
   // On show, on a new session, on a change of prompts or end, and on Retry.
   useEffect(() => {
@@ -115,11 +118,11 @@ export function useSessionTranscript(input: SessionTranscriptInput, deps: Sessio
   const onRetry = useCallback(() => { setHeld(null); setAgain(n => n + 1); }, []);
 
   return useMemo<ChatSource>(() => {
-    if (!held || held.session !== session) return { state: "loading" };
+    if (!held || held.session !== session || held.provider !== provider) return { state: "loading" };
     const read = held.read;
     if (read.kind === "unknown") return { state: "error", message: t(ended ? "board.chat.unavailable" : "board.chat.notYet") };
     if (read.kind === "failed") return { state: "error", message: t("board.chat.failed"), onRetry };
     const turns: ChatTurn[] = read.complete ? read.turns : [{ kind: "record", text: t("board.chat.earlier") }, ...read.turns];
     return { state: "ready", turns };
-  }, [held, session, ended, t, onRetry]);
+  }, [held, session, provider, ended, t, onRetry]);
 }

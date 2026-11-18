@@ -9,6 +9,9 @@
   pointer-events: none;
   color: var(--muted);
   user-select: none;
+  /* Upright wherever it is drawn: on a phone it is the Sessions list's empty
+     row, which sets its own "No sessions yet." in italic. */
+  font-style: normal;
 }
 /* The two notices ("never reached", "too many tabs"), as V4's Figma draws
    them: a 360px block padded 16, a 24px icon, a 16/600 title and a 13px body
@@ -52,6 +55,13 @@
   color: var(--text); font-size: calc(12px + var(--ui-text-increase, 0px));
   overflow-wrap: anywhere;
 }
+/* New session, where the deck can start one (EmptyHero.tsx): V4's primary at
+   the tour button's height, between the title and the line that gives the
+   other way in, and given its pointer back as the tour is. */
+.empty-hero .empty-new { pointer-events: auto; min-height: 36px; padding: 0 20px; margin: 8px 0 16px; }
+/* The line under it, balanced: in Japanese its last kana fell alone onto a
+   second line at every desktop width. */
+.empty-hero .empty-or { text-wrap: balance; }
 .empty-hero .empty-help { margin-top: 16px; pointer-events: auto; }
 .empty-hero .empty-help summary { cursor: pointer; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); transition: transform var(--dur-fast) var(--ease); }
 .empty-hero .empty-help summary:active { transform: scale(var(--press)); }
