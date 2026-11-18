@@ -120,6 +120,7 @@ describe("the card's words", () => {
     expect(platformLabel("linux-x64")).toBe("Linux · x64");
     expect(platformLabel("linux-arm64")).toBe("Linux · ARM64");
     expect(platformLabel("win32-x64")).toBe("Windows · x64");
+    expect(platformLabel("win32-arm64")).toBe("Windows · ARM64");
     expect(platformLabel("freebsd")).toBe("freebsd");
   });
 
