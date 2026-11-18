@@ -41,10 +41,11 @@ import { t as tNow, useT } from "../../i18n";
 import { useSingleKeyShortcuts } from "../../use-single-key-shortcuts";
 import { useWaitingLoader } from "../../use-waiting-loader";
 import { chatShown, ScreensSlot, useScreenFlags, type ScreensProps } from "../../use-screens";
+import { EMPTY_NEW_SESSION_ID } from "../../stage-shell";
 
 /** The id the empty card's New session button carries, so the popover can
- *  hang off it. */
-export const EMPTY_NEW_SESSION_ID = "ts-empty-new-session";
+ *  hang off it: stage-shell.ts's, which says why it lives there. */
+export { EMPTY_NEW_SESSION_ID };
 
 /** What the board knows that helps a card say where the session is. */
 export interface StageContext {
@@ -85,7 +86,7 @@ export interface StageBodyProps {
   /** Open the waiting session, with the keys in its pane: N's answer. */
   onOpenWaiting?(): void;
   /** CHAT AND DECISION: what the pane is handed to draw, behind two flags that
-   *  are off (use-screens.ts). The stage hands them for a Claude session in
+   *  are off (use-screens.ts). The stage hands them for a supported session in
    *  Workspace, with the conversation read from its transcript. */
   screens?: ScreensProps;
 }

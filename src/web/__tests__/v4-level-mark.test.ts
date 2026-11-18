@@ -11,10 +11,7 @@ import QuotaBar, { quotaFill, quotaLevel } from "../components/QuotaBar";
 import { LevelMark } from "../components/LevelMark";
 import { PlainRow, Row } from "../components/MachineReadout";
 import { Cell } from "../components/MachineStrip";
-import { RailUsage } from "../components/RailParts";
 import type { Series } from "../components/SectionHistoryModal";
-import { usageMeter } from "../rail-usage";
-import type { QuotaData } from "../use-quota";
 import { catalogFor } from "../i18n/catalogs";
 import { sheetText } from "./sheet-source";
 
@@ -98,36 +95,6 @@ describe("a quota bar from 70%", () => {
 
   it("colours the figure in the mark's tone rather than in --text", () => {
     expect(css).toContain(".level-mark > .qb-pct[data-known] { color: inherit; }");
-  });
-});
-
-describe("the rail's usage meter from 70%", () => {
-  const NOW = 1_800_000_000;
-  const reading = (session5hPct: number): QuotaData => ({ ok: true, planLabel: "Max 20x", session5hPct, session5hResetAt: NOW + 3600 });
-  const meter = (pct: number) => usageMeter({ reading: reading(pct), readAt: NOW * 1000, failed: false }, NOW * 1000);
-  const draw = (pct: number) => html(createElement(RailUsage, { meter: meter(pct), onPress: () => {} }));
-
-  it("marks 90% and over in --err and says high, aloud too", () => {
-    expect(mark(draw(95))).toEqual({ tone: "err", word: "high" });
-    expect(meter(95)?.spoken).toContain("5-hour limit 95%, high");
-  });
-
-  // CHANGED ON PURPOSE (V4 top-10 #9): nothing under 90 → the warning mark,
-  // --warn and "high" from 70, as the Usage panel's bar has them, because the
-  // same 86% read calm on the rail and "⚠ 86% · high" in the panel.
-  it("marks 70 to 89 in --warn and says high, aloud too, as the Usage panel's bar does", () => {
-    expect(mark(draw(75))).toEqual({ tone: "warn", word: "high" });
-    expect(mark(draw(75))).toEqual(mark(html(createElement(QuotaBar, { pct: 75, label: "5-hour window", nowSec: 0 }))));
-    expect(meter(75)?.spoken).toContain("5-hour limit 75%, high");
-  });
-
-  it("adds nothing under 70", () => {
-    expect(mark(draw(69))).toBeNull();
-    expect(meter(69)?.spoken).not.toContain("high");
-  });
-
-  it("keeps the mark at the line's end, where the figure stood", () => {
-    expect(css).toContain(".session-list .sl-usage-line1 > .level-mark { margin-left: auto; }");
   });
 });
 

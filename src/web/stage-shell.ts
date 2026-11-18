@@ -213,6 +213,13 @@ export function terminalButtonTarget(
   return { kind: "empty" };
 }
 
+/** The id the empty stage's New session button carries, so the popover can
+ *  hang off it. Here rather than beside the button (components/terminal/
+ *  StageBody.tsx, in the stage's lazy chunk) because the empty board's own New
+ *  session asks for the popover off that same button (use-stage.ts), and that
+ *  code is in the first load. */
+export const EMPTY_NEW_SESSION_ID = "ts-empty-new-session";
+
 /** A rect the stage may grow out of: one that shows at least partly inside
  *  `pane`. A card scrolled off the canvas has nowhere on screen to grow from,
  *  and the stage then grows out of its own column instead (stage-morph.ts). */

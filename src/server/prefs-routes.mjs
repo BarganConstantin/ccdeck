@@ -93,9 +93,10 @@ export async function handlePrefsWrite(req, res, panel) {
   try {
     await heldPrefs.write(patch);
   } catch (err) {
-    // A settings file or folder this user cannot reach is the machine's to fix,
-    // not the deck's, and `guard`'s bare 500 left the panel with nothing to say
-    // about it (#1335). Anything else is still a bug and still goes to `guard`.
+    // A settings file or folder this user cannot reach, or a disk with no room
+    // left for it, is the machine's to fix, not the deck's, and `guard`'s bare
+    // 500 left the panel with nothing to say about it (#1335). Anything else is
+    // still a bug and still goes to `guard`.
     const reason = prefsWriteRefusal(err);
     if (!reason) throw err;
     console.error(`${PRODUCT}: settings were not saved:`, err?.message ?? err);

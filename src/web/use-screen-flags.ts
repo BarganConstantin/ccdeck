@@ -2,7 +2,7 @@
 //
 // CHAT ON, THE DECISION CARD OFF. Each screen has its own flag, one string in
 // the browser's localStorage in the deck's own namespace, read once at load
-// like use-view.ts reads the view. Chat is on unless its key is "0": a Claude
+// like use-view.ts reads the view. Chat is on unless its key is "0": a supported
 // session's pane offers the Chat | Term switch from the first visit, and Term
 // is still where every pane starts. The Decision card stays off unless its key
 // is "1" (anything else, or no storage at all, is off): it has no way to answer

@@ -28,9 +28,15 @@ export function unreadablePrefs(path, why, blocked) {
  *  often a settings folder a `sudo` run left owned by root (#1335). */
 const NOT_WRITABLE = new Set(["EACCES", "EPERM", "EROFS"]);
 
+/** The errors a filesystem raises when there is no room left for the write: the
+ *  disk is full, or this user's quota on it is. The machine's to fix as much
+ *  as a folder this user may not write, and no owner or folder the detail
+ *  could name would help, so prefsRefusalDetail has none for them. */
+const NO_SPACE = new Set(["ENOSPC", "EDQUOT"]);
+
 /**
  * Why a settings write failed, as a reason the panel can name — or null when
- * the failure is not one of the two a person can fix from outside the deck.
+ * the failure is not one of the three a person can fix from outside the deck.
  *
  * A code, never the message: the message carries the absolute path, and a
  * route's body is readable by a DNS-rebound page (see sendInternalError). The
@@ -39,6 +45,7 @@ const NOT_WRITABLE = new Set(["EACCES", "EPERM", "EROFS"]);
 export function prefsWriteRefusal(err) {
   if (err?.code === "PREFS_UNREADABLE") return "prefs_unreadable";
   if (NOT_WRITABLE.has(err?.code)) return "prefs_not_writable";
+  if (NO_SPACE.has(err?.code)) return "prefs_no_space";
   return null;
 }
 

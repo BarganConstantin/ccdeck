@@ -33,6 +33,7 @@ const catalog: Catalog = {
   "lan.fail.errorCode": " Cod de eroare: {code}.",
   "lan.fail.prefsUnreadable": "acest ccdeck nu poate citi fișierul de setări, deci nu îl va suprascrie. Fișierul poate aparține altui utilizator, de exemplu după ce ccdeck a fost rulat cu sudo. Jurnalul ccdeck-ului indică fișierul.",
   "lan.fail.prefsNotWritable": "acest ccdeck nu are voie să-și salveze setările. Folderul de setări poate aparține altui utilizator, de exemplu după ce ccdeck a fost rulat cu sudo, sau un alt program poate ține fișierul deschis. Jurnalul ccdeck-ului indică folderul.",
+  "lan.fail.prefsNoSpace": "discul pe care acest ccdeck își salvează setările este plin, deci nu au fost salvate. Eliberează puțin spațiu, apoi încearcă din nou.",
   "lan.fail.badJson": "fișierul de setări este deteriorat și nu a putut fi mutat deoparte, deci nu îl va suprascrie. Jurnalul ccdeck-ului indică fișierul.",
   "lan.fail.folderOther": "acest ccdeck nu poate deschide folderul de setări, care aparține altui utilizator, de exemplu după ce ccdeck a fost rulat cu sudo. Jurnalul ccdeck-ului conține comanda care i-l dă înapoi.",
   "lan.fail.folderYou": "acest ccdeck nu poate deschide propriul folder de setări, deci nu va suprascrie ce se află în el. Jurnalul ccdeck-ului indică folderul.",

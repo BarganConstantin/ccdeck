@@ -75,7 +75,7 @@ describe.each([
 // writes the English they translate are not listed: they hold English by
 // design, matched as it arrives.
 const OUTSIDE_COMPONENTS: readonly string[] = [
-  "board-header.ts", "topbar-counts.ts", "node-face.ts", "rail-items.tsx", "rail-model.ts", "rail-row-copy.ts", "rail-usage.ts",
+  "board-header.ts", "topbar-counts.ts", "node-face.ts", "rail-items.tsx", "rail-model.ts", "rail-row-copy.ts",
   "board-navigator.ts", "use-asks.ts", "tab-keys.ts", "terminal-api.ts", "terminal-protocol.ts", "terminal-keys.ts",
   "use-terminal-session.ts", "use-stage.ts", "workspace-pane.ts", "status-hints.ts", "inspector-tree.ts", "inspector-tab.ts",
   "account-ui-fields.ts", "settings.ts", "settings-search.ts", "feedback.ts", "feedback-conversations.ts",

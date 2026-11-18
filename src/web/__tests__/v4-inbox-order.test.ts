@@ -219,7 +219,7 @@ describe("the age at the right edge", () => {
   it("is set in the UI face with tabular figures, as every count in the list", () => {
     const rules = sheetRules();
     const has = (selector: string, prop: string) => rules.some(r => r.media === null && r.selectors.includes(selector) && new RegExp(`(?:^|[;{\\s])${prop}\\s*:`).test(r.body));
-    for (const sel of [".session-list .sl-time", ".session-list .sl-count", ".session-list .sl-group-count", ".session-list .sl-start", ".session-list .sl-usage-pct"]) {
+    for (const sel of [".session-list .sl-time", ".session-list .sl-count", ".session-list .sl-group-count", ".session-list .sl-start"]) {
       expect(has(sel, "font-family"), sel).toBe(false);
       expect(rules.some(r => r.media === null && r.selectors.includes(sel) && /font-variant-numeric:\s*tabular-nums/.test(r.body)), sel).toBe(true);
     }

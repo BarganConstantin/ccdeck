@@ -86,7 +86,7 @@ export function responseItemModel(obj) {
  * rather than indexed, and a part with no string `text` contributes nothing
  * instead of printing "undefined" into the prompt the card shows.
  */
-function codexItemText(item) {
+export function codexItemText(item) {
   const parts = Array.isArray(item && item.content) ? item.content : [];
   return parts.map(p => (p && typeof p.text === "string" ? p.text : "")).join("");
 }
