@@ -1,4 +1,4 @@
-// What changed since you last looked (#712), and the four-picture tour that comes
+// What changed since you last looked (#712), and the picture tour that comes
 // before it the first time: when each opens, the notes an upgrade holds back until
 // the tour is closed, and the version chip's way back to them.
 //
@@ -23,9 +23,16 @@ import { inDesktopApp } from "./in-app";
 // is the only shape a DOM-less suite can ask "what would a user upgrading
 // 1.42 to 1.48 have been shown?" — or, since #717, "what does somebody who
 // has never run this see on the release they just installed?".
-import { RELEASE_NOTES, type VersionNotes, decideReleaseNotes, decideWelcome, notesBetween, readSeen, readTourSeen, remembersSeen, writeSeen, writeTourSeen } from "./release-notes";
+import { RELEASE_NOTES, TOUR_EDITION, type VersionNotes, decideReleaseNotes, decideWelcome, notesBetween, readSeen, readTourSeen, remembersSeen, tourEditionOf, writeSeen, writeTourSeen } from "./release-notes";
 import type { VersionInfo } from "./use-version-check";
 import { localStore } from "./storage";
+import { loadsOnPhone } from "./phone-load";
+
+/** What the desktop app's prefs file is told when the tour closes, in step
+ *  with writeTourSeen: the edition this build shows, and `tourSeen`, which is
+ *  all a 3.x deck reading the same file understands — so an older app opened
+ *  on it after a downgrade does not replay its own pictures either. */
+export const TOUR_SEEN_PREFS = { tourSeen: true, tourEdition: TOUR_EDITION } as const;
 
 export interface WelcomeAndNotesDeps {
   version: VersionInfo | null;
@@ -34,7 +41,7 @@ export interface WelcomeAndNotesDeps {
 }
 
 export function useWelcomeAndNotes({ version, readyAppUpdate }: WelcomeAndNotesDeps) {
-  /** The four pictures a deck shows the first time it runs in a browser, and
+  /** The pictures a deck shows the first time it runs in a browser, and
    *  again from the empty canvas's `Take the tour`. */
   const [tourOpen, setTourOpen] = useState(false);
   /** Notes held back while the tour is up, shown when it closes: an upgrade
@@ -119,17 +126,19 @@ export function useWelcomeAndNotes({ version, readyAppUpdate }: WelcomeAndNotesD
         // The desktop window's localhost port changes across restarts. The
         // deck prefs file survives that change; localStorage belongs to the
         // current port only. Carry an existing marker into prefs once.
+        // The file's `tourSeen: true` is the 3.x tour, like the local "1":
+        // only an edition this build's or later counts (TOUR_EDITION).
         try {
           const response = await fetch("/api/prefs");
           if (!response.ok) throw new Error("desktop tour preferences unavailable");
           const data = await response.json();
           if (!data?.ok) throw new Error("desktop tour preferences unavailable");
-          const persisted = data.prefs?.tourSeen === true;
+          const persisted = tourEditionOf(data.prefs?.tourEdition) >= TOUR_EDITION;
           if (tourSeen && !persisted) {
             void fetch("/api/prefs", {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({ tourSeen: true }),
+              body: JSON.stringify(TOUR_SEEN_PREFS),
               keepalive: true,
             }).catch(() => {});
           }
@@ -141,7 +150,9 @@ export function useWelcomeAndNotes({ version, readyAppUpdate }: WelcomeAndNotesD
         }
       }
       if (!alive) return;
-      const plan = decideWelcome({ tourSeen, decision });
+      // A phone draws none of what the pictures show, so it opens the notes
+      // alone and leaves the tour for a wider window (decideWelcome).
+      const plan = decideWelcome({ tourSeen, decision, phone: loadsOnPhone() });
       const notes = decision.show.length ? { entries: decision.show, since: stored, firstRun: false } : null;
       // Opened here, and marked seen only when a person CLOSES it — see the
       // tour's onClose. Marking it on open was the defect: the deck reloads its
@@ -189,7 +200,7 @@ export function useWelcomeAndNotes({ version, readyAppUpdate }: WelcomeAndNotesD
         void fetch("/api/prefs", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ tourSeen: true }),
+          body: JSON.stringify(TOUR_SEEN_PREFS),
           keepalive: true,
         }).catch(() => {});
       }

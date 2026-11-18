@@ -36,14 +36,16 @@ import { CopyGlyph, StageGlyph } from "./stage-icons";
 import EngineCard, { engineCardCode } from "./EngineCard";
 import type { WaitingCard } from "./stage-board";
 import { Kbd } from "../Kbd";
+import { richText } from "../settings-rich";
 import { t as tNow, useT } from "../../i18n";
 import { useSingleKeyShortcuts } from "../../use-single-key-shortcuts";
 import { useWaitingLoader } from "../../use-waiting-loader";
 import { chatShown, ScreensSlot, useScreenFlags, type ScreensProps } from "../../use-screens";
+import { EMPTY_NEW_SESSION_ID } from "../../stage-shell";
 
 /** The id the empty card's New session button carries, so the popover can
- *  hang off it. */
-export const EMPTY_NEW_SESSION_ID = "ts-empty-new-session";
+ *  hang off it: stage-shell.ts's, which says why it lives there. */
+export { EMPTY_NEW_SESSION_ID };
 
 /** What the board knows that helps a card say where the session is. */
 export interface StageContext {
@@ -89,9 +91,16 @@ export interface StageBodyProps {
   screens?: ScreensProps;
 }
 
-/** The empty Workspace pane's words, word for word from the frame. */
+/** The empty Workspace pane's words: the frame's title, and a line that says
+ *  how a session gets here. */
 export const WS_EMPTY_TITLE_MSG = "board.stage.wsEmptyTitle";
 export const WS_EMPTY_LINE_MSG = "board.stage.wsEmptyLine";
+/** The quiet line under New session: what comes after the first pane. Shift +
+ *  Enter on a row, or a row dragged to a pane's edge, opens another beside it,
+ *  four at most (workspace-split.ts MAX_PANES); 1 to 4 then move the keys
+ *  between them, a sentence of its own because the single keys can be off. */
+export const WS_EMPTY_BESIDE_MSG = "board.stage.wsEmptyBeside";
+export const WS_EMPTY_PANES_MSG = "board.stage.wsEmptyPanes";
 
 /** The first line of the tmux card: what is wrong with tmux, as a fact. */
 export function tmuxFact(reason: string): string {
@@ -178,6 +187,12 @@ export function WorkspaceEmpty({ waiting, onOpen, onNewSession }: {
       </div>
     );
   }
+  // The first time in Workspace this is all there is to read, so it says how
+  // panes get here: the line names the click (and New session), the quiet
+  // line under the button what comes after the first one. Kbd caps for the
+  // keys, spoken in words; 1 to 4 only while the single keys answer.
+  const beside = <Kbd label={t("board.stage.besideSpoken")}>⇧↵</Kbd>;
+  const digits = <Kbd label={t("board.stage.panesSpoken")}>1–4</Kbd>;
   return (
     <div className="ts-card">
       <div className="ts-empty-block">
@@ -188,6 +203,10 @@ export function WorkspaceEmpty({ waiting, onOpen, onNewSession }: {
             {t("board.newSession.title")}
           </button>
         </div>
+        <p className="ts-ws-more">
+          {richText(t(WS_EMPTY_BESIDE_MSG, { keys: "{keys}" }), { keys: beside })}
+          {singleKeys && <> {richText(t(WS_EMPTY_PANES_MSG, { keys: "{keys}" }), { keys: digits })}</>}
+        </p>
       </div>
     </div>
   );

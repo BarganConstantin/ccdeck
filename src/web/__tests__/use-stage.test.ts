@@ -574,6 +574,87 @@ describe("the other ways in", () => {
   });
 });
 
+describe("the empty board's New session (EmptyHero)", () => {
+  const heroButton = () => ({ focus: vi.fn(), isConnected: true, getBoundingClientRect: () => rect(660, 384, 120, 36), classList: { contains: () => false } });
+
+  it("does nothing with the flag off", () => {
+    const { now } = setup();
+    now().stage.newSessionFromBoard(heroButton() as unknown as HTMLElement);
+    expect(now().stage.shell.phase).toBe("closed");
+    expect(now().stage.shell.popover).toBeNull();
+  });
+
+  it("opens the empty stage out of the hero's button, and the form once the stage has landed", () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.newSessionFromBoard(heroButton() as unknown as HTMLElement);
+    expect(now().stage.shell.target).toEqual({ kind: "empty" });
+    expect(now().stage.shell.origin, "it grows out of the button that was pressed").toEqual({ x: 660, y: 384, w: 120, h: 36 });
+    expect(now().stage.shell.focusRequest, "the keys go to the stage, as the Terminal button's do").not.toBeNull();
+    // Not while the stage is unseen or still moving: the form is placed
+    // against a button that has not reached its place yet.
+    expect(now().stage.shell.popover).toBeNull();
+    now().stage.reveal();
+    expect(now().stage.shell.phase).toBe("opening");
+    expect(now().stage.shell.popover).toBeNull();
+    now().stage.revealed();
+    expect(now().stage.shell.phase).toBe("open");
+    expect(now().stage.shell.popover, "off the empty stage's own New session").toBe("ts-empty-new-session");
+  });
+
+  it("takes the stage away again when the form is closed unused, and gives the hero's button the focus back", () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    const button = heroButton();
+    now().stage.newSessionFromBoard(button as unknown as HTMLElement);
+    now().stage.reveal();
+    now().stage.revealed();
+    now().stage.closePopover();
+    expect(now().stage.shell.phase, "the board as it was before the press").toBe("closing");
+    const doc = (globalThis as Record<string, any>).document;
+    doc.activeElement = doc.body;
+    now().stage.closed("");
+    expect(now().stage.shell.phase).toBe("closed");
+    expect(button.focus, "the empty stage has no card to go back to").toHaveBeenCalledTimes(1);
+  });
+
+  it("stays on the launch a Start made, with the form gone", () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.newSessionFromBoard(heroButton() as unknown as HTMLElement);
+    now().stage.reveal();
+    now().stage.revealed();
+    // The form's Start: the launch, then the form closes (NewSessionPopover).
+    now().stage.launch("claude", "/w/new");
+    now().stage.closePopover();
+    expect(now().stage.shell.phase).toBe("open");
+    expect(now().stage.shell.target).toMatchObject({ kind: "launch", agent: "claude", cwd: "/w/new" });
+    expect(now().stage.shell.popover).toBeNull();
+  });
+
+  it("forgets the ask when the stage moves to a session before it has landed", () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.newSessionFromBoard(heroButton() as unknown as HTMLElement);
+    now().stage.switchTo("s1", { focusPane: false });
+    now().stage.reveal();
+    now().stage.revealed();
+    expect(now().stage.shell.target).toEqual({ kind: "session", id: "s1" });
+    expect(now().stage.shell.popover, "no form over a session the reader chose").toBeNull();
+  });
+
+  it("leaves a stage the reader opened from elsewhere alone when its form closes", () => {
+    const { now, turnOn } = setup();
+    turnOn();
+    now().stage.openFromButton(null);
+    now().stage.reveal();
+    now().stage.revealed();
+    now().stage.openPopover("ts-empty-new-session");
+    now().stage.closePopover();
+    expect(now().stage.shell.phase, "only the hero's press is undone").toBe("open");
+  });
+});
+
 describe("the keys", () => {
   it("hands use-deck-shortcuts the stage while it is up, and walks the navigator's order", () => {
     const { now, turnOn } = setup();

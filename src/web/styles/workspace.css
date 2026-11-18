@@ -258,6 +258,11 @@ body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column) {
 .ts-ws-head > .ts-glyph { align-self: center; }
 .ts-ws-wait { margin-left: 4px; font: 500 13px/20px var(--font-sans); font-variant-numeric: tabular-nums; color: var(--warn); }
 .ts-ws-ask { margin: 0; font-size: 12px; line-height: 16px; color: var(--muted); }
+/* The empty pane's quiet line, under New session: what comes after the first
+   pane, in the ask's muted 12px, set 8 below the button. On an 18 line, not
+   16: its keys are the kit's Kbd, 16 tall, and a line that wraps keeps an
+   even step around them. */
+.ts-ws-more { margin: 0; padding-top: 8px; font-size: 12px; line-height: 18px; color: var(--muted); }
 /* The command in the ask's own tone, as V4 sets it: mono on the 20 line. */
 .ts-ws-ask code { font: 400 13px/20px var(--font-mono); color: var(--muted); }
 /* One button, the kit's .btn (its edge and states are the swept ones):

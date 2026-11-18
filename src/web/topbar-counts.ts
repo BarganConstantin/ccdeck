@@ -17,8 +17,11 @@ export interface SessionCounts {
   done: number;
 }
 
-/** The pills' words, as keys read with `t` where the pill is drawn;
- *  "waiting" is the catalog's own (board.queue.waiting). */
+/** The pills' words, as keys read with `t` where the pill is drawn, with the
+ *  pill's figure as `count`: plural keys, because the word agrees with the
+ *  figure in front of it in some languages (German "1 arbeitet", "2 arbeiten";
+ *  Spanish "1 hecha", "2 hechas"). "waiting" is the catalog's own
+ *  (board.queue.waiting), one word for any figure in all ten languages. */
 export const WORKING_WORD_MSG = "board.counts.working";
 export const DONE_WORD_MSG = "board.counts.done";
 
