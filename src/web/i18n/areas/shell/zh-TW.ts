@@ -280,7 +280,9 @@ const catalog: Catalog = {
   "shell.chip.noticeUpgrade": "npm 上有可用的 v{to}",
   "shell.chip.noticeShow": "顯示新功能",
   "shell.chip.noticeShowBanner": "顯示新功能與通知",
-  "shell.chip.noticeLabel": "{to} 已就緒。目前執行 v{from}；{what} — {does}",
+  "shell.chip.textUpgrade": "{to} 已發布",
+  "shell.chip.textRestart": "{to} 已就緒",
+  "shell.chip.noticeLabel": "{text}。目前執行 v{from}；{what} — {does}",
   "shell.chip.runningRestart": "目前執行 v{from}；磁碟上已安裝 v{to}。重新啟動即可套用 · 點選可查看新功能",
   "shell.chip.runningUpgrade": "目前執行 v{from}；npm 上有 v{to} · 點選可查看新功能",
 

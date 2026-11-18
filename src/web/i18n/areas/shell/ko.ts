@@ -278,7 +278,9 @@ const catalog: Catalog = {
   "shell.chip.noticeUpgrade": "npm에 v{to} 있음",
   "shell.chip.noticeShow": "새로운 기능 보기",
   "shell.chip.noticeShowBanner": "새로운 기능과 알림 보기",
-  "shell.chip.noticeLabel": "{to} 준비 완료. 현재 v{from} 실행 중; {what} — {does}",
+  "shell.chip.textUpgrade": "{to} 출시됨",
+  "shell.chip.textRestart": "{to} 준비 완료",
+  "shell.chip.noticeLabel": "{text}. 현재 v{from} 실행 중; {what} — {does}",
   "shell.chip.runningRestart": "v{from} 실행 중, 디스크에 v{to} 설치됨. 다시 시작하면 적용 · 클릭하면 새로운 기능 보기",
   "shell.chip.runningUpgrade": "v{from} 실행 중, npm에 v{to} 있음 · 클릭하면 새로운 기능 보기",
 

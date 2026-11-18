@@ -1,6 +1,7 @@
 // The version chip at the top bar's right end: drawn ONLY when there is
 // something to say about the version (V4's Figma, Top bar: "4.0.1 is ready",
-// the chip is optional), and what a click does about it.
+// the chip is optional; a release on npm "is out", see versionNoticeText), and
+// what a click does about it.
 //
 // It draws one of two buttons. An update the desktop app has already downloaded
 // is one chip, "Restart to finish", and pressing it is the restart (see
@@ -21,7 +22,7 @@ import { desktopAppVersion, readyChipCopy } from "../desktop-update";
 import { KitIcon } from "./kit-icons";
 import { useLanguage, t } from "../i18n";
 import type { VersionNotice } from "../use-version-check";
-import { versionChipNeeded, versionNoticeLabel } from "../version-chip";
+import { versionChipNeeded, versionNoticeLabel, versionNoticeText } from "../version-chip";
 
 export default function VersionChip({
   readyAppUpdate, notice, noticeOpen, chipVersion,
@@ -85,7 +86,7 @@ export default function VersionChip({
             : t("shell.chip.runningUpgrade", { from: notice.from, to: notice.to })}
         >
           <span className="v-icon" aria-hidden><KitIcon name="update" /></span>
-          {`${notice.to} is ready`}
+          {versionNoticeText(notice)}
         </button>
       ) : null}
     </>
