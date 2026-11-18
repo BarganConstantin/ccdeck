@@ -12,6 +12,8 @@ import {
 } from "../terminal-keys";
 import { holdKey, startTypeAhead } from "../type-ahead";
 import { documentedKeys, keyHelpFor, KEY_HELP, WORKSPACE_KEY_ROW } from "../key-help";
+import { isReleaseChord } from "../terminal-keys";
+import { textSizeChord } from "../terminal-text-size";
 import { BOARD_HINTS, DECK_HINTS, statusViewFor, type StatusInput } from "../status-hints";
 
 const key = (over: Partial<TerminalKey>): TerminalKey => ({
@@ -164,29 +166,87 @@ describe("what names the chord", () => {
     expect(off.hints.map(h => h.word)).toEqual(["open and type", "board"]);
   });
 
-  it("adds the sheet's row only where the Command Panel is on, in V4's Terminal group, and writes the key down", () => {
+  it("adds the sheet's row only where the Command Panel is on, in V4's Workspace group, and writes the key down", () => {
     const rows = keyHelpFor(true, () => true, true).flatMap(g => g.rows);
     expect(rows).toContain(WORKSPACE_KEY_ROW);
-    // CHANGED ON PURPOSE (V4's Figma): the row is the one row of the Terminal
-    // group, between The question and Canvas.
+    // CHANGED ON PURPOSE (first use of Workspace): the row heads a Workspace
+    // group of its own, with how a session gets into a pane and 1 to 4; the
+    // Terminal group after it holds the keys inside a pane. Both sit between
+    // The question and Canvas, where a reader new to V4 finds them first.
     const groups = keyHelpFor(true, () => true, true);
-    const terminal = groups.find(g => g.title === "Terminal")!;
-    expect(terminal.rows).toEqual([WORKSPACE_KEY_ROW]);
-    expect(groups.map(g => g.id).slice(0, 4)).toEqual(["deck", "question", "terminal", "canvas"]);
+    const workspace = groups.find(g => g.id === "workspace")!;
+    expect(workspace.title).toBe("Workspace");
+    expect(workspace.rows[0]).toBe(WORKSPACE_KEY_ROW);
+    expect(workspace.rows.map(r => r.cap)).toEqual(["Ctrl + `", "click", "Enter", "Shift + Enter", "drag", "1 – 4"]);
+    expect(workspace.rows.map(r => r.action)).toEqual([
+      "switch between the Board and the Workspace — also with the keys in the terminal",
+      "a session in the list: show it in the pane",
+      "a session in the list: show it and type into it",
+      "a session in the list: open it in a pane beside — four at most",
+      "a session onto a pane: in its place, or beside it at an edge",
+      "the keys to that pane, with panes side by side",
+    ]);
+    const terminal = groups.find(g => g.id === "terminal")!;
+    expect(terminal.title).toBe("Terminal");
+    expect(terminal.rows.map(r => [r.cap, r.macCap, r.action])).toEqual([
+      ["Esc", undefined, "goes to the session while you type in a pane"],
+      ["Ctrl + Shift + X", "⌃ ⇧ X", "the keys back to the deck"],
+      ["Ctrl + =", "⌘ =", "larger terminal text"],
+      ["Ctrl + -", "⌘ -", "smaller terminal text"],
+      ["Ctrl + 0", "⌘ 0", "terminal text back to 100%"],
+    ]);
+    expect(groups.map(g => g.id)).toEqual(["deck", "question", "workspace", "terminal", "canvas", "panels"]);
     expect(keyHelpFor(true).flatMap(g => g.rows)).not.toContain(WORKSPACE_KEY_ROW);
+    expect(keyHelpFor(true).map(g => g.id), "neither group without the Command Panel").toEqual(["deck", "question", "canvas", "panels"]);
     expect(WORKSPACE_KEY_ROW.chord, "a chord stays with the single keys off").toBe(true);
     expect(keyHelpFor(false, () => true, true).flatMap(g => g.rows).map(r => r.cap)).toContain(WORKSPACE_KEY_ROW.cap);
     expect(documentedKeys().has("`")).toBe(true);
+    for (const key of ["1", "2", "3", "4"]) expect(documentedKeys().has(key), key).toBe(true);
+  });
+
+  // With the single keys off the deck's handler does not answer 1 to 4
+  // (use-deck-shortcuts.ts), so the row goes; the chords and the named keys
+  // stay, and the Terminal group stays whole.
+  it("keeps Workspace's named keys and every Terminal key with the single keys off, and drops 1 to 4", () => {
+    const groups = keyHelpFor(false, () => true, true);
+    expect(groups.find(g => g.id === "workspace")!.rows.map(r => r.cap)).toEqual(["Ctrl + `", "click", "Enter", "Shift + Enter", "drag"]);
+    expect(groups.find(g => g.id === "terminal")!.rows.map(r => r.cap)).toEqual(["Esc", "Ctrl + Shift + X", "Ctrl + =", "Ctrl + -", "Ctrl + 0"]);
+  });
+
+  it("says the canvas's click opens the Command Panel only where it is on", () => {
+    const click = (workspace: boolean) => keyHelpFor(true, () => true, workspace)
+      .find(g => g.id === "canvas")!.rows.find(r => r.cap === "click")!.action;
+    expect(click(false)).toBe("a card: go to it and its session");
+    expect(click(true)).toBe("a card: open its session in the Command Panel");
+  });
+
+  // The caps are the keys the pane's handlers answer, held against them here:
+  // the release chord is Control and Shift and X on a Mac too, the text size
+  // is Ctrl off a Mac and ⌘ on one.
+  it("names the keys the pane answers, on every keyboard", () => {
+    const press = (key: string, mods: { ctrlKey?: boolean; shiftKey?: boolean; metaKey?: boolean }) =>
+      ({ key, ctrlKey: false, shiftKey: false, altKey: false, metaKey: false, ...mods });
+    expect(isReleaseChord(press("X", { ctrlKey: true, shiftKey: true }))).toBe(true);
+    expect(isReleaseChord(press("x", { metaKey: true, shiftKey: true })), "⌘ is not the release chord's key").toBe(false);
+    for (const apple of [false, true]) {
+      const mod = apple ? { metaKey: true } : { ctrlKey: true };
+      expect([textSizeChord(press("=", mod), apple), textSizeChord(press("-", mod), apple), textSizeChord(press("0", mod), apple)])
+        .toEqual(["larger", "smaller", "reset"]);
+    }
   });
 
   // The group was found by its English title, so in every other language the row was missing.
   describe("in another language", () => {
     afterEach(() => { setLanguage("en"); resetLanguageForTest(); });
     for (const code of ["de", "ja"]) {
-      it(`still sits in its own Terminal group (${code})`, () => {
+      // CHANGED ON PURPOSE (first use of Workspace): the row heads the
+      // Workspace group now, and the group's title is the language's own.
+      it(`still sits in its own Workspace group (${code})`, () => {
         setLanguage(code);
-        const terminal = keyHelpFor(true, () => true, true).find(g => g.id === "terminal")!;
-        expect(terminal.rows).toEqual([WORKSPACE_KEY_ROW]);
+        const workspace = keyHelpFor(true, () => true, true).find(g => g.id === "workspace")!;
+        expect(workspace.rows[0]).toBe(WORKSPACE_KEY_ROW);
+        expect(workspace.title).toBe(code === "ja" ? "ワークスペース" : "Workspace");
+        expect(keyHelpFor(true, () => true, true).find(g => g.id === "terminal")!.title).toBe(code === "ja" ? "ターミナル" : "Terminal");
         // CHANGED ON PURPOSE (V4's Figma): the group is found by its id, and the
         // titles around it are the language's own where it has one. German keeps
         // "Canvas" as its own word; Japanese translates it. (The V4 names Deck,

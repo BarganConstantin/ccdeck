@@ -45,6 +45,9 @@
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 16px;
   font-variant-numeric: tabular-nums;
+  /* "5 / 7" is one reading: at 320 px the title takes two rows and squeezed
+     the count until it broke after the slash. */
+  white-space: nowrap;
 }
 .modal-actions .guide-count { margin-right: 4px; }
 /* The footer holds the step dots at its left and the buttons at its right. */
@@ -81,7 +84,6 @@
 .ga-t { font-size: calc(11px + var(--ui-text-increase, 0px)); fill: var(--text); }
 .ga-s { font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); fill: var(--muted); }
 .ga-cap { font-size: calc(11px + max(0px, var(--ui-text-increase, 0px))); font-weight: 600; letter-spacing: 0.06em; fill: var(--muted); }
-.ga-big { font-size: calc(22px + var(--ui-text-increase, 0px)); font-weight: 600; fill: var(--text); }
 .ga-strong { font-weight: 600; }
 /* Mono for what the deck itself sets in mono: a terminal's lines and the tool
    bubbles' words. An account's address is a name, in the sans (V4 top-10 #8). */
@@ -112,8 +114,24 @@
 .ga-key-bed { fill: var(--accent); }
 .ga-key { fill: none; stroke: var(--bg); stroke-width: 1.5; stroke-linecap: round; }
 .ga-caret { fill: var(--text); }
-.ga-on-accent { fill: var(--bg); }
 .ga-glyph { fill: none; stroke: var(--muted); stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+/* V4's shapes (the welcome): a stripe on --panel with its --line edge, its
+   open door on --selected, a card edged in its state's colour or the accent
+   when it is the one in focus, the terminal on --bg, a button on the kit's
+   control fill, and the pane a session is arriving in. */
+.ga-stripe { fill: var(--panel); stroke: var(--line); }
+.ga-sel { fill: var(--selected); }
+.ga-door { fill: none; stroke: var(--muted); stroke-width: 1.2; }
+.ga-door-on { fill: none; stroke: var(--text); stroke-width: 1.2; }
+.ga-card-warn { fill: var(--panel); stroke: var(--warn); }
+.ga-card-flight { fill: var(--panel); stroke: color-mix(in srgb, var(--inflight) 70%, transparent); }
+.ga-card-on { fill: var(--panel); stroke: var(--accent); stroke-width: 1.6; }
+.ga-pane-on { fill: var(--panel); stroke: var(--accent); stroke-width: 1.4; }
+.ga-term { fill: var(--bg); }
+.ga-btn { fill: var(--ctl-fill); stroke: var(--ctl-edge); }
+.ga-ghost { fill: color-mix(in srgb, var(--accent) 6%, transparent); stroke: var(--accent); stroke-dasharray: 3 4; }
+.ga-frame { fill: none; stroke: var(--line-soft); }
+.ga-quiet { opacity: 0.55; }
 
 /* THE MOTION, and every piece of it says one thing. The rings are a machine
    being heard; the dashes run along an edge that is in flight; the key is a
@@ -142,19 +160,6 @@
   61% { opacity: 1; }
   65%, 100% { transform: translate(194px, 96px); opacity: 0; }
 }
-/* The same journey a row lower, for the welcome's sixth picture, whose
-   machines carry a switch above the account. The whole shorthand, because
-   the sheet's motion sweeps read only that spelling. */
-.ga-travel-low { animation: ga-travel-low 5s ease-in-out infinite; }
-@keyframes ga-travel-low {
-  0%, 30% { transform: translate(246px, 120px); opacity: 0; }
-  34% { opacity: 1; }
-  39% { transform: translate(234.5px, 97.5px); }
-  47.5% { transform: translate(220px, 90px); }
-  56% { transform: translate(205.5px, 97.5px); }
-  61% { opacity: 1; }
-  65%, 100% { transform: translate(194px, 120px); opacity: 0; }
-}
 .ga-swap-out { animation: ga-swap-out 5s ease infinite; }
 .ga-swap-in { opacity: 0; animation: ga-swap-in 5s ease infinite; }
 @keyframes ga-swap-out { 0%, 64% { opacity: 1; } 70%, 94% { opacity: 0; } 100% { opacity: 1; } }
@@ -167,7 +172,7 @@
   .ga-flow { animation: none; }
   .ga-blink { animation: none; }
   .ga-pop { animation: none; }
-  .ga-travel, .ga-travel-low { animation: none; }
+  .ga-travel { animation: none; }
   .ga-swap-out { animation: none; opacity: 0; }
   .ga-swap-in { animation: none; opacity: 1; }
 }
@@ -205,6 +210,11 @@
    so a drag starting on it still pans, and this is the one thing on it a
    pointer is meant to land on. */
 .empty-hero .empty-tour { pointer-events: auto; min-height: 36px; padding: 0 16px; font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; border-radius: var(--r-ctl); }
+/* Beside New session the tour is quiet, as the film beside it is: no edge at
+   rest or under a pointer, which keeps the button's own secondary ink and its
+   control fill on hover. New session is the hero's one primary. */
+.empty-hero .empty-actions[data-quiet] { margin-top: 12px; gap: 4px; }
+.empty-hero .empty-actions[data-quiet] .empty-tour { border-color: transparent; padding: 0 12px; }
 
 /* The way from a panel to its 30-second video on ccdeck.dev (FilmLink.tsx).
    Quiet: the accent's small words, the ink of the LAN card's `See how it
@@ -244,6 +254,8 @@
 .empty-hero .film-action svg { flex: none; }
 @container (max-width: 360px) {
   .empty-hero .empty-actions { flex-direction: column; gap: 4px; }
+  /* Two quiet links fit one line where a button and a link did not. */
+  .empty-hero .empty-actions[data-quiet] { flex-direction: row; }
 }
 /* The last line of the accounts and Usage columns, on their inset. */
 .film-foot { padding: 4px var(--panel-inset) 8px; }

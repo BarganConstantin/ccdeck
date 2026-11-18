@@ -1210,6 +1210,19 @@ function Inner() {
     paneWasOpen.current = paneOpen;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phone, paneOpen]);
+  /** More's Command Panel row (a phone's dock only, rail-items.tsx
+   *  commandPanelMore): the canvas button's press, and the Sessions list makes
+   *  way for the stage as it does for a row's press, coming back when the pane
+   *  is left. Left open, the list covered the stage, and the press seemed to do
+   *  nothing. */
+  const { openFromButton } = stage;
+  const openPanelFromMore = useCallback((opener: Element | null) => {
+    openFromButton(opener);
+    if (phone && sessionListOpen) {
+      paneFromListRef.current = true;
+      closeSessionListToCanvas();
+    }
+  }, [openFromButton, phone, sessionListOpen, closeSessionListToCanvas]);
   // ACCOUNTS OVER A PANE. A pane on a phone is the whole screen under the top
   // bar, and a sheet drawn over its header would cover the buttons there (and
   // the Inspector and the other two already give the pane back). So Accounts,
@@ -1224,13 +1237,30 @@ function Inner() {
     if (give) giveRightBack();
   }, [phone, accountsPanelOpen, paneOpen, giveRightBack]);
   const closeAccounts = () => { (providers.claude ? panelReturn.accounts : panelReturn.codex)(); closeAccountsPanel(); };
+  // THE EMPTY BOARD'S NEW SESSION, where the deck can start one: the Command
+  // Panel on, on a platform that has it, its code loaded. Those are what the
+  // deck's other ways to a New session stand on (the canvas's Command Panel
+  // button, the navigator's +); the engine is not asked here, because a stage
+  // without it shows the engine's own card, which installs it. On a phone the
+  // hero is the Sessions list's, and the list covers the pane: it makes way, as
+  // a row's press does, and comes back when the pane is left.
+  const canStartSession = stage.enabled && stage.supported !== false && !stage.chunkFailed;
+  const { newSessionFromBoard } = stage;
+  const newSessionFromHero = useCallback((button: HTMLElement) => {
+    newSessionFromBoard(button);
+    if (phone && sessionListOpen) {
+      paneFromListRef.current = true;
+      closeSessionListToCanvas();
+    }
+  }, [newSessionFromBoard, phone, sessionListOpen, closeSessionListToCanvas]);
   // The empty board's notice (nothing seen yet, the stream unreachable, too many
   // tabs). On a phone the Sessions list covers the canvas it would sit on, so
   // the notice is the list's own empty state, the panel's width less 8 a side;
   // the card for a dropped connection already says that one.
   const emptyHero = (reservedRight: number) => boardEmpty ? (!live && tabCapped
     ? <TabCapHero reservedRight={reservedRight} />
-    : <EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={openTour} reservedRight={reservedRight} />) : null;
+    : <EmptyHero live={live} everConnected={everConnected} providers={providers} workspace={workspace} onTour={openTour}
+      onNewSession={canStartSession ? newSessionFromHero : undefined} reservedRight={reservedRight} />) : null;
   const heroInList = phone && sessionListDrawn && !(everConnected && !live);
   // The four panels that are sheets on a phone: one at a time, Esc and a flick
   // close the one up (use-phone-sheets.ts); nothing here opens or sends.
@@ -1398,7 +1428,7 @@ function Inner() {
         // terminal: the phone's Board draws no canvas bar to hold its button.
         ? <EdgeDock
             items={[...rails.left, ...rails.right[0]].map(sessionsDoorUnderSheet)}
-            more={[rails.search, ...commandPanelMore(stage.enabled ? stage.openFromButton : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}
+            more={[rails.search, ...commandPanelMore(stage.enabled ? openPanelFromMore : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}
             offline={everConnected && !live} />
         : <EdgeRail side="left" label={t("board.rail.tools")} groups={rails.leftStripe} more={rails.leftMore} foot={rails.leftFoot} />}
 

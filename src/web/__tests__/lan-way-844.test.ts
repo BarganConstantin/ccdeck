@@ -267,9 +267,11 @@ describe("the view (#844)", () => {
 describe("the tour no longer has to say where it is (#844)", () => {
   it("points at the row instead of describing the panel's layout", () => {
     expect(guide).not.toMatch(/last section of the Claude accounts panel/);
-    expect(guide).toContain('"shell.guide.welcome.7.tip"');
+    // CHANGED ON PURPOSE (V4's tour): the network folded into the accounts
+    // step, whose tip names the row by the name it shows.
+    expect(guide).toContain('"shell.guide.welcome.accounts.tip"');
     // The row is at the foot of both tabs since #2473, so the tip names the
     // panel, not Claude's tab.
-    expect(shellEn["shell.guide.welcome.7.tip"]).toBe("Open it from the row at the foot of the Accounts panel.");
+    expect(shellEn["shell.guide.welcome.accounts.tip"]).toBe("Pair them from the Local network row at the foot of the Accounts panel.");
   });
 });
