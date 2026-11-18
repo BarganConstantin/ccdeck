@@ -9,6 +9,7 @@ import { codexCostState, codexCostGap, foldCodexCost, codexCostBuckets } from ".
 import { readCodexRollout } from "../../server/codex-enrichment.mjs";
 import { usageByModelFromWire } from "../usage-wire";
 import { agentCost, agentUnpricedTokens } from "../usage-models";
+import { ratesForModel } from "../pricing";
 import { costBreakdownTooltip } from "../card-cost";
 import { applyEvent, initialState } from "../reducer";
 import type { HookPayload } from "../types";
@@ -32,6 +33,33 @@ describe("recorded Codex tier estimates", () => {
     expect(agentCost(a).total).toBeCloseTo(0.004 + 0.001 + 0.002);
     expect(agentUnpricedTokens(a)).toBe(0);
     expect(costBreakdownTooltip(a.usageByModel![model], model)).toContain("do not confirm the served tier");
+  });
+  it("prices GPT-6.2 usage on either side of the Pacific-time Ultrafast cutover", () => {
+    const model = "gpt-6.2-astra";
+    const result = read([
+      { ...meta, payload: { ...meta.payload, model } },
+      tier("ultrafast"),
+      { ...usage(1_000_000), timestamp: "2027-03-01T07:59:59Z" },
+      { ...usage(2_000_000), timestamp: "2027-03-01T08:00:00Z" },
+      tier("standard"),
+      { ...usage(3_000_000), timestamp: "2027-03-01T08:01:00Z" },
+    ]);
+    const reading = result.usageByModel![model];
+    expect(agentCost({ model, usage: reading, usageByModel: result.usageByModel }).total).toBeCloseTo(24 + 48 + 8);
+    expect(costBreakdownTooltip(reading, model)).toContain("ultrafast");
+    expect(costBreakdownTooltip(reading, model)).not.toContain("ultrafast-intro");
+  });
+
+  it("uses published rates for new models and supported tiers", () => {
+    expect(ratesForModel("gpt-6.2-astra")).toEqual({ input: 8, output: 40, cacheRead: 0.4, cacheWrite: 10 });
+    expect(ratesForModel("gpt-6.2-sol", 0, "fast")).toEqual({ input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 });
+    expect(ratesForModel("gpt-6.2-sol", 0, "flex")).toBeNull();
+    expect(ratesForModel("gpt-6.1-terra", 0, "flex")).toEqual({ input: 0.5, output: 2.5, cacheRead: 0.025, cacheWrite: 0.625 });
+    expect(ratesForModel("gpt-6.1-terra", 0, "fast")).toEqual({ input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 });
+    expect(ratesForModel("gpt-6.1-sol", 0, "ultrafast")?.input).toBe(12);
+    expect(ratesForModel("gpt-6-astra", 0, "ultrafast")?.input).toBe(60);
+    expect(ratesForModel("gpt-6.1-terra", 0, "ultrafast")).toBeNull();
+    expect(ratesForModel("gpt-6.2-astra-mini")).toBeNull();
   });
   it("does not attribute pre-attachment usage to a new tier", () => {
     const result = read([tier("fast"), { type: "turn_context", payload: { model } }, usage(2000), usage(3000)]);
