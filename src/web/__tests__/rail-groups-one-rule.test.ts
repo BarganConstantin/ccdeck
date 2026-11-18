@@ -29,32 +29,22 @@ const rails = railItems({
   openSettings: noop, onFeedback: noop, toggles: { sessionList: ref(), usage: ref(), accounts: ref(), machine: ref() },
   openExploreIntegrations: noop,
 });
-// CHANGED ON PURPOSE (V4 top-10 #4): every door stood on a stripe → the
-// occasional ones are runs of a More at each stripe's foot, because the stripe
-// keeps the everyday doors. The one rule holds for both: runs of three at most,
-// each about one thing; on a stripe a run is a named group, in a More's menu it
-// is set apart by the menu's rule.
-const groups = [...rails.leftStripe, ...rails.leftMore, ...rails.rightStripe, ...rails.rightMore];
+const groups = [...rails.leftStripe, ...rails.rightStripe];
 const ids = (group: { id: string }[]) => group.map(i => i.id);
-const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Panels and tools", groups: rails.leftStripe, more: rails.leftMore, foot: rails.leftFoot }));
-const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Usage and activity", groups: rails.rightStripe, more: rails.rightMore }));
+const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Panels and tools", groups: rails.leftStripe, foot: rails.leftFoot }));
+const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Usage and activity", groups: rails.rightStripe }));
 
 describe("the two stripes follow one rule", () => {
   it("keeps every door, in runs that answer one question each", () => {
     expect(rails.leftStripe.map(ids)).toEqual([
       ["session-list", "accounts"],
-    ]);
-    expect(rails.leftMore.map(ids)).toEqual([
       ["account-capacity", "reset-calendar"],
       ["explore-integrations"],
-      ["radio"],
     ]);
-    expect(ids(rails.leftFoot)).toEqual(["settings"]);
+    expect(ids(rails.leftFoot)).toEqual(["radio", "settings"]);
     expect(rails.rightStripe.map(ids)).toEqual([
       ["inspector"],
       ["usage", "machine"],
-    ]);
-    expect(rails.rightMore.map(ids)).toEqual([
       ["history", "tool-activity", "skill-activity"],
       ["browser-watch", "traffic-radar"],
     ]);
@@ -72,26 +62,26 @@ describe("the two stripes follow one rule", () => {
   it("draws each named run as a group a screen reader announces, and a lone door as itself", () => {
     expect(left).toContain('role="toolbar" aria-label="Panels and tools"');
     expect(right).toContain('role="toolbar" aria-label="Usage and activity"');
-    expect(left).toContain('<div class="rail-group" role="group" aria-label="Accounts and sessions">');
-    expect(right).toContain('<div class="rail-group" role="group" aria-label="Usage and machine">');
-    // The Inspector's door stands alone, first on the right stripe: no group
-    // around one door.
+    for (const name of ["Accounts and sessions", "Claude accounts"]) {
+      expect(left).toContain(`<div class="rail-group" role="group" aria-label="${name}">`);
+    }
+    for (const name of ["Usage and machine", "Activity history", "Watchers"]) {
+      expect(right).toContain(`<div class="rail-group" role="group" aria-label="${name}">`);
+    }
+    // Explore stands alone: no group around one door.
+    expect(left).toMatch(/<div class="rail-group" data-rail-group="explore"><button/);
+    // So does the Inspector's door, first on the right stripe.
     expect(right).toMatch(/<div class="rail-group"><button[^>]*data-rail-item="inspector"/);
   });
 
-  // CHANGED ON PURPOSE (V4 top-10 #4): Radio's door was in the left foot → it
-  // is a row of the left More; read off the stripe door's own rule, drawn on
-  // a stripe, it still says "dialog" and claims no panel.
   it("says Radio opens a dialog, the modal it does open, and never claims a panel", () => {
-    const radio = rails.leftMore.flat().find(i => i.id === "radio")!;
+    const radio = rails.leftFoot.find(i => i.id === "radio")!;
     expect(radio.kind).toBe("dialog");
     expect(radio.open).toBeUndefined();
     expect(radio.controls).toBeUndefined();
-    const drawn = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Panels and tools", groups: [[radio]] }));
-    const button = /<button[^>]*data-rail-item="radio"[^>]*>/.exec(drawn)?.[0] ?? "";
+    const button = /<button[^>]*data-rail-item="radio"[^>]*>/.exec(left)?.[0] ?? "";
     expect(button).toContain('aria-haspopup="dialog"');
     expect(button).not.toContain("aria-expanded");
-    expect(left).not.toContain('data-rail-item="radio"');
   });
 
   it("gives a Codex-only deck its own button, without the Claude capacity doors", () => {

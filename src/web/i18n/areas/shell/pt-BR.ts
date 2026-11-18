@@ -68,7 +68,7 @@ const catalog: Catalog = {
   "shell.guide.welcome.inspector.line": "O Inspetor mostra cada agente, subagente e chamada de ferramenta, com custo e tempo.",
   "shell.guide.welcome.inspector.tip": "Pressione D, ou Inspetor no topo da borda direita.",
   "shell.guide.welcome.edges.line": "Borda esquerda: Sessões, Contas e, embaixo, Configurações. Direita: Uso e Este computador.",
-  "shell.guide.welcome.edges.tip": "O resto fica em Mais, embaixo de cada borda.",
+  "shell.guide.welcome.edges.tip": "Abaixo deles: Capacidade e Calendário de redefinições à esquerda, Histórico de uso à direita.",
   "shell.guide.welcome.accounts.line": "Troque entre contas do Claude e do Codex. Computadores pareados renovam os logins expirados uns dos outros.",
   "shell.guide.welcome.accounts.tip": "Pareie-os pela linha Rede local, na parte inferior do painel Contas.",
   "shell.guide.welcome.start.line": "Execute claude ou codex em qualquer pasta, ou use Nova sessão. Ela aparece aqui.",

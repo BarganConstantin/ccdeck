@@ -82,36 +82,27 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-/** Both stripes as App.tsx draws them. CHANGED ON PURPOSE (V4 top-10 #4): each
- *  with its More, which holds the occasional doors. */
+/** Both stripes as App.tsx draws them. */
 function stripes() {
   const r = rails();
   return {
-    left: kept(mount(EdgeRail, { side: "left" as const, label: "Panels and tools", groups: r.leftStripe, more: r.leftMore, foot: r.leftFoot })),
-    right: kept(mount(EdgeRail, { side: "right" as const, label: "Usage and activity", groups: r.rightStripe, more: r.rightMore })),
+    left: kept(mount(EdgeRail, { side: "left" as const, label: "Panels and tools", groups: r.leftStripe, foot: r.leftFoot })),
+    right: kept(mount(EdgeRail, { side: "right" as const, label: "Usage and activity", groups: r.rightStripe })),
   };
 }
 const doors = (tree: unknown) => all(tree, e => typeof e.type === "function" && "item" in e.props);
 const wordsOf = (tree: unknown) => doors(tree).map(d => d.props.word);
-/** A stripe's More, by the props only it takes. */
-const moreOf = (tree: unknown) => one(tree, e => typeof e.type === "function" && "items" in e.props && "index" in e.props)!;
 const toolbar = (tree: unknown) => one(tree, e => e.props.role === "toolbar")!;
 const wordSwitch = (tree: unknown) => one(tree, e => e.type === "button" && e.props["data-rail-item"] === "stripe-words")!;
 
-// CHANGED ON PURPOSE (V4 top-10 #4): the occasional doors' words (Capacity,
-// Reset calendar, Integrations, Radio; Usage history, Tool activity, Skill
-// activity, Browser watch, Radar) left the stripes for their Mores' menus,
-// which say each whole; the stripes say "More" once each.
-const LEFT_WORDS = ["Sessions", "Accounts", "Settings"];
-const RIGHT_WORDS = ["Inspector", "Usage", "This machine"];
+const LEFT_WORDS = ["Sessions", "Accounts", "Capacity", "Reset calendar", "Integrations", "Radio", "Settings"];
+const RIGHT_WORDS = ["Inspector", "Usage", "This machine", "Usage history", "Tool activity", "Skill activity", "Browser watch", "Radar"];
 
 describe("a new profile's stripes say their words", () => {
   it("draws each door's word on both stripes, the words of V4's critique", () => {
     const { left, right } = stripes();
     expect(wordsOf(left.tree)).toEqual(LEFT_WORDS);
     expect(wordsOf(right.tree)).toEqual(RIGHT_WORDS);
-    expect(moreOf(left.tree).props.word).toBe("More");
-    expect(moreOf(right.tree).props.word).toBe("More");
     expect(toolbar(left.tree).props["data-words"]).toBe(true);
     expect(toolbar(right.tree).props["data-words"]).toBe(true);
   });
@@ -131,20 +122,18 @@ describe("a new profile's stripes say their words", () => {
     expect(textOf(button)).toBe("Hide words");
     expect(one(button, e => e.props.className === "rail-word")).not.toBeNull();
     expect(one(right.tree, e => e.props["data-rail-item"] === "stripe-words")).toBeNull();
-    // Last in the foot, after More and Settings, and on the toolbar's arrows.
-    // CHANGED ON PURPOSE (V4 top-10 #4): the foot was Radio, Settings → More,
-    // Settings, Radio being a row of More.
+    // Last in the foot, after Radio and Settings, and on the toolbar's arrows.
     const foot = one(left.tree, e => e.props.className === "rail-foot")!;
-    const ids = all(foot, e => "item" in e.props || "items" in e.props || e.props["data-rail-item"] != null)
-      .map(e => "items" in e.props ? "more" : (e.props.item as { id: string } | undefined)?.id ?? e.props["data-rail-item"]);
-    expect(ids).toEqual(["more", "settings", "stripe-words"]);
+    const ids = all(foot, e => "item" in e.props || e.props["data-rail-item"] != null)
+      .map(e => (e.props.item as { id: string } | undefined)?.id ?? e.props["data-rail-item"]);
+    expect(ids).toEqual(["radio", "settings", "stripe-words"]);
     expect(button.props.tabIndex).toBe(-1);
     // The foot is named by all it holds, the switch too, by its name now.
     expect(foot.props.role).toBe("group");
-    expect(foot.props["aria-label"]).toBe("More, Settings, Hide words");
+    expect(foot.props["aria-label"]).toBe("Radio, Settings, Hide words");
     (button.props.onClick as () => void)();
     const after = one(left.tree, e => e.props.className === "rail-foot")!;
-    expect(after.props["aria-label"]).toBe("More, Settings, Show words");
+    expect(after.props["aria-label"]).toBe("Radio, Settings, Show words");
   });
 
   it("draws the word inside the door and names the door by a name that holds it", () => {
@@ -154,17 +143,9 @@ describe("a new profile's stripes say their words", () => {
     expect(one(drawn, e => e.props.className === "rail-word")?.props.children).toBe("Sessions");
     // "Session list" does not hold "Sessions": the word names it (WCAG 2.5.3).
     expect(drawn.props["aria-label"]).toBe("Sessions");
-    // CHANGED ON PURPOSE (V4 top-10 #4): Browser watch, the door whose own
-    // name holds its word, is a row of the right More; This machine is the
-    // right stripe's door read here, named by its word.
-    const machine = doors(right.tree).find(d => (d.props.item as { id: string }).id === "machine")!;
-    const machineDrawn = kept(mount(machine.type as (p: Record<string, unknown>) => unknown, machine.props)).tree as Drawn;
-    expect(machineDrawn.props["aria-label"]).toBe("This machine");
-    // The More's own name holds its word: "More: …".
-    const more = kept(mount(moreOf(right.tree).type as (p: Record<string, unknown>) => unknown, moreOf(right.tree).props)).tree as Drawn[];
-    const moreButton = one(more, e => e.type === "button")!;
-    expect(String(moreButton.props["aria-label"])).toMatch(/^More: Usage history, /);
-    expect(one(moreButton, e => e.props.className === "rail-word")?.props.children).toBe("More");
+    const watch = doors(right.tree).find(d => (d.props.item as { id: string }).id === "browser-watch")!;
+    const watchDrawn = kept(mount(watch.type as (p: Record<string, unknown>) => unknown, watch.props)).tree as Drawn;
+    expect(watchDrawn.props["aria-label"]).toBe("Browser watch, not watching");
     expect(stripeDoorName("Machine", "This machine")).toBe("This machine");
     expect(stripeDoorName("Telemetry Radar", "Radar")).toBe("Telemetry Radar");
   });
@@ -213,12 +194,10 @@ describe("Hide words and »", () => {
 
   it("names the door and its key in the hint while the word is hidden, and only what the word does not say while it shows", () => {
     const r = rails();
-    // CHANGED ON PURPOSE (V4 top-10 #4): Capacity and Radio are read from the
-    // left More, where they moved; the rule is each door's own.
     const sessions = r.leftStripe[0][0];
-    const capacity = r.leftMore[0][0];
+    const capacity = r.leftStripe[1][0];
     const usage = r.rightStripe[1][0];
-    const radio = r.leftMore[2][0];
+    const radio = r.leftFoot[0];
     // Icons: the name and its key, as before.
     expect(railHint(sessions, true, false)).toEqual({ label: "Session list", keys: "L", detail: undefined });
     // Words: the longer name where the word is short of it, the key, the help.
@@ -312,11 +291,8 @@ describe("a window under 1100px has no room for words", () => {
     expect(wordsOf(right.tree).every(w => w === null)).toBe(true);
     expect(toolbar(left.tree).props["data-words"]).toBeUndefined();
     expect(one(left.tree, e => e.props["data-rail-item"] === "stripe-words")).toBeNull();
-    // CHANGED ON PURPOSE (V4 top-10 #4): the foot was Radio and Settings → More
-    // and Settings alone, named so; the More's glyph alone, no word.
-    expect(one(left.tree, e => e.props.className === "rail-foot")!.props["aria-label"]).toBe("More, Settings");
-    expect(moreOf(left.tree).props.word).toBeNull();
-    expect(moreOf(right.tree).props.word).toBeNull();
+    // The foot is Radio and Settings alone, named so.
+    expect(one(left.tree, e => e.props.className === "rail-foot")!.props["aria-label"]).toBe("Radio, Settings");
     expect(stored[STRIPE_WORDS_KEY]).toBe("on");
     expect(stripeWordsShown()).toBe(true);
     expect(stripeWordsOn()).toBe(false);
@@ -357,11 +333,11 @@ describe("Workspace draws the stripes as icons", () => {
     expect(wordsOf(right.tree).every(w => w === null)).toBe(true);
     expect(toolbar(left.tree).props["data-words"]).toBeUndefined();
     expect(toolbar(right.tree).props["data-words"]).toBeUndefined();
-    // No switch, as under 1100: the foot is More and Settings alone.
-    // CHANGED ON PURPOSE (V4 top-10 #4): the foot was Radio and Settings → More
-    // and Settings, since Radio went behind the stripe's More.
+    // No switch, as under 1100: the foot is Radio and Settings alone.
+    // CHANGED ON PURPOSE (4.0.1, owner): every door is back on the stripes, no
+    // More, so the foot is Radio and Settings again, as before V4 top-10 #4.
     expect(one(left.tree, e => e.props["data-rail-item"] === "stripe-words")).toBeNull();
-    expect(one(left.tree, e => e.props.className === "rail-foot")!.props["aria-label"]).toBe("More, Settings");
+    expect(one(left.tree, e => e.props.className === "rail-foot")!.props["aria-label"]).toBe("Radio, Settings");
     expect(stripeWidth()).toBe(STRIPE_W.icons);
     expect(stripeWordsShown(), "the reader's choice is untouched").toBe(true);
     expect(stored[STRIPE_WORDS_KEY]).toBe("on");

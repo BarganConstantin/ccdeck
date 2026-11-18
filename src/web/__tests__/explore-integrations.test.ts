@@ -121,23 +121,19 @@ describe("permanent discovery inside the roving rail", () => {
     return { ...r, ...native };
   };
   for (const kinds of [[], ["jira"], ["jira", "github", "gitlab"]] as IntegrationKind[][]) {
-    // CHANGED ON PURPOSE (V4 top-10 #4): Explore was the last door on the left
-    // stripe → it is a row of the left stripe's More, and the connected
-    // trackers are the stripe's last doors, because discovery is occasional and
-    // a tracker someone connected is used every day.
-    it(`keeps Explore in the left stripe's More, behind the trackers' doors, with ${kinds.length} connected kinds and one toolbar Tab stop`, () => {
+    it(`keeps Explore last of the doors with ${kinds.length} connected kinds and one toolbar Tab stop`, () => {
       const rails = make(kinds);
-      const html = draw(createElement(EdgeRail, { side: "left", label: "Panels and tools", groups: rails.leftStripe, more: rails.leftMore }));
+      // CHANGED ON PURPOSE (V4's Figma): the left stripe's doors (no foot is
+      // given here), Explore still last among them and one Tab stop in it.
+      const html = draw(createElement(EdgeRail, { side: "left", label: "Panels and tools", groups: rails.leftStripe }));
       const tags = buttons(html);
       // CHANGED ON PURPOSE (stripe words): the left stripe's foot ends in the
       // switch between words and icons, which is not a door.
-      const doors = [...tags.keys()].filter(id => id !== "stripe-words" && id !== "more");
-      expect(doors).toEqual(rails.leftStripe.flat().map(i => i.id));
-      expect(doors).not.toContain("explore-integrations");
-      expect(doors.slice(2)).toEqual(kinds.map(kind => `integration-${kind}`));
-      expect(rails.leftMore.flat().map(i => i.id)).toContain("explore-integrations");
-      expect(attr(tags.get("more")!, "data-more-holds")!.split(" ")).toContain("explore-integrations");
+      const doors = [...tags.keys()].filter(id => id !== "stripe-words");
+      expect(doors.at(-1)).toBe("explore-integrations");
       expect([...tags.values()].filter(tag => attr(tag, "tabindex") === "0")).toHaveLength(1);
+      expect(html).toContain('data-rail-group="explore"');
+      expect(doors).toHaveLength(rails.leftStripe.flat().length);
       expect([...tags.keys()].at(-1)).toBe("stripe-words");
     });
   }
