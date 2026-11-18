@@ -1177,7 +1177,7 @@ input, textarea { caret-color: var(--accent); }
   /* The round's glyph stops turning and keeps its colour: what the spin says is
      "still going", and the accent it takes with `aria-busy` says the same thing
      without moving. The word under the title says it a third time. */
-  .ap-lan-check[aria-busy="true"], .ap-refresh[aria-busy="true"] { animation: none; }
+  .ap-lan-check[aria-busy="true"] { animation: none; }
   /* The unpair that arrives with the pointer arrives at once. It is a reveal,
      not an entrance — the control has to be there the instant the row is
      hovered, and 120ms of fade is the only part of that anybody can lose. */
