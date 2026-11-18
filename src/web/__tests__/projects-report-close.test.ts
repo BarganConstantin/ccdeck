@@ -32,10 +32,11 @@ import { accountsSurface } from "./accounts-surface";
 const panel = readFileSync(fileURLToPath(new URL("../components/AccountsPanel.tsx", import.meta.url)), "utf8");
 /** The effect that closes the report, from its guard to its dependencies. */
 const effect = /useEffect\(\(\) => \{\s*if \(projectsFor == null[\s\S]*?\}, \[[^\]]*\]\);/.exec(panel)?.[0] ?? "";
-/** Where the report is drawn, from its gate to the end of the IIFE. */
+/** Where the report is drawn, from its presence gate to the end of the
+ *  callback DialogPresence calls while the report is open. */
 const site = (() => {
-  const start = panel.indexOf("{projectsFor != null && (() => {");
-  return start === -1 ? "" : panel.slice(start, panel.indexOf("})()}", start));
+  const start = panel.indexOf("<DialogPresence when={projectsFor}>");
+  return start === -1 ? "" : panel.slice(start, panel.indexOf("</DialogPresence>", start));
 })();
 
 describe("the Projects report whose account has gone", () => {

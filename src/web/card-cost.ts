@@ -1,3 +1,4 @@
+import { ULTRAFAST_INTRO_TIER } from "../server/codex-ultrafast.mjs";
 import { FREE_AUTO_REVIEW_TIER } from "../server/codex-review-policy.mjs";
 // The card's cost tooltip: the multiplication behind the figure in its chip,
 // written out so it can be checked by hand.
@@ -15,10 +16,23 @@ import {
 import { agentCost, agentUnpricedTokens, usageByModelEntries, type UsageBearing } from "./usage-models";
 import type { AgentNodeData, TokenUsage } from "./types";
 import { t } from "./i18n";
+import { fmtTokens } from "./token-format";
+
+/** Every label a rate row can carry. The label column is as wide as the longest
+ *  of them in the reader's language (9 at least, the width it always had), so
+ *  the × and the = stay in one column now that "cache read" and "cache write"
+ *  are spelled out rather than "cache r" and "cache w". */
+const ROW_LABELS = [
+  "insights.cost.input", "board.cost.uncached", "insights.cost.output",
+  "board.cost.cacheR", "board.cost.cacheW", "board.cost.cacheW5m", "board.cost.cacheW1h",
+] as const;
+const labelWidth = (): number => Math.max(9, ...ROW_LABELS.map(key => t(key).length));
+/** A rule across a block, as long as its rows. */
+const rule = (char: string): string => char.repeat(labelWidth() + 32);
 
 /** A row of the sum at the foot of a block: the label padded to the column the
  *  `=` sits in, in whichever language the label is. */
-const sumRow = (label: string, value: string): string => `${label.padEnd(38)}= ${value}`;
+const sumRow = (label: string, value: string): string => `${label.padEnd(labelWidth() + 29)}= ${value}`;
 
 /** Multi-line breakdown for the cost chip tooltip — shows the actual
  *  multiplication so the user can verify pricing is sane.
@@ -44,7 +58,7 @@ function usageCostTooltip(usage: TokenUsage, modelId: string | undefined): strin
   if (shares.length === 1) return rateCardTooltip(shares[0].usage, modelId, shares[0].speed);
   return [
     ...shares.map(s => rateCardTooltip(s.usage, modelId, s.speed)),
-    `═════════════════════════════════════════`,
+    rule("═"),
     sumRow(t("board.cost.allSpeeds"), fmtCost(costForUsage(usage, modelId).total)),
   ].join("\n");
 }
@@ -69,7 +83,7 @@ function singleRateTooltip(usage: TokenUsage, modelId: string | undefined, speed
   const base = ratesForModel(modelId, Date.now(), speed);
   const rates = base ? contextRates(base, long) : null;
   const tier = long ? ` · ${t("board.cost.longPrompt")}` : "";
-  const heading = (speed === FREE_AUTO_REVIEW_TIER ? t("board.cost.headingFree", { model: String(modelId) }) : speed === STANDARD_SPEED ? t("board.cost.heading", { model: String(modelId) }) : t("board.cost.headingSpeed", { model: String(modelId), speed })) + tier;
+  const heading = (speed === FREE_AUTO_REVIEW_TIER ? t("board.cost.headingFree", { model: String(modelId) }) : speed === STANDARD_SPEED ? t("board.cost.heading", { model: String(modelId) }) : t("board.cost.headingSpeed", { model: String(modelId), speed: speed === ULTRAFAST_INTRO_TIER ? "ultrafast" : speed })) + tier;
   // This branch was unreachable until #400: the only element carrying this
   // tooltip was gated on the same ratesForModel call that returns null here, so
   // the graceful answer existed and could never be read. It names the model now
@@ -82,7 +96,7 @@ function singleRateTooltip(usage: TokenUsage, modelId: string | undefined, speed
   const fmtN = (n: number) => n.toLocaleString();
   const fmtR = (r: number) => `$${r}/MTok`;
   const row = (label: string, tokens: number, rate: string, usd: number) =>
-    `${label.padEnd(9)}${fmtN(tokens).padStart(14)}  × ${rate.padEnd(11)} = ${fmtCost(usd)}`;
+    `${label.padEnd(labelWidth())}${fmtN(tokens).padStart(14)}  × ${rate.padEnd(11)} = ${fmtCost(usd)}`;
   const c = costAtSpeed(long ? { ...usage, longContext: usage } : { ...usage, longContext: undefined }, modelId, speed);
   const cw = cacheWriteBreakdown(usage, rates);
   // Cache writes are billed per TTL — 2× input for a 1-hour entry, 1.25× for a
@@ -109,7 +123,7 @@ function singleRateTooltip(usage: TokenUsage, modelId: string | undefined, speed
     row(t("insights.cost.output"), usage.outputTokens, fmtR(rates.output), c.output),
     row(t("board.cost.cacheR"), usage.cacheReadTokens, fmtR(rates.cacheRead), c.cacheRead),
     ...cacheWriteRows,
-    `─────────────────────────────────────────`,
+    rule("─"),
     sumRow(t("board.cost.total"), fmtCost(c.total)),
   ].join("\n");
 }
@@ -136,7 +150,7 @@ export function agentCostTooltip(a: UsageBearing): string {
   if (entries.length <= 1) return costBreakdownTooltip(only.usage, only.model);
   return [
     ...entries.map(e => costBreakdownTooltip(e.usage, e.model)),
-    `═════════════════════════════════════════`,
+    rule("═"),
     sumRow(t("board.cost.allModels"), fmtCost(agentCost(a).total)),
   ].join("\n");
 }
@@ -148,8 +162,82 @@ export function agentCostTooltip(a: UsageBearing): string {
  *  The card drew this from an IIFE in its JSX; the decision is here, where it
  *  can be run, and the card draws what it says. */
 export type CostChip =
-  | { kind: "unpriced"; tt: string }
-  | { kind: "spent"; total: number; floor: boolean; tt: string };
+  | { kind: "unpriced"; tt: string; tip: CostTip }
+  | { kind: "spent"; total: number; floor: boolean; tt: string; tip: CostTip };
+
+/** One line of the cost tooltip: a label and its value ("12.4k × $5.00/MTok = 6.0¢"). */
+export interface CostTipRow { label: string; value: string }
+/** One rate card's block: the model line and its rows, or, for a model with no
+ *  published rate in this build, the model line alone. */
+export interface CostTipSection { title: string; rows: CostTipRow[]; noRate: boolean }
+/** The cost tooltip as data, from the same arithmetic as the text tooltip. */
+export interface CostTip {
+  sections: CostTipSection[];
+  /** The agent's total, in the deck's money format. */
+  total: string;
+  /** "$0.42/min" while a session the deck saw start is running; else null. */
+  burn: string | null;
+  /** The Codex estimate's caveat, for a gpt model. */
+  note: string | null;
+}
+
+const perMTok = (rate: number) => `$${rate.toFixed(2)}/MTok`;
+
+function tipSection(usage: TokenUsage, modelId: string | undefined, speed: string, long: boolean): CostTipSection {
+  const base = ratesForModel(modelId, Date.now(), speed);
+  const rates = base ? contextRates(base, long) : null;
+  const tier = long ? ` · ${t("board.cost.longPrompt")}` : "";
+  const title = (speed === FREE_AUTO_REVIEW_TIER ? t("board.cost.headingFree", { model: String(modelId) }) : speed === STANDARD_SPEED ? t("board.cost.heading", { model: String(modelId) }) : t("board.cost.headingSpeed", { model: String(modelId), speed: speed === ULTRAFAST_INTRO_TIER ? "ultrafast" : speed })) + tier;
+  if (!rates) return { title, rows: [], noRate: true };
+  const row = (label: string, tokens: number, rate: number, usd: number): CostTipRow =>
+    ({ label, value: `${fmtTokens(tokens)} × ${perMTok(rate)} = ${fmtCost(usd)}` });
+  const c = costAtSpeed(long ? { ...usage, longContext: usage } : { ...usage, longContext: undefined }, modelId, speed);
+  const cw = cacheWriteBreakdown(usage, rates);
+  const inputTokens = billedInputTokens(usage, modelId);
+  const inputLabel = t(inputTokens === usage.inputTokens ? "insights.cost.input" : "board.cost.uncached");
+  const cacheW = cw.tokens1h > 0
+    ? [
+        row(t("board.cost.cacheW5m"), cw.tokens5m, rates.cacheWrite, cw.usd5m),
+        row(t("board.cost.cacheW1h"), cw.tokens1h, rates.cacheWrite1h ?? rates.cacheWrite, cw.usd1h),
+      ]
+    : [row(t("board.cost.cacheW"), cw.tokens5m, rates.cacheWrite, cw.usd5m)];
+  return {
+    title,
+    noRate: false,
+    rows: [
+      row(inputLabel, inputTokens, rates.input, c.input),
+      row(t("insights.cost.output"), usage.outputTokens, rates.output, c.output),
+      row(t("board.cost.cacheR"), usage.cacheReadTokens, rates.cacheRead, c.cacheRead),
+      ...cacheW,
+    ],
+  };
+}
+
+function rateCardSections(usage: TokenUsage, modelId: string | undefined, speed: string): CostTipSection[] {
+  const shares = contextShares(usage, modelId).filter(s => hasTokens(s.usage));
+  if (usage.longContext && shares.some(s => s.long)) return shares.map(s => tipSection(s.usage, modelId, speed, s.long));
+  return [tipSection(usage, modelId, speed, false)];
+}
+
+function usageSections(usage: TokenUsage, modelId: string | undefined): CostTipSection[] {
+  if (!usage.bySpeed) return rateCardSections(usage, modelId, STANDARD_SPEED);
+  const shares = speedShares(usage).filter(s => s.speed !== STANDARD_SPEED || hasTokens(s.usage));
+  return shares.flatMap(s => rateCardSections(s.usage, modelId, s.speed));
+}
+
+/** The cost tooltip as data: one block per rate card the figure was priced
+ *  with, the agent's total and, while it runs, its burn. Every number is one
+ *  agentCostTooltip prints. */
+export function agentCostTip(a: UsageBearing, burn: string | null = null): CostTip {
+  const entries = usageByModelEntries(a);
+  const gpt = entries.some(e => /^gpt[-_]/i.test(e.model ?? ""));
+  return {
+    sections: entries.flatMap(e => usageSections(e.usage, e.model)),
+    total: fmtCost(agentCost(a).total),
+    burn,
+    note: gpt ? t("board.cost.note") : null,
+  };
+}
 
 /** The slot's decision, for a card whose chip names a model — the card's own
  *  gate, and nothing is drawn without one. */
@@ -178,7 +266,7 @@ export function costChip(data: AgentNodeData): CostChip | null {
   const unpricedTok = agentUnpricedTokens(data);
   if (!rates && c.total <= 0 && unpricedTok > 0) {
     if ((data.usage.inputTokens + data.usage.outputTokens) <= 0) return null;
-    return { kind: "unpriced", tt: agentCostTooltip(data) };
+    return { kind: "unpriced", tt: agentCostTooltip(data), tip: agentCostTip(data) };
   }
   if (c.total <= 0) return null;
   // As of this render (#873). The card re-renders on its agent's events
@@ -197,5 +285,5 @@ export function costChip(data: AgentNodeData): CostChip | null {
   // also derived from two figures printed 20px away, so of the five it
   // is the one whose removal costs a reader the least: the row now fits
   // in the state it used to break in, and the card loses a type size.
-  return { kind: "spent", total: c.total, floor: unpricedTok > 0, tt };
+  return { kind: "spent", total: c.total, floor: unpricedTok > 0, tt, tip: agentCostTip(data, rate) };
 }

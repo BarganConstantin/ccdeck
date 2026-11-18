@@ -56,9 +56,14 @@ const rails = railItems({
   setUsageHistoryOpen: noop, watchOn: false, watchUnseen: 0, setBrowserWatchOpen: noop,
   openSettings: noop, onFeedback: noop, toggles: { sessionList: ref(), usage: ref(), accounts: ref(), machine: ref() },
 });
-const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Left column", groups: rails.leftStripe }));
-const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Right panels", groups: rails.right }));
-const corner = renderToStaticMarkup(createElement(UtilityRun, { items: rails.utilities }));
+// CHANGED ON PURPOSE (V4's Figma): one bar holding every door is two stripes, a
+// door on the side its panel opens; Settings at the left one's foot.
+// CHANGED ON PURPOSE (V4 top-10 #4): each stripe drawn with its More, as App
+// draws it. These rails have no capacity, Explore or Radio doors, so the left
+// More has nothing in it and is not drawn; the right one holds the records.
+const left = renderToStaticMarkup(createElement(EdgeRail, { side: "left", label: "Panels and tools", groups: rails.leftStripe, more: rails.leftMore, foot: rails.leftFoot }));
+const right = renderToStaticMarkup(createElement(EdgeRail, { side: "right", label: "Usage and activity", groups: rails.rightStripe, more: rails.rightMore }));
+const corner = renderToStaticMarkup(createElement(UtilityRun, { items: [rails.corner] }));
 const dock = renderToStaticMarkup(createElement(EdgeDock, {
   items: [...rails.left, ...rails.right[0], rails.utilities[0]], more: [...rails.right.slice(1).flat(), rails.utilities[1]],
 }));
@@ -72,16 +77,24 @@ function buttons(html: string): Array<{ name: string; word: string }> {
 }
 
 // Each word, and the accessible name it has to be found in (2.5.3).
+// CHANGED ON PURPOSE (stripe words): a new profile's stripes show each door's
+// word beside its glyph, and a door whose name does not hold its word is named
+// by the word ("Sessions", "This machine"); the left stripe ends in the switch
+// between words and icons.
 const WORDS: Array<[word: string, name: string]> = [
-  // Accounts first on the left stripe since 2026-10-08, the owner's order.
+  // The left stripe: Sessions first (V4's Figma), Settings at its foot; the
+  // right stripe: the Inspector's door first, then the panels and records.
+  ["Sessions", "Sessions"],
   ["Accounts", "Accounts"],
-  ["Session list", "Session list"],
-  ["Usage", "Usage"],
-  ["Machine", "Machine"],
-  ["Usage history", "Usage history"],
-  ["Browser watch", "Browser watch, not watching"],
   ["Settings", "Settings"],
-  ["Feedback", "Send feedback"],
+  ["Hide words", "Hide words"],
+  ["Inspector", "Show the Inspector"],
+  ["Usage", "Usage"],
+  ["This machine", "This machine"],
+  // CHANGED ON PURPOSE (V4 top-10 #4): Usage history and Browser watch were
+  // doors here → rows of the right stripe's More, whose name says them.
+  ["More", "More: Usage history, Browser watch, not watching"],
+  ["", "Send feedback"],
 ];
 
 describe("every control in the chrome says its name (#836)", () => {
@@ -89,8 +102,12 @@ describe("every control in the chrome says its name (#836)", () => {
 
   it("names every control and keeps visible words on the topbar", () => {
     expect(drawn.map(b => b.name)).toEqual(WORDS.map(([, name]) => name));
-    expect([...buttons(left), ...buttons(right)].every(b => b.word === "")).toBe(true);
-    expect(buttons(corner).map(b => b.word)).toEqual(["Settings", "Feedback"]);
+    expect(drawn.map(b => b.word)).toEqual(WORDS.map(([word]) => word));
+    expect(buttons(left).every(b => b.word !== "")).toBe(true);
+    expect(buttons(right).every(b => b.word !== "")).toBe(true);
+    // V4's Figma draws Feedback as a bare 28x28 icon: its word is the hint's and
+    // the name's ("Send feedback"), not a visible one.
+    expect(buttons(corner).map(b => b.word)).toEqual([""]);
     for (const { word, name } of drawn) {
       // The word is part of the name, so voice control can say what the eye reads.
       expect(name.toLowerCase(), word).toContain(word.toLowerCase());
@@ -108,9 +125,13 @@ describe("every control in the chrome says its name (#836)", () => {
     expect(hiders.map(([sel]) => sel.trim())).toEqual([]);
     // Drawn on the stripes and in the corner whenever the window is not a
     // phone's — the dock takes over there, in the same breakpoint.
-    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\} \/><\/div>\}/);
-    expect(app).toMatch(/: <EdgeRail side="left" label=\{t\("shell.rail.left"\)\} groups=\{\[\.\.\.rails\.leftStripe, rails\.integrations, rails\.explore\]\} \/>\}/);
-    expect(app).toMatch(/\{!phone && <EdgeRail side="right" label=\{t\("shell.rail.right"\)\} groups=\{rails\.right\} \/>\}/);
+    // CHANGED ON PURPOSE (V4): Search above a phone's width, and Feedback in
+    // its corner cell at every width.
+    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search\]\} \/><\/div>\}/);
+    expect(app).toMatch(/<div className="tb-corner"><UtilityRun items=\{\[rails\.corner\]\} \/><\/div>/);
+    // CHANGED ON PURPOSE (V4 top-10 #4): each stripe takes its More too.
+    expect(app).toMatch(/: <EdgeRail side="left" label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.leftStripe\} more=\{rails\.leftMore\} foot=\{rails\.leftFoot\} \/>\}/);
+    expect(app).toMatch(/\{!phone && <EdgeRail side="right" label=\{t\("shell\.rail\.right"\)\} groups=\{rails\.rightStripe\} more=\{rails\.rightMore\} \/>\}/);
   });
 
   it("says a short word under each glyph in the phone's dock, and the rest by name behind More", () => {
@@ -129,23 +150,30 @@ describe("every control in the chrome says its name (#836)", () => {
     // Accounts and Session list share the left column and open there,
     // Accounts at the top since 2026-10-08 (the owner's order). On the
     // right the two panels that open beside the stripe come first and the two
-    // records that open as dialogs after them, 4px apart inside a group and
-    // 14px and a --line rule between the groups: spacing alone measured 26px
-    // ink to ink against 22 inside one and read as a single run, so a press
-    // on the third dropped a dialog where the stripe had promised a panel.
+    // records that open as dialogs after them, 2px apart everywhere and a
+    // 16px --line-soft rule as the first item of each group after the first
+    // (V4's Panel bar): spacing alone read as a single run, so a press on
+    // the third dropped a dialog where the stripe had promised a panel.
     // History was beside Usage on the bar, by subject; on the right edge it is
     // by what a press does, and it says "Usage history" whole — "History"
     // alone, over Browser watch, read as the browser's.
     // Since 2026-10-23 both stripes follow one rule: runs of doors that answer
     // one question (rail-items.tsx), so the records and the watchers are two
     // runs, and a run of two or more is a group named for a screen reader.
-    expect(buttons(left).map(b => b.name)).toEqual(["Accounts", "Session list"]);
-    expect(buttons(right).map(b => b.name)).toEqual(["Usage", "Machine", "Usage history", "Browser watch, not watching"]);
-    expect(right.match(/<div class="rail-group"/g)).toHaveLength(3);
+    // V4's Figma: the left stripe, Sessions first, Settings at the foot; the
+    // right stripe, the Inspector's door alone first.
+    // CHANGED ON PURPOSE (stripe words): named by their words where the name
+    // did not hold them, and the switch between words and icons last.
+    // CHANGED ON PURPOSE (V4 top-10 #4): the right stripe's records and
+    // watchers are behind its More, last, so the stripe draws two runs, not four.
+    expect(buttons(left).map(b => b.name)).toEqual(["Sessions", "Accounts", "Settings", "Hide words"]);
+    expect(buttons(right).map(b => b.name)).toEqual(["Show the Inspector", "Usage", "This machine", "More: Usage history, Browser watch, not watching"]);
+    expect(right.match(/<div class="rail-group"/g)).toHaveLength(2);
     expect(right).toContain('<div class="rail-group" role="group" aria-label="Usage and machine">');
-    expect(body(".edge-rail")).toMatch(/gap: 14px;/);
-    expect(body(".rail-group")).toMatch(/gap: 4px;/);
-    expect(body(".edge-rail .rail-group + .rail-group")).toMatch(/border-top: 1px solid var\(--line\);/);
+    expect(body(".rail-foot") /* shares the rule with .rail-doors */).toMatch(/gap: 2px;/);
+    expect(body(".rail-group")).toMatch(/gap: 2px;/);
+    // CHANGED ON PURPOSE (#2539): the rule between runs is 28 wide in --line, so the runs read apart.
+    expect(body(".rail-doors .rail-group + .rail-group::before")).toMatch(/width: 28px;[^}]*height: 1px;[^}]*background: var\(--line\);/);
   });
 });
 
@@ -157,25 +185,31 @@ describe("the chrome is quiet: no edge at rest, a neutral look under the pointer
     expect(rest).toMatch(/color: var\(--muted\);/);
   });
 
-  it("answers the pointer with the control fill and the foreground, never the accent", () => {
-    // Under a pointer that can hover only (hover: hover): a tap on the dock
-    // left a fill behind.
+  it("answers the pointer with a light wash and the foreground, never the accent", () => {
+    // Under a pointer that can hover and point finely ((hover: hover) and
+    // (pointer: fine), V4's real pointers): a tap on the dock left a fill
+    // behind. The wash is the foreground at 5%, not the control fill: V4's
+    // --ctl-fill over the stripe is the very colour of --selected, the open
+    // door's fill, so a hovered door would have read as open
+    // (toggle-state.test.ts ranks the three).
     const hover = body(".rail-btn:hover");
     expect(hover).toMatch(/color: var\(--text\);/);
-    expect(hover).toMatch(/background: var\(--ctl-fill\);/);
-    expect(css).toMatch(/@media \(hover: hover\) \{\s*\.rail-btn:hover \{/);
+    expect(hover).toMatch(/background: color-mix\(in srgb, var\(--text\) 5%, transparent\);/);
+    expect(css).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{\s*\.rail-btn:hover \{/);
     expect(css).not.toMatch(/\.rail-btn[^{]*:hover[^{]*\{[^}]*--accent/);
     expect(body("button.btn:hover")).not.toMatch(/--accent/);
   });
 
-  it("draws an open panel in the foreground on a fill a step past hover's, and its line in --text, not the accent", () => {
-    // Open used to be the hover's own --ctl-fill (7%), and a hovered closed
-    // button beside an open one was told apart by the line alone; open is 10%
-    // of the foreground now, and 14% under the pointer.
-    expect(body('.rail-btn[aria-expanded="true"]')).toMatch(/color: var\(--text\);[^}]*background: color-mix\(in srgb, var\(--text\) 10%, transparent\);/);
+  it("draws an open panel in the foreground on the --selected fill, with its line, not the accent", () => {
+    // V4's Panel bar: an open door is --selected under the whole foreground.
+    // Open used to be a 10% wash; the line in --text on the stripe's inner
+    // edge and on the dock's top edge stays, since it carries the 3:1 the
+    // fill cannot (toggle-state.test.ts), and it is shown at once (V4's motion rules:
+    // a selected door goes selected at once).
+    expect(body('.rail-btn[aria-expanded="true"]')).toMatch(/color: var\(--text\);[^}]*background: var\(--selected\);/);
     // The line on the stripe's inner edge, and on the dock's top edge.
     expect(body(".rail-btn-stripe::before")).toMatch(/background: var\(--text\);/);
-    expect(css).toMatch(/\.rail-btn-stripe\[aria-expanded="true"\]::before \{ opacity: 1; transform: none; \}/);
+    expect(css).toMatch(/\.rail-btn-stripe\[aria-expanded="true"\]::before \{ opacity: 1; \}/);
     expect(css).not.toMatch(/\.rail-btn[^{]*\{[^}]*background: var\(--accent\)/);
     // No second look for a popover's opener: the dock's More is one, and it is
     // the same button.
@@ -188,18 +222,23 @@ describe("the chrome is quiet: no edge at rest, a neutral look under the pointer
     // pressed look left with the bar's toggles. A disclosure says
     // aria-expanded, a dialog opener aria-haspopup="dialog".
     for (const html of [left, right, corner, dock]) expect(html).not.toMatch(/aria-pressed/);
-    expect(right).toMatch(/aria-label="Usage history"[^>]*aria-haspopup="dialog"|aria-haspopup="dialog"[^>]*aria-label="Usage history"/);
+    // CHANGED ON PURPOSE (V4 top-10 #4): Usage history, the dialog opener this
+    // read, is a row of the right stripe's More → Settings, on the left foot,
+    // is the stripe's dialog opener read here, and the More a menu button.
+    expect(left).toMatch(/aria-label="Settings"[^>]*aria-haspopup="dialog"|aria-haspopup="dialog"[^>]*aria-label="Settings"/);
+    expect(right).toMatch(/data-rail-item="more"[^>]*aria-haspopup="menu"/);
     expect(left).toMatch(/aria-expanded="false"/);
   });
 
   it("gives the narrow dollar sign back the air its box adds", () => {
-    expect(read("../components/rail-glyphs.tsx")).toMatch(/export const UsageGlyph = \(\) => \(\s*<Glyph narrow>/);
+    expect(read("../components/rail-glyphs.tsx")).toMatch(/export const UsageGlyph = \(\) => <KitIcon name="usage" className="glyph glyph-narrow" \/>;/);
     // Both sides at once, so the glyph stays centred over its word.
     expect(css).toMatch(/\.rail-btn \.glyph-narrow \{ margin-inline: -2px; \}/);
   });
 
   it("keeps the focus ring the sheet's own, in the accent, moving only its offset", () => {
-    expect(css).toMatch(/:focus-visible \{\s*outline: 2px solid var\(--accent\);/);
+    // V4's Figma: 1.5px (--focus-w), accent, inside the box.
+    expect(css).toMatch(/:focus-visible \{\s*outline: var\(--focus-w\) solid var\(--accent\);/);
     const rings = [...css.matchAll(/([^{}]*rail-btn[^{}]*:focus-visible[^{}]*)\{([^{}]*)\}/g)];
     for (const [, sel, decls] of rings) {
       expect(decls, sel.trim()).not.toMatch(/outline(?:-color)?:\s*[^;]*(?:var\(--(?!accent)|#|rgb)/);
@@ -218,41 +257,53 @@ describe("the bar keeps amber for the alarm", () => {
   it("keeps the alarm when the readout gives, and draws no gap for an empty strip", () => {
     // The readout clips from the left, so the wordmark goes before the chip.
     expect(body(".topbar .readout")).toMatch(/justify-content: flex-end;/);
-    expect(css).toMatch(/\.topbar \.status:empty \{ display: none; \}/);
-    // The ribbon's usual share of the bar.
-    expect(body(".selected-ribbon")).toMatch(/max-width: min\(380px, 24vw\);/);
+    // The strip is the chip's slot (ChipPresence): no element once the pill is
+    // gone, so there is no empty box to hide; and the ribbon is gone.
+    expect(css).toMatch(/\.topbar \.chip-slot > \* \{ min-width: 0; overflow: hidden; \}/);
+    expect(css).not.toContain(".selected-ribbon");
   });
 
-  it("draws the app's ready update in the accent, not the alarm's amber", () => {
+  it("draws a newer version and the app's ready update in the accent wash, and no amber at all", () => {
     // A download the app has verified is good news; amber is this bar's
-    // warning (#1187). Same proportions as the stale chip, other colour, and a
-    // dot that holds still, since nothing here needs you until you choose it.
-    const ready = body(".topbar .brand button.v.ready");
-    expect(ready).toMatch(/color: var\(--accent\);/);
-    expect(ready).toMatch(/border-color: var\(--accent\);/);
-    expect(ready).not.toMatch(/--warn/);
-    expect(body(".topbar .brand button.v.ready:hover")).not.toMatch(/--warn/);
-    const dot = body(".topbar .brand button.v.ready .v-dot");
-    expect(dot).toMatch(/background: var\(--accent\);/);
-    expect(dot).toMatch(/animation: none;/);
-    // And the up-to-date chip's quiet look does not reach it.
-    expect(css).toContain(".topbar .brand button.v:not(.stale):not(.ready) {");
-    expect(css).not.toMatch(/button\.v:not\(\.stale\)(?!:not\(\.ready\))/);
+    // warning (#1187), and in V4 amber leaves the version chip altogether: the
+    // count, a paused stream and an incident are the bar's only amber. A newer
+    // version and a ready update share the --accent-16 wash with no edge and
+    // --text; the icon is the accent in every state.
+    // CHANGED ON PURPOSE (V4's Figma): the ready update is one chip that is
+    // the press (no `.v-update` beside it), and it leads with the kit's icon,
+    // not a dot.
+    const chip = body(".topbar button.v:is(.stale, .ready)");
+    expect(chip).toMatch(/background: var\(--accent-16\);/);
+    // No stroke at all now (V4's Figma): the base rule has border: 0.
+    expect(body(".topbar button.v")).toMatch(/border: 0;/);
+    expect(chip).toMatch(/color: var\(--text\);/);
+    expect(chip).not.toMatch(/--warn/);
+    expect(body(".topbar button.v:is(.stale, .ready):hover")).not.toMatch(/--warn/);
+    const icon = body(".topbar button.v .v-icon");
+    expect(icon).toMatch(/color: var\(--accent\);/);
+    expect(icon).not.toMatch(/--warn/);
+    expect(css).not.toMatch(/\.v-dot|\.v-update/);
+    // And there is no up-to-date chip any more (V4's Figma: the version chip
+    // only when needed), so no rule dresses one.
+    expect(css).not.toMatch(/button\.v:not\(\.stale\)/);
   });
 
   it("gives the waiting chip the readout on a narrow screen, word and all", () => {
     const narrow = media("max-width: 640px");
-    // The wordmark leaves the screen but stays the page's <h1>.
-    expect(narrow).toMatch(/\.topbar \.brand h1 \{[^}]*clip-path: inset\(50%\);/);
+    // CHANGED ON PURPOSE (V4's Figma phone frame): the wordmark is drawn, the
+    // page's <h1> as ever: no rule clips it to a pixel or hides it any more.
+    expect(narrow).not.toMatch(/\.topbar \.brand h1[^{]*\{[^}]*clip-path/);
     expect(narrow).not.toMatch(/\.topbar \.brand h1[^{]*\{[^}]*display: none/);
+    expect(narrow).toMatch(/\.topbar \.brand \{ gap: 8px; \}/);
     // An up-to-date version chip goes; a stale one is a warning and stays, and
     // so does the app's ready update, the one way into it from the window.
-    expect(narrow).toMatch(/\.topbar \.brand button\.v:not\(\.stale\):not\(\.ready\) \{ display: none; \}/);
+    expect(narrow).not.toMatch(/button\.v:not\(\.stale\)/);
     // The chip says its number and its word on a phone too: with every control
     // in the dock, the bar has the room for "2 waiting" whole, and nothing
     // hides the word. Its name keeps the whole sentence.
     expect(css).not.toMatch(/ws-word/);
-    expect(readouts).toMatch(/<b>\{count\}<\/b> \{t\("board\.queue\.waiting"\)\}\s*<\/button>/);
-    expect(readouts).toMatch(/aria-label=\{t\("board\.queue\.waitingForYou", \{ count \}\)\}/);
+    expect(readouts).toMatch(/<b>\{count\}<\/b>\s*<span className="count-word">\{t\("board\.queue\.waiting"\)\}<\/span>\s*<\/button>/);
+    expect(readouts).toMatch(/const waitingLabel = t\("board\.queue\.waitingForYou", \{ count \}\);/);
+    expect(readouts).toMatch(/aria-label=\{waitingLabel\}/);
   });
 });

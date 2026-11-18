@@ -21,8 +21,11 @@ export function currentTextSize(): TextSize {
 export function resolveTextSize(value: string | null | undefined): TextSize {
   return value === "smallest" || value === "smaller" || value === "larger" || value === "largest" ? value : "default";
 }
+/** The density a page without a choice draws at: Compact, V4's default
+ *  (its Figma size variables). index.html's boot script falls back to it too. */
+export const DEFAULT_DENSITY: Density = "compact";
 export function resolveDensity(value: string | null | undefined): Density {
-  return value === "tightest" || value === "tighter" || value === "compact" || value === "comfortable" ? value : "default";
+  return value === "tightest" || value === "tighter" || value === "default" || value === "comfortable" ? value : DEFAULT_DENSITY;
 }
 export const storedTextSize = () => resolveTextSize(readStored(TEXT_SIZE_KEY));
 export const storedDensity = () => resolveDensity(readStored(DENSITY_KEY));

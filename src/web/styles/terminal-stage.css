@@ -1,0 +1,964 @@
+/* THE TERMINAL STAGE (components/terminal/): the session on the right while
+   the board is the navigator on the left — v3 of the terminal panel design,
+   drawn in V4's Term pane (Figma: Pane header · Term, Term pane · stage
+   states, Keys bar, Divider), built behind the hidden terminal flag.
+
+   The stage fills the box the layout gives it (its width is whole cells,
+   stage-geometry.ts); everything here draws inside that box. The grid column
+   it sits in, the navigator beside it and the open/close morph are the
+   layout's. Nothing here is drawn while the flag is off: no element carries a
+   .ts-* or .ns-* class until the stage's lazy chunk has rendered one.
+
+   Every colour is a token. The session's hue is gone from the stage's chrome
+   in V4 (the header's spine left with it): the stage says which session it
+   is by its name and its state glyph. The popover's project dots lost it too
+   (V4 top-10 #1: no identity colour anywhere the board is mirrored); they are
+   a quiet neutral bullet. Forced colours for the stage's marks are in
+   touch-and-forced-colours.css, with the rest of the deck's, because the deck
+   answers a Contrast theme in one block (#871). */
+
+.ts-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  box-sizing: border-box;
+  background: var(--panel);
+  color: var(--text);
+  border-left: 1px solid var(--line);
+}
+/* Taking the whole body, there is no board to draw an edge against. */
+.ts-stage[data-takeover] { border-left: 0; }
+
+/* ── the header: one row, the session's state and name (V4) ──────────────── */
+
+/* --pane-head-h is V4's pane header: 36 at Compact, 44 at the two roomier
+   densities (tokens.css, reading.css). The stage measures the header as drawn
+   (onHeadH) and the geometry fits the rows below it (stage-geometry.ts). */
+.ts-head {
+  position: relative;
+  flex: none;
+  height: var(--pane-head-h);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px 0 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line-soft);
+  /* The chip asks how wide the header is (@container ts-head below), not the
+     window: a stage beside the board and a takeover are different headers. */
+  container: ts-head / inline-size;
+}
+.ts-stage[data-takeover] .ts-head { padding-left: 6px; }
+
+/* The identity arrives from the left — out of the board — on every switch:
+   the header remounts it per session. It is the glyph, the name and the
+   sentence on one row; the row's end group sits against the right edge. */
+.ts-id {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: ts-id-in var(--dur-base) var(--ease);
+}
+@keyframes ts-id-in { from { opacity: 0; transform: translateX(-8px); } }
+
+/* The rail's state glyph, 14px (stage-icons.tsx StageGlyph; the colours are
+   StateMark's and AlertMark's own, agent-node.css). It holds still: the rail's
+   Working glyph breathes on --pulse-live, but the stage's header sits beside
+   a terminal that is already showing the session at work, and nothing moves
+   here on its own. */
+.ts-glyph { flex: none; display: inline-flex; }
+/* The marks keep the colours the rail gives them wherever the text beside them
+   is quieter (the ask note, the resumed note): Waiting is --warn, Done --ok. */
+.ts-glyph[data-glyph="waiting"] { color: var(--warn); }
+.ts-glyph[data-glyph="done"] { color: var(--ok); }
+
+.ts-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--text);
+}
+/* The one state word, where the state is not the normal one (StageHeader
+   stateWord): "not attached", "waiting 6m" in its colour (waiting is --warn,
+   as the rail's timer is). Sans 12/16, as prose is, with tabular figures. It
+   does not shrink, so the name is the one thing a short header cuts. */
+.ts-meta {
+  flex: none;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ts-meta-state { flex: none; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.ts-meta[data-state="waiting"] .ts-meta-state { color: var(--warn); }
+
+/* How full the session's context window is (StageHeader): the cards' ring and
+   its percent, "◔ 17%", in sans --muted with tabular figures, 24 tall like the
+   controls that follow it. It is drawn before them, at the row's end; the
+   whole figure is its tooltip. */
+.ts-ctxchip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  border-radius: var(--r-ctl);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ts-ctxchip > svg { flex: none; display: block; }
+/* The narrow header's own words for the chip, "17% context" (below). */
+.ts-ctxshort { display: none; }
+/* In a header too narrow for the name to keep its room (a phone's takeover),
+   the chip says its percent with its word and no ring: a bare "17 %" did not
+   say what it was a percent of. A screen reader hears the chip's name, the
+   whole figure, whichever is drawn. After the chip's rules, so these win. */
+@container ts-head (max-width: 480px) {
+  .ts-ctxchip > :is(svg, .ts-ctxpct) { display: none; }
+  .ts-ctxshort { display: inline; }
+  /* Waiting keeps its duration: it is the reason to look at the pane.
+     Other state words may give way before drawing over the context chip. */
+  .ts-meta:not([data-state="waiting"]) { flex: 0 1 auto; overflow: hidden; }
+  .ts-meta:not([data-state="waiting"]) .ts-meta-state { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+}
+
+.ts-ctl { flex: none; display: flex; align-items: center; gap: 4px; }
+.ts-head > .ts-compact-more.ts-more.glyph-btn { display: none; flex: none; }
+/* Keep the task name readable in a narrow split. The existing overflow menu
+   carries the same actions; the header keeps one measured row. */
+@container ts-head (max-width: 480px) {
+  .ts-head > .ts-compact-more.ts-more.glyph-btn { display: inline-flex; }
+  .ts-head:has(> .ts-compact-more) > .ts-ctl { display: none; }
+  /* Rename is already in More; its hidden pencil need not reserve room. */
+  .ts-head:has(> .ts-compact-more) .ts-rename { display: none; }
+}
+/* The controls are the deck's header glyphs (.glyph-btn), as 24px squares at
+   the control radius; ⌨ pressed — the keys in the pane — wears the accent. */
+.ts-tools { display: flex; align-items: center; gap: 2px; }
+.ts-head .glyph-btn {
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  margin: 0;
+  border-radius: var(--r-ctl);
+}
+.ts-tools .glyph-btn[aria-pressed="true"] { color: var(--accent); }
+/* Aa while the pane's text is at another size than 100%: filled, as Zoom's ⤢
+   is while it is on, so the change is seen without opening anything. */
+.ts-tools .glyph-btn[data-changed] { background: var(--selected); color: var(--text); }
+
+/* The text size popover: a 13 semibold title, the stepper — − and + as 28px
+   glyphs either side of the percent, in one control-radius box — Back to
+   100%, and the keys in 11 --muted. 200 wide, 12 in, 8 between, the V4 form
+   popover's measures (.ap-pop-form). */
+.ap-pop.ts-text-pop {
+  width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+.ts-text-title {
+  margin: 0;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  color: var(--text);
+}
+.ts-text-step {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+}
+.ts-text-step .glyph-btn {
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: var(--r-ctl);
+}
+/* At an end, or already at 100%: the deck's off dim, as every aria-disabled
+   control has it, and no press. */
+.ts-text-step .glyph-btn[aria-disabled="true"],
+.btn.ts-text-reset[aria-disabled="true"] { opacity: var(--dim-off); cursor: default; }
+.ts-text-step .glyph-btn[aria-disabled="true"]:active,
+.btn.ts-text-reset[aria-disabled="true"]:active { transform: none; }
+.ts-text-pct {
+  flex: 1;
+  text-align: center;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.btn.ts-text-reset { width: 100%; justify-content: center; }
+.ts-text-keys {
+  margin: 0;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+}
+.ts-icon {
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Attaching or starting past 300ms: a hairline crosses the top of the header
+   instead of a spinner. Under 300ms nothing is shown at all. */
+.ts-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+.ts-stage[data-kind="attaching"] .ts-scan,
+.ts-stage[data-kind="starting"] .ts-scan { opacity: 1; transition: opacity var(--dur-fast) 300ms var(--ease); }
+/* Only while it is shown, and by transform, for the reason the spine's light
+   gives: hidden at opacity 0 it still ran, and kept the page producing frames
+   for the life of the stage. */
+.ts-scan::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 30%;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  transform: translateX(-100%);
+}
+.ts-stage[data-kind="attaching"] .ts-scan::after,
+.ts-stage[data-kind="starting"] .ts-scan::after { animation: ts-scan 1.1s cubic-bezier(0.45, 0, 0.55, 1) infinite; }
+@keyframes ts-scan { to { transform: translateX(334%); } }
+
+/* ── the body: the terminal, or the card that stands in for it ───────────── */
+
+.ts-body { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+/* What the body is (V4's Term pane and its states): in Workspace the whole pane
+   is --sunken, the terminal's frame included (xterm draws on --sunken there,
+   terminal-palette.ts). Beside the board a state speaks on --bg, and the frame
+   (xterm on --panel) keeps the body it always had around it. */
+.ts-stage[data-fill] .ts-body { background: var(--sunken); }
+.ts-stage:not([data-fill]) .ts-body:not([data-frame]) { background: var(--bg); }
+/* Hidden, never removed: the one terminal lives in here for the stage's whole
+   life. Leaving takes 70ms; arriving fades in once the seed is drawn. */
+.ts-host {
+  position: absolute;
+  left: 24px;
+  top: var(--ts-term-top, 14px);
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 70ms linear, visibility 0s linear 70ms;
+}
+/* Workspace's pane sets its text 14 in from the pane's edge, as V4 draws it
+   (stage-geometry.ts WS_INSET_LEFT); its first row sits 12 under the header
+   (WS_TERM_TOP, through --ts-term-top). */
+.ts-stage[data-fill] .ts-host { left: 14px; }
+.ts-host[data-shown] {
+  visibility: visible;
+  opacity: 1;
+  transition: none;
+  animation: ts-body-in 150ms var(--ease);
+}
+@keyframes ts-body-in { from { opacity: 0; } }
+/* A switch holds the last frame up, dimmed, until the next seed is drawn
+   over it (stage-model's frameState): no blank stage between two sessions.
+   The next frame then rises from the dim instead of from nothing. */
+.ts-host[data-held] {
+  visibility: visible;
+  opacity: 0.28;
+  transition: opacity 70ms linear;
+}
+.ts-host[data-shown][data-after-hold] {
+  animation: none;
+  transition: opacity 150ms var(--ease);
+}
+.ts-host .xterm { padding: 0; }
+/* One weight for every glyph. xterm's WebGL renderer draws each glyph once,
+   into a scratch canvas, and keeps it. While idle it draws the ASCII set with
+   that canvas outside the page, in the browser's own smoothing; a glyph a frame
+   needs before then is drawn with the canvas inside .xterm, in the smoothing
+   .xterm inherits: the deck's antialiased (tokens.css). On a Mac those are two
+   weights, and which one a letter got was a race: a reopened pane, whose screen
+   arrives before the idle drawing is done, mixed them within one line. The
+   terminal keeps the browser's own smoothing, the one it draws with outside
+   the page, whichever way a glyph is drawn. Only macOS has the property. */
+.ts-host .xterm { -webkit-font-smoothing: auto; }
+/* xterm's scrollbar fades out over 800ms after every write and every scroll:
+   a transition that runs for as long as anyone types, keeping the page
+   producing frames and every echo a frame late (quiet-page.ts). It shows and
+   goes at once instead. */
+/* Spelled past xterm's own `.xterm .xterm-scrollable-element > .invisible.fade`,
+   whose sheet loads after this one (xterm-sheet.ts) and would win a tie. */
+.ts-host .xterm .xterm-scrollable-element > .scrollbar.visible,
+.ts-host .xterm .xterm-scrollable-element > .scrollbar.invisible.fade { transition: none; }
+/* Keep xterm's generous drag target; paint a quiet six-pixel thumb at its
+   outer edge. The transparent border stays draggable without crowding text. */
+.ts-host .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
+  box-sizing: border-box;
+  border-left: 7px solid transparent;
+  border-right: 1px solid transparent;
+  border-radius: 0;
+  background-clip: padding-box;
+}
+/* A frozen last frame keeps the width it was drawn at — a dead pane cannot be
+   resized, and reflowing a TUI's frame would garble the evidence — so where
+   the stage is narrower now (the takeover after a wide session), it scrolls
+   sideways instead of losing the right of every line. */
+.ts-stage[data-kind="ended"] .ts-body,
+.ts-stage[data-kind="detached"] .ts-body,
+/* So does a live pane that keeps the size of someone's own terminal (case B),
+   where the window has no room left to make for it (TerminalStage). */
+.ts-stage[data-pane-size] .ts-body { overflow-x: auto; overflow-y: hidden; }
+
+/* Every card is a column in the middle of the pane (V4), centred both ways:
+   10px between its lines, 464 wide at most, 48 in from the sides and 24 from
+   the top and bottom, straight in the body with no box of its own. Taller
+   than a short pane (a phone on its side, the install card), it starts at the
+   top and scrolls, so its title and its buttons stay reachable: `safe` keeps
+   the centring from pushing either end out of reach. */
+.ts-card {
+  position: absolute;
+  /* The pane's 48 from each side is this 24 and the padding's 24 (the
+     spacing ladder has no 48). */
+  inset: 0 24px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  gap: 10px;
+  padding: 24px;
+  overflow-y: auto;
+  text-align: center;
+}
+.ts-card > * { max-width: 464px; }
+/* The attaching card is a wait on data, so it keeps the Waiting loader's rule
+   (StageBody.tsx holds the 150 before it is drawn and the 300 it stays): it
+   fades in over Fast and out over Exit, as transitions, so a pane that attaches
+   twice in a row does it twice. */
+.ts-card[data-timed] { transition: opacity var(--dur-fast) var(--ease); pointer-events: none; }
+@starting-style {
+  .ts-card[data-timed] { opacity: 0; }
+}
+.ts-card[data-timed="out"] { opacity: 0; pointer-events: none; transition-duration: var(--dur-exit); }
+.ts-ctx {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: 400 12px/16px var(--font-mono);
+  color: var(--muted);
+}
+.ts-prompt { color: var(--muted); }
+/* A card's title, where it has one ("tmux · setting up"). */
+.ts-title { margin: 0; font-size: 13px; font-weight: 600; line-height: 20px; color: var(--text); }
+.ts-text { margin: 0; max-width: 464px; font-size: 13px; line-height: 20px; color: var(--text-secondary); }
+/* The empty pane's block (Workspace): 360 wide, 16 in, 4 between its lines; the
+   button's row has 8 above it. */
+.ts-empty-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  box-sizing: border-box;
+  width: 360px;
+  max-width: 100%;
+  padding: 16px;
+}
+.ts-empty-block .ts-text { color: var(--muted); }
+.ts-empty-block .ts-acts { padding-top: 8px; }
+/* Attaching and starting: the working glyph and the word, in one row. */
+.ts-wait { display: flex; align-items: center; justify-content: center; gap: 6px; }
+/* The deck's own tmux on its way: a 2px bar that fills with the download and
+   holds full while the build is checked, its figure under it. Before it can
+   say how far (no bytes yet, or no size given) a segment travels it, as the
+   header's scan does. */
+.ts-setup { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 320px; max-width: 100%; }
+.ts-setup-bar {
+  position: relative;
+  align-self: stretch;
+  height: 2px;
+  border-radius: var(--r-tag);
+  background: var(--ctl-fill);
+  overflow: hidden;
+}
+.ts-setup-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--muted);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--dur-slow) var(--ease);
+}
+.ts-setup-bar[data-unknown] .ts-setup-fill {
+  right: auto;
+  width: 30%;
+  transform: translateX(-100%);
+  animation: ts-scan 1.1s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.ts-setup-line { font: 400 11px/14px var(--font-sans); color: var(--muted); font-variant-numeric: tabular-nums; }
+/* The actions: the kit's Primary and Quiet buttons (topbar-controls.css) in a
+   centred row; the cards set no size of their own for them. */
+.ts-acts { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.ts-acts .btn { display: inline-flex; align-items: center; gap: 6px; }
+.ts-note { max-width: 60ch; margin: 0; font-size: 12px; line-height: 16px; color: var(--text-secondary); }
+/* The install line, 360 by 32 on the sunken ground, no edge, with its Copy, a
+   24 square, at the end. */
+.ts-cmd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 360px;
+  max-width: 100%;
+  height: 32px;
+  padding: 4px 4px 4px 8px;
+  border-radius: var(--r-ctl);
+  background: var(--sunken);
+  font: 400 12px/16px var(--font-mono);
+  color: var(--text);
+}
+.ts-cmd code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; }
+.ts-cmd .glyph-btn { flex: none; box-sizing: border-box; width: 24px; height: 24px; margin: 0; padding: 0; border-radius: var(--r-ctl); }
+
+/* The engine's install (EngineCard.tsx, Figma "01 · Engine install"): the same
+   centred card, but its column reads left to right, 460 wide: the glyph in a
+   32 round chip beside the title, the paragraph, the bar or the steps, the
+   actions, then the note. 12 between its parts. */
+.ts-card.ts-engine { text-align: start; }
+.ts-eng { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; box-sizing: border-box; width: 460px; max-width: 100%; }
+.ts-eng-head { display: flex; align-items: center; gap: 16px; }
+.ts-eng-chip {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 32px; height: 32px; border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent);
+}
+.ts-eng-chip[data-tone="danger"] { background: color-mix(in srgb, var(--err) 16%, transparent); color: var(--err); }
+.ts-eng-title { margin: 0; font-size: 16px; font-weight: 600; line-height: 20px; color: var(--text); }
+.ts-eng-text { margin: 0; font-size: 13px; line-height: 20px; color: var(--text-secondary); }
+.ts-eng-said { margin: 0; font-size: 12px; line-height: 16px; color: var(--warn); }
+.ts-eng-line { margin: 0; font: 400 11px/14px var(--font-sans); color: var(--muted); font-variant-numeric: tabular-nums; }
+.ts-eng-note { margin: 0; font-size: 11px; line-height: 16px; color: var(--muted); }
+.ts-eng-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ts-eng-acts .btn { display: inline-flex; align-items: center; gap: 6px; }
+.btn.ts-eng-back { border-color: transparent; background: none; padding-inline: 4px; font-weight: 500; color: var(--accent); }
+@media (hover: hover) and (pointer: fine) {
+  .btn.ts-eng-back:hover { border-color: transparent; background: none; text-decoration: underline; }
+}
+.ts-eng-progress { display: flex; flex-direction: column; gap: 6px; align-self: stretch; }
+.ts-setup-bar.ts-eng-bar { height: 4px; }
+.ts-eng-bar .ts-setup-fill { background: var(--accent); }
+/* Where a download stopped: the share it reached, in the error colour. */
+.ts-eng-bar[data-tone="danger"] .ts-setup-fill { background: var(--err); }
+/* Figma's circled "!": the kit's info glyph turned over. */
+.ts-eng-alert { transform: rotate(180deg); }
+.ts-eng-steps { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ts-eng-step { display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 18px; color: var(--text-secondary); }
+.ts-eng-step[data-state="now"] { color: var(--text); }
+.ts-eng-step[data-state="todo"] { color: var(--muted); }
+.ts-eng-mark { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; }
+.ts-eng-step[data-state="done"] .ts-eng-mark { color: var(--ok); }
+.ts-eng-step[data-state="now"] .ts-eng-mark { color: var(--accent); }
+.ts-eng-step[data-state="fail"] .ts-eng-mark { color: var(--err); }
+.ts-eng-ring { box-sizing: border-box; width: 10px; height: 10px; border: 1.5px solid currentColor; border-radius: var(--r-pill); }
+.ts-eng-aside { font: 400 11px/14px var(--font-sans); font-variant-numeric: tabular-nums; color: var(--muted); }
+.ts-eng-step[data-state="fail"] .ts-eng-aside { color: var(--err); }
+/* Settings › General, the engine's row during an install: the bar and its
+   bytes under the note, 340 wide, in the name's column. */
+.settings-engine-progress { grid-column: 1; display: flex; flex-direction: column; gap: 4px; width: 340px; max-width: 100%; padding-top: 6px; }
+
+/* ── the keys bar: who has the keyboard, and the asks ────────────────────── */
+
+.ts-bar[hidden] { display: none; }
+.ts-bar.ts-bar-compose {
+  height: auto;
+  max-height: min(50%, 320px);
+  overflow-y: auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  border-top: 0;
+  white-space: normal;
+}
+.ts-chat-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--line-soft);
+}
+.ts-bar {
+  container: ts-bar / inline-size;
+  flex: none;
+  height: 32px;
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--panel);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ts-keys { display: flex; align-items: center; gap: 12px; flex: 0 1 auto; min-width: 0; overflow: hidden; }
+/* On a narrow stage the sentence gives way first, cut with an ellipsis; a
+   hint, a key and a button keep their size (a button cut in half is a button
+   out of reach). */
+.ts-keys > * { flex: none; }
+/* A sentence with its one button at the right end (first run, ended, taken over). */
+.ts-keys[data-split] { flex: 1 1 auto; }
+.ts-keys[data-split] > .btn { margin-left: auto; }
+.ts-keys > .ts-label,
+.ts-keys > .ts-reconnecting,
+.ts-keys > .ts-end { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* The pane's first hint (Esc goes to the session) is the one a bar under 480px
+   can do without: the sentence of who has the keys and the way back to the
+   board (the release chord) stay, so the way out is always on screen. */
+@container ts-bar (max-width: 480px) {
+  .ts-hint[data-optional] { display: none; }
+}
+/* Who has the keys, said by the label's colour: the board's is --text-secondary,
+   the pane's --text. */
+.ts-label { color: var(--text-secondary); }
+.ts-label[data-strong] { color: var(--text); }
+/* A pane that cannot take keys until it is back: the whole sentence is the
+   warning's colour (V4's Figma). */
+.ts-reconnecting { color: var(--warn); }
+/* A key and its word, 4px apart; no mark between one hint and the next. */
+.ts-hint { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
+/* The bar's buttons are the kit's Quiet (topbar-controls.css) at 28. The ones
+   that are behaviour but not a box in the drawn bar (type here, Next ask,
+   Answer) are plain text at rest, a word in the line; the pointer lifts it to
+   --text, and the focus ring is the button's own. A fingertip gets them at
+   32px, and the bar with them (touch-and-forced-colours.css). */
+.ts-keys .btn { min-height: 28px; padding: 0 12px; }
+.ts-hosts .btn { min-height: 28px; padding: 0 12px; }
+.btn.ts-plain { border-color: transparent; background: none; font-weight: 400; color: var(--muted); }
+/* Those words read as the bar's own text: 12 on 16, 16 high, no padding, no
+   fill. A fingertip keeps its 32px floor (touch-and-forced-colours.css). */
+@media not (pointer: coarse) {
+.ts-bar button.btn.ts-plain { min-height: 16px; height: 16px; padding: 0; border-width: 0; font-size: 12px; line-height: 16px; }
+}
+@media (hover: hover) and (pointer: fine) {
+.btn.ts-plain:hover { border-color: transparent; background: none; color: var(--text); }
+}
+/* The first-run line is said whole wherever it shows: on a stage too narrow
+   for it on one line (the takeover: a phone, a narrow window) it wraps in the
+   bar rather than pushing Got it off the end. There, two lines of 15px fit
+   the bar's own 32px; only a third, on the narrowest screens, grows the bar,
+   for as long as the line is said, and the terminal's rows are fitted above
+   the grown bar (stage-geometry.ts). A stage beside the board keeps its one
+   line exactly as it was. */
+.ts-first { flex: 0 1 auto; min-width: 0; white-space: normal; }
+.ts-stage[data-takeover] .ts-first { line-height: 15px; }
+.ts-bar:has(.ts-first) { height: auto; min-height: 32px; padding-block: 1px; }
+.ts-end { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-secondary); }
+/* The first-run line is one plain sentence in the secondary text. */
+.ts-first { color: var(--text-secondary); }
+/* The asks sit at the bar's end; when they and the keys do not
+   fit one row they wrap under them (the stage measures the bar and fits the
+   terminal's rows above it, as for the first-run line). */
+.ts-bar:has(.ts-asks:not(.ts-hosts)) { height: auto; min-height: 32px; padding-block: 1px; flex-wrap: wrap; row-gap: 0; }
+
+.ts-asks { display: flex; align-items: center; gap: 8px; flex: 0 1 auto; min-width: 0; margin-left: auto; }
+.ts-asks[data-clear] { gap: 6px; }
+.ts-asks > * { flex: none; }
+.ts-asks-label { color: var(--muted); }
+.ts-count { font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.ts-resumed { color: var(--text-secondary); }
+/* Next ask and Answer: plain --muted text (.ts-plain), the name and the wait in
+   the same colour. (v3 drew them as a pill with the words in --warn.) */
+.ts-asks .ts-next { gap: 4px; }
+.ts-next-name { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+/* The ask note and the resumed note are one line of text led by a glyph: a
+   block, so a long session name is cut with an ellipsis and never pushes the
+   button beside it out of reach. */
+.ts-asks > .ts-arrival,
+.ts-asks > .ts-resumed { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ts-arrival .ts-glyph,
+.ts-resumed .ts-glyph { margin-right: 8px; vertical-align: middle; }
+.ts-asks[data-clear] .ts-resumed .ts-glyph { margin-right: 6px; }
+.ts-arrival { color: var(--text-secondary); animation: ts-arrive var(--dur-move) var(--ease); }
+@keyframes ts-arrive { from { opacity: 0; transform: translateY(6px); } }
+/* Sessions on an older session host (Windows, older-hosts.ts): a sentence
+   and Review, in the slot an ask would take. One line in --muted, cut with an
+   ellipsis from the end (its whole text is the title); Review stays. */
+.ts-asks.ts-hosts { flex: 0 1 auto; min-width: 0; }
+.ts-hosts-said { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+
+/* Chat reads here and replies in Term. Let the whole explanation and action
+   wrap within each pane, including a narrow workspace split. Term keeps its
+   existing keys bar; the stage measures this footer's natural height. */
+.ts-bar:has(.ts-chat-handoff) {
+  height: auto;
+  min-height: 40px;
+  padding-block: 6px;
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+.ts-keys.ts-chat-handoff {
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  overflow: visible;
+  white-space: normal;
+}
+.ts-chat-handoff > .ts-chat-reply-note {
+  flex: 1 1 180px;
+  min-width: 0;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.ts-chat-handoff > button.btn {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  min-height: var(--ctl-h);
+  padding-block: 4px;
+  line-height: 16px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.ts-chat-handoff > button.btn:focus-visible {
+  outline: var(--focus-w) solid var(--accent);
+  outline-offset: calc(-1 * var(--focus-w));
+}
+@media (pointer: coarse) {
+  .ts-chat-handoff > button.btn { min-height: 44px; }
+}
+
+/* Review (V4's Hosts dialog), inside the shared dialog shell: an intro, one
+   44px row per session, the two facts as plain lines, the engine's refusal.
+   The body's own gap is 16; V4 spaces these 12 apart. */
+.modal.older-hosts > .modal-body { gap: 12px; }
+.oh-intro { margin: 0; font-size: 13px; line-height: 20px; color: var(--text-secondary); }
+.oh-sessions { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.oh-sessions li { display: flex; flex-direction: column; justify-content: center; box-sizing: border-box; min-height: 44px; padding: 4px 0; }
+.oh-sessions b { font-size: 13px; font-weight: 600; line-height: 20px; color: var(--text); }
+.oh-sessions span { font-size: 12px; line-height: 16px; color: var(--muted); }
+.oh-facts { display: flex; flex-direction: column; gap: 4px; }
+.oh-facts p, .oh-last { margin: 0; font-size: 12px; line-height: 16px; }
+.oh-ends { color: var(--text-secondary); }
+.oh-stays, .oh-last { color: var(--muted); }
+
+/* ── the divider, on the stage's left edge ───────────────────────────────── */
+
+.ts-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -6px;
+  z-index: 5;
+  width: 12px;
+  cursor: col-resize;
+  touch-action: none;
+}
+/* At rest the edge is a 1px --line (an 8px-or-wider hit area stands over it);
+   hovered, focused or held it is the accent, 2px wide (V4, Divider). */
+.ts-divider::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 5px;
+  width: 1px;
+  background: var(--line);
+  transition: background-color var(--dur-fast) calc(var(--delay-step) * 2) var(--ease);
+}
+.ts-grip {
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  translate: 0 -50%;
+  width: 8px;
+  height: 36px;
+  box-sizing: border-box;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--ctl-edge);
+  background: var(--panel);
+  opacity: 0;
+  transition: opacity var(--dur-fast) calc(var(--delay-step) * 2) var(--ease);
+}
+@media (hover: hover) and (pointer: fine) {
+.ts-divider:hover::before { width: 2px; background: var(--accent); }
+}
+@media (hover: hover) and (pointer: fine) {
+.ts-divider:hover .ts-grip { opacity: 1; }
+}
+.ts-divider[data-held]::before,
+.ts-divider:focus-visible::before { width: 2px; background: var(--accent); transition: none; }
+.ts-divider:focus-visible .ts-grip { opacity: 1; background: var(--accent); }
+/* Dragging, the edge is the 2px accent line alone (V4, Divider). */
+.ts-divider[data-held] .ts-grip { opacity: 0; }
+/* While the edge is held the header recedes. */
+.ts-stage[data-held] .ts-head > :not(.ts-scan) { opacity: 0.2; transition: opacity var(--dur-fast) var(--ease); }
+/* The readout while dragging: bare tabular text in the middle of the pane side. */
+.ts-detents {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.ts-readout {
+  font: 400 13px/20px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* ── New session ─────────────────────────────────────────────────────────── */
+
+/* Opaque from its first frame: it slides and scales, it does not fade, so a
+   half-transparent form never sits over a running terminal. Two classes, to
+   outrank the popover's own entrance in accounts-manage.css, later in the
+   sheet. No wider than the window leaves inside its 8px margins
+   (popover-place.ts): at 320px its 368px ran past the screen's edge and took
+   Start with it. */
+.anchored-popover.ns-pop {
+  width: min(440px, calc(100vw - 16px));
+  padding: 16px 16px 0;
+  border-radius: var(--r-overlay);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  transform-origin: 18px 0;
+  animation: ns-pop-in var(--dur-base) var(--ease);
+}
+@keyframes ns-pop-in { from { transform: translateY(-4px) scale(0.97); } }
+/* Clear project/agent hierarchy; the usual defaults stay one press away. */
+.ns-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.ns-head .ns-close { flex: none; }
+.ns-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+  color: var(--text);
+}
+.ns-label { display: block; margin: 0 0 8px; font-size: 12px; font-weight: 500; line-height: 16px; color: var(--muted); }
+/* The strips are V4's chips here: 26 high, the control radius, --bg-soft on a --line-soft edge,
+   12/500 in --text-secondary; the chosen one keeps the deck's solid accent state. */
+.ns-form .uh-range { gap: 6px; padding: 0; border: 0; background: none; }
+.ns-form .uh-range-btn { font-family: inherit; height: 26px; min-height: 26px; box-sizing: border-box; padding: 0 10px; border-radius: var(--r-ctl); font-size: 12px; font-weight: 500; line-height: 24px; }
+.ns-form .uh-range-btn[aria-pressed="false"] { border: 1px solid var(--ctl-edge); background: var(--bg-soft); color: var(--text-secondary); }
+@media (hover: hover) and (pointer: fine) {
+.ns-form .uh-range-btn[aria-pressed="false"]:hover { background: var(--ctl-fill); color: var(--text); }
+}
+/* A column, so the shared text field takes the popover's width without a
+   percentage of its own. */
+.ns-form { display: flex; flex-direction: column; }
+/* The usage modal's range strip, as wide as the form: two halves. */
+.ns-agents { display: flex; margin-bottom: 0; }
+.ns-form .ns-agents .uh-range-btn { height: 40px; min-height: 40px; font-size: 13px; border: 1px solid var(--ctl-edge); }
+.ns-form .ns-agents .uh-range-btn[aria-pressed="true"] { background: var(--selected); color: var(--text); border-color: var(--accent); }
+.ns-agents .uh-range-btn { flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+/* The projects (internal #106): quick open's rows in a well of their own.
+   Up to twelve remembered folders and the board's, so the list scrolls at
+   seven rows and never runs over "Choose another folder…" below it. The
+   row the keys are on wears --selected, as quick open's does; the chosen
+   folder wears the tick. (A fingertip's floor and forced colours' ring are
+   in touch-and-forced-colours.css, with the rest of the panel's.) */
+.ns-list {
+  flex: none;
+  max-height: 224px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0 0 8px;
+  padding: 2px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-ctl);
+  background: var(--bg-soft);
+}
+.ns-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 6px 8px;
+  border-radius: var(--r-ctl);
+  font-size: 13px;
+  line-height: 16px;
+  color: var(--text);
+  cursor: pointer;
+}
+.ns-option[data-highlighted] { background: var(--selected); }
+.ns-project-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; min-height: 32px; }
+.ns-project-heading .ns-label { margin: 0; }
+.ns-worktree-toggle { min-height: max(32px, var(--ui-control-floor, 24px)); padding: 0 8px; }
+.ns-worktree-toggle[aria-pressed="true"] { background: var(--selected); color: var(--text); }
+.ns-worktree-count { color: var(--muted); font-variant-numeric: tabular-nums; }
+.ns-worktree-toggle[aria-pressed="true"] .ns-worktree-count { color: inherit; }
+.ns-project-group { padding-bottom: 4px; }
+.ns-worktree-heading {
+  margin: 0 8px;
+  padding: 6px 0 3px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.ns-option[data-worktree] { margin-left: 14px; }
+@media (pointer: coarse) { .ns-worktree-toggle { min-height: 44px; } }
+.ns-folder { flex: none; display: inline-flex; width: 18px; align-items: center; justify-content: center; color: var(--muted); }
+.ns-project-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ns-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; line-height: 18px; }
+.ns-path { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 400 11px/16px var(--font-mono); color: var(--muted); }
+/* The search (internal #106): words first, so the field reads in the deck's
+   own face; a typed path is still a path in it. 6px above the list. */
+.ns-search { position: relative; display: grid; margin-bottom: 8px; }
+.ns-search > svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.ns-form .ns-field { padding-left: 32px; min-height: 38px; }
+/* The chosen project's tick, in the accent the list's selection uses. */
+.ns-check { flex: none; color: var(--accent); }
+/* × takes a project off the list (nothing on disk): drawn on the row the
+   keys or the pointer are on, quiet until then. 20px, in the row's height. */
+.ns-forget {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-right: -4px;
+  border-radius: var(--r-ctl);
+  font-size: 13px;
+  line-height: 1;
+  color: var(--muted);
+  opacity: 0;
+}
+.ns-option[data-highlighted] .ns-forget { opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+.ns-option:hover .ns-forget { opacity: 1; }
+.ns-forget:hover { background: var(--ctl-fill); color: var(--text); }
+}
+/* What an empty list says: no projects yet, nothing matched, or "a full
+   path" for ~/ and ./ — in the list's own place and size. */
+.ns-empty { margin: 0 0 8px; padding: 8px 10px; border: 1px dashed var(--line-soft); border-radius: var(--r-ctl); font-size: 12px; line-height: 16px; color: var(--text-secondary); }
+.ns-discovery { margin: 0 0 8px; font-size: 12px; line-height: 18px; color: var(--muted); }
+/* "Choose another folder…": the deck's own button, quiet, under the list. */
+.ns-choose { align-self: flex-start; gap: 6px; padding: 0 8px; margin-left: -8px; }
+/* Where Start will go, said whole: the chosen folder's path, or what is
+   wrong with it — in --warn's words, the path after them. */
+.ns-where { display: flex; gap: 8px; min-width: 0; margin: 8px 0 0; font-size: 12px; line-height: 16px; }
+.ns-where-k { flex: none; color: var(--muted); }
+.ns-where-v { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); }
+.ns-problem { margin: 8px 0 0; font-size: 12px; line-height: 16px; color: var(--warn); overflow-wrap: anywhere; }
+.ns-problem-path { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); }
+/* The live line: checking, a cancelled dialog, a removed project. Empty, it
+   keeps no height, so the form does not jump when it speaks. */
+.ns-said { margin: 4px 0 0; font-size: 12px; line-height: 16px; color: var(--muted); }
+.ns-said:empty { margin: 0; }
+/* The keys hint is for a screen reader: the field names it. */
+.ns-keys { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+/* Claude's three choices under the project: two strips and a switch, in the
+   rhythm of the agent strip above them. */
+.ns-label-gap { margin-top: 18px; }
+.ns-form:not([data-searching]) .ns-where { display: none; }
+.ns-options { margin-top: 16px; border-top: 1px solid var(--line-soft); }
+/* The row keeps the control radius at rest, so the deck's one focus ring
+   (inset, tokens.css) draws round it and focus changes no radius. */
+.ns-options-summary { display: flex; align-items: center; gap: 8px; min-height: 42px; border-radius: var(--r-ctl); cursor: pointer; font-size: 12px; color: var(--text-secondary); list-style: none; }
+.ns-options-summary::-webkit-details-marker { display: none; }
+.ns-options-value { min-width: 0; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 11px; }
+.ns-options-chevron { flex: none; }
+.ns-options[open] .ns-options-chevron { transform: rotate(180deg); }
+.ns-options-fields { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; padding: 0 0 14px; }
+.ns-setting { min-width: 0; }
+.ns-setting .v4-select { display: flex; width: 100%; }
+.ns-setting .sm-select { min-height: 32px; width: 100%; min-width: 0; }
+/* The switch's own row: its name on the left, the switch on the right, as
+   the popovers' switches were drawn before Settings took them into its rows.
+   `cursor: default`, as theirs: the pointer belongs to the switch. */
+.ns-worktree {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 20px;
+  margin-top: 2px;
+  cursor: default;
+}
+.ns-worktree-label { font-weight: 500; font-size: 12px; }
+.ns-options .ns-worktree { min-height: 32px; margin: 0 0 8px; }
+.ns-note { margin: 12px 0 0; font-size: 12px; line-height: 16px; color: var(--muted); }
+/* Cancel and Start stay in sight: where the window leaves the popover less
+   room than its form (it scrolls then, popover-place gives it the room
+   there is), the row holds to the popover's foot over what scrolls under
+   it. The popover's own 16px foot is this row's, so nothing shows below. */
+.ns-acts .primary { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 440px) { .ns-acts .primary { flex: 1; } }
+.ns-acts {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 12px 0 16px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--panel);
+}
+
+/* ── less motion ─────────────────────────────────────────────────────────── */
+
+/* Every end state is the same; only the travel goes. The hairline stands
+   still, nothing slides in. (The header's old travelling light is gone with
+   its spine, so there is no light to take away.) */
+@media (prefers-reduced-motion: reduce) {
+  .ts-scan::after { width: 100%; opacity: 0.5; transform: none; }
+  .ts-setup-bar[data-unknown] .ts-setup-fill { width: 100%; opacity: 0.5; transform: none; animation: none; }
+  .ts-setup-fill { transition: none; }
+  .ts-stage[data-kind="attaching"] .ts-scan::after,
+  .ts-stage[data-kind="starting"] .ts-scan::after,
+  .ts-id,
+  .ts-host[data-shown],
+  .ts-arrival,
+  .anchored-popover.ns-pop { animation: none; }
+  .ts-host,
+  .ts-host[data-held],
+  .ts-host[data-shown][data-after-hold] { transition: none; }
+}

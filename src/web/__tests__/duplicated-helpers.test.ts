@@ -22,7 +22,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { fmtTokens } from "../token-format";
-import { elapsed, toolDuration } from "../duration";
+import { dialogDuration, elapsed, toolDuration } from "../duration";
 import { resetCountdown, shortAgo, shortAgoSec } from "../relative-time";
 import { en } from "../i18n/en";
 import { translate } from "../i18n/translate";
@@ -294,7 +294,8 @@ describe("the elapsed clock", () => {
     // SessionSummary's has the hour tier without the sub-second one because it
     // recaps a finished session. Folding either in would print "75m 12s" where
     // "1h 15m" is today, which is a change and not a merge.
-    expect(code(src("../components/SessionList.tsx"))).toMatch(/function elapsedShort\(/);
+    // The rail's clock moved to its own module; SessionList re-exports it.
+    expect(code(src("../elapsed-short.ts"))).toMatch(/function elapsedShort\(/);
     expect(code(sessionSummary)).toMatch(/\$\{Math\.floor\(sec \/ 3600\)\}h \$\{Math\.floor\(\(sec % 3600\) \/ 60\)\}m/);
   });
 });
@@ -335,15 +336,32 @@ describe("a tool call's duration", () => {
     expect("999ms".length).toBeGreaterThanOrEqual(toolDuration(call(9990), "…").length);
   });
 
+  // CHANGED ON PURPOSE (V4's Figma): the dialog's header writes the span with a space before
+  // the unit. The rounding is still the one the row and the dialog always shared.
+  it("writes the dialog's header as the same rounding with a space before the unit", () => {
+    expect(dialogDuration(call(842), "…")).toBe("842 ms");
+    expect(dialogDuration(call(1240), "…")).toBe("1.24 s");
+    expect(dialogDuration(call(null), "in-flight…")).toBe("in-flight…");
+    const moved: number[] = [];
+    for (let ms = 0; ms <= 600_000; ms += 3) {
+      if (dialogDuration(call(ms), "…") !== modalCopy(ms).replace(/(\d)(ms|s)$/, "$1 $2")) moved.push(ms);
+    }
+    expect(moved).toEqual([]);
+  });
+
   it("keeps each surface's own word for a call that has not finished", () => {
     expect(toolDuration(call(null), "…")).toBe("…");
     expect(toolDuration(call(null), "in-flight…")).toBe("in-flight…");
   });
 
-  it("is one function, called from the row and the dialog it opens", () => {
-    expect(toolModal).toMatch(/import \{ toolDuration \} from "\.\.\/duration";/);
+  it("is one module, written once for the row and once for the dialog it opens", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the dialog's header writes the span with a
+    // space before the unit, so it calls `dialogDuration`, built from `toolDuration`
+    // in the one duration module.
+    expect(src("../duration.ts")).toContain("return toolDuration(t, pending).replace(");
+    expect(toolModal).toMatch(/import \{ dialogDuration \} from "\.\.\/duration";/);
     expect(code(detail)).toMatch(/const durLabel = toolDuration\(call, "…"\);/);
-    expect(code(toolModal)).toMatch(/toolDuration\(tool, t\("insights\.tool\.inflight"\)\)/);
+    expect(code(toolModal)).toMatch(/dialogDuration\(tool, t\("insights\.tool\.inflight"\)\)/);
     expect(code(toolModal)).not.toMatch(/function dur\(/);
     expect(code(app)).not.toMatch(/toFixed\(1\)\}s/);
     expect(code(detail)).not.toMatch(/toFixed\(1\)\}s/);
@@ -479,10 +497,16 @@ describe("the countdown to a quota reset", () => {
     // `d > 0` and `h > 23` are the same test — both mean `diff >= 86400` — but
     // that is an argument, and this is the proof. Every second, no sampling,
     // because a countdown is read at exactly the boundaries.
+    // CHANGED ON PURPOSE: the one countdown now writes two digits for its
+    // minutes once an hour leads them ("2h 09m", as V4 draws every reset),
+    // where both copies wrote "2h 9m". The copies stay as they were; that one
+    // deliberate difference is applied to them before comparing, so the sweep
+    // still proves nothing else moved.
+    const padded = (s: string | null) => s && s.replace(/^(\d+h )(\d)m$/, "$10$2m");
     const moved: Array<{ diff: number; accounts: string | null; usage: string | null; now: string | null }> = [];
     for (let diff = -100; diff <= 40 * 86400; diff++) {
-      const a = accountsCopy(1000 + diff, 1000);
-      const u = usageCopy(1000 + diff, 1000);
+      const a = padded(accountsCopy(1000 + diff, 1000));
+      const u = padded(usageCopy(1000 + diff, 1000));
       const now = resetCountdown(1000 + diff, 1000);
       if (a !== now || u !== now) moved.push({ diff, accounts: a, usage: u, now });
     }

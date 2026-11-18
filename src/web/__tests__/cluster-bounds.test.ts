@@ -99,6 +99,32 @@ describe("cluster bounds ignore the per-session drag handle", () => {
   });
 });
 
+// The note beside a working session is drawn at the full card only
+// (context-modal.css). At every other distance the frame went round its empty
+// place: the left half of each working session's box was drawn empty.
+describe("the frame goes round the note only where the note is drawn", () => {
+  const cards = [card("s1", 500, 100)];
+  const note: ClusterNode = {
+    type: "recapNote",
+    position: { x: 100, y: 100 },
+    width: 300,
+    height: 90,
+    data: { sessionId: "s1" } as AgentNodeData,
+  };
+
+  it("takes the note in by default, as the frame of what a session drag moves", () => {
+    const [c] = clusterBounds([...cards, note]);
+    expect(c.x).toBe(100 - PAD);
+    expect(c.x + c.w).toBe(500 + W + PAD);
+  });
+
+  it("goes round the cards alone when the note is not drawn", () => {
+    const [c] = clusterBounds([...cards, note], { notes: false });
+    expect(c).toEqual(clusterBounds(cards)[0]);
+    expect(c.x).toBe(500 - PAD);
+  });
+});
+
 // Only a session's root speaks for its header: the workspace label, the name,
 // whether it is stopped on a human and what its subagents add up to. A
 // subagent carries the same sessionId, so whichever card the store happens to

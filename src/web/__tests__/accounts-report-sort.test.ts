@@ -85,10 +85,29 @@ describe("the rows in a column's order", () => {
     expect(rowsOf({ key: "status", dir: "desc" })).toEqual(["never", "captain", "composer", "example2", "claude4"]);
   });
 
-  it("puts the newest reading first, and a row never read last", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the table has no Updated column, so there
+  // is no "newest reading first" to press. What a reader sorts by is the four
+  // headers; the age of a reading is a line under the state. A sort that still
+  // carries a key from an older build (the age, or a window's reset, which is
+  // the Reset calendar's to answer) is read as no sort at all.
+  it("reads a sort by a column the table no longer has as the panel's order, and never throws", () => {
     const old = acct(6, "old@x.io", 10, 10, { fetchedAt: (NOW - 2 * HOUR) * 1000 } as Partial<Account>);
-    const rows = sortReportRows(usageReport([old, ...PANEL], NOW).rows, { key: "updated", dir: "asc" }).map(r => r.name.split("@")[0]);
-    expect(rows).toEqual(["composer", "example2", "claude4", "captain", "old", "never"]);
+    const rows = usageReport([old, ...PANEL], NOW).rows;
+    const panel = rows.map(r => r.num);
+    for (const key of ["updated", "five_hour_reset", "seven_day_reset", "nonsense"]) {
+      for (const dir of ["asc", "desc"] as const) {
+        const sorted = sortReportRows(rows, { key, dir } as unknown as ReportSort);
+        expect(sorted.map(r => r.num), `${key} ${dir}`).toEqual(panel);
+      }
+    }
+    // A sort that is still a column is still a sort, so the fallback is not
+    // simply "never sorts".
+    expect(sortReportRows(rows, { key: "five_hour", dir: "asc" }).map(r => r.num)).not.toEqual(panel);
+  });
+
+  it("offers only the four columns to press", () => {
+    const keys = ["account", "status", "five_hour", "seven_day"] as const;
+    for (const key of keys) expect(nextReportSort(null, key)).toEqual({ key, dir: "asc" });
   });
 });
 
@@ -97,8 +116,14 @@ describe("the header of the column the rows are ordered by", () => {
     const out = renderToStaticMarkup(createElement(UsageReportBody, {
       accounts: PANEL, nowSec: NOW, held: null, sort: { key: "seven_day", dir: "desc" }, onSort: () => {},
     }));
-    expect(out).toContain('<th scope="col" aria-sort="descending"><button type="button" class="sd-sort" title="Sort by 7d used">7d used<span class="sd-sort-dir" aria-hidden="true">↓</span></button></th>');
-    expect(out.match(/aria-sort="none"/g)).toHaveLength(6);
+    // CHANGED ON PURPOSE (V4's Figma): four columns, named as the frame names
+    // them, and no reset or age column among them.
+    expect(out).toContain('<th scope="col" aria-sort="descending"><button type="button" class="sd-sort" title="Sort by 7-day window">7-day window<span class="sd-sort-dir" aria-hidden="true">↓</span></button></th>');
+    expect(out.match(/aria-sort="none"/g)).toHaveLength(3);
+    expect(out.match(/<th scope="col"/g)).toHaveLength(4);
+    const head = out.slice(out.indexOf("<thead"), out.indexOf("</thead>"));
+    expect([...head.matchAll(/class="sd-sort" title="Sort by ([^"]*)"/g)].map(m => m[1])).toEqual(["Account", "State", "5-hour window", "7-day window"]);
+    expect(out).not.toMatch(/Sort by (?:5h|7d|Updated|[^"]*reset)/i);
   });
 
   it("is held in the dialog, not in storage: the report opens in the panel's order every time", () => {
@@ -117,36 +142,13 @@ describe("dedicated reset columns", () => {
       ], ...over,
     });
 
-  it("sorts both windows by seconds even when countdowns would round to the same text", () => {
-    const rows = usageReport([
-      withResets(1, NOW + 121, NOW + 4 * 86400 + 30),
-      withResets(2, NOW + 120, NOW + 4 * 86400 + 10),
-      withResets(3, NOW + 122, NOW + 4 * 86400 + 20),
-    ], NOW).rows;
-    expect(sortReportRows(rows, { key: "five_hour_reset", dir: "asc" }).map(r => r.num)).toEqual([2, 1, 3]);
-    expect(sortReportRows(rows, { key: "five_hour_reset", dir: "desc" }).map(r => r.num)).toEqual([3, 1, 2]);
-    expect(sortReportRows(rows, { key: "seven_day_reset", dir: "asc" }).map(r => r.num)).toEqual([2, 3, 1]);
-    expect(sortReportRows(rows, { key: "seven_day_reset", dir: "desc" }).map(r => r.num)).toEqual([1, 3, 2]);
-  });
-
-  it("keeps missing and invalid timestamps last and preserves ties in both directions", () => {
-    const rows = usageReport([
-      withResets(1, null, null),
-      withResets(2, NOW + 120, NOW + 120),
-      withResets(3, NOW + 120, NOW + 120),
-      withResets(4, Number.NaN, Number.POSITIVE_INFINITY),
-      withResets(5, NOW + 60, NOW + 60),
-    ], NOW).rows;
-    for (const key of ["five_hour_reset", "seven_day_reset"] as const) {
-      expect(sortReportRows(rows, { key, dir: "asc" }).map(r => r.num)).toEqual([5, 2, 3, 1, 4]);
-      expect(sortReportRows(rows, { key, dir: "desc" }).map(r => r.num)).toEqual([2, 3, 5, 1, 4]);
-      expect(nextReportSort(null, key)).toEqual({ key, dir: "asc" });
-      expect(nextReportSort({ key, dir: "asc" }, key)).toEqual({ key, dir: "desc" });
-      expect(nextReportSort({ key, dir: "desc" }, key)).toEqual({ key, dir: "asc" });
-    }
-    expect(rows.map(r => r.num)).toEqual([1, 2, 3, 4, 5]);
-  });
-
+  // CHANGED ON PURPOSE (V4's Figma): the two tests that sorted the rows by a
+  // window's reset (by seconds, and with missing and invalid times last) are
+  // gone with the sort: when a window resets is the Reset calendar's to answer,
+  // and the table has no reset column to press. What is kept of them is that the
+  // recorded times of a stale, expired-login or already-reset window are still
+  // read (they are the line under the figure), and that those rows keep their
+  // states.
   it("retains recorded times for stale, expired-login and already-reset windows", () => {
     const accounts = [
       withResets(1, NOW + 120, NOW + 7200, { stale: true }),
@@ -154,37 +156,39 @@ describe("dedicated reset columns", () => {
       withResets(3, NOW - 60, NOW - 120),
     ];
     const rows = usageReport(accounts, NOW).rows;
-    expect(sortReportRows(rows, { key: "five_hour_reset", dir: "asc" }).map(r => r.num)).toEqual([3, 2, 1]);
-    expect(sortReportRows(rows, { key: "seven_day_reset", dir: "desc" }).map(r => r.num)).toEqual([1, 2, 3]);
+    expect(rows.map(r => r.resets)).toEqual([
+      { five_hour: NOW + 120, seven_day: NOW + 7200 },
+      { five_hour: NOW + 60, seven_day: NOW + 3600 },
+      { five_hour: NOW - 60, seven_day: NOW - 120 },
+    ]);
     expect(rows[0].status).toBe("ready");
     expect(rows[1].status).toBe("stale");
     expect(rows[2].cells.five_hour).toMatchObject({ counted: false, why: "reset", estimate: rows[2].cells.five_hour.last });
   });
 
-  it("renders reset headers as accessible sort buttons and separates usage from reset cells", () => {
-    for (const key of ["five_hour_reset", "seven_day_reset"] as const) {
-      for (const dir of ["asc", "desc"] as const) {
-        const out = renderToStaticMarkup(createElement(UsageReportBody, {
-          accounts: [withResets(1, NOW + 120, NOW + 86400, { active: true })], nowSec: NOW, held: null, sort: { key, dir },
-        }));
-        const label = key === "five_hour_reset" ? "5h reset" : "7d reset";
-        expect(out).toContain(`<th scope="col" aria-sort="${dir === "asc" ? "ascending" : "descending"}"><button type="button" class="sd-sort" title="Sort by ${label}">${label}`);
-        expect(out.match(/aria-sort="none"/g)).toHaveLength(6);
-        const used = [...out.matchAll(/<td class="ap-report-cell"[^>]*>(.*?)<\/td>/g)].map(m => m[1].replace(/<span class="ap-report-mobile-label"[^>]*>[^<]*<\/span>/g, ""));
-        expect(used).toEqual(['<span class="ap-report-pct">20%</span>', '<span class="ap-report-pct">30%</span>']);
-        expect(out.match(/class="ap-report-reset-cell"/g)).toHaveLength(2);
-        expect(out).toContain('class="ap-report-current">Current');
-        expect(out).toContain('role="region" aria-label="Account capacity table"');
-      }
-    }
+  it("draws four columns, and no column of resets or ages to press", () => {
+    const out = renderToStaticMarkup(createElement(UsageReportBody, {
+      accounts: [withResets(1, NOW + 120, NOW + 86400, { active: true })], nowSec: NOW, held: null, sort: { key: "five_hour", dir: "asc" },
+    }));
+    expect(out).toContain('<th scope="col" aria-sort="ascending"><button type="button" class="sd-sort" title="Sort by 5-hour window">5-hour window');
+    expect(out.match(/aria-sort="none"/g)).toHaveLength(3);
+    // The state, then the two windows, each with its figure and its own line.
+    const cells = [...out.matchAll(/<td class="ap-report-(?:state|cell)"/g)];
+    expect(cells).toHaveLength(3);
+    expect(out).not.toContain("ap-report-reset-cell");
+    expect(out).toContain('class="ap-report-current">Current');
+    expect(out).toContain('role="region" aria-label="Account capacity table"');
   });
 
-  it("distinguishes missing resets from passed resets without inventing a countdown", () => {
+  it("says a passed reset is due, and leaves a window with no recorded reset without a line", () => {
     const out = renderToStaticMarkup(createElement(UsageReportBody, {
       accounts: [withResets(1, null, NOW - 60)], nowSec: NOW, held: null,
     }));
-    expect(out).toContain('<span aria-hidden="true">—</span><span class="vis-hidden">No reset time</span>');
-    expect(out).toContain('<span class="vis-hidden">reported reset </span>due</time>');
+    // CHANGED ON PURPOSE (V4's Figma): the dash and its words were the reset
+    // column's; now a missing reset is only words for a screen reader, with no
+    // line drawn, and a passed one is the cell's second line.
+    expect(out).toContain('<span class="vis-hidden" data-sub="">No reset time</span>');
+    expect(out).toContain("Reset due · awaiting read</time>");
     expect(out).toContain(`dateTime="${new Date((NOW - 60) * 1000).toISOString()}"`);
   });
 });

@@ -22,10 +22,12 @@
 @import "./styles/themes.css";                   /* generated JSON palettes and previews */
 @import "./styles/tokens.css";                   /* shared model mappings, geometry and motion */
 @import "./styles/utilities.css";                /* shared utilities */
+@import "./styles/ui-controls.css";              /* local shadcn/ui form controls */
+@import "./styles/loader.css";                   /* V4's Loader: the grid the app shows while it waits on data */
+@import "./styles/segmented.css";               /* V4's segmented control: the thumb that slides to the chosen segment */
 @import "./styles/desktop-titlebar.css";
 @import "./styles/topbar.css";                   /* the topbar, the update-ready notice, the worded buttons */
 @import "./styles/menus.css";                    /* the sound and appearance menus, and the switch */
-@import "./styles/selection-ribbon.css";         /* the selected-agent ribbon */
 @import "./styles/topbar-status.css";            /* the topbar's status strip and the ribbon's caps */
 @import "./styles/machine-panel.css";            /* the machine panel */
 @import "./styles/traffic-radar.css";
@@ -33,15 +35,22 @@
 @import "./styles/panel-glyph.css";              /* the glyph a panel header closes with */
 @import "./styles/search-and-banners.css";       /* search, and the connection and version banners */
 @import "./styles/canvas.css";                   /* the canvas */
+@import "./styles/board-header.css";             /* the strip across the top of the board */
 @import "./styles/detail-panel.css";             /* the detail panel */
 @import "./styles/react-flow.css";               /* React Flow overrides, the control stack and the minimap */
 @import "./styles/agent-node.css";               /* the agent card */
 @import "./styles/context-modal.css";            /* the context breakdown modal */
 @import "./styles/session-clusters.css";         /* session clusters */
+@import "./styles/board-navigator.css";          /* the board's compact form beside the terminal stage */
+@import "./styles/terminal-stage.css";           /* the terminal stage: header, terminal, keys bar, divider, New session */
+@import "./styles/stage-shell.css";              /* where the stage and the navigator sit in the canvas's cell */
 @import "./styles/tool-bursts.css";              /* floating tool bursts */
 @import "./styles/session-list.css";             /* the session list */
+@import "./styles/session-rename.css";           /* naming a session in place: header, list row, Inspector */
+@import "./styles/phone-board.css";              /* a phone's Board: the stack of session cards */
 @import "./styles/detail-sections.css";          /* the detail panel's hero and sections, prompt history, tool rows */
 @import "./styles/dialogs.css";                  /* the tool, clear, shortcuts, what's-new and session-end dialogs */
+@import "./styles/feedback-conversations.css";   /* the feedback dialog's account tabs and its conversations */
 @import "./styles/quick-open.css";               /* ⌘K: the field that reaches every panel, session, setting and action */
 @import "./styles/explore-integrations.css";     /* the native integration discovery catalog */
 @import "./styles/empty-state.css";              /* the empty-state hero */
@@ -74,10 +83,14 @@
 @import "./styles/guides.css";                   /* guides */
 @import "./styles/edge-rails.css";               /* the edge stripes, the phone dock and the topbar's two utilities */
 @import "./styles/hint.css";                     /* the chrome's one hint: a name and its keycap */
+@import "./styles/status-bar.css";               /* V4's status bar: the keys that work, across the foot of the window */
 @import "./styles/radio.css";                    /* radio explorer */
 @import "./styles/integrations.css";             /* Settings › Integrations and a tracker's modal (#2178) */
 @import "./styles/jira.css";                     /* the Jira panel: its backlog and an issue */
 @import "./styles/gruvbox.css";                  /* Gruvbox's quiet session hues and reading hierarchy */
 @import "./styles/theme-transition.css";         /* deliberate palette changes, including the canvas */
 @import "./styles/reading.css";
+@import "./styles/workspace.css";                /* Workspace: the Board's second view; after every sheet whose ties it wins on order */
+@import "./styles/workspace-split.css";          /* Workspace panes side by side: dividers, drop zones, the strip */
+@import "./styles/phone-sheet.css";              /* the phone: Sessions, and the sheet that comes up over it; last of the layout sheets */
 @import "./styles/touch-and-forced-colours.css"; /* touch, and forced colours */

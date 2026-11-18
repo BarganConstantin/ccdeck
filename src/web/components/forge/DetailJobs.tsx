@@ -148,7 +148,7 @@ function JobLog({ repo, job }: { repo: string; job: ForgeJob }) {
         <OpenOnForge href={full}>{t("forge.log.full")}</OpenOnForge>
       </p>
       {read.error && (tail ? <ReadFailure error={read.error} onRetry={read.reload} compact /> : <ReadFailure error={read.error} onRetry={read.reload} />)}
-      {!tail && !read.error && <LoadingRows rows={3} label={t("forge.log.loading")} />}
+      {!tail && !read.error && <LoadingRows variant="lines" rows={3} label={t("forge.log.loading")} />}
       {tail && (
         tail.lines.length
           ? (

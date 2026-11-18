@@ -22,8 +22,14 @@ vi.mock("../components/UsageHistoryModal", () => {
 vi.mock("../components/BrowserWatchModal", () => {
   throw new TypeError("Failed to fetch dynamically imported module: /assets/BrowserWatchModal-OLDHASH.js");
 });
+// And the feedback dialog's Your conversations, a chunk of the account's own.
+vi.mock("../components/FeedbackConversations", () => {
+  throw new TypeError("Failed to fetch dynamically imported module: /assets/FeedbackConversations-OLDHASH.js");
+});
 
 import DeckDialogs from "../components/DeckDialogs";
+import { en } from "../i18n/en";
+import { CONVERSATIONS_DID_NOT_LOAD_MSG, ConversationsPanel, FeedbackConversations } from "../components/FeedbackTabs";
 
 function fakeRes() {
   const r: { status?: number; headers?: Record<string, unknown>; body?: string } = {};
@@ -95,9 +101,17 @@ function lazyDialogs(flags: { usageHistoryOpen?: boolean; browserWatchOpen?: boo
   const walk = (node: ReactNode) => {
     if (Array.isArray(node)) return node.forEach(walk);
     if (!node || typeof node !== "object" || !("type" in node)) return;
-    const el = node as ReactElement<{ children?: ReactNode }>;
+    const el = node as ReactElement<{ children?: ReactNode | ((value: unknown) => ReactNode); when?: unknown }>;
     if ((el.type as unknown as Lazy)?.$$typeof === LAZY) found.push(el.type as unknown as Lazy);
-    walk(el.props?.children);
+    const children = el.props?.children;
+    // A DialogPresence mounts its dialog by calling its children with the value
+    // it was opened on, and only while that value is truthy: a closed flag draws
+    // nothing, an open one draws what the callback returns.
+    if (typeof children === "function") {
+      if (el.props.when) walk(children(el.props.when));
+      return;
+    }
+    walk(children);
   };
   walk((DeckDialogs as unknown as (p: typeof props) => ReactNode)(props));
   return found;
@@ -136,4 +150,28 @@ describe("a dialog whose chunk does not arrive", () => {
       expect(html).toMatch(/>Close</);
     });
   }
+});
+
+describe("Your conversations, when its chunk does not arrive", () => {
+  beforeEach(() => { vi.spyOn(console, "warn").mockImplementation(() => {}); });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it("says so in the tab, with the reload, and leaves the dialog and the deck up", async () => {
+    // Not the crash pane: the import's failure settles on the note instead of
+    // being rethrown into the boundary round the whole deck.
+    const Shown = await settle(FeedbackConversations as unknown as Lazy);
+    const html = renderToStaticMarkup(createElement(Shown, {}));
+    // CHANGED ON PURPOSE (the UI in every language): the sentence is a catalog key now.
+    expect(en[CONVERSATIONS_DID_NOT_LOAD_MSG]).toBe("Couldn't load your conversations. Reload the deck.");
+    expect(html).toContain("Couldn&#x27;t load your conversations. Reload the deck.");
+    expect(html).toMatch(/>Reload</);
+    expect(html).not.toContain('role="dialog"');
+  });
+
+  it("is drawn inside a boundary of its own, which says the same if the panel throws", () => {
+    const panel = ConversationsPanel({ account: { connected: true, email: null, unread: 0, latestAt: null }, active: true, announce: () => {} }) as ReactElement<{ children: ReactElement }>;
+    expect((panel.type as { name?: string }).name).toBe("ConversationsBoundary");
+    const Boundary = panel.type as unknown as { getDerivedStateFromError(): { failed: boolean } };
+    expect(Boundary.getDerivedStateFromError()).toEqual({ failed: true });
+  });
 });

@@ -38,20 +38,22 @@ describe("the panel readouts move by transform (#863)", () => {
       expect(decl(sel, "inset")).toBe("0");
       expect(decl(sel, "width")).toBeNull();
       expect(decl(sel, "transform-origin")).toBe("left center");
-      expect(decl(sel, "transition")).toMatch(/^transform 400ms/);
+      expect(decl(sel, "transition")).toMatch(/^transform var\(--dur-slow\)/);
     });
   }
 
   it("sets the fills' readings as a scale, not a width", () => {
-    expect(quotaBar).toMatch(/className="qb-fill" style=\{\{ transform: `scaleX\(\$\{fillW \/ 100\}\)`/);
+    expect(quotaBar).toMatch(/className="qb-fill" data-jump=\{jump \|\| undefined\} style=\{\{ transform: `scaleX\(\$\{fillW \/ 100\}\)`/);
     expect(ctx).toMatch(/className="ctx-window-fill" style=\{\{ transform: `scaleX\(/);
     expect(usageSurface()).not.toMatch(/className="qb-fill" style=\{\{ width:/);
     expect(ctx).not.toMatch(/className="ctx-window-fill" style=\{\{ width:/);
   });
 
   it("moves the pace marker on a rail as wide as the track", () => {
-    expect(decl(".qb-pace-rail", "inset")).toBe("0");
-    expect(decl(".qb-pace-rail", "transition")).toMatch(/^transform 400ms/);
+    // CHANGED ON PURPOSE (V4's Figma): the rail is as wide as the track and 2px taller either way,
+    // so the tick stands clear of the 2px track.
+    expect(decl(".qb-pace-rail", "inset")).toBe("-2px 0");
+    expect(decl(".qb-pace-rail", "transition")).toMatch(/^transform var\(--dur-slow\)/);
     expect(decl(".qb-pace-rail", "pointer-events")).toBe("none");
     expect(quotaBar).toMatch(/className="qb-pace-rail" style=\{\{ transform: `translateX\(\$\{pace\.expectedPct\}%\)` \}\}/);
     // The marker itself stands still inside it, at the rail's left edge.
@@ -66,7 +68,14 @@ describe("the panel readouts move by transform (#863)", () => {
   });
 
   it("keeps the history bars' height transition, for the reasons at the top", () => {
-    expect(decl(".uh-bar", "transition")).toMatch(/^height /);
-    expect(decl(".uh-bar", "animation")).toMatch(/uh-bar-rise/);
+    // The bar rests at its real height (its share of the column) with no
+    // transform. A changing range eases that height; the rise owns the
+    // transform, as a transition from @starting-style rather than a keyframe.
+    // CHANGED ON PURPOSE (V4's Figma): the share is of the plot less the 17px the value
+    // over each bar takes, so the tallest bar plus its value fills the column.
+    expect(decl(".uh-bar", "height")).toBe("calc(var(--uh-h, 1) * (100% - 17px))");
+    expect(decl(".uh-bar", "transform")).toBe("none");
+    expect(decl(".uh-bar", "transition")).toMatch(/^height var\(--dur-slow\) var\(--ease\), transform var\(--dur-slow\)/);
+    expect(decl(".uh-bar", "animation")).toBeNull();
   });
 });

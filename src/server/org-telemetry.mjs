@@ -165,7 +165,7 @@ export async function observeOrgTelemetry({
         writtenAt: Math.round(mtime),
       },
     };
-    await makeDir(dataDir, { recursive: true })
+    await makeDir(dataDir, { recursive: true, mode: 0o700 })
       .then(() => write(recordsPath, `${JSON.stringify(_records, null, 2)}\n`))
       .catch(() => {});
   } catch { /* no file, or one that could not be read: nothing new to say */ }

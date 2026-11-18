@@ -24,6 +24,8 @@ import {
   type Dismisser,
 } from "../modal-dismiss";
 import { isBrowserChord } from "../shortcuts";
+import { holdsInput } from "../dialog-presence";
+import { useDialogClosing } from "./Dialog";
 
 interface Options {
   /** Focused on mount, when the right first stop is not simply the first
@@ -108,6 +110,10 @@ export function useModalDismiss<T extends HTMLElement = HTMLDivElement>(
   const { focusRef, restoreFocusFallback, layer, popover } = opts;
   const kind = popover ? "popover" : "dialog";
   const dialogRef = useRef<T | null>(null);
+  // A dialog on its way out (DialogPresence) holds nothing: the moment close
+  // starts it behaves as unmounted, and if it is asked for again it behaves as
+  // freshly mounted, on the same node.
+  const active = holdsInput(useDialogClosing());
 
   // DeckDialogs hands these modals a fresh arrow on every render, so a stack entry
   // holding the function itself would have to be re-registered four times a
@@ -123,9 +129,10 @@ export function useModalDismiss<T extends HTMLElement = HTMLDivElement>(
   if (dismissRef.current === null) dismissRef.current = () => onDismissRef.current();
   const dismiss = dismissRef.current;
 
-  useEffect(() => modalStack.push(dismiss, layer, kind), [dismiss, layer, kind]);
+  useEffect(() => (active ? modalStack.push(dismiss, layer, kind) : undefined), [dismiss, layer, kind, active]);
 
   useEffect(() => {
+    if (!active) return;
     const opener = document.activeElement as HTMLElement | null;
     // Where the keyboard starts. React has attached dialogRef by the time an
     // effect runs, so the dialog's own controls can be read here — which is
@@ -140,12 +147,14 @@ export function useModalDismiss<T extends HTMLElement = HTMLDivElement>(
         if (shouldRestoreFocus(fallback, document.activeElement)) fallback!.focus();
       }
     };
-    // Mount and unmount only: this is where focus enters the dialog and where
-    // it goes back, and re-running it on a prop change would fight the user.
+    // Mount, unmount, and the start of a close: this is where focus enters the
+    // dialog and where it goes back, and re-running it on a prop change would
+    // fight the user.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [active]);
 
   useEffect(() => {
+    if (!active) return;
     // On window rather than on the dialog, because focus is not always inside
     // it: clicking a paragraph of modal text drops focus on <body>, and a
     // listener attached to the dialog would never see the Tab that then walks
@@ -178,7 +187,7 @@ export function useModalDismiss<T extends HTMLElement = HTMLDivElement>(
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [dismiss]);
+  }, [dismiss, active]);
 
   return dialogRef;
 }

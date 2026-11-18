@@ -80,6 +80,8 @@ export function useDialogs({ stateRef, tourOpen, releaseNotes }: {
 
   const openedTool: ToolCall | null =
     openedToolKey ? findToolOnBoard(stateRef.current.agents, openedToolKey.agentId, openedToolKey.toolId) : null;
+  // The folder of the agent that made it, which the dialog reads a file's path from.
+  const openedToolCwd = openedToolKey ? stateRef.current.agents.get(openedToolKey.agentId)?.cwd : undefined;
   // The agent the context modal is about, while it is still on the board: once
   // it is evicted the modal draws nothing, and the tick closes it (#781).
   const contextAgent = contextFor ? stateRef.current.agents.get(contextFor) : undefined;
@@ -91,7 +93,7 @@ export function useDialogs({ stateRef, tourOpen, releaseNotes }: {
     feedbackOpen, trafficRadarOpen,
   });
   return {
-    setOpenedToolKey, openTool, openedTool,
+    setOpenedToolKey, openTool, openedTool, openedToolCwd,
     summaryFor, setSummaryFor,
     contextFor, setContextFor, openContext, contextAgent,
     keyHelpOpen, setKeyHelpOpen,

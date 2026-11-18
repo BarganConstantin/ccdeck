@@ -80,9 +80,13 @@ describe("the handler actually consults it", () => {
   );
 
   it("gates the key table on shortcutBlocked", () => {
+    // CHANGED ON PURPOSE (#2591): the table's first row was Space → it is C,
+    // because the owner withdrew Board pause and Space left the table. The rule
+    // read is the same: the gate is asked before the first key it gates.
     expect(handler).toContain("shortcutBlocked({");
+    expect(handler).not.toContain('e.key === " "');
     expect(handler.indexOf("shortcutBlocked({"))
-      .toBeLessThan(handler.indexOf('e.key === " "'));
+      .toBeLessThan(handler.indexOf('e.key === "c" || e.key === "C"'));
   });
 
   it("still has a key table to gate, so this is not vacuous", () => {
@@ -205,7 +209,11 @@ describe("every dialog reaches the gate (#1175)", () => {
     .filter(f => f.endsWith(".tsx"))
     .map(f => ({ name: f, code: withoutComments(readFileSync(`${dir}/${f}`, "utf8")) }))
     .filter(({ code }) => /useModalDismiss(<[^>]*>)?\(/.test(code));
-  const isDialog = (code: string) => /aria-modal="true"/.test(code);
+  // aria-modal is spelled once, in Dialog.tsx, and a file that draws `<Dialog`
+  // gets it from there; a surface of its own (the radio's panel) spells it.
+  const shellSaysModal = /aria-modal="true"/.test(
+    readFileSync(fileURLToPath(new URL("../components/Dialog.tsx", import.meta.url)), "utf8"));
+  const isDialog = (code: string) => /aria-modal="true"/.test(code) || (shellSaysModal && /<Dialog\s/.test(code));
   const isPopover = (code: string) => /useModalDismiss(<[^>]*>)?\([\s\S]*?\{[^}]*popover: true[^}]*\}\)/.test(code);
   // The keydown handler moved to use-deck-shortcuts.ts; the keys and the rest of the deck are read as one.
   const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8")

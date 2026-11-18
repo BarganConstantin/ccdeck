@@ -23,11 +23,14 @@ import { SettingRow, SettingsGroup } from "./SettingsParts";
 interface Props {
   singleKeys: boolean;
   onToggleSingleKeys: () => void;
+  /** The Command Panel is on, so Workspace and Terminal have their groups
+   *  (key-help.ts). */
+  workspace?: boolean;
 }
 
 export const SINGLE_KEYS_LABEL = "Single-key shortcuts";
 export const SINGLE_KEYS_NOTE =
-  "Keys like L, U, M, ? and Space open panels and toggle things. Turn this off if you use voice control or press them by accident.";
+  "Keys like L, U, M and ? open panels and toggle things. Turn this off if you use voice control or press them by accident.";
 
 /** A row's action as the name of a setting row: a capital, and the sheet's
  *  "this sheet" said from outside it. */
@@ -44,19 +47,19 @@ export function shortcutMatches(row: KeyHelpRow, query: string): boolean {
   return [row.action, row.cap, row.macCap ?? ""].some(text => text.toLowerCase().includes(q));
 }
 
-export default function KeyboardSection({ singleKeys, onToggleSingleKeys }: Props) {
+export default function KeyboardSection({ singleKeys, onToggleSingleKeys, workspace = false }: Props) {
   const t = useT();
   const apple = isApplePlatform(platformName());
   const [query, setQuery] = useState("");
   const filterId = useId();
   const integrations = useIntegrations();
-  const groups = keyHelpFor(singleKeys, kind => kindOffered(integrations, kind))
+  const groups = keyHelpFor(singleKeys, kind => kindOffered(integrations, kind), workspace)
     .map(group => ({ ...group, rows: group.rows.filter(row => shortcutMatches(row, query)) }))
     .filter(group => group.rows.length > 0);
 
   return (
     <>
-      <SettingsGroup>
+      <SettingsGroup id="settings-shortcuts-caption" title={t("settings.keyboard.group")}>
         <SettingRow
           settingId="single-keys"
           name={t("settings.keyboard.singleKeys")}
@@ -79,10 +82,11 @@ export default function KeyboardSection({ singleKeys, onToggleSingleKeys }: Prop
         />
       </SettingsGroup>
 
-      {/* Labelled by a visually hidden word rather than a placeholder alone:
-          a placeholder is gone the moment somebody types, and is not a name. */}
+      {/* Labelled by a word above the field (V4's Field) as well as by its
+          placeholder: a placeholder is gone the moment somebody types, and is
+          not a name. */}
       <div className="settings-filter">
-        <label className="vis-hidden" htmlFor={filterId}>{t("settings.keyboard.filter")}</label>
+        <label className="settings-filter-label" htmlFor={filterId}>{t("settings.keyboard.filter")}</label>
         <input
           id={filterId}
           type="search"

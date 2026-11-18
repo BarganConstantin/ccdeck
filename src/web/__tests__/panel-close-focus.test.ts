@@ -17,6 +17,7 @@
 // components the suite has no DOM to mount, so their wiring to it is read from
 // the markup, the way #1762's is.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { en } from "../i18n/en";
 
 import { sourceOf } from "./client-source";
 
@@ -139,19 +140,32 @@ describe("the wiring", () => {
   const app = sourceOf("App.tsx");
   const rails = sourceOf("rail-items.tsx");
   const edge = sourceOf("components/EdgeRails.tsx");
-  const detail = sourceOf("components/DetailAside.tsx");
+  // The close is the Inspector's Fold now, in the header it draws.
+  const detail = sourceOf("components/DetailAside.tsx") + sourceOf("components/Inspector.tsx");
 
   it("arms each panel's hand-off on the close that panel draws", () => {
     // Both sides of the one Accounts panel close through closeAccounts, which
     // arms the hand-off of the side the deck has (Claude's, else Codex's).
     expect(app).toContain("const closeAccounts = () => { (providers.claude ? panelReturn.accounts : panelReturn.codex)(); closeAccountsPanel(); };");
-    expect(app).toMatch(/<AccountsPanel[^>]*onClose=\{closeAccounts\}/);
-    expect(app).toMatch(/<CodexAccountsPanel[^>]*onClose=\{closeAccounts\}/);
+    // CHANGED ON PURPOSE (the phone layout): the × of a sheet is the sheet's one
+    // close on a phone (sheetClose), which calls the same close it is given.
+    expect(app).toMatch(/<AccountsPanel[^>]*onClose=\{sheetClose\("accounts", closeAccounts\)\}/);
+    expect(app).toMatch(/<CodexAccountsPanel[^>]*onClose=\{sheetClose\("accounts", closeAccounts\)\}/);
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.sessionList\(\); closeSessionList\(\); \}\}/);
-    expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.usage\(\); setUsagePanelOpen\(false\); \}\}/);
-    expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.machine\(\); setMachinePanelOpen\(false\); \}\}/);
-    expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.detail\(\); setDetailOpen\(false\); \}\}/);
-    expect(detail).toMatch(/aria-label=\{t\("board\.detailPanel\.closeLabel"\)\}\s+onClick=\{onClose\}/);
+    expect(app).toMatch(/onClose=\{sheetClose\("usage", \(\) => \{ panelReturn\.usage\(\); setUsagePanelOpen\(false\); \}\)\}/);
+    expect(app).toMatch(/onClose=\{sheetClose\("machine", \(\) => \{ panelReturn\.machine\(\); setMachinePanelOpen\(false\); \}\)\}/);
+    // CHANGED ON PURPOSE (V4's Figma): the Workspace's Inspector column folds
+    // through foldInspector, which gives the keyboard to the pane; the Board's
+    // sheet keeps the hand-off to the card.
+    // And (the phone layout) on a phone the same close is the sheet's one close.
+    // CHANGED ON PURPOSE (V4's Figma): the Workspace sheet from 1100 to 1319 folds the same way.
+    expect(app).toMatch(/onClose=\{inWorkspace && \(inspectorColumn \|\| inspectorSheet\) \? foldInspector : sheetClose\("inspector", \(\) => \{ panelReturn\.detail\(\); setDetailOpen\(false\); \}\)\}/);
+    expect(app).toMatch(/const foldInspector = useCallback\(\(\) => \{\s*setInspectorFolded\(true\);\s*setDetailOpen\(false\);/);
+    // CHANGED ON PURPOSE (V4's Figma): the Inspector's fold is named "Fold the Inspector".
+    // CHANGED ON PURPOSE (the UI in every language): the name is read through its key.
+    expect(detail).toMatch(/aria-label=\{tr\("board\.inspector\.fold"\)\}\s+onClick=\{onClose\}/);
+    expect(en["board.inspector.fold"]).toBe("Fold the Inspector");
+    expect(en["board.detailPanel.closeLabel"]).toBe("Close detail panel");
   });
 
   it("says whether each panel is still drawn, by the same test that draws it", () => {
@@ -177,7 +191,8 @@ describe("the wiring", () => {
       expect(rails, item).toMatch(new RegExp(`const ${item}: RailItem = \\{[\\s\\S]*?buttonRef: toggles\\.${ref},`));
     }
     expect(edge).toMatch(/<button\s+ref=\{item\.buttonRef\}/);
-    expect(app).toMatch(/\{phone\s*\?\s*<EdgeDock[\s\S]*?:\s*<EdgeRail side="left"/);
+    expect(app).toMatch(/\{phone\s*\?\s*<EdgeDock[\s\S]*?:\s*<EdgeRail side="left" label/);
+    // CHANGED ON PURPOSE (V4's Figma): the right stripe is back, never beside the phone dock.
     expect(app).toMatch(/\{!phone && <EdgeRail side="right"/);
   });
 });

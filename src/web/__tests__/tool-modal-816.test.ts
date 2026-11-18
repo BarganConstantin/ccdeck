@@ -14,8 +14,9 @@ const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 describe("the tool dialog shows a call as what it is (#816)", () => {
   it("renders tool-view's blocks and no longer stringifies the payload", () => {
     expect(code).toMatch(/const view = toolView\(tool\.name, input, response\);/);
-    expect(code).toMatch(/view\.input\.map\(\(b, n\) => <ToolBlock key=\{n\} block=\{b\} \/>\)/);
-    expect(code).toMatch(/view\.response\.map\(\(b, n\) => <ToolBlock key=\{n\} block=\{b\} \/>\)/);
+    // CHANGED ON PURPOSE: a block is handed the session's folder too, which a file's path is read from (PathText).
+    expect(code).toMatch(/view\.input\.map\(\(b, n\) => <ToolBlock key=\{n\} block=\{b\} cwd=\{cwd\} \/>\)/);
+    expect(code).toMatch(/view\.response\.map\(\(b, n\) => <ToolBlock key=\{n\} block=\{b\} cwd=\{cwd\} \/>\)/);
     expect(code).not.toMatch(/JSON\.stringify|safeJson/);
   });
 
@@ -49,13 +50,24 @@ describe("the tool dialog shows a call as what it is (#816)", () => {
     expect(code).toMatch(/copyResponse: copyOf\(tool\.name, "response", response\),/);
     expect(code).toMatch(/<CopyButton text=\{drawn\.copyInput\} what="input" \/>/);
     expect(code).toMatch(/\{tool\.endedAt != null && <CopyButton text=\{drawn\.copyResponse\} what="response" \/>\}/);
-    // Its visible word is inside its accessible name, before and after.
-    expect(code).toMatch(/aria-label=\{t\(copied \? `insights\.tool\.copied\.\$\{what\}` : `insights\.tool\.copy\.\$\{what\}`\)\}/);
-    expect(code).toMatch(/\{copied \? t\("insights\.tool\.copiedWord"\) : t\("insights\.tool\.copyWord"\)\}/);
+    // CHANGED ON PURPOSE (V4's Figma): the copy is a 24 icon button, so the word
+    // it showed is gone and its accessible name carries what it copies, before
+    // and after the copy (the label and the title are the one string), while the
+    // glyph turns to a tick for the moment it is copied.
+    expect(code).toMatch(/const label = t\(copied \? `insights\.tool\.copied\.\$\{what\}` : `insights\.tool\.copy\.\$\{what\}`\);/);
+    expect(code).toMatch(/aria-label=\{label\} title=\{label\}/);
+    expect(code).toMatch(/\{copied \? <KitStateGlyph name="done" \/> : <KitIcon name="copy" \/>\}/);
+    expect(code).not.toMatch(/insights\.tool\.copyWord/);
   });
 
   it("keeps the × the first control in the dialog, so focus lands where it did", () => {
-    const first = /<button(?:=>|[^>])*>/.exec(code)?.[0] ?? "";
-    expect(first).toContain('className="glyph-btn"');
+    // The first control in source order is the header's ×: either the shell's
+    // DialogClose or a button of the dialog's own that wears the glyph-btn class.
+    const first = /<DialogClose\b[^>]*>|<button(?:=>|[^>])*>/.exec(code)?.[0] ?? "";
+    expect(first.startsWith("<DialogClose") || first.includes('className="glyph-btn"')).toBe(true);
+    // And DialogClose is the kit's glyph-btn ×.
+    // CHANGED ON PURPOSE (V4's Figma): it draws the kit's Close icon, not a
+    // typed ×, and its name is still the label it is handed.
+    expect(read("../components/Dialog.tsx")).toMatch(/<button type="button" className="glyph-btn"[^>]*aria-label=\{label\}[^>]*><KitIcon name="close" \/><\/button>/);
   });
 });

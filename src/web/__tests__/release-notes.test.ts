@@ -48,6 +48,9 @@ import {
   readTourSeen,
   writeTourSeen,
   TOUR_SEEN_KEY,
+  TOUR_EDITION,
+  TOUR_EDITION_KEY,
+  tourEditionOf,
   isVersion,
   notesBetween,
   notesForVersion,
@@ -234,6 +237,123 @@ describe("the tour is shown once to everyone, and the notes after it", () => {
     expect(readTourSeen(s)).toBe(true);
     expect(readSeen(s)).toBe("3.21.0");
     expect(TOUR_SEEN_KEY).not.toBe(RELEASE_NOTES_SEEN_KEY);
+  });
+});
+
+describe("a new layout is a new tour (V4)", () => {
+  // 4.0 redrew the deck: two stripes, the terminal beside the board, the
+  // Workspace and the Inspector. Every 3.x profile has tourSeen "1", and the
+  // pictures it was shown are of a deck that no longer exists — so the marker
+  // that counts is the edition, and the 3.x one is still written for the
+  // older decks that read nothing else. Each case is the whole path the
+  // welcome hook takes: decideReleaseNotes, the record, decideWelcome, and
+  // the close.
+  const V4_NOTES: VersionNotes[] = [
+    { version: "4.0.0", notes: [note("V4")] },
+    { version: "3.82.4", notes: [note("three")] },
+  ];
+  const memory = (seed: Record<string, string> = {}) => {
+    const map = new Map(Object.entries(seed));
+    return { map, store: { getItem: (k: string) => map.get(k) ?? null, setItem: (k: string, v: string) => { map.set(k, v); } } };
+  };
+  /** One load of the deck on `running`, as useWelcomeAndNotes plays it. */
+  const load = (store: ReturnType<typeof memory>["store"] | typeof hostile | null, running: string) => {
+    const decision = decideReleaseNotes({ stored: readSeen(store), running, notes: V4_NOTES, remembers: remembersSeen(store) });
+    if (decision.record) writeSeen(store, decision.record);
+    return { decision, plan: decideWelcome({ tourSeen: readTourSeen(store), decision }) };
+  };
+  const hostile = {
+    getItem(): string | null { throw new DOMException("The operation is insecure.", "SecurityError"); },
+    setItem() { throw new DOMException("The operation is insecure.", "SecurityError"); },
+  };
+
+  it("is edition 2, kept under its own key", () => {
+    expect(TOUR_EDITION).toBe(2);
+    expect(TOUR_EDITION_KEY).toBe("agent-dag.tourEdition");
+    expect(TOUR_EDITION_KEY).not.toBe(TOUR_SEEN_KEY);
+    expect(TOUR_EDITION_KEY).not.toBe(RELEASE_NOTES_SEEN_KEY);
+  });
+
+  it("gives a fresh install the tour and no changelog, and nothing on the next load", () => {
+    const { store } = memory();
+    expect(load(store, "4.0.0").plan).toEqual({ tour: true, notes: "none" });
+    expect(writeTourSeen(store)).toBe(true);
+    expect(load(store, "4.0.0").plan).toEqual({ tour: false, notes: "none" });
+  });
+
+  it("gives a 3.x profile the V4 tour once, then the notes after it", () => {
+    // What 3.82.4 left: the 3.x tour seen and its own release read.
+    const { store, map } = memory({ [TOUR_SEEN_KEY]: "1", [RELEASE_NOTES_SEEN_KEY]: "3.82.4" });
+    expect(readTourSeen(store)).toBe(false);
+    const first = load(store, "4.0.0");
+    expect(first.decision.reason).toBe("new-notes");
+    expect(shown(first.decision)).toEqual(["4.0.0"]);
+    expect(first.plan).toEqual({ tour: true, notes: "after" });
+    // Closed: both markers written, the 3.x one as the older decks read it.
+    expect(writeTourSeen(store)).toBe(true);
+    expect(map.get(TOUR_SEEN_KEY)).toBe("1");
+    expect(map.get(TOUR_EDITION_KEY)).toBe(String(TOUR_EDITION));
+    // Once: the next load opens nothing.
+    expect(load(store, "4.0.0").plan).toEqual({ tour: false, notes: "none" });
+  });
+
+  it("gives a 4.0 profile that saw the V4 tour the notes alone", () => {
+    const { store } = memory({ [TOUR_SEEN_KEY]: "1", [TOUR_EDITION_KEY]: "2", [RELEASE_NOTES_SEEN_KEY]: "3.82.4" });
+    expect(readTourSeen(store)).toBe(true);
+    expect(load(store, "4.0.0").plan).toEqual({ tour: false, notes: "now" });
+  });
+
+  it("opens nothing on its own where the browser cannot remember", () => {
+    // Blocked storage reads as unseen, and a write that did not stick says so;
+    // the decision is cannot-remember, so no tour comes back on every load.
+    expect(readTourSeen(hostile)).toBe(false);
+    expect(writeTourSeen(hostile)).toBe(false);
+    expect(load(hostile, "4.0.0").plan).toEqual({ tour: false, notes: "none" });
+    expect(readTourSeen(null)).toBe(false);
+    expect(writeTourSeen(null)).toBe(false);
+    expect(load(null, "4.0.0").plan).toEqual({ tour: false, notes: "none" });
+    // A store that reads but refuses the edition's write: not reported as kept.
+    const map = new Map<string, string>();
+    const half = {
+      getItem: (k: string) => map.get(k) ?? null,
+      setItem: (k: string, v: string) => { if (k === TOUR_EDITION_KEY) throw new Error("quota"); map.set(k, v); },
+    };
+    expect(writeTourSeen(half)).toBe(false);
+    expect(readTourSeen(half)).toBe(false);
+  });
+
+  it("opens nothing by itself on a phone, and leaves the tour for a wider window", () => {
+    // A phone has neither edge, no terminal beside the board and no
+    // Workspace: every picture would be of somebody else's screen.
+    const fresh = memory();
+    expect(decideWelcome({ tourSeen: false, decision: load(fresh.store, "4.0.0").decision, phone: true })).toEqual({ tour: false, notes: "none" });
+    // A 3.x profile on a phone: the notes now, as if the tour had been seen,
+    // and nothing recorded for the tour —
+    const old = memory({ [TOUR_SEEN_KEY]: "1", [RELEASE_NOTES_SEEN_KEY]: "3.82.3" });
+    const decision = decideReleaseNotes({ stored: readSeen(old.store), running: "4.0.0", notes: V4_NOTES, remembers: true });
+    expect(decideWelcome({ tourSeen: readTourSeen(old.store), decision, phone: true })).toEqual({ tour: false, notes: "now" });
+    expect(old.map.get(TOUR_EDITION_KEY)).toBeUndefined();
+    // — so the same profile, wider, still gets the tour.
+    expect(decideWelcome({ tourSeen: readTourSeen(old.store), decision, phone: false })).toEqual({ tour: true, notes: "after" });
+    // And a phone that has seen it is any other profile that has.
+    expect(decideWelcome({ tourSeen: true, decision, phone: true })).toEqual({ tour: false, notes: "now" });
+  });
+
+  it("only rises, so a later deck's tour is not marked unseen by this one", () => {
+    const { store, map } = memory({ [TOUR_EDITION_KEY]: "3" });
+    expect(readTourSeen(store)).toBe(true);
+    expect(writeTourSeen(store)).toBe(true);
+    expect(map.get(TOUR_EDITION_KEY)).toBe("3");
+  });
+
+  it("reads nothing as an edition that is not a whole number", () => {
+    expect(tourEditionOf("2")).toBe(2);
+    expect(tourEditionOf(2)).toBe(2);
+    for (const junk of [null, undefined, "", "1.5", 1.5, "-1", -1, "0", 0, "two", "99999", true, {}]) {
+      expect(tourEditionOf(junk), String(junk)).toBe(0);
+    }
+    const { store } = memory({ [TOUR_SEEN_KEY]: "1", [TOUR_EDITION_KEY]: "yes" });
+    expect(readTourSeen(store)).toBe(false);
   });
 });
 
@@ -900,7 +1020,9 @@ describe("how App.tsx wires it up", () => {
     // still told which one it is rather than left to guess from `since`.
     expect(app).toMatch(/firstRun: false/);
     expect(app).not.toMatch(/firstRun: decision\.reason/);
-    expect(app).toMatch(/firstRun=\{releaseNotes\.firstRun\}/);
+    // DeckDialogs mounts it in a DialogPresence, which hands the callback the notes.
+    expect(app).toMatch(/<DialogPresence when=\{releaseNotes\}>\{notes => \(\s*<ReleaseNotesModal/);
+    expect(app).toMatch(/firstRun=\{notes\.firstRun\}/);
   });
 
   it("sends a first run to the tour and not to the changelog", () => {
@@ -913,7 +1035,9 @@ describe("how App.tsx wires it up", () => {
     // effect owes is to ask it and to obey every one of its three answers.
     const effect = /const decision = decideReleaseNotes\(([\s\S]*?)\}, \[version\?\.running\]\);/.exec(app)?.[0] ?? "";
     expect(effect).toMatch(/let tourSeen = readTourSeen\(store\);/);
-    expect(effect).toMatch(/const plan = decideWelcome\(\{ tourSeen, decision \}\);/);
+    // CHANGED ON PURPOSE (V4's tour): the load also says whether it is a
+    // phone's, which decideWelcome answers with the notes alone (pinned below).
+    expect(effect).toMatch(/const plan = decideWelcome\(\{ tourSeen, decision, phone: loadsOnPhone\(\) \}\);/);
     expect(effect).toMatch(/if \(plan\.tour\) setTourOpen\(true\);/);
     // NOT marked on open. The deck reloads its own tab when the bundle
     // changes and updates itself while nobody is looking, so a tour marked on
@@ -926,6 +1050,12 @@ describe("how App.tsx wires it up", () => {
     expect(app).toMatch(/steps=\{WELCOME_STEPS\} onClose=\{closeTour\}/);
     expect(app).toMatch(/const closeTour = useCallback\(\(\) => \{\s*setTourOpen\(false\);[\s\S]{0,400}?writeTourSeen\(localStore\(\)\);/);
     expect([...app.matchAll(/writeTourSeen\(/g)]).toHaveLength(1);
+    // The desktop app's prefs file is told the same thing on the same close,
+    // and read the same way: an edition, not the 3.x `tourSeen` alone.
+    expect(app).toMatch(/export const TOUR_SEEN_PREFS = \{ tourSeen: true, tourEdition: TOUR_EDITION \} as const;/);
+    expect([...app.matchAll(/body: JSON\.stringify\(TOUR_SEEN_PREFS\)/g)]).toHaveLength(2);
+    expect(app).toMatch(/const persisted = tourEditionOf\(data\.prefs\?\.tourEdition\) >= TOUR_EDITION;/);
+    expect(code(app)).not.toMatch(/tourSeen === true/);
     expect(effect).toMatch(/if \(plan\.notes === "now"\) setReleaseNotes\(notes\);\s*else if \(plan\.notes === "after"\) notesAfterTour\.current = notes;/);
     expect(effect.indexOf("writeSeen(store, decision.record)")).toBeLessThan(effect.indexOf("setTourOpen(true)"));
     // And the held notes open when the tour closes — taken out of the ref
@@ -952,27 +1082,30 @@ describe("how App.tsx wires it up", () => {
   });
 
   it("opens the notes before it asks npm, because only one of the two is local", () => {
-    // The ordering, in the one place it can be read off. The dialog is drawn
-    // from a JSON file inlined into this bundle and the check is a round trip
-    // to a registry that may not be reachable at all; awaiting the check first
-    // would leave the button visibly dead for the length of it, and dead
-    // forever on a deck with no route out.
-    const chip = /onClick=\{\(\) => \{ openReleaseNotes\(\); loadVersion\(true\); \}\}/;
-    expect(app).toMatch(chip);
-    // Not the other way round, and not `await`ed: both are the same defect
-    // written differently.
+    // The plain "v3.x.y" chip, whose click did both, left the bar (V4's Figma:
+    // the version chip only when needed). The ordering still holds wherever the
+    // notes and the check meet: the dialog is drawn from a JSON file inlined
+    // into this bundle and the check is a round trip to a registry that may not
+    // be reachable at all, so nothing awaits the check ahead of the dialog.
     expect(app).not.toMatch(/loadVersion\(true\)[^}]*openReleaseNotes/);
     expect(app).not.toMatch(/await loadVersion\(true\)/);
+    // The drift chip opens the notes first and only then brings its notice
+    // back. The ready chip is no longer a door to the notes: V4 draws it as the
+    // restart itself ("Restart to finish"), and What's new for that update
+    // stays in Settings › About.
+    expect(app).toMatch(/onClick=\{\(\) => \{ openReleaseNotes\(\); showNotice\(\); \}\}/);
   });
 
-  it("keeps the check the chip has always done, exactly as it was", () => {
-    // #715 adds a job to this click. It must not quietly drop the one that was
-    // already there: forcing the check is the only way to tell "no update
-    // exists" from "no check has run", which on a machine that only ever runs
-    // `npx ccdeck` is the whole point of the chip.
-    expect(app).toMatch(/loadVersion\(true\)/);
-    // The forced round trip moved with `loadVersion` into use-version-check.ts;
-    // `loadVersion(true)` above is still the chip's own click, in App.tsx.
+  it("keeps the forced check the plain chip used to do, in Settings > Updates", () => {
+    // #715 gave the chip's click a job without dropping the one that was there:
+    // forcing the check is the only way to tell "no update exists" from "no
+    // check has run". With the plain chip gone from the bar its two jobs stand
+    // where the version always was, About and Settings > Updates: What's new
+    // (the notes) and the check (runUpdateCheck -> loadVersion(true)).
+    expect(src("../update-check.ts")).toMatch(/loadVersion\(true\)/);
+    expect(src("../components/ReleaseActions.tsx")).toMatch(/runUpdateCheck\(versionCheck\.loadVersion\)/);
+    expect(src("../components/AboutSection.tsx")).toContain('settingId="whats-new"');
+    // The forced round trip moved with `loadVersion` into use-version-check.ts.
     expect(clientText()).toMatch(/fetch\(force \? "\/api\/version\?refresh=1" : "\/api\/version"\)/);
   });
 
@@ -1002,8 +1135,13 @@ describe("how App.tsx wires it up", () => {
 
   it("draws the dialog out of the shared modal parts and nothing else", () => {
     expect(modal).toMatch(/const dialogRef = useModalDismiss\(onClose\);/);
-    expect(modal).toMatch(/className="modal-backdrop"/);
-    expect(modal).toMatch(/role="dialog" aria-modal="true"/);
+    // The scrim, the surface and its role come from the shared shell, which the
+    // dialog uses for its own name and label.
+    expect(modal).toMatch(/<Dialog scrim=\{scrimPress\} dialogRef=\{dialogRef\} className="release-notes"/);
+    expect(modal).toMatch(/labelledBy="release-notes-title"/);
+    const shell = src("../components/Dialog.tsx");
+    expect(shell).toMatch(/"modal-backdrop"/);
+    expect(shell).toMatch(/role="dialog"\s+aria-modal="true"/);
     // No decision logic in the component: it draws what it is handed. The title
     // split is release-notes.ts's for the same reason — the component calls it,
     // it does not carry a regex of its own.

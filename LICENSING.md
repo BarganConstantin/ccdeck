@@ -1,7 +1,9 @@
 # Licensing
 
 ccdeck is licensed under the **GNU Affero General Public License v3.0 only**
-(`AGPL-3.0-only`). The full text is in [LICENSE](./LICENSE).
+(`AGPL-3.0-only`), with one additional permission under its section 7, stated
+in [Additional permission under section 7](#additional-permission-under-section-7).
+The full text of the licence is in [LICENSE](./LICENSE).
 
 Copyright © 2026 Bargan Constantin.
 
@@ -167,8 +169,44 @@ put ccdeck's own code under MIT.
 
 ccdeck claims copyright only over its own code, not over that third-party code.
 
+## The terminal engine
+
+The Command Panel runs its terminals through a separate program, the ccdeck
+terminal engine. The engine is not part of ccdeck's code: it is not in this
+repository or in the `ccdeck` npm package, and the AGPL does not cover it. It is
+a proprietary program under its own licence, which ships with it together with
+the notices of the open-source code it contains.
+
+The engine runs as its own process and talks to ccdeck only through the
+interface published in
+[docs/contracts/pro-engine-host-v1.md](./docs/contracts/pro-engine-host-v1.md).
+Without it, the Command Panel's terminals are unavailable and the rest of
+ccdeck works as before.
+
+## Additional permission under section 7
+
+As an additional permission under section 7 of the GNU Affero General Public
+License, the copyright holder permits you to convey ccdeck together with, and
+to run it in communication with, the ccdeck terminal engine as published by
+the copyright holder: a separate program that communicates with ccdeck only
+through the interface specified in `docs/contracts/pro-engine-host-v1.md`, or
+in a later version of that interface published by the copyright holder in this
+repository. That engine is not part of ccdeck's Corresponding Source and need
+not be licensed under the AGPL.
+
+Whoever conveys a copy of ccdeck may remove this permission from that copy, as
+section 7 allows.
+
 ## Contributing
 
-Contributions are accepted under `AGPL-3.0-only`, the licence of the project
-they are contributed to. There is no copyright assignment: contributors keep
-copyright in what they write.
+Contributions are accepted under `AGPL-3.0-only` together with the additional
+permission above: the terms the project offers ccdeck under. There is no
+copyright assignment: contributors keep copyright in what they write.
+
+By contributing, you confirm that you wrote the contribution, or otherwise
+have the right to submit it under these terms, and you also grant Bargan
+Constantin, the copyright holder, a perpetual, worldwide, non-exclusive,
+royalty-free and irrevocable licence to use, copy, modify, distribute and
+sublicense your contribution, including under terms other than the AGPL. This
+keeps the project able to offer the permission above, and later versions of
+it, for the whole of ccdeck.

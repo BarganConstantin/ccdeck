@@ -6,6 +6,7 @@ import { configuredDestinations, configuredKind, configuredState, observedDestin
 import { pressAccepted, pressState } from "../panel-press";
 import { tabStripMove } from "../tablist-keys";
 import { useTrafficRadar } from "../use-traffic-radar";
+import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { useTelemetryCapture } from "../use-telemetry-capture";
 import { TelemetryCapture } from "./TelemetryCapture";
@@ -19,11 +20,9 @@ export default function TrafficRadar({ onClose, sessions = [] }: { onClose: () =
   const scrimPress = useScrimDismiss(onClose);
   const { snapshot, failed, updateConfig } = useTrafficRadar();
   const captureState = useTelemetryCapture();
-  return <div className="modal-backdrop" {...scrimPress} role="presentation">
-    <div className="modal tr-modal" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="tr-title" aria-describedby="tr-purpose" onClick={e => e.stopPropagation()}>
-      <TrafficRadarView snapshot={snapshot} failed={failed} captureState={captureState} sessions={sessions} onConfigChange={updateConfig} onClose={onClose} />
-    </div>
-  </div>;
+  return <Dialog scrim={scrimPress} dialogRef={dialogRef} className="tr-modal" labelledBy="tr-title" aria-describedby="tr-purpose">
+    <TrafficRadarView snapshot={snapshot} failed={failed} captureState={captureState} sessions={sessions} onConfigChange={updateConfig} onClose={onClose} />
+  </Dialog>;
 }
 
 export function TrafficRadarView({ snapshot, failed = false, captureState, sessions = [], onConfigChange, onClose }: {

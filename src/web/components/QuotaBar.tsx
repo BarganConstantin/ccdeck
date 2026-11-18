@@ -4,12 +4,25 @@
 // Lifted out of UsagePanel.tsx unchanged, with the pace arithmetic it draws
 // (computePace). Every bar in the panel's two quota sections is this component
 // — Claude's windows and its top-up, Codex's lanes and its spend cap — so the
-// rules for when a bar turns amber or red, and what its pace note says, are
+// rules for when a bar turns red, and what its pace note says, are
 // written once. The one piece of state it holds is its own: whether that note
 // is open (#856).
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { useT } from "../i18n";
 import { durationLabel, formatNumber } from "../i18n/format";
+import { FadeFigure, useFillJump } from "./FadeFigure";
+import { LevelMark, type LevelTone } from "./LevelMark";
+import { slot } from "./Slot";
+
+/** A pace sentence with its one figure set apart, so the over-pace colour sits
+ *  on the number that warns and the sentence around it stays quiet text (V4
+ *  top-10 #10). The unit after a number — "%", or the " %" French spaces it
+ *  with — is part of the figure. Only the two warnings are drawn this way: an
+ *  on-pace or under-pace note has nothing to warn about, so no colour. */
+function figureIn(template: string, token: string, value: string): ReactNode {
+  const unit = new RegExp(`\\{${token}\\}(\\s?%)`).exec(template)?.[1] ?? "";
+  return slot(template.replace(`{${token}}${unit}`, `{${token}}`), token, <span className="qb-pace-figure">{value}{unit}</span>);
+}
 
 // ── Pace helpers ───────────────────────────────────────────────────────────
 
@@ -36,9 +49,9 @@ export function computePace(pct: number, resetAtSec: number, windowSec: number, 
   // A window at its limit has nothing left to run out of (#1805). What is left
   // was measured as `100 - pct`, so a full one "ran out" in zero seconds and
   // the note under a full red bar read "runs out in 0m" — or "on pace", near
-  // the end of the window. Said before either, in the over-pace colours.
+  // the end of the window. Said before either, in the over-pace colour.
   if (limitReached || pct >= 100) {
-    return { label: "used up", kind: "usedUp", color: "var(--warn)", expectedPct, isDeficit: true };
+    return { label: "used up", kind: "usedUp", color: "var(--err)", expectedPct, isDeficit: true };
   }
 
   if (Math.abs(delta) < 3) {
@@ -52,8 +65,8 @@ export function computePace(pct: number, resetAtSec: number, windowSec: number, 
     const runsOutSec = ratePerSec > 0 ? remainPct / ratePerSec : Infinity;
     const info: PaceInfo = {
       // "over pace", not "ahead" (#823): ahead reads as winning, and this is
-      // the warning — the amber line was taken for good news.
-      label: `${Math.round(delta)}% over pace`, kind: "over", n: Math.round(delta), color: "var(--warn)",
+      // the warning. --err, the tick's own colour.
+      label: `${Math.round(delta)}% over pace`, kind: "over", n: Math.round(delta), color: "var(--err)",
       expectedPct, isDeficit: true,
     };
     if (runsOutSec < remainSec && runsOutSec < 86400) {
@@ -84,6 +97,31 @@ export function monthlyDailyTarget(pct: number, resetAtSec: number, windowSec: n
   return days > 0 ? (100 - pct) / days : null;
 }
 
+/** How a known, already-capped reading is printed: a whole percentage, the way
+ *  Claude's readings arrive (clampPct), and "< 1%" under one, because 0.25% of
+ *  the track is a fill nobody can see (#1804). The bar and the rail's usage
+ *  meter (RailParts.tsx) print it from here, so the two cannot disagree. */
+export function quotaPctText(capped: number): string {
+  return capped < 1 ? "< 1%" : `${Math.round(capped)}%`;
+}
+
+/** THE LEVEL OF A QUOTA READING, for every meter in the web UI that shows how
+ *  full a quota window is: this bar, the rail's usage meter, an account's row
+ *  and the Account capacity report. Null under 70, the warning from 70, the
+ *  error from 90 or once the limit has been reached. One rule, so 86% is the
+ *  same amber "⚠ 86% · high" wherever it is drawn: the 5-hour window read calm
+ *  at the rail's foot and amber in this panel when each had its own. */
+export function quotaLevel(pct: number, limitReached = false): LevelTone | null {
+  return limitReached || pct >= 90 ? "err" : pct >= 70 ? "warn" : null;
+}
+
+/** A level's fill: the accent under the warning, then the level's own ink. The
+ *  figure beside it wears the same level (LevelMark), so the colour is never
+ *  the only thing that says it. */
+export function quotaFill(level: LevelTone | null): string {
+  return level === "err" ? "var(--err)" : level === "warn" ? "var(--warn)" : "var(--accent)";
+}
+
 // ── Quota bar ──────────────────────────────────────────────────────────────
 interface QuotaBarProps {
   /** How full the window is, or null when the source sent no reading for it.
@@ -111,16 +149,20 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
   // is a statement about a number, and there is none (#1627).
   const known    = pct != null && !rolled;
   const capped   = known ? Math.min(100, Math.max(0, pct)) : 0;
-  const isErr    = limitReached || capped >= 90;
-  const color    = isErr ? "var(--err)" : capped >= 70 ? "var(--warn)" : "var(--accent)";
+  const jump     = useFillJump(capped);
+  const level    = quotaLevel(capped, limitReached);
+  const color    = quotaFill(level);
   // A whole percentage, the way Claude's readings already arrive (clampPct).
   // A Codex spend cap is `used / limit * 100` and printed $10 of $30 as
   // "33.33333333333333%" (#1804). Under 1% reads "< 1%" like a zero does:
   // 0.25% of the track is a fill nobody can see.
   const underOne = capped < 1;
-  const pctLabel = rolled ? t("usage.quota.rolled") : !known ? t("usage.quota.noReading") : underOne ? "< 1%" : `${Math.round(capped)}%`;
-  // minimum 2% visual fill so a bar under 1% is still visible as a thin sliver
+  const pctLabel = rolled ? t("usage.quota.rolled") : !known ? t("usage.quota.noReading") : quotaPctText(capped);
+  // A bar under 1% still draws a sliver: 2% of a track never narrower than
+  // 294px is 5.9px, past the 3px floor. At full strength, not faded: the fill's
+  // own colour is what holds 3:1 against the track (contrast-floors.test.ts).
   const fillW    = underOne ? 2 : capped;
+  const tone     = known ? level : null;
 
   const countdown = resetAt && !rolled && resetAt > nowSec ? durationLabel(t, resetAt - nowSec) : null;
   const pace = (known && resetAt && windowSec) ? computePace(capped, resetAt, windowSec, nowSec, limitReached) : null;
@@ -136,10 +178,12 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
           {label}
           {limitReached && !rolled && <span className="qb-limit-badge" title={t("usage.quota.rateLimitReached")}>⛔</span>}
         </span>
-        <span className="qb-pct" style={{ color: known ? color : "var(--muted)" }}>{pctLabel}</span>
+        <LevelMark tone={tone} word="high">
+          <span className="qb-pct" data-known={known || undefined}><FadeFigure text={pctLabel} value={capped} /></span>
+        </LevelMark>
       </div>
       <div className="qb-track">
-        {known && <div className="qb-fill" style={{ transform: `scaleX(${fillW / 100})`, background: color, opacity: underOne ? 0.4 : 1 }} />}
+        {known && <div className="qb-fill" data-jump={jump || undefined} style={{ transform: `scaleX(${fillW / 100})`, background: color }} />}
         {/* Pace marker ("green line"): where usage should be now to last until
             reset. Green when under or on pace, red when over it. Its legend is
             the note under the bar (#850), so the tick itself is not announced. */}
@@ -169,7 +213,11 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
           <button
             type="button"
             className="qb-pace"
-            style={{ color: pace.color }}
+            // QUIET TEXT, NOT A LINK (V4 top-10 #10). The whole sentence was
+            // in the pace colour with a dotted underline, so every bar carried
+            // a coloured link. It reads in --muted now, underlined only under
+            // the pointer, and the one figure that warns — how far over, how
+            // soon it runs out — keeps the over-pace colour (figureIn).
             aria-expanded={why}
             aria-controls={why ? whyId : undefined}
             onClick={() => setWhy(w => !w)}
@@ -178,7 +226,11 @@ export default function QuotaBar({ pct, label, reset, resetAt, windowSec, limitR
                 that says the tick on the bar is the pace these words are
                 measured against (#850). */}
             <i className="qb-pace-key" aria-hidden style={{ background: pace.isDeficit ? "var(--err)" : "var(--ok)" }} />
-            {pace.runsOutIn ? t("usage.quota.pace.runsOut", { time: durationLabel(t, pace.runsOutSec ?? 0) }) : t(`usage.quota.pace.${pace.kind}`, { n: pace.n ?? 0 })}
+            {pace.runsOutIn
+              ? figureIn(t("usage.quota.pace.runsOut"), "time", durationLabel(t, pace.runsOutSec ?? 0))
+              : pace.kind === "over"
+                ? figureIn(t("usage.quota.pace.over"), "n", String(pace.n ?? 0))
+                : t(`usage.quota.pace.${pace.kind}`, { n: pace.n ?? 0 })}
           </button>
         )}
       </div>

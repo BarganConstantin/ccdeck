@@ -1,0 +1,273 @@
+// What the board knows, put in the shapes the stage draws — the session on it,
+// the asks under it, the projects the New session popover offers.
+//
+// THE STAGE NEVER READS THE GRAPH. TerminalStage is handed what to show
+// (StageShow) and the keys bar is handed its asks as plain data; this module is
+// the one place a board agent becomes those, so the rules — which wait counts,
+// which call the header names, what the end bar says — are pure functions the
+// suite can call, not lines inside a component that would be copied the day a
+// second view needed them.
+//
+// THE BOARD'S OWN WORDS. The header's sentence is the face's: waiting only for
+// the two kinds the topbar counts (isAlarming), the open call named the way the
+// card's bubbles name it (FACE_WORDS), the name the face prints (the root's
+// label). Nothing here is worded twice. The session's hue (sessionHue) still
+// rides along, though the cluster wears none and the stage paints none since
+// V4 top-10 #1.
+import { terminalSessionId } from "../../canvas-session";
+import { isAlarming, type BlockedSession } from "../../ambient-counts";
+import { t } from "../../i18n";
+import { SEP } from "../../cluster-header";
+import { distinctIdTail } from "../../session-id-tail";
+import { FACE_WORDS } from "../../board-navigator";
+import { lastTypedPrompt, sameWords, sessionNames, sessionTask } from "../../rail-row-copy";
+import { typedPrompts } from "../../injected-prompt";
+import { contextFill } from "../../context-figure";
+import { faceSignal } from "../../node-face";
+import { shortAgo } from "../../relative-time";
+import { sessionHue } from "../../session-hue";
+import { renameFacts } from "../../session-rename";
+import type { StageTarget } from "../../stage-shell";
+import type { AgentNodeData } from "../../types";
+import type { AsksView as RunView } from "../../use-asks";
+import type { AsksView as BarAsks, ArrivalView } from "./KeysBar";
+import {
+  agentName,
+  folderName,
+  projectChoices,
+  stageStatusFrom,
+  waitedFor,
+  type BoardFacts,
+  type ProjectChoice,
+} from "./stage-model";
+import type { StageShow } from "./TerminalStage";
+
+/** The longest prompt a state card quotes before it cuts it. A card line is
+ *  one line at the stage's measure; the whole prompt is in the pane. */
+const PROMPT_MAX = 160;
+
+const cut = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
+
+/** One line of a prompt: its first line, cut to the card's measure. */
+function promptLine(text: string | undefined | null): string | null {
+  const line = (text ?? "").split("\n").find(l => l.trim() !== "")?.trim() ?? "";
+  return line ? cut(line, PROMPT_MAX) : null;
+}
+
+/** The session's subagents on the board. */
+function subagentsOf(agents: Iterable<AgentNodeData>, sessionId: string): AgentNodeData[] {
+  const out: AgentNodeData[] = [];
+  for (const a of agents) if (a.sessionId === sessionId && a.kind === "subagent") out.push(a);
+  return out;
+}
+
+/**
+ * What the header's sentence is built from: the root's state, its alarming
+ * wait, the call it has open, how many of its subagents are running.
+ */
+export function boardFactsFor(root: AgentNodeData, subagents: readonly AgentNodeData[]): BoardFacts {
+  const w = root.waiting;
+  let tool: BoardFacts["tool"] = null;
+  if (root.state === "active") {
+    for (let i = root.tools.length - 1; i >= 0; i--) {
+      const t = root.tools[i];
+      if (t.endedAt != null) continue;
+      const said = FACE_WORDS.describeCall(t);
+      tool = { name: said.name, subject: said.subject ?? null, startedAt: t.startedAt };
+      break;
+    }
+  }
+  return {
+    closedAt: root.closedAt ?? null,
+    waiting: w && isAlarming(w)
+      ? { since: w.since, ...(w.tool?.name ? { tool: w.tool.name } : {}), ...(w.tool?.preview ? { detail: w.tool.preview } : {}) }
+      : null,
+    active: root.state === "active",
+    tool,
+    subagentsLive: subagents.filter(s => s.state === "active").length,
+    lastTurnEndAt: root.lastTurnEndAt ?? null,
+    // Nothing asked of it yet: a session the deck has just started, waiting
+    // for its first prompt. A finished turn is something asked, even one a
+    // `!` shell line started, which leaves no prompt behind.
+    fresh: root.prompts.length === 0 && !root.firstPrompt && root.lastTurnEndAt == null,
+    yourTurn: w?.kind === "idle",
+  };
+}
+
+/** How full the session's context window is: what the Inspector's Context tab
+ *  prints, from the same function, so the chip and the tab cannot disagree. */
+export function contextUseOf(root: AgentNodeData): { used: number; window: number } {
+  const { used, limit } = contextFill(root);
+  return { used, window: limit };
+}
+
+/** How much of a task follows a shared title on stage before it is cut. */
+const STAGE_TASK_CHARS = 32;
+
+const cutTask = (task: string) =>
+  task.length > STAGE_TASK_CHARS ? `${task.slice(0, STAGE_TASK_CHARS - 1).trimEnd()}…` : task;
+
+/**
+ * The session's name on stage: its title, as every surface names it
+ * (rail-row-copy.ts sessionNames). Two sessions on the board of one title are
+ * told apart by their task, cut short ("api · Fix login"); only when the tasks
+ * read alike too, by as much of the id's tail as it takes ("api · c450").
+ */
+export function stageNameOf(root: AgentNodeData, agents: ReadonlyMap<string, AgentNodeData>): string {
+  const { title } = sessionNames(root);
+  const twins = [...agents.values()].filter(a =>
+    a.kind !== "subagent" && a.sessionId !== root.sessionId && sameWords(sessionNames(a).title, title));
+  if (!twins.length) return title;
+  const task = cutTask(sessionTask(root));
+  const alike = twins.filter(a => sameWords(cutTask(sessionTask(a)), task));
+  if (task && !alike.length) return `${title}${SEP}${task}`;
+  return `${title}${SEP}${distinctIdTail(root.sessionId, alike.map(a => a.sessionId))}`;
+}
+
+/**
+ * What the stage shows for `target`, from the board at `now`. A session the
+ * board has lost — swept, removed — is still shown by id, with no sentence the
+ * board cannot back: the pane is the truth about it then.
+ */
+export function stageShowFor(
+  target: StageTarget | null,
+  agents: ReadonlyMap<string, AgentNodeData>,
+  now: number,
+): StageShow {
+  if (!target || target.kind === "empty") return { kind: "empty" };
+  if (target.kind === "launch") {
+    return {
+      kind: "launch", agent: target.agent, cwd: target.cwd, name: folderName(target.cwd), hue: sessionHue(target.key), key: target.key,
+      ...(target.options ? { options: target.options } : {}),
+    };
+  }
+  const id = terminalSessionId(agents, target.id);
+  const launch = target.launch ? { launch: target.launch } : {};
+  const root = agents.get(id);
+  if (!root) {
+    return {
+      kind: "session",
+      session: {
+        ref: { sessionId: id, provider: "claude", cwd: "" }, name: id.slice(0, 8), hue: sessionHue(id), status: { state: "none", phrase: "" },
+        ...(target.launch ? { launched: true } : {}),
+      },
+      ...launch,
+    };
+  }
+  const subs = subagentsOf(agents.values(), id);
+  const facts = boardFactsFor(root, subs);
+  const provider = root.provider === "codex" ? "codex" : "claude";
+  // What a person last typed: a background task's notice is not a prompt.
+  const lastPrompt = lastTypedPrompt(root);
+  const signal = faceSignal(root, undefined, FACE_WORDS);
+  const fact = [
+    facts.subagentsLive ? t("board.stage.subagentsWorking", { count: facts.subagentsLive }) : null,
+    root.closedAt != null ? t("board.stage.phrase.endedAgo", { ago: shortAgo(now - root.closedAt) }) : null,
+    `${agentName(provider)}${root.cwd ? ` · ${root.cwd}` : ""}`,
+  ].filter(Boolean).join(" · ");
+  return {
+    kind: "session",
+    session: {
+      ref: { sessionId: id, provider, cwd: root.cwd ?? "" },
+      name: stageNameOf(root, agents),
+      hue: sessionHue(id),
+      model: root.model ?? null,
+      effort: root.effort ?? null,
+      status: stageStatusFrom(facts, now),
+      // The Inspector's Context tab reads the same two numbers (contextFill).
+      contextUse: contextUseOf(root),
+      promptCount: typedPrompts(root.prompts).length,
+      // While the pane attaches: what the face says the session is doing, or
+      // failing that, what it was last asked.
+      ghostLine: signal?.long ?? promptLine(lastPrompt),
+      context: { prompt: promptLine(lastPrompt), fact },
+      endedAgo: root.closedAt != null ? shortAgo(now - root.closedAt) : null,
+      // A launch of this panel's, which the board keeps for the session's life
+      // (panel-launch.ts), or the one the stage has just moved off.
+      ...(root.panelLaunch != null || target.launch ? { launched: true } : {}),
+      // The header's Rename, for the session as the board knows it (#101).
+      rename: renameFacts(root),
+    },
+    ...launch,
+  };
+}
+
+/**
+ * The keys bar's half of an asks run (use-asks.ts's view): the
+ * "1 of 2" (the bar counts from zero), the answered session's name, and the
+ * next ask with how long it has waited — or null when there is no run.
+ */
+export function barAsks(view: RunView, waiting: readonly BlockedSession[], now: number): BarAsks | null {
+  if (view.track.length === 0) return null;
+  let next: BarAsks["next"] = null;
+  if (view.next) {
+    const w = waiting.find(s => s.id === view.next!.id);
+    next = {
+      name: view.next.label,
+      waited: w ? waitedFor(now - w.waiting.since) : "",
+      tool: w?.waiting.tool?.name ?? null,
+    };
+  }
+  return {
+    position: view.position ? { index: view.position.index - 1, total: view.position.total } : null,
+    resumed: view.resumed?.label ?? null,
+    next,
+    clear: view.clear,
+  };
+}
+
+/** The session the empty Workspace pane names when someone is waiting, with
+ *  what it asks and how long it has waited (Figma, "Empty workspace, someone
+ *  waits"): the oldest waiting, as W and N take it. */
+export interface WaitingCard {
+  id: string;
+  name: string;
+  /** "6m 42s". */
+  waited: string;
+  /** What it asks, in a sentence: "Allow this command?". */
+  ask: string;
+  /** The call it is about, in mono: "npm test -- rate-limit". Null when the
+   *  block names none. */
+  command: string | null;
+}
+
+/** The sentence a block asks. The Bash tool is "this command"; another tool is
+ *  named; a question or an idle prompt is said as what it is. */
+export function askSentence(w: BlockedSession["waiting"]): string {
+  if (w.kind === "asked") return t("board.stage.askAsked");
+  if (w.kind === "idle") return t("board.stage.askIdle");
+  if (!w.tool) return t("board.stage.askPermission");
+  return w.tool.name === "Bash" ? t("board.stage.askCommand") : t("board.stage.askTool", { tool: w.tool.name });
+}
+
+/** The waiting card for the oldest blocked session, or null when none waits. */
+export function waitingCardFor(waiting: readonly BlockedSession[], now: number): WaitingCard | null {
+  const first = waiting[0];
+  if (!first) return null;
+  return {
+    id: first.id,
+    name: first.label,
+    waited: waitedFor(now - first.waiting.since),
+    ask: askSentence(first.waiting),
+    command: first.waiting.tool?.preview || null,
+  };
+}
+
+/** The one-line note for an ask that arrived with no run going. */
+export function barArrival(view: RunView, waiting: readonly BlockedSession[]): ArrivalView | null {
+  const a = view.arrival;
+  if (!a) return null;
+  const w = waiting.find(s => s.id === a.id);
+  return { name: a.label, tool: w?.waiting.tool?.name ?? null };
+}
+
+/** The projects the New session popover offers: every folder a root on the
+ *  board ran in, most recently heard from first, the stage's own leading. */
+export function boardProjects(agents: Iterable<AgentNodeData>, currentCwd?: string | null): ProjectChoice[] {
+  const seen = [];
+  for (const a of agents) {
+    if (a.kind !== "root" || !a.cwd) continue;
+    seen.push({ cwd: a.cwd, hue: sessionHue(a.sessionId), at: a.lastEventAt ?? a.startedAt });
+  }
+  return projectChoices(seen, currentCwd);
+}

@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { accountsSurface } from "./accounts-surface";
 import { clientText } from "./client-source";
-import { sheetText } from "./sheet-source";
+import { mouseFlat, sheetText } from "./sheet-source";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 /** Markup without its comments: they quote the shapes they replaced. */
@@ -28,8 +28,9 @@ const surface = strip(accountsSurface());
 const popover = strip(read("../components/AnchoredPopover.tsx"));
 const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
 
-/** Top-level rules only: a reduced-motion override is not the resting look. */
-const topLevel = css.replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, "");
+/** Top-level rules only: a reduced-motion override is not the resting look.
+ *  The hover rules stand under the mouse media, which a desktop pointer meets. */
+const topLevel = mouseFlat(css).replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, "");
 const RULES = [...topLevel.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(m => ({
   sels: m[1].split(",").map(s => s.trim().replace(/\s+/g, " ")),
   body: m[2],
@@ -75,8 +76,9 @@ describe("the row keeps its shape when its ⋯ is pressed", () => {
     expect(trigger).toMatch(/title=\{t\("accounts\.row\.more"\)\}/);
     // The account in the name, from the account's own data.
     expect(trigger).toMatch(/aria-label=\{t\("accounts\.row\.moreFor", \{ who: a\.email \?\? a\.alias \?\? t\("accounts\.accountNLower", \{ n: a\.num \}\) \}\)\}/);
-    // Drawn, not typed.
-    expect(trigger).toMatch(/<svg[^>]*aria-hidden/);
+    // Drawn, not typed. CHANGED ON PURPOSE (V4's Figma): the kit's own "more"
+    // icon, which is an aria-hidden svg, in place of the hand-drawn dots.
+    expect(trigger).toMatch(/<KitIcon name="more" \/>/);
     expect(trigger).not.toMatch(/⋯/);
   });
 });
@@ -90,8 +92,16 @@ describe("the menu", () => {
     // Auto-switch's home or removing that, which the row's ⌂ only shows.
     const menu = view("menu");
     expect([...menu.matchAll(/role="menuitem"/g)]).toHaveLength(7);
-    const order = ['t("accounts.menu.rename")}</button>', 't("accounts.menu.moveSlot")}</button>', ': t("accounts.menu.share")}', 't("accounts.menu.projects")}</button>', ': t("accounts.menu.holdOut")}', ': t("accounts.menu.setHome")}', 'role="separator"', ': t("accounts.menu.remove")}']
-      .map(s => menu.indexOf(s));
+    // CHANGED ON PURPOSE (V4's Figma): the menu has three groups, so there are
+    // two separators — one after Projects and one before Remove.
+    const at = (s: string) => menu.indexOf(s);
+    const order = [
+      at('t("accounts.menu.rename")}</button>'), at('t("accounts.menu.moveSlot")}</button>'),
+      at(': t("accounts.menu.share")}'), at('t("accounts.menu.projects")}</button>'),
+      at('role="separator"'),
+      at(': t("accounts.menu.holdOut")}'), at(': t("accounts.menu.setHome")}'),
+      menu.lastIndexOf('role="separator"'), at(': t("accounts.menu.remove")}'),
+    ];
     expect(order.every(i => i >= 0), order.join()).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
   });
@@ -155,7 +165,8 @@ describe("where the surface sits", () => {
 
   it("arrives in under 160ms without growing, and only fades when motion is reduced", () => {
     const anim = decl(".anchored-popover", "animation")!;
-    expect(Number(/(\d+)ms/.exec(anim)![1])).toBeLessThanOrEqual(160);
+    // On a motion token since V4's motion rules (--dur-fast is 120, --dur-exit 150).
+    expect(anim).toMatch(/var\(--dur-(fast|exit)\)/);
     const frames = /@keyframes pop-from-anchor\s*\{([\s\S]*?)\n\}/.exec(css)![1];
     expect(frames).not.toMatch(/scale/);
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^@]*\.anchored-popover \{ animation: fadeIn/);
@@ -176,7 +187,8 @@ describe("the states, in the deck's neutral rather than its accent", () => {
     expect(decl(".ap-menu-item", "border")).toBe("0");
     expect(decl(".ap-menu-item", "border-radius")).not.toBe("999px");
     for (const sel of [".ap-menu-item:hover:not(:disabled)", ".ap-menu-item:focus-visible"]) {
-      expect(decl(sel, "background"), sel).toBe("var(--ctl-fill)");
+      // V4's menu: the kit's --selected fill, not --ctl-fill.
+      expect(decl(sel, "background"), sel).toBe("var(--selected)");
     }
     const states = RULES.filter(r => r.sels.some(s => /^\.ap-menu-item(?!\.danger)[:[]/.test(s)));
     expect(states.map(r => r.body).join(";")).not.toMatch(/--accent/);

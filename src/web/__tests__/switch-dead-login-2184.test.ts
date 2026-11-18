@@ -25,7 +25,12 @@ import { join, resolve } from "node:path";
 import AccountRow from "../components/AccountRow";
 import { type Account } from "../claude-accounts";
 import { COMMAND_REASONS, explainCommandFailure } from "../admin-failure";
-import { STILL_EXPIRED, afterRemoval, expiredSwitch } from "../expired-switch";
+import { STILL_EXPIRED_MSG, afterRemoval, expiredSwitch } from "../expired-switch";
+import { en } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): the sentence is a key now,
+// read here through the English catalog.
+const STILL_EXPIRED = en[STILL_EXPIRED_MSG];
 
 const DIR = mkdtempSync(join(tmpdir(), "ccdeck-dead-login-"));
 const ENV_KEYS = ["HOME", "USERPROFILE", "CLAUDE_SWAP_BACKUP", "AGENTS_DECK_CSWAP", "AGENTS_DECK_CLAUDE"] as const;
@@ -493,6 +498,8 @@ describe("what the panel says", () => {
     expect(afterRemoval({ ok: true, movedTo: { num: 2, email: "user2@example.test", alias: null } }))
       .toEqual({ switched: { num: 2, name: "user2@example.test" } });
     expect(afterRemoval({ ok: true, stillExpired: true })).toEqual({ failure: { text: STILL_EXPIRED } });
+    // CHANGED ON PURPOSE (the UI in every language): the English the key carries.
+    expect(en[STILL_EXPIRED_MSG]).toBe("Removed. Claude Code is still signed in with that expired login, and no other account here was ready to take over — sign in to one from +");
     expect(afterRemoval({ ok: true })).toBeNull();
     expect(afterRemoval({ ok: false, stillExpired: true })).toBeNull();
   });

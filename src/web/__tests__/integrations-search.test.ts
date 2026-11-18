@@ -47,7 +47,8 @@ describe("the integrations' search field", () => {
 
   it("stands at the deck's control height with an AA placeholder, and one clear mark", () => {
     expect(rule(".ig-search-input")).toMatch(/min-height:\s*var\(--ctl-h\)/);
-    expect(rule(".ig-search-input::placeholder")).toMatch(/color:\s*var\(--text-secondary\)/);
+    // V4's field: --muted is 4.91:1 or more on --bg-soft.
+    expect(rule(".ig-search-input::placeholder")).toMatch(/color:\s*var\(--muted\)/);
     expect(rule(".ig-search-input::-webkit-search-cancel-button")).toMatch(/display:\s*none/);
     expect(rule(".ig-search")).toMatch(/min-width:\s*0/);
   });

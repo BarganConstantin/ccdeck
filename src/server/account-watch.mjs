@@ -76,7 +76,7 @@ function notifier() {
       try { return JSON.parse(await readFile(path, "utf8")); } catch { return null; }
     },
     save: async records => {
-      await mkdir(dirname(path), { recursive: true });
+      await mkdir(dirname(path), { recursive: true, mode: 0o700 });
       await writeFileAtomic(path, `${JSON.stringify(records)}\n`);
     },
   });

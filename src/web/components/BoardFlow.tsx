@@ -1,8 +1,8 @@
 // The board React Flow draws: the nodes and edges it is handed and the terms
 // it is handed them on — no edge a keyboard stop, a drag threshold, the zoom
 // range, the opening fit — and what shares its pane: the grid, the session
-// labels, the tool bubbles, the auto-fit chip, the command stack, the minimap
-// and Claude FM.
+// labels, the tool bubbles, the notices row, the command stack, the minimap
+// (while part of the board is out of view) and Claude FM on the bar.
 //
 // Moved out of App.tsx's markup unchanged, with nodeTypes, edgeTypes and the
 // opening fit's duration. The <main> around it is CanvasMain.tsx's, and
@@ -10,7 +10,12 @@
 // under the names the markup already used.
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import ReactFlow, { Background, MiniMap } from "reactflow";
+import { useBoardEmpty } from "../board-empty";
+import { useMinimapPlace } from "../use-minimap-place";
+import { PHONE_QUERY } from "../phone-load";
+import { useMediaQuery } from "../use-media-query";
 import type { ClearSource } from "../clear-confirm";
+import type { Palette } from "../palette";
 import type { GraphState } from "../reducer";
 import { CANVAS_MAX_ZOOM, CANVAS_MIN_ZOOM } from "../stored-viewport";
 import type { useAppearance } from "../use-appearance";
@@ -24,13 +29,10 @@ import type { useClaudeFm } from "../use-claude-fm";
 import type { useNodeDrag } from "../use-node-drag";
 import type { useNodeMeasurements } from "../use-node-measurements";
 import type { PauseControls } from "../use-pause-gate";
-import { shouldAnimateViewport } from "../viewport-motion";
 import AgentNode from "./AgentNode";
-import AutoFitChip from "./AutoFitChip";
 import CanvasControls from "./CanvasControls";
 import RadioExperience from "./RadioExperience";
 import RecapNoteNode from "./RecapNoteNode";
-import RearrangeUndo from "./RearrangeUndo";
 import RecapTieEdge from "./RecapTieEdge";
 import SessionClusters from "./SessionClusters";
 import SessionGroupNode from "./SessionGroupNode";
@@ -45,13 +47,45 @@ const nodeTypes = { agent: AgentNode, sessionGroup: SessionGroupNode, recapNote:
  *  nodeTypes, since a new object each render makes React Flow warn and remount. */
 const edgeTypes = { recapTie: RecapTieEdge };
 
-/** How long React Flow's own opening fit takes, when there is anyone watching
- *  it. Named because the answer to "should this animate" is asked of it too. */
-const OPENING_FIT_MS = 400;
+/** The map of the board, only while part of it is out of view, in the bottom
+ *  corner that covers less of what the board draws: cards, notes and tool
+ *  bubbles, and never over the selected card or its note (minimap-place.ts).
+ *  Not on a phone, and not on an empty board, which has nothing to map
+ *  (board-empty.ts). */
+export function BoardMinimap({ nodeColor, palette, notes = true }: {
+  nodeColor: ReturnType<typeof useAppearance>["minimapNodeFill"];
+  palette: Palette;
+  /** Whether the sessions' notes are drawn (the full card only). */
+  notes?: boolean;
+}) {
+  const t = useT();
+  const empty = useBoardEmpty();
+  const phone = useMediaQuery(PHONE_QUERY);
+  const place = useMinimapPlace(notes);
+  if (empty || phone || !place) return null;
+  return (
+    <MiniMap
+      ariaLabel={t("board.minimap")}
+      position={place === "left" ? "bottom-left" : "bottom-right"}
+      style={MINIMAP_SIZE}
+      zoomable
+      pannable
+      nodeColor={nodeColor}
+      nodeStrokeWidth={2}
+      maskColor={palette["--minimap-mask"]}
+      // The frame the view is showing, outlined. The minimap's surface
+      // sits close to the canvas now (.react-flow__minimap), so the mask
+      // alone no longer separates it well; a --line keyline does, in
+      // the same neutral the chrome's edges are drawn in.
+      maskStrokeColor={palette["--line"]}
+    />
+  );
+}
 
 export default function BoardFlow({
   graph, layout, viewport, clicks, drag, appearance, fm, radioOpen, onRadioClose, autoFit, pause,
-  stateRef, measuredRef, hiddenCats, now, openTool, focusAgent, requestClear, setKeyHelpOpen,
+  stateRef, measuredRef, hiddenCats, now, openTool, focusAgent, requestClear, setKeyHelpOpen, zoomBy, zoomReset, onTerminal,
+  notesDrawn = true, presentCats, toggleCat,
 }: {
   /** What is drawn: the nodes with a drag patched over them, the edges, and
    *  the visibility and spotlight sets the bubbles gate on. */
@@ -76,8 +110,20 @@ export default function BoardFlow({
   focusAgent: (id: string) => void;
   requestClear: (source: ClearSource) => void;
   setKeyHelpOpen: Dispatch<SetStateAction<boolean>>;
+  /** The control bar's zoom steps (use-camera.ts): a step in Fast on the camera's own transition. */
+  zoomBy: (factor: number) => void;
+  zoomReset: () => void;
+  /** The control stack's Terminal button, handed the button it was pressed
+   *  on; absent with the terminal flag off, and so is the button. */
+  onTerminal?: (button: Element | null) => void;
+  /** Whether the canvas draws the full card, and with it the sessions' notes:
+   *  the session frames go round what is drawn. */
+  notesDrawn?: boolean;
+  /** The tool filter's other two halves, for the control bar's ⋯ menu: the
+   *  kinds of call on the board, and the toggle (use-category-filter-bar.ts). */
+  presentCats?: ReturnType<typeof useCategoryFilterBar>["presentCats"];
+  toggleCat?: ReturnType<typeof useCategoryFilterBar>["toggleCat"];
 }) {
-  const t = useT();
   const { allNodes, edges, visibleAgentIds, spotlightSet } = graph;
   const { positionsRef, pinnedRef, handleRelayout, rearrangeUndo } = layout;
   const { restoredViewport, onMoveStart, onMove } = viewport;
@@ -85,7 +131,7 @@ export default function BoardFlow({
   const { onNodeDragStart, onNodeDrag, onNodeDragStop } = drag;
   const { palette, minimapNodeFill, characterEnabled } = appearance;
   const { autoFitDisabled, enableAutoFitAndRefit } = autoFit;
-  const { paused, pauseGate, togglePause } = pause;
+  const { paused, togglePause } = pause;
   return (
     <ReactFlow
       nodes={allNodes}
@@ -111,21 +157,12 @@ export default function BoardFlow({
       edgesFocusable={false}
       edgeTypes={edgeTypes}
       fitView={!restoredViewport}
-      /* The opening frame is React Flow's own, and it goes through the same
-         d3 transition every other viewport animation does — so a deck that
-         opened its tab behind whatever the user was already looking at drew
-         its graph and then left the pane at the identity transform, an
-         empty-looking canvas until the tab was brought forward. The library
-         re-reads this object into its store on every render and only fits
-         once, when the first nodes are measured, so asking for no animation
-         while the page is not being rendered takes the branch that applies
-         the transform outright. A visible tab still gets the 400ms. */
-      fitViewOptions={{
-        padding: 0.25,
-        duration: shouldAnimateViewport({ durationMs: OPENING_FIT_MS, documentHidden: document.hidden })
-          ? OPENING_FIT_MS
-          : 0,
-      }}
+      /* The opening frame is React Flow's own, and it is still (V4's motion
+         spec: first paint is still). No duration, so the library takes the
+         branch that applies the transform outright: the board opens already
+         fitted, in a visible tab and in one behind whatever the reader was
+         looking at alike. */
+      fitViewOptions={{ padding: 0.25 }}
       minZoom={CANVAS_MIN_ZOOM}
       maxZoom={CANVAS_MAX_ZOOM}
       panOnScroll
@@ -175,7 +212,7 @@ export default function BoardFlow({
           the user grabbing the canvas — see the note on the component
           (#785). Same line use-agent-focus.ts's focusSession runs after its
           fitView. */}
-      <SessionClusters onFocusSession={focusAgent} />
+      <SessionClusters onFocusSession={focusAgent} notes={notesDrawn} />
       <ToolBursts
         agents={stateRef.current.agents}
         visibleAgentIds={visibleAgentIds}
@@ -187,46 +224,30 @@ export default function BoardFlow({
         now={now}
         onOpenTool={openTool}
       />
-      {/* The state the recenter tint used to be the only sign of (#820).
-          While the reader's own pan or zoom holds the view, new sessions
-          can land off-screen; this says so on the canvas they would be
-          looked for on, with the way back in the same place. */}
-      {/* A status and an action, not one big button. The words say what
-          the state is and are not a control; Resume is the one thing here
-          that can be pressed, and it does what the whole chip used to. */}
-      <div className="canvas-notices">
-        {autoFitDisabled && <AutoFitChip enableAutoFitAndRefit={enableAutoFitAndRefit} />}
-        {/* Re-arrange's way back, for a few seconds after R — beside the
-            chip when both are up, since a board built by hand is one
-            auto-fit has usually stood down on. */}
-        <RearrangeUndo undo={rearrangeUndo} />
-      </div>
+      {/* The canvas's notices row, bottom left in the control bar's row
+          (canvas.css), which the character walks round (use-fm-scene.ts).
+          It held Fit all, the chip shown while the reader's own pan or zoom
+          held the view (#820); recenter on the bar below did the very same
+          — fit, and turn auto-fit back on — so the chip went (V4 top-10 #3)
+          and recenter carries the state instead: a dot while auto-fit is off
+          (react-flow.css). */}
+      <div className="canvas-notices" />
       {/* No React Flow fit-view button (#840). Recenter below does the same
           fit and also turns autofit back on, so two near-identical buttons
           sat side by side and the reader had to guess the difference. F
           still fits from the keyboard. */}
       <CanvasControls
         autoFitDisabled={autoFitDisabled} enableAutoFitAndRefit={enableAutoFitAndRefit}
-        paused={paused} pauseGate={pauseGate} togglePause={togglePause}
+        paused={paused} togglePause={togglePause}
         handleRelayout={handleRelayout} requestClear={requestClear} setKeyHelpOpen={setKeyHelpOpen}
+        zoomBy={zoomBy} zoomReset={zoomReset}
+        onTerminal={onTerminal}
+        presentCats={presentCats} hiddenCats={hiddenCats} toggleCat={toggleCat}
       />
-      <MiniMap
-        ariaLabel={t("board.minimap")}
-        style={MINIMAP_SIZE}
-        zoomable
-        pannable
-        nodeColor={minimapNodeFill}
-        nodeStrokeWidth={2}
-        maskColor={palette["--minimap-mask"]}
-        // The frame the view is showing, outlined. The minimap's surface
-        // sits close to the canvas now (.react-flow__minimap), so the mask
-        // alone no longer separates it well; a --line keyline does, in
-        // the same neutral the chrome's edges are drawn in.
-        maskStrokeColor={palette["--line"]}
-      />
-      {/* Above the minimap, and absent unless there is something to play —
-          ClaudeFm renders null until the server says the channel is on air,
-          so on a deck with no network this is nothing at all. */}
+      <BoardMinimap nodeColor={minimapNodeFill} palette={palette} notes={notesDrawn} />
+      {/* On the control bar's left end, and absent unless there is something
+          to play — ClaudeFm renders null until the server says the channel is
+          on air, so on a deck with no network this is nothing at all. */}
       <RadioExperience fm={fm} character={appearance.character} characterEnabled={characterEnabled} open={radioOpen} onClose={onRadioClose} />
     </ReactFlow>
   );

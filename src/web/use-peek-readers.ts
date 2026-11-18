@@ -10,6 +10,7 @@ import type { Node } from "reactflow";
 import type { FlowNodeData } from "./canvas-flow";
 import type { RecapNoteData } from "./components/RecapNoteNode";
 import type { GraphState } from "./reducer";
+import { sessionListName } from "./session-display";
 
 export function usePeekReaders({ nodesRef, stateRef, canvasRef, railInsetRef }: {
   /** The array React Flow was last handed. */
@@ -23,21 +24,32 @@ export function usePeekReaders({ nodesRef, stateRef, canvasRef, railInsetRef }: 
     const n = nodesRef.current.find(x => x.id === id && x.type === "agent");
     return n ? (n.data as FlowNodeData) : undefined;
   }, []);
-  const peekLabel = useCallback((id: string) => stateRef.current.agents.get(id)?.label, []);
+  // A session by its title, as every surface names it (sessionListName).
+  const peekLabel = useCallback((id: string) => { const a = stateRef.current.agents.get(id); return a ? sessionListName(a) : undefined; }, []);
+  // Every session's id on the board, so the hover's id tail is as long as it
+  // takes to tell them apart (rail-row-copy.ts startedHover).
+  const peekPeers = useCallback(() => {
+    const ids: string[] = [];
+    for (const n of nodesRef.current) {
+      const d = n.type === "agent" ? (n.data as FlowNodeData) : undefined;
+      if (d?.kind === "root") ids.push(d.sessionId);
+    }
+    return ids;
+  }, []);
   const peekRecap = useCallback((id: string) => {
     const n = nodesRef.current.find(x => x.id === id && x.type === "recapNote");
     if (!n) return undefined;
     const d = n.data as unknown as RecapNoteData;
-    return { note: d.note, plan: d.plan, hue: d.hue, sessionLabel: stateRef.current.agents.get(d.parentId)?.label };
+    return { note: d.note, plan: d.plan, sessionLabel: peekLabel(d.parentId) };
   }, []);
   const peekBounds = useCallback(() => {
     // The canvas's own box, not the window's: the peek belongs over the canvas,
-    // and the canvas already runs to the foot of the page.
+    // and the canvas ends where the status bar begins.
     const box = canvasRef.current?.getBoundingClientRect();
     const doc = document.documentElement;
     return box
       ? { width: box.right - railInsetRef.current, height: box.bottom }
       : { width: doc.clientWidth, height: doc.clientHeight };
   }, []);
-  return { peekAgent, peekLabel, peekRecap, peekBounds };
+  return { peekAgent, peekLabel, peekPeers, peekRecap, peekBounds };
 }

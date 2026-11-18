@@ -101,7 +101,11 @@ const handler = (name: string) => {
 describe("the canvas's clicks under reduced motion", () => {
   it("holds a plain click's jump under reduced motion, and moves as before otherwise", () => {
     const click = handler("onNodeClick");
-    expect(click).toMatch(/if \(e\.shiftKey\) return;[\s\S]*if \(prefersReducedMotion\(\)\) \{\s*focusHold\.hold\(id\);\s*\} else if \(detailShown\) \{\s*window\.setTimeout\(\(\) => \{ try \{ focusAgent\(id\); \} catch \{\} \}, 80\);\s*\} else \{\s*focusAgent\(id\);\s*\}/);
+    // CHANGED ON PURPOSE (V4 top-10 #3): the click's move was focusAgent (zoom to
+    // the session) → revealAgent (the zoom kept, the least pan), because select
+    // pans, never zooms (Figma/tldraw pattern). The hold is unchanged: a pan
+    // made on the first press can still move the card from under the second.
+    expect(click).toMatch(/if \(e\.shiftKey\) return;[\s\S]*if \(prefersReducedMotion\(\)\) \{\s*focusHold\.hold\(id\);\s*\} else if \(detailShown\) \{\s*window\.setTimeout\(\(\) => \{ try \{ revealAgent\(id\); \} catch \{\} \}, 80\);\s*\} else \{\s*revealAgent\(id\);\s*\}/);
     // A Shift+click widens the selection and leaves a held jump alone.
     expect(click.slice(click.indexOf("const id = "), click.indexOf("if (e.shiftKey) return;"))).not.toContain("focusHold.");
   });
@@ -115,9 +119,10 @@ describe("the canvas's clicks under reduced motion", () => {
     expect(handler("onNodeClick")).toMatch(/if \(n\.type === "sessionGroup"\) \{ focusHold\.cancel\(\); clearSelection\(\); return; \}/);
   });
 
-  it("makes the hold once, reads the newest focusAgent when it fires, and drops it with the canvas", () => {
+  it("makes the hold once, reads the newest revealAgent when it fires, and drops it with the canvas", () => {
     expect(clicks).toMatch(/const \[focusHold\] = useState\(\(\) => createFocusHold\(\{/);
-    expect(clicks).toMatch(/focusRef\.current = focusAgent;/);
+    // CHANGED ON PURPOSE (V4 top-10 #3): focusAgent → revealAgent, as above.
+    expect(clicks).toMatch(/revealRef\.current = revealAgent;/);
     expect(clicks).toMatch(/useEffect\(\(\) => \(\) => focusHold\.cancel\(\), \[focusHold\]\);/);
   });
 });

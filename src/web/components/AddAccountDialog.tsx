@@ -36,6 +36,7 @@ import { prefersReducedMotion } from "../viewport-motion";
 import { createLoginAnnouncer } from "../login-announce";
 import { arrivalCheck, explainFailure, loginErrorText } from "../admin-failure";
 import { tabStripMove } from "../tablist-keys";
+import { Dialog, DialogClose } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
 import { type ImportResult, importRowKey, importSummary, outcomeWord, replaceImportRow } from "../share-bundle";
@@ -539,10 +540,12 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
   // panel alone, and the dialog squeezed into it at the left edge instead of
   // centred on the screen. At <body>, no panel rule can reach it.
   return createPortal(
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal aa-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t("accounts.add.dialogLabel")}>
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="aa-modal" aria-label={t("accounts.add.dialogLabel")}>
         <header className="modal-head">
           <div className="modal-title">
+            <h2>{t("accounts.add.title")}</h2>
+          </div>
+          <div className="modal-actions">
             {/* A real tablist, finally (#581). It announced one and delivered
                 none of the three things the role promises: both buttons were
                 ordinary tab stops so Tab walked INTO the strip and through it,
@@ -576,9 +579,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                 >{t(tb.key)}</button>
               ))}
             </span>
-          </div>
-          <div className="modal-actions">
-            <button type="button" className="glyph-btn" onClick={close} aria-label={t("accounts.closeEsc")} title={t("accounts.closeEsc")}>×</button>
+            <DialogClose onClick={close} label={t("accounts.closeEsc")} />
           </div>
         </header>
 
@@ -709,19 +710,19 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
               <div className="aa-step aa-primer">
                 {cancelNote ? <p className="aa-note aa-warn" role="status">{cancelNote}</p> : null}
                 <h4>{email ? richParts(t("accounts.add.againAs", { email })) : t("accounts.add.toAnthropic")}</h4>
+                {/* V4's words: what happens, in one line, and under it the
+                    longer account — the code that is pasted back only if the
+                    page hands one over — as text, not as a tooltip. The
+                    re-sign-in note already is that account. */}
+                {!email && <p className="aa-note">{t("accounts.add.primerShort")}</p>}
                 <p className="aa-note">{t(email ? "accounts.add.primerNoteEmail" : "accounts.add.primerNote")}</p>
-                <div className="aa-actions">
-                  {/* No `disabled={busy}`: the press takes this control away
-                      rather than disabling it, which is the half #518 answers
-                      with rescueSelectors and not with a busy flag. No sign-in
-                      request is out while this branch renders, but an import
-                      from the other tab can be (#1795), and the lock refuses a
-                      press until it is back — so it says aria-busy then, as
-                      Continue and Import do (#620). */}
-                  <button type="button" ref={primerRef} className="btn primary" {...selfPressProps(busy)} onClick={start}>
-                    {t("accounts.add.openSignIn")}
-                  </button>
-                </div>
+                {/* The four stages the progress list goes through after the
+                    press, said first. */}
+                <ol className="aa-steps">
+                  {[t("accounts.add.step1"), t("accounts.add.step2"), t("accounts.add.step3"), t("accounts.add.step4")].map((text, i) => (
+                    <li key={i}><span className="aa-step-n" aria-hidden>{i + 1}</span>{text}</li>
+                  ))}
+                </ol>
               </div>
             )
           ) : imported ? (() => {
@@ -829,8 +830,24 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
               one most screen readers never read. */}
           <p className="vis-hidden" role="status" aria-live="polite">{said}</p>
         </section>
-      </div>
-    </div>,
+        {/* The primer's two answers on the shell's footer (V4's Figma): Cancel,
+            then the one that starts it. Every later face carries its own. */}
+        {tab === "login" && face !== "done" && face !== "progress" && (
+          <footer className="modal-foot">
+            <button type="button" className="btn" onClick={close}>{t("accounts.cancel")}</button>
+            {/* No `disabled={busy}`: the press takes this control away
+                rather than disabling it, which is the half #518 answers
+                with rescueSelectors and not with a busy flag. No sign-in
+                request is out while this branch renders, but an import
+                from the other tab can be (#1795), and the lock refuses a
+                press until it is back — so it says aria-busy then, as
+                Continue and Import do (#620). */}
+            <button type="button" ref={primerRef} className="btn primary" {...selfPressProps(busy)} onClick={start}>
+              {t("accounts.add.openSignIn")}
+            </button>
+          </footer>
+        )}
+    </Dialog>,
     document.body,
   );
 }

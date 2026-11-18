@@ -15,9 +15,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { faceTitle } from "../node-face";
 import { sheetRules } from "./sheet-cascade";
+import { en } from "../i18n/en";
 
 const node = readFileSync(fileURLToPath(new URL("../components/RecapNoteNode.tsx", import.meta.url)), "utf8");
-const list = readFileSync(fileURLToPath(new URL("../components/SessionList.tsx", import.meta.url)), "utf8");
+/** The rail's row and the tooltip it reads its figures from, together. */
+const list = readFileSync(fileURLToPath(new URL("../components/RailParts.tsx", import.meta.url)), "utf8")
+  + readFileSync(fileURLToPath(new URL("../rail-row-copy.ts", import.meta.url)), "utf8");
 const body = (sel: string) => sheetRules().filter(r => r.media == null && r.selectors.includes(sel)).map(r => r.body).join("\n");
 
 describe("the note at the full card's size", () => {
@@ -42,8 +45,15 @@ describe("the note at the full card's size", () => {
   it("carries the whole suggested reply on hover, as the line reads, here and in the session list", () => {
     // `note?.`: a note can hold the session's plan alone (session-note.ts, boardNote).
     expect(node).toContain("{note?.reply && <p className=\"recap-note-reply\" title={t(\"board.list.reply\", { reply: note.reply })}>{t(\"board.list.reply\", { reply: note.reply })}</p>}");
-    // The list's line is cut the same way, and was the other place it had no tooltip.
-    expect(body(".session-list .sl-status-reply")).toMatch(/text-overflow:\s*ellipsis;/);
-    expect(list).toContain("{r.status?.reply && <span className=\"sl-status-reply\" title={t(\"board.list.reply\", { reply: r.status.reply })}>{t(\"board.list.reply\", { reply: r.status.reply })}</span>}");
+    // The words behind the key are the ones V4 drew: suggested reply “…”.
+    expect(en["board.list.reply"]).toBe("suggested reply “{reply}”");
+    // The rail's row (V4's Attention rail) draws one line and no suggested
+    // reply; the whole reply, like the whole note, is the row's tooltip.
+    expect(list).toContain("title={[rowTooltip(r, removed, compact),");
+    // CHANGED ON PURPOSE (the UI in every language): the line is a key, and
+    // English maps it to the same words.
+    expect(list).toContain('lines.push(t("board.row.suggestedReply", { reply: r.status.reply }))');
+    expect(en["board.row.suggestedReply"]).toBe("Suggested reply: {reply}");
+    expect(body(".session-list .sl-line2")).toMatch(/text-overflow:\s*ellipsis;/);
   });
 });

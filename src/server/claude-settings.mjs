@@ -390,7 +390,7 @@ export function updateClaudeSetting(id, value, options = {}) {
       if (!again || again.raw !== read.raw) continue;
       if (read.raw !== null) {
         const backupDir = deckDataDir(platform, env, home);
-        await mkdir(backupDir, { recursive: true });
+        await mkdir(backupDir, { recursive: true, mode: 0o700 });
         await writePrivate((platform === "win32" ? win32.join : posix.join)(backupDir, SETTINGS_BACKUP), read.raw);
       }
       await mkdir(paths.dir, { recursive: true });

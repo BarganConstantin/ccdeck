@@ -27,6 +27,18 @@ function deliver(gate: ReturnType<typeof createPauseGate<Ev>>, events: Ev[]): Ev
 }
 
 describe("createPauseGate", () => {
+  it("cannot hold back events when pausing is disabled", () => {
+    const gate = createPauseGate<Ev>({ enabled: false });
+    for (const seq of [1, 2, 3]) {
+      expect(gate.setPaused(true)).toEqual([]);
+      expect(gate.paused).toBe(false);
+      expect(gate.accept(ev(seq))).toBe(true);
+    }
+    expect(gate.size).toBe(0);
+    expect(gate.dropped).toBe(0);
+    expect(gate.setPaused(false)).toEqual([]);
+  });
+
   it("delivers events straight through while running", () => {
     const gate = createPauseGate<Ev>();
     expect(gate.paused).toBe(false);

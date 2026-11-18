@@ -5,6 +5,8 @@ import { liveError } from './codex-live-rpc.mjs';
 
 const passive = new Set(['userMessage', 'hookPrompt', 'agentMessage', 'functionCallOutput', 'plan', 'reasoning']);
 const terminal = new Set(['completed', 'failed', 'declined']);
+const drainable = new Set(['commandExecution', 'mcpToolCall', 'dynamicToolCall', 'fileChange']);
+const USAGE_RECOVERY_MS = 5 * 60_000;
 const tool = item => !passive.has(item.type);
 const completed = item => item.status !== 'inProgress' && (terminal.has(item.status)
   || Number.isFinite(item.completedAtMs) && item.completedAtMs > 0);
@@ -32,6 +34,14 @@ const safe = (turn, thread, known) => turn?.itemsView === 'full' && Array.isArra
   && turn.items.every(i => passive.has(i.type) || completed(i) || childWait(i, thread, known));
 const inputIds = turn => turn.items.filter(i => i.type === 'userMessage').map(i => i.id);
 const sameInputs = (a, b) => JSON.stringify(inputIds(a)) === JSON.stringify(inputIds(b));
+export const usageLimitedTurn = turn => turn?.status === 'failed' && turn.error?.codexErrorInfo === 'usageLimitExceeded';
+const freshUsageFailure = (turn, now) => usageLimitedTurn(turn) && Number.isFinite(turn.completedAt)
+  && turn.completedAt * 1000 <= now && now - turn.completedAt * 1000 <= USAGE_RECOVERY_MS;
+const continuableTurn = (turn, entry) => entry.rateLimited
+  ? usageLimitedTurn(turn) && (turn.rootTurnId ?? turn.id) === entry.rootTurnId : turn?.status === 'interrupted';
+const limitedEntry = ({ thread, turn }) => ({ threadId: thread.id, turnId: turn.id,
+  rootTurnId: turn.rootTurnId ?? turn.id, messageId: randomUUID(), inputIds: inputIds(turn), rateLimited: true,
+  ...(thread.parentThreadId ? { parentThreadId: thread.parentThreadId } : {}) });
 const retained = new WeakMap();
 
 /** Keep this connection's observations attached until a cooperative handoff
@@ -86,10 +96,10 @@ async function liveLatest(rpc, thread) {
   }
 }
 export const readCodexLiveTurn = (rpc, thread) => thread.status?.type === 'active' ? liveLatest(rpc, thread) : latest(rpc, thread.id);
-async function snapshot(rpc) {
+async function snapshot(rpc, options = {}) {
   const page = await rpc.request('thread/loaded/list', { limit: 65 });
   if (!Array.isArray(page?.data) || page.data.length > 64 || page.nextCursor) throw liveError('native_activity_unknown');
-  const threads = [], known = new Map();
+  const threads = [], known = new Map(), limited = [];
   for (const id of page.data) {
     if (typeof id !== 'string') throw liveError('native_activity_unknown');
     const result = await rpc.request('thread/read', { threadId: id, includeTurns: false });
@@ -122,15 +132,17 @@ async function snapshot(rpc) {
     if (t.status.type === 'active' || turn?.status === 'inProgress' || turn?.items?.some(i => i.status === 'inProgress')) threads.push({ id,
       active: t.status.type === 'active',
       thread: t, flags: t.status.activeFlags, turn });
+    else if (options.recoverRateLimited && t.status.type === 'idle' && t.canAcceptDirectInput === true
+      && freshUsageFailure(turn, options.now ?? Date.now()) && safe(turn, t, known)) limited.push({ thread: t, turn });
   }
-  return { threads, known };
+  return { threads, known, limited };
 }
 
 /** A waiting result sends no interrupt and no authentication mutation. */
 export async function prepareCodexLiveHandoff(rpc, options = {}) {
   const isCurrent = options.isCurrent ?? (() => true);
   const paused = [];
-  const { threads: initial, known } = await snapshot(rpc);
+  const { threads: initial, known, limited } = await snapshot(rpc, options);
   const routes = new Map();
   for (const t of initial) {
     if (!t.thread || !v2Child(t.thread)) continue;
@@ -147,6 +159,22 @@ export async function prepareCodexLiveHandoff(rpc, options = {}) {
     if (owner && ![...routes.values()].includes(owner)) return { waiting: true, paused };
   }
   const cooperative = new Set([...routes.keys(), ...routes.values()]);
+  // A long command (for example a CI watcher) may never leave a model-only
+  // window. Ask its direct-input owner to checkpoint instead of endlessly
+  // polling for that window. No tool is interrupted or authenticated over.
+  if (options.cooperativeTools && !routes.size
+    && initial.some(t => Array.isArray(t.turn?.items) && t.turn.items.some(i => drainable.has(i.type) && i.status === 'inProgress'))
+    && initial.every(t => t.active && t.thread?.canAcceptDirectInput === true
+      && Array.isArray(t.flags) && !t.flags.length && t.turn?.status === 'inProgress'
+      && t.turn.itemsView === 'full' && Array.isArray(t.turn.items) && t.turn.items.some(i => i.type === 'userMessage')
+      && t.turn.items.every(i => passive.has(i.type) || completed(i) || childWait(i, t.thread, known)
+        || drainable.has(i.type) && i.status === 'inProgress'))) {
+    return { waiting: true, paused: limited.map(limitedEntry), checkpoint: initial.map(t => ({
+      threadId: t.id, turnId: t.turn.id, rootTurnId: t.turn.rootTurnId ?? t.turn.id,
+      inputIds: inputIds(t.turn), messageId: randomUUID(), checkpointId: randomUUID(),
+      ...(t.thread.parentThreadId ? { parentThreadId: t.thread.parentThreadId } : {}),
+    })) };
+  }
   if (initial.some(t => !t.active || t.thread?.canAcceptDirectInput === false && !routes.has(t.id)
     || t.thread?.parentThreadId && t.thread.canAcceptDirectInput !== true && !routes.has(t.id)
     || !Array.isArray(t.flags) || t.flags.length || t.turn?.status !== 'inProgress'
@@ -162,7 +190,7 @@ export async function prepareCodexLiveHandoff(rpc, options = {}) {
     // interrupt that family based on an empty snapshot: ask its owner to drain
     // tools and collect terminal checkpoints through normal agent messaging.
     const owners = new Set(routes.values()), markers = new Map([...owners].map(id => [id, randomUUID()]));
-    return { waiting: true, paused, checkpoint: initial.filter(t => routes.has(t.id) || owners.has(t.id)).map(t => ({
+    return { waiting: true, paused: limited.map(limitedEntry), checkpoint: initial.filter(t => routes.has(t.id) || owners.has(t.id)).map(t => ({
       threadId: t.id, turnId: t.turn.id, rootTurnId: t.turn.rootTurnId ?? t.turn.id, inputIds: inputIds(t.turn), messageId: randomUUID(),
       checkpointId: markers.get(routes.get(t.id) ?? t.id),
       ...(t.thread.parentThreadId ? { parentThreadId: t.thread.parentThreadId } : {}),
@@ -173,7 +201,15 @@ export async function prepareCodexLiveHandoff(rpc, options = {}) {
     for (const observed of initial) {
       if (!isCurrent()) throw liveError('native_switch_superseded');
       const now = (await rpc.request('thread/read', { threadId: observed.id, includeTurns: false }))?.thread;
-      if (now?.status?.type !== 'active') continue;
+      if (now?.status?.type !== 'active') {
+        if (options.recoverRateLimited && now?.id === observed.id && now.status.type === 'idle'
+          && now.canAcceptDirectInput === true && (now.parentThreadId ?? null) === (observed.thread.parentThreadId ?? null)) {
+          const failed = await latest(rpc, now.id);
+          if (failed?.id === observed.turn.id && freshUsageFailure(failed, options.now ?? Date.now())
+            && safe(failed, now, known) && sameInputs(observed.turn, failed)) limited.push({ thread: now, turn: failed });
+        }
+        continue;
+      }
       const turn = await liveLatest(rpc, now);
       if (turn?.id !== observed.turn.id || now.status.activeFlags?.length || now.canAcceptDirectInput === false && !routes.has(observed.id)
         || (now.parentThreadId ?? null) !== (observed.thread.parentThreadId ?? null)
@@ -189,12 +225,19 @@ export async function prepareCodexLiveHandoff(rpc, options = {}) {
       await rpc.request('turn/interrupt', { threadId: observed.id, turnId: turn.id });
       const after = await latest(rpc, observed.id);
       if (after?.id === turn.id && after.status === 'completed') { await options.afterInterrupt?.(entry, 'skipped'); continue; }
-      if (after?.id !== turn.id || after.status !== 'interrupted') throw liveError('native_interrupt_unconfirmed');
+      if (after?.id !== turn.id || after.status !== 'interrupted' && !(options.recoverRateLimited && usageLimitedTurn(after))) throw liveError('native_interrupt_unconfirmed');
       if (!sameInputs(turn, after)) throw liveError('native_activity_changed');
       const previous = new Set(turn.items.map(i => i.id));
       if (after.items.some(i => tool(i) && !previous.has(i.id) && !completed(i))) throw liveError('native_tool_interrupted');
+      if (usageLimitedTurn(after)) entry.rateLimited = true;
       paused.push(entry);
       await options.afterInterrupt?.(entry, 'paused');
+    }
+    for (const { thread, turn } of limited) {
+      const entry = limitedEntry({ thread, turn });
+      if (!isCurrent()) throw liveError('native_switch_superseded');
+      await options.beforeRecovery?.(entry);
+      paused.push(entry);
     }
     await assertCodexLiveQuiet(rpc);
     return { waiting: false, paused };
@@ -223,6 +266,7 @@ export async function continueCodexLiveHandoff(rpc, handoff, options = {}) {
       if (entry.resumeViaThreadId && t?.status?.type === 'notLoaded') throw liveError('native_continue_unconfirmed');
       await options.onSkip?.(entry); continue;
     }
+    if (entry.rateLimited && t?.canAcceptDirectInput !== true) throw liveError('native_activity_changed');
     if (entry.resumeViaThreadId ? !v2Child(t) || t.parentThreadId !== entry.parentThreadId
       : t?.canAcceptDirectInput === false || entry.parentThreadId
         && (t?.canAcceptDirectInput !== true || t.parentThreadId !== entry.parentThreadId)) throw liveError('native_activity_changed');
@@ -230,7 +274,7 @@ export async function continueCodexLiveHandoff(rpc, handoff, options = {}) {
     // New input, natural completion, archival or a different turn wins over us.
     const checkpoint = entry.checkpointReady && turn?.status === 'completed'
       && turn.items?.some(i => i.type === 'agentMessage' && i.text?.includes('CCDECK_CHECKPOINT_' + entry.checkpointId));
-    if (turn?.id !== entry.turnId || (!checkpoint && turn.status !== 'interrupted')
+    if (turn?.id !== entry.turnId || (!checkpoint && !continuableTurn(turn, entry))
       || JSON.stringify(inputIds(turn)) !== JSON.stringify(entry.inputIds)) {
       await options.onSkip?.(entry); continue;
     }
@@ -249,7 +293,7 @@ export async function continueCodexLiveHandoff(rpc, handoff, options = {}) {
     const finalTurn = await latest(rpc, entry.threadId);
     const finalCheckpoint = entry.checkpointReady && finalTurn?.status === 'completed'
       && finalTurn.items?.some(i => i.type === 'agentMessage' && i.text?.includes('CCDECK_CHECKPOINT_' + entry.checkpointId));
-    if (finalTurn?.id !== entry.turnId || (!finalCheckpoint && finalTurn.status !== 'interrupted')
+    if (finalTurn?.id !== entry.turnId || (!finalCheckpoint && !continuableTurn(finalTurn, entry))
       || JSON.stringify(inputIds(finalTurn)) !== JSON.stringify(entry.inputIds)) {
       await options.onSkip?.(entry); continue;
     }

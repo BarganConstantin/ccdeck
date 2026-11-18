@@ -17,7 +17,7 @@ import {
 import { applyEvent, initialState, type GraphState } from "../reducer";
 import { removalHiddenIds, removalsLiftedByWork, removalTimes, sessionsCalledBack, withoutRemovals } from "../remove-node";
 import type { HookEnvelope, HookPayload } from "../types";
-import BoardSection, { HIDE_FINISHED_LABEL } from "../components/BoardSection";
+import SessionsSection, { HIDE_FINISHED_LABEL } from "../components/SessionsSection";
 import { clientText } from "./client-source";
 
 const T = 1_700_000_000_000;
@@ -103,6 +103,8 @@ describe("which sessions leave the board", () => {
   it("leaves the selected session, and what is already off the board", () => {
     const state = board();
     expect(due(state, T + 60 * MIN, { keep: "s1" })).toEqual(["s2"]);
+    expect(due(state, T + 60 * MIN, { keep: ["s1", "s2"] }), "the selected card's and the stage's").toEqual([]);
+    expect(due(state, T + 60 * MIN, { keep: [null, "s2"] })).toEqual(["s1"]);
     expect(due(state, T + 60 * MIN, { removed: new Set(["s2"]) })).toEqual(["s1"]);
   });
 });
@@ -217,17 +219,22 @@ describe("what is kept", () => {
 
 describe("the setting and its wiring", () => {
   it("is a labelled picker with a note, in Settings › General", () => {
-    const html = renderToStaticMarkup(createElement(BoardSection));
+    // CHANGED ON PURPOSE (V4's General page): the row heads General's one
+    // Sessions group, which holds the session-recovery rows under it.
+    const html = renderToStaticMarkup(createElement(SessionsSection));
+    expect(html).toMatch(/<h3 id="settings-sessions-caption">Sessions<\/h3>/);
     expect(html).toContain(HIDE_FINISHED_LABEL);
     expect(html).toContain('aria-labelledby="settings-hide-finished-label"');
     expect(html).toContain('aria-describedby="settings-hide-finished-note"');
     expect(html.match(/<option/g)).toHaveLength(5);
-    expect(clientText("components/SettingsModal.tsx")).toMatch(/<BoardSection \/>/);
+    expect(clientText("components/SettingsModal.tsx")).toMatch(/<SessionsSection>/);
   });
 
-  it("waits for the history before it hides anything, and spares the selected card", () => {
+  it("waits for the history before it hides anything, and spares the selected card and the stage's session", () => {
     const app = clientText("App.tsx");
     expect(app).toMatch(/useHideFinished\(\{[\s\S]*?ready: historyReplayed/);
     expect(app).toMatch(/keepSessionId: primarySelectedId/);
+    expect(app).toMatch(/stageSessionId: stage\.enabled && stage\.shell\.phase !== "closed" \? targetSession\(stage\.shell\.target\)/);
+    expect(app.indexOf("useHideFinished({"), "after the stage it reads").toBeGreaterThan(app.indexOf("const stage = useStage("));
   });
 });

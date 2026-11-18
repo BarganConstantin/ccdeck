@@ -19,10 +19,10 @@
 import { useMediaQuery } from "../use-media-query";
 import { useT } from "../i18n";
 import LanguageSection from "./LanguageSection";
-import SessionRecoverySettings from "./SessionRecoverySettings";
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import SessionRecoveryRow, { ContinueStoppedRow } from "./SessionRecoverySettings";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Providers } from "../providers";
-import { focusedTabToFollow, isFindChord, sectionsDrawn, type SettingsDoors, type SettingsSection } from "../settings";
+import { focusedTabToFollow, isFindChord, sectionIndex, sectionsDrawn, settingsSections, type SettingsDoors, type SettingsSection } from "../settings";
 import { indexFor, isSectionEntry, searchSettings, type SettingsEntry } from "../settings-search";
 import { tabStripMove } from "../tablist-keys";
 import type { useAppearance } from "../use-appearance";
@@ -35,11 +35,10 @@ import type { useTonePrefs } from "../use-tone-prefs";
 import type { useVersionCheck } from "../use-version-check";
 import { setSingleKeyShortcuts } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
-import BoardSection from "./BoardSection";
+import SessionsSection from "./SessionsSection";
 import ElsewhereSection from "./ElsewhereSection";
 import KeyboardSection from "./KeyboardSection";
 import NotificationsSection from "./NotificationsSection";
-import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import SoundsSection from "./SoundsSection";
 import RadarSettings from "./RadarSettings";
 import ClaudeCodeSettings from "./ClaudeCodeSettings";
@@ -51,9 +50,25 @@ import ReadingSection, { ReadingReset } from "./ReadingSection";
 import AboutSection from "./AboutSection";
 import UpdatesSection from "./UpdatesSection";
 import CharacterSection from "./CharacterSection";
+import TerminalSection, { offersWorkspace, type TerminalSwitch } from "./TerminalSection";
+import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { SettingsSearchField, SettingsSearchResults, SettingsSearchStatus } from "./SettingsSearch";
 import { useSettingsJump } from "./use-settings-jump";
+import { SettingsFailureLine } from "./SettingsFailureLine";
+import { answerSettingsFailure, setSettingsFailure, useSettingsFailure } from "../settings-failure";
+
+// Settings › Account, hidden: its own chunk, fetched only when the section is
+// drawn, which is only on a deck with the ccdeck account on (or vetoed at
+// launch after being asked for).
+const AccountSection = lazy(() => import("./AccountSection"));
+
+/** Whether this deck draws Settings › Account, and why — /api/prefs's
+ *  `accountOn` and `accountVetoed`. */
+export interface AccountSwitch {
+  on: boolean;
+  vetoed: boolean;
+}
 
 export interface SettingsModalProps {
   /** The section on show; the nav and the door that opened this both set it. */
@@ -79,12 +94,18 @@ export interface SettingsModalProps {
   restart: ReturnType<typeof useAutoRestart>;
   /** Where About and General send the reader, each closing this first. */
   doors: SettingsDoors;
+  /** The Command Panel's switch (use-stage.ts); General's Experimental group draws it when given. */
+  terminal?: TerminalSwitch;
+  /** The ccdeck account's section, drawn only when this says so. */
+  account?: AccountSwitch;
 }
 
 export default function SettingsModal({
   section, landOn, onSection, onClose, providers, sound, tones, customTones, notify, appearance,
-  versionCheck, desktopUpdate, restart, doors,
+  versionCheck, desktopUpdate, restart, doors, terminal, account,
 }: SettingsModalProps) {
+  // Account is drawn while the ccdeck account is on, or was asked for and vetoed.
+  const accountShown = account?.on === true || account?.vetoed === true;
   // Focus starts on the section's own tab, not on the ×: the nav is what this
   // dialog is walked by, and a door that opened it at Sounds lands the reader
   // on "Sounds", which says where they are.
@@ -105,12 +126,14 @@ export default function SettingsModal({
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   // THE SECTIONS THIS DECK DRAWS (sectionsDrawn, settings.ts): every one, but
   // Integrations only where the deck offers a kind or still holds a stranded
-  // connection, or while it is the section on show. The nav, its arrows and
-  // the pane's head all walk this list, so here it takes the table's name.
+  // connection, or while it is the section on show; and Account, before About,
+  // only while the ccdeck account is on (settingsSections). The nav, its arrows
+  // and the pane's head all walk this list.
   const integrations = useIntegrations();
   const integrationsReachHere = integrationsReach(integrations);
   const SETTINGS_SECTIONS = sectionsDrawn(integrationsReachHere, section, providers.claude);
-  const at = Math.max(0, SETTINGS_SECTIONS.findIndex(s => s.id === section));
+  const sections = settingsSections({ account: accountShown, drawn: SETTINGS_SECTIONS });
+  const at = sectionIndex(section, sections);
 
   // THE SEARCH. While the field holds a query the pane shows what matches it
   // in place of the section; the section stays mounted under it, hidden, so a
@@ -176,16 +199,23 @@ export default function SettingsModal({
     selectedTabRef.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   }, [section]);
 
+  // A REFUSED WRITE'S LINE (settings-failure.ts), under the page head, for
+  // every setting that writes. Said only on the page it happened on: emptied
+  // as the dialog opens, as the section changes, and as the dialog closes.
+  const failure = useSettingsFailure();
+  useEffect(() => { setSettingsFailure(null); }, [section]);
+  useEffect(() => () => setSettingsFailure(null), []);
+
   const { theme, setTheme, characterEnabled, setCharacterEnabled, character, setCharacter } = appearance;
   const singleKeys = useSingleKeyShortcuts();
 
   const moveSection = (event: KeyboardEvent<HTMLDivElement>) => {
-    const move = tabStripMove(event, at, SETTINGS_SECTIONS.length, "vertical");
+    const move = tabStripMove(event, at, sections.length, "vertical");
     if (move.kind === "pass") return;
     event.preventDefault();
     // An arrow that chooses a section ends the search, as a press does.
     requestLeave(() => {
-      changeQuery(""); onSection(SETTINGS_SECTIONS[move.index].id);
+      changeQuery(""); onSection(sections[move.index].id);
       tabRefs.current[move.index]?.focus();
     });
   };
@@ -209,8 +239,11 @@ export default function SettingsModal({
   const { notifyPermission, notifyOn, notifyVetoed, toggleNotify, notifySupported, askForNotifications,
           accountNotify, toggleAccountNotify } = notify;
 
+  // A section this deck does not draw — Account, on a deck without the
+  // account — is General, as the nav's index already says.
+  const paneSection = sections[at].id;
   const pane = (() => {
-    switch (section) {
+    switch (paneSection) {
       case "radar":
         return <RadarSettings onOpen={doors.radar} />;
       case "claude":
@@ -230,7 +263,8 @@ export default function SettingsModal({
       case "reading":
         return <ReadingSection textSize={appearance.textSize} density={appearance.density} onTextSize={appearance.setTextSize} onDensity={appearance.setDensity} />;
       case "keyboard":
-        return <KeyboardSection singleKeys={singleKeys} onToggleSingleKeys={() => setSingleKeyShortcuts(!singleKeys)} />;
+        return <KeyboardSection singleKeys={singleKeys} onToggleSingleKeys={() => setSingleKeyShortcuts(!singleKeys)}
+          workspace={offersWorkspace(terminal)} />;
       case "notifications":
         return (
           <NotificationsSection
@@ -268,6 +302,8 @@ export default function SettingsModal({
         return <IntegrationsSection onBeforeLeaveChange={registerLeaveGuard} />;
       case "data":
         return <ToolAuditSettings />;
+      case "account":
+        return <Suspense fallback={null}><AccountSection vetoed={account?.on !== true} /></Suspense>;
       case "about":
         return (
           <AboutSection
@@ -281,16 +317,24 @@ export default function SettingsModal({
           />
         );
       default:
-        // General: how the board behaves, how the deck updates itself, and
-        // the preferences that live in a panel of their own (#2176).
+        // General: the language, then one Sessions group — how long a
+        // finished session stays on the board and which sessions come back
+        // after a restart, Claude's before Codex's, as V4 draws it — how the
+        // deck updates itself, the preferences that live in a panel of their
+        // own (#2176), then Experimental, where the Command Panel's switch
+        // stands (V4 draws no tab for it). Claude's two rows are drawn where
+        // Claude Code is.
         return (
           <>
             <LanguageSection />
-            <BoardSection />
-            <SessionRecoverySettings provider="Codex" />
-            {providers.claude && <SessionRecoverySettings provider="Claude" />}
+            <SessionsSection>
+              {providers.claude && <SessionRecoveryRow provider="Claude" />}
+              <SessionRecoveryRow provider="Codex" />
+              {providers.claude && <ContinueStoppedRow />}
+            </SessionsSection>
             <UpdatesSection autoRestart={restart.autoRestart} onToggleAutoRestart={restart.toggleAutoRestart} version={versionCheck.version} />
             <ElsewhereSection claudeHere={providers.claude} codexHere={providers.codex} singleKeys={singleKeys} doors={doors} />
+            {terminal && <TerminalSection terminal={terminal} />}
           </>
         );
     }
@@ -305,17 +349,14 @@ export default function SettingsModal({
       : null;
 
   return (
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div
-        ref={dialogRef}
-        id="settings"
-        className="modal settings-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="settings-title"
-        onClick={event => event.stopPropagation()}
-        onKeyDown={onDialogKey}
-      >
+    <Dialog
+      scrim={scrimPress}
+      dialogRef={dialogRef}
+      id="settings"
+      className="settings-modal"
+      labelledBy="settings-title"
+      onKeyDown={onDialogKey}
+    >
         <header className="modal-head">
           <div className="modal-title">
             <span id="settings-title" className="modal-tool-name">{t("settings.title")}</span>
@@ -357,7 +398,7 @@ export default function SettingsModal({
               aria-orientation={narrowNav ? "horizontal" : "vertical"}
               onKeyDown={moveSection}
             >
-              {SETTINGS_SECTIONS.map((choice, index) => (
+              {sections.map((choice, index) => (
                 <button
                   key={choice.id}
                   ref={el => {
@@ -373,8 +414,7 @@ export default function SettingsModal({
                   tabIndex={choice.id === section ? 0 : -1}
                   onClick={() => chooseSection(choice.id)}
                 >
-                  <SettingsSectionGlyph section={choice.id} />
-                  <span className="settings-tab-label">{t(`settings.section.${choice.id}.label`)}</span>
+                  <span className="settings-tab-label">{choice.label}</span>
                 </button>
               ))}
             </div>
@@ -401,16 +441,19 @@ export default function SettingsModal({
                 page and a Raycast preference pane open on. */}
             <div className="settings-pane-head">
               <div className="settings-pane-heading">
-                <h2 className="settings-pane-title">{t(`settings.section.${SETTINGS_SECTIONS[at].id}.label`)}</h2>
-                <p className="settings-pane-note">{t(`settings.section.${SETTINGS_SECTIONS[at].id}.note`)}</p>
+                <h2 className="settings-pane-title">{sections[at].label}</h2>
+                <p className="settings-pane-note">{sections[at].note}</p>
               </div>
               {paneAction}
             </div>
+            {/* Keyed by the refusal, so a second one is a new alert a screen
+                reader says again; the press's own answer keeps the key. */}
+            {failure && <SettingsFailureLine key={failure.serial} banner line={failure.line}
+              onDismiss={() => setSettingsFailure(null)} onAnswer={answerSettingsFailure} />}
             {pane}
           </div>
           {searching && <SettingsSearchResults query={query} results={results} active={active} onOpen={openResult} />}
         </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }

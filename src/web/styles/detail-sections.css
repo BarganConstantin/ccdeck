@@ -1,29 +1,34 @@
 /* ---------------- detail panel: hero + sections ---------------- */
 
+/* THE TITLE BLOCK (V4's Figma): the 14px state glyph and the name at 600
+   16/20, the meta line at 400 12/16, the spend figure 600 16/24, tabular, with
+   its word. No rule under it and no box round the spend: the body's 12px gap
+   is the spacing. */
 .detail-hero {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 4px 0 14px;
-  border-bottom: 1px solid var(--line);
+  gap: 4px;
 }
 .detail-hero .hero-line {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   min-width: 0;
 }
-/* 18px, joining `.empty-hero h2` rather than sitting 1px under it. Both are the
-   largest text on the surface they head and both are 600, and 17 against 18 is a
-   6% step — under what a reader can resolve, so the difference was not encoding
-   "a side panel is smaller than a splash screen", it was just a second number
-   for one job. The title already clips with an ellipsis, so a 1px lift spends
-   one character rather than any width. */
+/* The card's ⋯ (Export JSON, Remove from board) at the far end of the name's
+   line, a quiet icon button like the Fold above it (V4 top-10 #6). */
+.detail-hero .hero-more { flex: none; margin-left: auto; }
+.detail-hero .hero-state { flex: none; display: inline-flex; width: 14px; height: 14px; color: var(--text-secondary); }
+.detail-hero .hero-state[data-state="idle"] { color: var(--muted); }
+.detail-hero .hero-state[data-state="error"] { color: var(--err); }
+.detail-hero .hero-state[data-state="working"] { color: var(--inflight); }
+/* Finished with failed calls: one warn mark, as on the card (V4 top-10 #9). */
+.detail-hero .hero-state[data-state="partial"] { color: var(--warn); }
 .detail-hero .hero-title {
   margin: 0;
-  font-size: calc(18px + var(--ui-text-increase, 0px));
+  font-size: calc(16px + var(--ui-text-increase, 0px));
+  line-height: 20px;
   font-weight: 600;
-  letter-spacing: 0.01em;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
@@ -33,64 +38,124 @@
 .detail-hero .hero-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
+  gap: 4px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 400;
   color: var(--muted);
-  font-family: var(--font-mono);
   flex-wrap: wrap;
 }
-.detail-hero .hero-meta-item { letter-spacing: 0.03em; }
-.detail-hero .hero-sep { color: var(--text-dim); }
-.detail-hero .hero-cost {
-  margin-top: 8px;
-  padding: 10px 12px;
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  border-radius: var(--r-panel);
+.detail-hero .hero-meta-item { white-space: nowrap; }
+.detail-hero .hero-sep { color: var(--muted); }
+/* The model, in the meta line's own type: "opus 5 +1", not a tinted pill. */
+.detail-hero .hero-meta .model-chip[data-family],
+.detail-hero .hero-meta .model-chip {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 400;
+  letter-spacing: 0;
 }
-.detail-hero .hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 4px;
-}
-.detail-hero .hero-action-btn {
-  padding: 5px 12px;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-}
+/* The figure alone: its split by kind is under Details, keyed (V4 top-10 #6). */
+.detail-hero .hero-cost { margin-top: 8px; }
 .detail-hero .hero-cost-headline {
   display: flex;
   align-items: baseline;
   gap: 6px;
-  margin-bottom: 8px;
 }
 .detail-hero .hero-cost-value {
-  font-size: calc(22px + var(--ui-text-increase, 0px));
-  font-weight: 700;
-  color: var(--ok);
+  font-family: var(--font-sans);
+  font-size: calc(16px + var(--ui-text-increase, 0px));
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
 }
 .detail-hero .hero-cost-label {
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  text-transform: uppercase;
-  letter-spacing: 0.10em;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 400;
   color: var(--muted);
 }
+/* The next step under the title block (Detail.tsx's inspectorNextStep):
+   Answer as V4's Primary (`button.btn.primary`, the --accent wash at 600), or
+   Open as its Quiet button (`button.btn`, 13/500 --text-secondary), with Show
+   recap beside it, Quiet, for a finished session. Both as the kit draws them,
+   on the control radius, 12 in, with an edge held to 3:1
+   (control-edges.test.ts). Export JSON and Remove from board are the title
+   block's ⋯ (V4 top-10 #6). */
+.detail .hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* DETAILS (V4 top-10 #6): the spend by kind, the identity and the tool calls,
+   behind one quiet row at the end of the body. No box round it: a hairline
+   above parts it from what is read, and the row is the panel's 13px in
+   --muted with the kit's chevron, which turns down while it is open. The
+   whole row is the target, and the shared ring draws inside it. It answers a
+   press the way the deck's other reading rows do (What's new's disclosures):
+   by opening, its chevron turning and its words lifting to --text under the
+   pointer, never by scaling the row out from under the pointer. */
+.detail-more { border-top: 1px solid var(--line); }
+.detail-more > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 0;
+  border-radius: var(--r-ctl);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: 20px;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+}
+.detail-more > summary::-webkit-details-marker { display: none; }
+.detail-more-chev { flex: none; }
+.detail-more[open] > summary .detail-more-chev { transform: rotate(90deg); }
+@media (hover: hover) and (pointer: fine) {
+.detail-more > summary:hover { color: var(--text); }
+}
+/* How many tool calls are inside, at the row's far end, quieter than its word. */
+.detail-more-count {
+  margin-left: auto;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+/* What it opens onto keeps the gap between sections the body has above it. */
+.detail-more-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 8px;
+}
+/* The bar sits on the section's 8px gap over the token rows that key it, as
+   tall as the Time tab's split bar. */
+.detail-more .cost-bar { height: 6px; }
 
 /* Stacked cost-breakdown bar */
 .cost-bar {
   display: flex;
   height: 8px;
   width: 100%;
-  border-radius: 4px;
+  border-radius: var(--r-pill);
   overflow: hidden;
   background: var(--line);
 }
 .cost-bar .cb-seg {
   height: 100%;
   display: block;
-  transition: filter 120ms ease;
+  transition: filter var(--dur-fast) var(--ease);
   /* The cut between two bands, the same one .uh-agent-seg draws and for the
      same reason. It replaces a 1px flex gap that showed the bar's own --line
      track between the segments, which on white measured 1.14:1 against
@@ -117,8 +182,12 @@
    getting darker — and 0.85 is the drag #330 already spends on the cluster
    label. It puts the hovered band at 4.02-5.44:1 on the track and 6.42-8.67:1
    on the paper. */
+@media (hover: hover) and (pointer: fine) {
 .cost-bar .cb-seg:hover { filter: brightness(1.3); }
+}
+@media (hover: hover) and (pointer: fine) {
 :root[data-color-scheme="light"] .cost-bar .cb-seg:hover { filter: brightness(0.85); }
+}
 /* The four bands. Until #619 these were four fixed-lightness hsl() literals —
    the only ones in the sheet that did not read a theme-scoped lightness token —
    and they were picked for the dark canvas. Resolved, they are #5e9fed, #c679ec,
@@ -146,72 +215,111 @@
 .cost-bar .cb-output   { background: var(--usage-purple); }
 .cost-bar .cb-cache-r  { background: var(--usage-teal); }
 .cost-bar .cb-cache-w  { background: var(--usage-lime); }
+/* The key to the bar in the Inspector's Details: each token row's label leads
+   with an 8px square in its band's colour, read from the same four tokens so
+   a band re-tuned moves its swatch with it (V4 top-10 #6). Square, as the
+   recap's key to the same bar is: the deck's corners are 0, 4, 8 or a pill,
+   and 4 would round an 8px swatch into a dot. They sit on --panel, where the
+   four bands already clear 3:1 (contrast-floors.test.ts). */
+.tokens-grid .tk-key::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 0;
+}
+.tokens-grid .tk-in::before  { background: var(--usage-blue); }
+.tokens-grid .tk-out::before { background: var(--usage-purple); }
+.tokens-grid .tk-cr::before  { background: var(--usage-teal); }
+.tokens-grid .tk-cw::before  { background: var(--usage-lime); }
 
 .detail-section {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-top: 4px;
 }
+/* The section label (V4's Figma): a 20-high row, 600 12/16 in --text-secondary,
+   in the case it is written in; the count beside it is 400 11/14 --muted, tabular. */
 .detail-section h3 {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  height: 20px;
 }
 .detail-section h3 .section-count {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  color: var(--text);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  font-weight: 600;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
+  font-weight: 400;
+  color: var(--muted);
   text-transform: none;
   letter-spacing: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 
-/* Activity row — counters on the left, category chips on the right */
-.activity-row {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+/* "2 live  1 err" beside the Tool calls count: 12/16 tabular, the whole item in
+   its colour, at the body's weight rather than the heading's. */
 .activity-counters {
   display: flex;
   gap: 12px;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  color: var(--muted);
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--text);
 }
-.activity-counters .ac-item b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.activity-counters .ac-item b { font-weight: 400; font-variant-numeric: tabular-nums; }
 .activity-counters .ac-live { color: var(--inflight); }
-.activity-counters .ac-live b { color: var(--inflight); }
 .activity-counters .ac-err { color: var(--err); }
-.activity-counters .ac-err b { color: var(--err); }
 
+/* The kind chips under the Tool calls heading. Each is a 24-high button round
+   its pill, so the rows of chips need no gap of their own. */
 .cat-strip {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 0 4px;
 }
+/* A chip is a filter: pressed, the list under it keeps that kind of call;
+   pressed again, every call. The pill keeps its look; the pressed one takes
+   the accent wash and the text ink. */
+.call-kind {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease);
+}
+.call-kind:active { transform: scale(var(--press)); }
+.call-kind[aria-pressed="true"] .cat-chip { background: var(--accent-16); color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+.call-kind:hover .cat-chip { color: var(--text); }
+}
+/* A pill: --ctl-fill, padding 1 6, 400 11/14 --text-secondary: a kind's name,
+   in the sans (V4 top-10 #8). */
 .cat-chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 10px 3px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--bg-soft);
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  border: 0;
+  background: var(--ctl-fill);
+  color: var(--text-secondary);
   font-size: calc(11px + var(--ui-text-increase, 0px));
-  font-family: var(--font-mono);
+  line-height: 14px;
+  font-weight: 400;
+  font-family: var(--font-sans);
 }
-.cat-chip .cat-emoji { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1; }
-.cat-chip .cat-count { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
-/* The category's word, at rest (#841) — the key to the count beside it, in the
-   key tier, at the chip's own 11px. */
-.cat-chip .cat-name { color: var(--muted); }
+.cat-chip .cat-count { color: inherit; font-weight: 400; font-variant-numeric: tabular-nums; }
+/* The category's word, at rest (#841) — the key to the count beside it. */
+.cat-chip .cat-name { color: inherit; }
 /* The server an MCP chip is counting, when every one of its calls went to the
    same one (#489). It is the half of that answer a colour cannot give: the tint
    beside it is per-server, and a reader who does not receive hue gets the whole
@@ -224,7 +332,7 @@
    carried the rest of the row off the edge. A length, not a percentage — the
    ellipsis has to land at the same place whatever else is in the strip. */
 .cat-chip .cat-server {
-  color: var(--muted);
+  color: var(--text-secondary);
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -263,24 +371,24 @@
   flex-direction: column;
   gap: 8px;
 }
+/* A prompt is a line of text (V4's Figma): 400 12/16 in --text-secondary, no
+   box; its time keeps a small tabular line above it. */
 .prompt-entry {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px 10px;
-  background: var(--bg-soft);
+  padding: 0;
 }
 .prompt-time {
   color: var(--muted);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  font-family: var(--font-mono);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  margin-bottom: 4px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 2px;
 }
 .prompt-text {
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: 1.5;
-  color: var(--text);
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--text-secondary);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -324,15 +432,15 @@ button.btn.detail-continue-btn {
   cursor: pointer;
   color: var(--muted);
   font-size: calc(11px + var(--ui-text-increase, 0px));
-  transition: color 120ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
-.detail-continue-how > summary:active { transform: scale(0.97); }
+.detail-continue-how > summary:active { transform: scale(var(--press)); }
 .detail-continue-how > button.btn.detail-continue-btn { margin-top: 6px; }
 .detail-continue-cmd {
   margin: 6px 0 0;
   padding: 6px 8px;
   border: 1px solid var(--line-soft);
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   background: var(--bg-soft);
   font-family: var(--font-mono);
   font-size: calc(11px + var(--ui-text-increase, 0px));
@@ -390,7 +498,7 @@ button.btn.detail-continue-btn {
   top: 1px;
   width: 9px;
   height: 9px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   border: 1.5px solid var(--muted);
   box-sizing: border-box;
 }
@@ -411,31 +519,43 @@ button.btn.detail-continue-btn {
 }
 .plan-now {
   flex: none;
-  font-family: var(--font-mono);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-family: var(--font-sans);
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   color: var(--accent);
 }
-
-/* A background task's notice, which Claude Code submits through the same hook
-   as a human's typing (#834). It keeps its place in time but reads as an event,
-   not as words the reader wrote: no fill, a dashed edge, one line until opened. */
-.prompt-injected {
+/* THE INSPECTOR'S PLAN (V4's Figma): a step is 22 high, a 14px kit state glyph
+   in place of the ring and tick (done and working in --text-secondary, idle in
+   --muted), the step in 400 12/16, and "now" in 11/14 --inflight. The note
+   and the card keep the ring and the tick above. */
+.detail .plan-list { display: flex; flex-direction: column; gap: 0; }
+.detail .plan-item {
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  line-height: 16px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+.detail .plan-mark {
+  top: 0;
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 0;
   background: none;
-  border-style: dashed;
-  padding: 6px 10px;
+  color: var(--text-secondary);
 }
-.prompt-injected > summary {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.prompt-injected-label { color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
-.prompt-injected-detail {
-  margin-top: 6px;
-  color: var(--muted);
+.detail .plan-item[data-status="in_progress"] .plan-mark { background: none; }
+.detail .plan-item[data-status="completed"] .plan-mark::after { content: none; }
+.detail .plan-item[data-status="in_progress"] { color: var(--text-secondary); }
+.detail .plan-item[data-status="completed"] { color: var(--text-secondary); }
+.detail .plan-item[data-status="pending"] { color: var(--muted); }
+.detail .plan-item[data-status="pending"] .plan-mark { color: var(--muted); }
+.detail .plan-now {
   font-size: calc(11px + var(--ui-text-increase, 0px));
-  line-height: 1.45;
-  word-break: break-word;
+  line-height: 14px;
+  color: var(--inflight);
 }
 
 /* ---------------- clickable tool row ---------------- */
@@ -444,46 +564,41 @@ button.tool.clickable {
   width: 100%;
   background: transparent;
   border: none;
-  border-bottom: 1px solid var(--line-soft);
   text-align: left;
   cursor: pointer;
   color: var(--text);
   font: inherit;
-  padding: 6px 0;
+  padding: 0 6px;
+  height: 24px;
   display: flex;
   align-items: center;
   gap: 8px;
   justify-content: space-between;
-  border-radius: 4px;
-  transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  border-radius: var(--r-ctl);
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
-button.tool.clickable { padding-left: 6px; padding-right: 6px; }
-button.tool.clickable:hover { background: var(--ctl-fill); }
-button.tool.clickable:active { transform: scale(0.97); }
-button.tool.clickable:last-child { border-bottom: none; }
-
-/* ---------------- shortcuts grid ---------------- */
-.shortcuts {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 6px 12px;
-  align-items: center;
-}
-.shortcuts .sc { display: contents; }
-.shortcuts .sc kbd {
+/* A tool row (V4's Figma): the name 500 12/16 in --text, what it ran on in
+   mono 400 11/14 --muted (it is what was typed), cut with an ellipsis; the
+   time, a figure in the sans, closes the row. */
+button.tool.clickable .name { flex: 1; min-width: 0; font-family: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-weight: 500; }
+button.tool.clickable .tool-name { flex: none; }
+button.tool.clickable .tool-arg {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--font-mono);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  font-weight: 600;
-  color: var(--text);
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  padding: 2px 8px;
-  text-align: center;
-  min-width: 38px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
+  font-weight: 400;
+  color: var(--muted);
 }
-.shortcuts .sc span { color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
+button.tool.clickable .tool-dur { flex: none; font-family: var(--font-sans); font-variant-numeric: tabular-nums; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 14px; color: var(--muted); }
+@media (hover: hover) and (pointer: fine) {
+button.tool.clickable:hover { background: var(--ctl-fill); }
+}
+button.tool.clickable:active { transform: scale(var(--press)); }
+button.tool.clickable:last-child { border-bottom: none; }
 
 /* hint row inside empty hero */
 /* A tier under the paragraph above it, not an opacity over it (#1787): 0.75

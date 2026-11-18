@@ -15,6 +15,9 @@ import { typedPrompts } from "../injected-prompt";
 // which differed from the other two by its name and the one class that makes it
 // taller (#374). That class is the `size` prop now.
 import CostBar from "./CostBar";
+import { Dialog } from "./Dialog";
+import { StateMark } from "./StateMark";
+import { sessionMark, type StateMarkKind } from "../node-face";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 interface Props {
@@ -41,13 +44,10 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
   if (!summary) return null;
 
   return (
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal session-summary" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="ss-title">
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="session-summary" labelledBy="ss-title ss-who-name">
         <div className="modal-head">
           <div className="modal-title">
-            <span className="state-pill state-done" aria-hidden>{t("insights.summary.done")}</span>
-            <span id="ss-title" className="modal-tool-name" title={summary.cwd ?? summary.sessionId}>{summary.label}</span>
-            <span className="modal-tool-id">· {summary.sessionId.slice(0, 8)}</span>
+            <span id="ss-title" className="modal-tool-name">{t("insights.summary.title")}</span>
           </div>
           <div className="modal-actions">
             <span className="modal-dur" title={t("insights.summary.wall")}>{summary.durationLabel}</span>
@@ -56,15 +56,32 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
         </div>
 
         <div className="modal-body">
-          <section className="ss-hero">
-            <div className="ss-hero-left">
-              {/* The same word retired from the sidebar row beside it (#687):
-                  this is the sum over the agents of ONE session that are still
-                  on the board, which is a scope and not a total. The session it
-                  belongs to is named in this modal's own title two inches
-                  above, so the scope needs no more words than that. */}
-              <div className="ss-cost-label">{sessionSpendLabel()}</div>
-              <div className="ss-cost">{fmtCost(summary.cost.total)}</div>
+          {/* V4's who line: the session's mark, its name and its short id. The
+              mark is its card's: the partial mark when its calls failed, the
+              cross only when its turn did. */}
+          <div className="ss-who" title={summary.cwd ?? summary.sessionId}>
+            <StateMark kind={summary.mark} />
+            <span id="ss-who-name" className="ss-who-name">{summary.label}</span>
+            <span className="ss-who-id">· {summary.sessionId.slice(0, 8)}</span>
+          </div>
+
+          <section className="ss-stats">
+            {/* The same word retired from the sidebar row beside it (#687):
+                this is the sum over the agents of ONE session that are still
+                on the board, which is a scope and not a total. The session it
+                belongs to is named on the line above, so the scope needs no
+                more words than that. */}
+            <Stat label={t("insights.summary.spend")} value={fmtCost(summary.cost.total)} title={sessionSpendLabel()} />
+            <Stat label={t("insights.summary.agents")} value={summary.agentCount} />
+            <Stat label={t("insights.summary.subagents")} value={summary.subagentCount} />
+            <Stat label={t("insights.summary.toolCalls")} value={summary.toolCount} />
+            <Stat label={t("insights.summary.prompts")} value={summary.promptCount} />
+            <Stat label={t("insights.summary.errors")} value={summary.errCount} tone={summary.errCount > 0 ? "err" : undefined} />
+            <Stat label={t("insights.usage.tokens")} value={summary.tokensSum.toLocaleString(currentLanguage())} />
+          </section>
+
+          {(summary.modelChips.length > 0 || summary.cost.total > 0) && (
+            <section className="ss-hero">
               {summary.modelChips.length > 0 && (
                 <div className="ss-models">
                   {summary.modelChips.map(m => (
@@ -72,8 +89,6 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
                   ))}
                 </div>
               )}
-            </div>
-            <div className="ss-hero-right">
               {summary.cost.total > 0 && (
                 <>
                   <CostBar cost={summary.cost} size="lg" />
@@ -85,28 +100,15 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
                   </div>
                 </>
               )}
-            </div>
-          </section>
-
-          <section className="ss-stats">
-            <Stat label={t("insights.summary.agents")} value={summary.agentCount} />
-            <Stat label={t("insights.summary.subagents")} value={summary.subagentCount} />
-            <Stat label={t("insights.summary.toolCalls")} value={summary.toolCount} />
-            <Stat label={t("insights.summary.prompts")} value={summary.promptCount} />
-            <Stat label={t("insights.usage.tokens")} value={summary.tokensSum.toLocaleString(currentLanguage())} />
-            {summary.errCount > 0 && <Stat label={t("insights.summary.errors")} value={summary.errCount} tone="err" />}
-          </section>
+            </section>
+          )}
 
           {summary.topTools.length > 0 && (
             <section className="modal-section">
               <h4>{t("insights.summary.topTools")}</h4>
               <div className="ss-top-tools">
                 {summary.topTools.map(([name, count]) => (
-                  <div className="ss-tt" key={name}>
-                    <span className="ss-tt-name">{name}</span>
-                    <span className="ss-tt-bar"><span className="ss-tt-bar-fill" style={{ width: `${(count / summary.topTools[0][1]) * 100}%` }} /></span>
-                    <span className="ss-tt-count">{count}</span>
-                  </div>
+                  <span className="ss-tt" key={name}>{name} <b>{count}</b></span>
                 ))}
               </div>
             </section>
@@ -119,14 +121,16 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
             </section>
           )}
         </div>
-      </div>
-    </div>
+        <footer className="modal-foot">
+          <button type="button" className="btn primary" onClick={onClose}>{t("shell.done")}</button>
+        </footer>
+    </Dialog>
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: number | string; tone?: "err" }) {
+function Stat({ label, value, tone, title }: { label: string; value: number | string; tone?: "err"; title?: string }) {
   return (
-    <div className={`ss-stat${tone ? ` tone-${tone}` : ""}`}>
+    <div className={`ss-stat${tone ? ` tone-${tone}` : ""}`} title={title}>
       <div className="ss-stat-value">{value}</div>
       <div className="ss-stat-label">{label}</div>
     </div>
@@ -148,6 +152,8 @@ interface Summary {
   errCount: number;
   topTools: Array<[string, number]>;
   firstPrompt?: string;
+  /** The mark the session's card and row draw (node-face.ts sessionMark). */
+  mark: StateMarkKind;
 }
 
 function buildSummary(state: GraphState, sessionId: string): Summary | null {
@@ -226,5 +232,6 @@ function buildSummary(state: GraphState, sessionId: string): Summary | null {
     errCount,
     topTools,
     firstPrompt,
+    mark: sessionMark(root),
   };
 }

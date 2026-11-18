@@ -30,7 +30,6 @@ const data: RecapNoteData = {
     ],
   },
   noteKey: "s",
-  hue: 200,
 };
 
 /** The full note's step text, root first, as RecapNoteNode draws it. */

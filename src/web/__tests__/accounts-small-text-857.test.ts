@@ -39,19 +39,32 @@ const px = (selector: string) => {
 
 describe("the accounts panel's reading sizes (#857)", () => {
   it("sets what an account is chosen by at the panel's 11px floor", () => {
-    for (const sel of [".ap-email", ".ap-lane-label", ".ap-lane-pct"]) {
+    // CHANGED ON PURPOSE (V4's Figma): the row's name is the one name (`ap-alias`,
+    // 13), the address it stands for having left the row for its title. The
+    // open row's windows are lines of text (`ap-lane`) whose name and number
+    // take the line's size, and the two figures are mono 12 under an 11 name.
+    for (const sel of [".ap-alias", ".ap-lane", ".ap-fig .ap-q-pct", ".ap-fig .ap-q-label"]) {
       expect(px(sel), sel).toBeGreaterThanOrEqual(11);
     }
   });
 
-  it("keeps the reset line one ladder step under its key, and off the 9px floor", () => {
-    expect(px(".ap-lane-reset")).toBe(10);
-    expect(px(".ap-lane-label")).toBeGreaterThan(px(".ap-lane-reset"));
+  it("keeps the reset line off the floor, at the key's own size", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the open row says a window's reset on
+    // the window's own line, after its number, so the reset and the key are
+    // one size because neither sets one — the line's 12.
+    expect(decl(".ap-lane-reset", "font-size")).toBeNull();
+    expect(decl(".ap-lane-label", "font-size")).toBeNull();
+    expect(px(".ap-lane")).toBe(12);
   });
 
-  it("sets every line under the name, and every control on those lines, at one size, 11px", () => {
-    const lines = [".ap-meta", ".ap-quota", ".ap-issue-line", ".ap-switch", ".ap-fix"];
-    expect(lines.map(px), lines.join(" ")).toEqual(lines.map(() => 11));
+  it("sets every line under the name, and every control on those lines, at one size", () => {
+    // CHANGED ON PURPOSE (V4's Figma): every line under the name — line 2
+    // (`ap-quota`), the state line, the open row's lines — and the Switch and
+    // Sign in on them are the kit's Small, 12 on a 16 line. The refusal's fix,
+    // which the empty state shares, keeps its 11.
+    const lines = [".ap-quota", ".ap-meta", ".ap-lane", ".ap-meta-line", ".ap-issue-line", ".ap-switch", ".ap-sign-in"];
+    expect(lines.map(px), lines.join(" ")).toEqual(lines.map(() => 12));
+    expect(px(".ap-fix")).toBe(11);
   });
 
   it("has no footnote under the roster any more — every row says when it was collected", () => {

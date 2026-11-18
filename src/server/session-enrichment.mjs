@@ -32,6 +32,8 @@ import { pushEvent } from "./event-sink.mjs";
 // One read per session at a time, and none inside the window — the gate each
 // pass below keeps. See session-read-gate.mjs.
 import { sessionReadGate } from "./session-read-gate.mjs";
+// The names a reader gave sessions in the deck (internal #101).
+import { deckNameFor } from "./session-deck-names.mjs";
 
 /**
  * The session a hook payload is about and the transcript it names, or null when
@@ -417,7 +419,7 @@ function maybeResolveUsage(payload) {
 // The emit is what is actually kept rare, and it is gated on a CHANGE: with 685
 // records carrying 2 distinct values, a per-pass emit would be ~683 events
 // saying nothing. Sessions that never get named emit nothing at all.
-const nameBySession = new Map();        // sid -> `${agentName}\0${aiTitle}`
+const nameBySession = new Map();        // sid -> `${sessionName}\0${aiTitle}`
 const nameReads = sessionReadGate(MODEL_READ_THROTTLE_MS);
 
 /** The naming the cursor has folded so far, or null when the scan has nothing.
@@ -435,8 +437,11 @@ const nameReads = sessionReadGate(MODEL_READ_THROTTLE_MS);
 async function readSessionNamingFromTranscript(path) {
   const state = await scanTranscript(path);
   if (!state) return null;
-  const naming = (state.agentName || state.aiTitle)
-    ? { agentName: state.agentName, aiTitle: state.aiTitle }
+  // The name the user gave the session (/rename, `--name`) is the one Claude
+  // Code prints in its prompt, so it outranks the name CC made up for it.
+  const name = state.customTitle || state.agentName;
+  const naming = (name || state.aiTitle)
+    ? { name: name ?? null, aiTitle: state.aiTitle }
     : null;
   return { naming, recap: state.recap ?? null };
 }
@@ -451,16 +456,45 @@ function maybeResolveSessionName(payload) {
       noteRecap(sid, read.recap);
       const naming = read.naming;
       if (!naming) return;
-      const sig = `${naming.agentName ?? ""}\u0000${naming.aiTitle ?? ""}`;
+      const sig = `${naming.name ?? ""}\u0000${naming.aiTitle ?? ""}`;
       if (nameBySession.get(sid) === sig) return;
       nameBySession.set(sid, sig);
       pushEvent({
         hook_event_name: "SessionNamed",
         session_id: sid,
-        sessionName: naming.agentName ?? null,
+        sessionName: naming.name ?? null,
         sessionTitle: naming.aiTitle ?? null,
       }, "internal");
     }));
+}
+
+// ─── The deck's own name for a session (internal #101) ──────────────────
+// A name typed in the deck rides SessionNamed as `deckName`
+// (session-deck-names.mjs). The route announces a change as it is kept, and
+// that event is logged, so a reload and a restart replay it. What this adds is
+// the session heard from again after a restart whose log no longer holds the
+// announce (a rotation, a Clear): its first live event tells the pages once.
+// Once per session per run, and again after forgetSession or a Clear — the
+// gate below, which both drop.
+const deckNameAnnounced = new Set();      // sid already told this run
+
+/** Tell every page a session's deck name (or that it was cleared, null). */
+function announceDeckName(sid, name, opts) {
+  deckNameAnnounced.add(sid);
+  pushEvent({ hook_event_name: "SessionNamed", session_id: sid, deckName: name }, "internal", opts);
+}
+
+/** On a session's live event: its kept name, once, if it has one. After the
+ *  event that carried it is in the ring — never inside its push. */
+function maybeAnnounceDeckName(payload, provider) {
+  const sid = payload?.session_id;
+  if (typeof sid !== "string" || !sid || deckNameAnnounced.has(sid)) return;
+  deckNameAnnounced.add(sid);
+  const name = deckNameFor(provider, sid);
+  if (!name) return;
+  // Not logged: the log holds the write that set it, or lost it to a
+  // rotation, and this re-announce happens every run.
+  queueMicrotask(() => announceDeckName(sid, name, { persist: false }));
 }
 
 // ─── Session recap ───────────────────────────────────────────────────────
@@ -683,6 +717,8 @@ function forgetEnrichment(sid) {
   // name. A tab that connects after the event ring has rolled past the
   // original SessionNamed shows that session unnamed for the rest of its life.
   nameBySession.delete(sid);
+  // And the deck name's: a session heard from again is told its name again.
+  deckNameAnnounced.delete(sid);
   // The recap's gate, for the same reason — see noteRecap.
   recapBySession.delete(sid);
   // And the activity fold and the job's gate: a session heard from again
@@ -703,6 +739,7 @@ function forgetEnrichment(sid) {
  */
 function clearEnrichmentGates() {
   nameBySession.clear();
+  deckNameAnnounced.clear();
   recapBySession.clear();
   activityBySession.clear();
   jobBySession.clear();
@@ -721,7 +758,7 @@ function clearEnrichmentGates() {
 // marked at each declaration, so the declarations read as they did where they
 // came from.
 export {
-  clearEnrichmentGates, forgetEnrichment, knownModelId, maybeResolveCodexMemory,
+  announceDeckName, clearEnrichmentGates, forgetEnrichment, knownModelId, maybeAnnounceDeckName, maybeResolveCodexMemory,
   maybeResolveContext, maybeResolveModel, maybeResolveSessionName, maybeResolveUsage,
   noteJob, onRecapTail, onTranscriptTail,
 };

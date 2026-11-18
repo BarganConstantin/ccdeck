@@ -25,14 +25,10 @@
     "chrome-bg": "#181818",
     "chrome-edge": "#3c3c3c",
     "node-grad": "var(--panel)",
-    "topbar-grad": "var(--panel)",
-    "conn-wash": "#f4877118",
     "burst-live-wash": "#f0abfc12",
     "hero-core": "#4daafc",
     "grid-line": "#2b2b2b",
-    "minimap-mask": "rgba(31, 31, 31, .85)",
-    "session-accent-l": "70%",
-    "session-edge-idle-l": "60%"
+    "minimap-mask": "rgba(31, 31, 31, .85)"
   },
   "selection": {
     "background": "#264f78",

@@ -59,31 +59,37 @@
    (edge-rails.css). The bar is 44px since its panel toggles left for the
    window's edges — it was 52 while it held eight controls and their open
    states — and a stripe is 40px wide, leaving room around its icon targets.
+   While the stripes show their words (stripe-words.ts) each is
+   --edge-words-w, which `.app` takes as its --edge-w (edge-rails.css).
    Under 641px the stripes give way to a dock along the bottom,
-   --dock-h tall, so --edge-w is nothing there. */
+   --dock-h tall, so --edge-w is nothing there.
+   A length, registered, so the width can move between the two. */
+@property --edge-w { syntax: "<length>"; inherits: true; initial-value: 40px; }
 :root {
   --panel-inset: 14px;
   --ctl-h: 30px;
   --topbar-h: 44px;
   --edge-w: 40px;
+  --edge-words-w: 156px;
   --dock-h: 56px;
-  /* THE RADIUS HIERARCHY: three steps, one meaning each. A tag or a chip inside
-     a control group, a control, a surface. The chrome used to be 10px panels,
-     a 12px dialog, an 18px bar and 999px pills on most small things, which is
-     most of what made it read as a generic dashboard. Pills stay where the
-     shape is the meaning: an atomic state (active, expired), a count, and the
-     switch's own track.
-     AND A SECOND TIER, FOR THE CANVAS (#1288). A card and a recap note are
-     10px and a session's cluster 16px, rounder than any panel on purpose: a
-     canvas object reads as a thing you can pick up, and chrome reads as the
-     frame around it. That was true and unwritten, so the first reader of the
-     three steps above would have brought the node down to 8px. The tier is
-     named now, and nothing in the chrome may read it. */
-  --r-tag: 4px;
-  --r-ctl: 6px;
+  /* THREE RADII (owner, 2026-11-10): a control at 4, a panel at 8, and the
+     pill. V4 had grown six (4 keys, 6 inputs, 8 rows, 10 cards, 12 dialogs,
+     16 clusters) and the sheet a dozen literals beside them, and side by side
+     they read as noise, not rank. A control, chip, tag, input, small button
+     or list row is --r-ctl; a panel, card, dialog, popover, sheet or tooltip
+     is --r-panel; whatever is fully round (a pill, a dot, an avatar, a
+     capsule bar) is --r-pill, below. 0 is the fourth value, for an edge that
+     meets another. The older names stay as aliases, so no rule moved for the
+     change: --r-tag is a control, and --r-node (a card), --r-cluster (a
+     session's cluster) and --r-overlay (a dialog) are panels. The canvas's
+     rounder tier (#1288) is retired with them: a card is a panel.
+     radius-scale.test.ts holds every border-radius to this set. */
+  --focus-w: 1.5px; /* the one focus stroke, inside the box (V4's Figma) */
+  --r-ctl: 4px;
   --r-panel: 8px;
-  --r-node: 10px;
-  --r-cluster: 16px;
+  --r-tag: var(--r-ctl);
+  --r-node: var(--r-panel);
+  --r-cluster: var(--r-panel);
   /* ONE DIALOG FRAME (2026-10-23). Every dialog is one of three widths, and
      its header is `.modal-head` (dialogs.css): a user who said the deck has a
      lot in it but is not organized was opening nine widths from 440 to 1296px
@@ -97,6 +103,37 @@
   --dialog-l: min(1120px, calc(100vw - 32px));
   --dialog-l-h: min(800px, calc(100dvh - 64px));
   --dialog-head-h: 52px;
+}
+
+/* V4'S SIZES (2026-10-31), V4's Figma size variables at their Default
+   density. Compact, the V4 default, and the two steps below
+   it restate them in styles/reading.css, as they already restate --ctl-h; the
+   Comfortable step keeps these. Nothing reads them yet: the V4 components do,
+   as each one is built, so declaring them moves no pixel. The status bar, the
+   rail, the inspector and the pane header are Phase 2 and 3's chrome; they are
+   named now so the whole ladder is one decision, not five. */
+:root {
+  --statusbar-h: 28px;
+  /* The board header's height (styles/board-header.css). The same at every
+     density: Figma draws its Board only at Compact, so there is no smaller or
+     larger step to restate. */
+  --board-head-h: 56px;
+  --rail-w: 288px;
+  --inspector-w: 360px;
+  --pane-head-h: 44px;
+  --row-rail: 60px;
+  --row-group: 28px;
+  --row-tool: 28px;
+  --row-table: 36px;
+  --row-option: 56px;
+  --row-settings: 64px;
+  --ctl-h-lg: 36px;
+  --ctl-h-sm: 26px;
+  --dialog-foot-h: 56px;
+  /* A dialog, a menu, a popover: a panel (the three radii above). And the
+     pill, 999px, for every shape that is fully round. */
+  --r-overlay: var(--r-panel);
+  --r-pill: 999px;
 }
 
 /* The two dimmings, in their own block and in neither theme for the same reason
@@ -152,18 +189,28 @@
   --dim-stale: 0.45;
 }
 
-/* The space and radius ladders (#887), closed the way the type ladder below is
-   and held by spacing-ladder-887.test.ts:
+/* The space ladder (#887), closed the way the type ladder below is and held by
+   spacing-ladder-887.test.ts:
      space   0 · 1 · 2 · 3 · 4 · 5 · 6 · 8 · 10 · 12 · 14 · 16 · 18 · 20 · 24 · 32 · 40
-     radius  0 · 1 · 2 · 3 · 4 · 6 · 8 · 10 · 12 · 16 · 18, 999px for a pill, 50% for a circle
-   Every gap and padding sits on the first and every border-radius on the
-   second. Below 6px every pixel is a step, because in 10 and 11px type a
-   one-pixel pad or a two-pixel hairline gap is an optical choice; from 6px up
-   it is even pixels. A var() or calc() is its token's business, not the
-   ladder's. */
+   Every gap and padding sits on it. Below 6px every pixel is a step, because
+   in 11px type a one-pixel pad or a two-pixel hairline gap is an optical
+   choice; from 6px up it is even pixels. A var() or calc() is its token's
+   business, not the ladder's. Radius had a ladder of eleven steps beside it;
+   it is the three tokens in the geometry block now (2026-11-10). */
 
-/* The type ladder: 9 · 10 · 11 · 12 · 13 · 14 · 16 · 18 · 22 · 26 · 34.
-   Eleven steps, and no font-size in this file may be anything else.
+/* THE TYPE SCALE (owner, 2026-11-10): 11 · 12 · 13 · 16 · 22, and 11 is the
+   floor. Meta and keys at 11, secondary text at 12, body at 13, a title (a
+   dialog's, a panel's, a section's) at 16, and a page's headline or its one
+   big figure at 22. It replaced the eleven-step ladder below, whose 8 to 10px
+   steps were too small to read and whose 14, 18 and 26 sat close enough to
+   their neighbours to read as drift: 9 and 10 went to 11, 14 to 13 for a body
+   or a label and to 16 for a title, 17 and 18 to 16 and 26 to 22.
+   type-scale.test.ts holds every font-size to it, and names the few kept
+   off it (icon glyphs, which are not text, and the terminal's own face).
+   What follows is the ladder's history, kept for its argument about tokens.
+
+   The old type ladder: 9 · 10 · 11 · 12 · 13 · 14 · 16 · 18 · 22 · 26 · 34.
+   Eleven steps, and no font-size in this file could be anything else.
 
    It is a comment and a test rather than eleven --fs-* tokens, and that is the
    considered choice, not the lazy one. A token earns its keep when two rules
@@ -202,6 +249,40 @@
    actually see. Flattening any of those would be a redesign; this issue was
    about drift, and a step you can resolve is not drift. Express secondary rank
    with --muted at one size before reaching for a twelfth. */
+
+/* V4'S TYPE ROLES (2026-10-31), V4's Figma text styles: each a step of the
+   scale above, and the line height that goes with each. Title is 16 and Card
+   title is a title (both were 18 and 14 before the scale). The argument
+   above still holds for every rule that keeps its literal. These are the case
+   it names as the exception, sizes that MUST move together: every Body in the
+   V4 components is one decision, and so is every Title. Raw pixels, because a
+   size on this sheet adds --ui-text-increase where it is read, at the element;
+   a sum resolved here on :root would miss the dock's own increase
+   (reading.css). A reader adds it to the line height too, so a larger text
+   size keeps its leading. Nothing reads them yet; the components of the next
+   PRs do. The weights are the components': 600 for Hero, Title and Card
+   title, 400 for Body and Small, with 600 for a name and 500 for a label.
+   Meta is set in the interface's sans (--font-sans), with tabular figures
+   where it holds a number; Code alone is set in --font-mono (V4 top-10 #8).
+   Mono tells the reader "you could type or paste this", so it is kept for
+   paths, commands, terminal text, keys, ids and code; a clock, a count or a
+   model name is not that, and tabular-nums already lines its digits up. */
+:root {
+  --fs-hero: 22px;
+  --lh-hero: 28px;
+  --fs-title: 16px;
+  --lh-title: 24px;
+  --fs-card-title: var(--fs-title);
+  --lh-card-title: 20px;
+  --fs-body: 13px;
+  --lh-body: 20px;
+  --fs-small: 12px;
+  --lh-small: 16px;
+  --fs-code: 12px;
+  --lh-code: 16px;
+  --fs-meta: 11px;
+  --lh-meta: 14px;
+}
 
 /* The two transitions this deck writes from JS, declared here so that the
    cascade can still reach them.
@@ -257,12 +338,65 @@
   --pulse-live: 1.2s ease-in-out;
 }
 
+/* V4'S MOTION (2026-10-31), V4's Figma motion variables: seven durations,
+   three delays, two loops, two curves and three scales. --ease is the one
+   curve for everything that answers a person, and the two out-curves the
+   sheet used to spell, (0.22, 1, 0.36, 1) and (0.16, 1, 0.3, 1), are it now:
+   they were within a few hundredths of each other and of it, three spellings
+   of one decision. --ease-stage is for the stage and the panels that slide
+   from an edge, the left column's 240ms included. Loops stay ease-in-out, as
+   --pulse-live does. A curve read from TypeScript cannot be a var():
+   motion-ease.ts's EASE and navigator-flip.ts's FLIP_EASE are held to these
+   by v4-tokens.test.ts. Reduced motion is each rule's business, as it is
+   today: these are tempos, not permissions. */
+:root {
+  --dur-fast: 120ms;
+  --dur-exit: 150ms;
+  --dur-base: 200ms;
+  --dur-move: 240ms;
+  --dur-stage-in: 280ms;
+  --dur-stage-out: 200ms;
+  --dur-slow: 400ms;
+  --dur-xfade: 140ms;
+  --delay-step: 40ms;
+  --delay-loader: 150ms;
+  --delay-tooltip: 450ms;
+  --loop-loader: 1200ms;
+  --loop-loader-person: 2400ms;
+  --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-stage: cubic-bezier(0.32, 0.72, 0, 1);
+  --press: 0.97;
+  --press-small: 0.94;
+  --enter-scale: 0.96;
+  --exit-scale: 0.98;
+}
+
+/* V4's motion rules: a surface opened by a key (or by j/k) carries
+   data-motion="instant" itself until it closes, and nothing inside it
+   animates. NOT the root flag: input-modality.ts sets data-motion="instant" on
+   :root on any keydown, so a bare `[data-motion="instant"] *` would freeze the
+   whole deck after the user types. The root flag keeps driving only the
+   surfaces that opt in by name (`:root[data-motion="instant"] :is(.modal-backdrop,
+   .modal)` in dialogs.css, the peek in lan-sync.css, the workspace fade).
+   Exempt: loops that show a wait or a live state keep running inside an
+   instant surface, .loader, the --pulse-live marks (.state-mark, .tb-spin),
+   and .sl-land, the "you are here" flash: it clears itself on animationend,
+   so with the animation cut it would stay lit for good.
+   (`*` never matches a pseudo-element, so ::before pulses are untouched.) */
+[data-motion="instant"]:not(:root),
+[data-motion="instant"]:not(:root) *:not(.loader, .loader *, .state-mark, .tb-spin, .sl-land) {
+  transition-duration: 0ms !important;
+  animation: none !important;
+}
+
 /* THE MONO STACK, written once. Every value on this deck — a number, an id, a
-   path, a token count, a model name, a dollar figure — is set in it, sixty-two
+   path, a token count, a model name, a dollar figure — was set in it, sixty-two
    declarations, and it was sixty-two copies of the same literal: a stack is
    a list of fallbacks, and the day it needs one more name that is sixty-two
    edits or sixty-two chances to miss one (#1286). In neither theme, because a
-   font is the same on white as it is on black.
+   font is the same on white as it is on black. Since V4 top-10 #8 it is for
+   code alone (the type roles above say why): figures and labels moved to
+   --font-sans below.
    AND IT NAMES A FONT ON EVERY PLATFORM THE DECK RUNS ON (#1286). It used to
    stop at Menlo: `ui-monospace` resolves only in Safari and the next two are
    macOS fonts, so on Windows and Linux — Chrome, Firefox and the desktop shell
@@ -272,9 +406,14 @@
    stay first and unchanged, so a Mac with Cascadia installed still draws
    Menlo, and nothing moves there. On a Linux machine whose generic already
    was DejaVu Sans Mono — the common case, and the one this was checked on —
-   nothing moves either; what changes is that it is our choice now. */
+   nothing moves either; what changes is that it is our choice now.
+   THE SANS STACK beside it is the body's own, unchanged, named once (V4
+   top-10 #8): the body reads it, and so does every figure and label that left
+   the mono face, which needs a family it can name in a `font` shorthand and
+   one that holds inside a control or under a mono parent. */
 :root {
   --font-mono: ui-monospace, SFMono-Regular, Menlo, "Cascadia Mono", Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 /* THE GRADIENT TWO RULES SHARE (#1287), in neither theme because it is made
@@ -297,7 +436,7 @@ html, body, #root {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font: calc(13px + var(--ui-text-increase, 0px))/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font: calc(13px + var(--ui-text-increase, 0px))/1.45 var(--font-sans);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
 }
@@ -345,8 +484,8 @@ optgroup {
   background-color: transparent;
   border: 2px solid transparent;
   background-clip: padding-box;
-  border-radius: 999px;
-  transition: background-color 160ms ease-out;
+  border-radius: var(--r-pill);
+  transition: background-color var(--dur-base) var(--ease);
 }
 /* `:focus-within` beside `:hover` because a scroller can be driven from the
    keyboard, and a bar that only exists under a pointer does not exist for the
@@ -370,28 +509,71 @@ optgroup {
    Under forced colours none of this applies: Chromium draws its own system
    scrollbar there, in every state including rest (measured), so the
    forced-colours block at the end of this sheet has nothing to add for it. */
+@media (hover: hover) and (pointer: fine) {
 :hover::-webkit-scrollbar-thumb { background-color: var(--line); }
+}
 :focus-within::-webkit-scrollbar-thumb { background-color: var(--ctl-edge); }
 /* Last, so it beats the two above on source order at equal specificity — and
    louder than either, so hovering the bar of a scroller that also holds focus
    never dims it. That is why it is --muted now rather than --muted-dim: 2.35:1
    in dark would have been a step DOWN from the keyboard's thumb. */
+@media (hover: hover) and (pointer: fine) {
 *::-webkit-scrollbar-thumb:hover { background-color: var(--muted); }
+}
 * { scrollbar-color: transparent transparent; scrollbar-width: thin; }
+@media (hover: hover) and (pointer: fine) {
 :hover { scrollbar-color: var(--line) transparent; }
+}
 :focus-within { scrollbar-color: var(--ctl-edge) transparent; }
 
-/* Visible focus ring for keyboard nav */
+/* ONE FOCUS RING (V4's Figma). Buttons, icon buttons, switches, rows and
+   links take a 1.5px --accent stroke INSIDE their own box, offset 0, so
+   focus never moves, grows or re-rounds anything (no border-radius here:
+   the ring follows the radius the element already has). Text fields have
+   no ring at all: their 1px border turns --accent (see the field rules). */
 :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 4px;
+  outline: var(--focus-w) solid var(--accent);
+  outline-offset: calc(-1 * var(--focus-w));
 }
-button:focus-visible { outline-offset: 1px; }
+/* Where the control already wears the accent, an inside ring would vanish into
+   it: the ring steps outside, same stroke, 2px clear. */
+.uh-range-btn[aria-pressed="true"]:focus-visible,
+.fb-kind:has(input:checked:focus-visible),
+.switch[aria-checked="true"]:focus-visible,
+.cbx > input:checked:focus-visible,
+.fg-tabs .uh-range-btn[aria-selected="true"]:focus-visible,
+.fd-sections .uh-range-btn[aria-selected="true"]:focus-visible,
+.aa-tab.on:focus-visible,
+.character-choice[aria-checked="true"]:focus-visible,
+button.btn.jr-chip[aria-pressed="true"]:focus-visible,
+button.btn.fgl-chip[aria-pressed="true"]:focus-visible,
+.radio-controls .radio-mute[aria-pressed="true"]:focus-visible,
+.radio-filter-trigger[data-filtered="true"]:focus-visible,
+button.btn.primary:focus-visible {
+  outline-offset: 2px;
+}
+/* The text-field family (the V4 field: sunken fill, 1px --line/--ctl-edge
+   border, --r-ctl): NO ring, the 1px border turns --accent. Every field is
+   named by its own selector (no :is() group, so a rule keeps the specificity
+   of the field it answers and beats a sheet's own border rule; a field not
+   named here keeps the global ring); the error state keeps --err. */
+.settings-filter-field:focus-visible, .sm-select:focus-visible, .ap-manage-input:focus-visible,
+.aa-field input:focus-visible, .radio-filter-search input:focus-visible,
+.tr-input:focus-visible, .tr-select:focus-visible,
+.qh-window select:focus-visible, .jr-move-pop select:focus-visible, .jr-transition select:focus-visible,
+.jr-comment-compose textarea:focus-visible, .su-pricing select:focus-visible,
+.ap-field select:focus-visible, .ap-pop .ap-field select:focus-visible,
+.bw-settings select:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+input[aria-invalid="true"]:focus-visible, textarea[aria-invalid="true"]:focus-visible, select[aria-invalid="true"]:focus-visible {
+  border-color: var(--err);
+}
 
 .app {
   display: grid;
-  grid-template-columns: 1fr 360px;
+  grid-template-columns: 1fr var(--inspector-w);
   grid-template-rows: var(--topbar-h) auto 1fr;
   height: 100vh;
 }
@@ -410,14 +592,10 @@ button:focus-visible { outline-offset: 1px; }
    track went `auto` around a session list with no width of its own, and it
    opened to the list's longest row before snapping to 240px. */
 .app:has(.left-column) {
-  grid-template-columns: auto 1fr 360px;
+  grid-template-columns: auto 1fr var(--inspector-w);
 }
 .app:has(.session-list) .canvas-wrap,
 .app:has(.accounts-panel) .canvas-wrap { grid-column: 2; }
-.app:has(.session-list) .conn-banner,
-.app:has(.accounts-panel) .conn-banner,
-.app:has(.session-list) .ver-banner,
-.app:has(.accounts-panel) .ver-banner { grid-column: 2; }
 .canvas-wrap { grid-column: 1; grid-row: 3; }
 .detail { grid-column: 2; grid-row: 2 / -1; }
 /* Either left panel adds a column, so either one moves the detail panel into

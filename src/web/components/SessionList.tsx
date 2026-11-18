@@ -1,31 +1,46 @@
-// Left sidebar listing every session on the canvas. Click a row to
-// fit-view to that session and select its root agent. State dot + label
-// + model chip + cost + tool count gives a fast scan of what's running.
-// Toggle visibility with the L key (see App.tsx). The topbar's ☰ used to open
-// it too and has been removed; L is the way in, and the ‹ below and L itself
-// are the two ways out.
-import { useMemo } from "react";
+// The attention rail: the left column's list of every session on the canvas,
+// grouped by what each one wants of you — Needs you, Working, Done,
+// Ready — in V4's Board window. Click a row to fit-view to that session and
+// select its root agent. Toggle visibility with the L key (see App.tsx). The
+// topbar's ☰ used to open it too and has been removed; L is the way in, and
+// the × below and L itself are the two ways out.
+//
+// The order is held while you aim at it: nothing moves under a pointer that is
+// over the rail or a focus that is inside it, and every row travels once to
+// its new place when both have left (rail-model.ts holdOrder, rail-motion.ts).
+import { useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { isAlarming } from "../ambient-counts";
-import { fmtCost } from "../pricing";
-// Per-model pricing. A session that switched model has tokens from two rate
-// cards in one bucket, and the row used to bill the lot at whichever model the
-// session was last seen on — see usage-models.ts (#686).
+import { useT } from "../i18n";
 import { agentCost } from "../usage-models";
 import type { GraphState } from "../reducer";
-import type { SessionRecap, WaitingBlock } from "../types";
-import { modelChipText, modelChipTitle, modelFamily } from "../model-label";
-import { noteSource, noteTag, sessionNoteShown, type SessionNote } from "../session-note";
-import { blockedToolTooltip, stateLabel, waitingSentence } from "../agent-copy";
-import { t as translate, useLanguage, useT, type TFunction } from "../i18n";
-import { RecapMark } from "./RecapMark";
-import { drawnState } from "../node-face";
+import type { BackgroundJob, Provider, SessionRecap, WaitingBlock } from "../types";
+import { sessionNoteShown, type SessionNote } from "../session-note";
+import { drawnState, neverPrompted } from "../node-face";
 import { isAgentVisible } from "../visibility";
 import { withKey } from "../single-key-shortcuts";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
-import { planSpoken, planSummary, planTitle, type PlanSummary } from "../agent-plan";
+import { planSummary, planTitle, type PlanSummary } from "../agent-plan";
+import { isUnseen, turnEndedAt, useSessionsSeenVersion } from "../session-seen";
+import {
+  RAIL_GROUPS, foldMotion, foldPlan, heldLine, holdOrder, joinMotion, railHeld,
+  type RailGroup, type Slot,
+} from "../rail-model";
+import { leaveHoldMs, useRailFlip, useRailMembership } from "../rail-motion";
+import { prefersReducedMotion } from "../viewport-motion";
+import { compactRowContexts, lastTypedPrompt, runningTool, sessionNames, startedHover, twinClocks, type TwinClock } from "../rail-row-copy";
+import { PauseGlyph } from "./rail-glyphs";
+import { CloseGlyph, FoldBody, GroupHead, MoreLine, PlusGlyph, RailRow, type FoldMode } from "./RailParts";
+
+/** The id the rail's Plus carries, so the new-session popover can hang off it. */
+export const RAIL_NEW_SESSION_ID = "rail-new-session";
+import { renameFacts } from "../session-rename";
+import type { PaneLink } from "../workspace-split";
 
 export interface Row {
   sessionId: string;
+  provider?: Provider;
+  /** The row's title: the session's name as its card draws it (the user's
+   *  name, else Claude Code's title), else its folder (owner, 2026-11-10). */
   label: string;
   cwdBasename?: string;
   state: "active" | "done" | "err";
@@ -38,6 +53,8 @@ export interface Row {
    *  last, or a background job's question, headline or failure. Same rule;
    *  null whenever the recap speaks instead, or nothing has been said. */
   status?: SessionNote | null;
+  /** The model for Board cards and noncompact rows. Workspace compact rows
+   *  keep provider identity in the avatar. */
   modelId?: string;
   /** The effort the session reported, shown after the model (#2155). */
   effort?: string;
@@ -49,33 +66,97 @@ export interface Row {
   plan: PlanSummary | null;
   /** Every step, for the line's tooltip. */
   planTitle: string;
+  /** When the latest turn ended (session-seen.ts), null while one runs. The
+   *  fields below are all optional so a bare row, as the rank suite builds
+   *  them, keeps the shape it had. */
+  turnEndedAt?: number | null;
+  /** That turn ended after the last time you looked at the session. */
+  unseen?: boolean;
+  /** Claude Code's own line, on a background session. */
+  job?: BackgroundJob | null;
+  /** A session that has started and not been given a prompt. */
+  neverPrompted?: boolean;
+  /** When the current turn began: the newest prompt. */
+  turnStartedAt?: number;
+  /** The call in flight right now, for a working row's second line. */
+  tool?: { name: string; preview: string; path?: true } | null;
+  /** The session's folder: a path the row prints is shortened against it
+   *  (rail-row-copy.ts rowPath). */
+  cwd?: string;
+  /** The session's folder, when the title is something else: a named row
+   *  still says where it runs. Absent when the title is the folder. */
+  folder?: string;
+  /** What a person last asked it, one line (rail-row-copy.ts sessionTask),
+   *  when that is not the title again. With the folder, the second line. */
+  task?: string;
+  /** Whole human prompt, retained for compact rows’ accessible context. */
+  fullTask?: string;
+  /** Exact start and distinct id tail for compact rows’ tooltip. */
+  exactHover?: string;
+  /** When it started and its id's tail (startedHover), for the tooltip: what
+   *  tells two rows of one name apart without drawing it. */
+  hover?: string;
+  /** The root's failed tool calls over its life, the count its card says: a
+   *  finished row with any draws the partial mark and "Done · 1 failed"
+   *  (node-face.ts sessionMark). */
+  toolErrorCount?: number;
+  /** Set only when another row reads the same, name and task: the row ends its
+   *  second line with its start time, to this much (rail-row-copy.ts twinClocks). */
+  twin?: TwinClock;
 }
 
-/** Where a row sorts, before activity is looked at. A blocked session is the
- *  only row on this list that is asking for something, so it outranks a running
- *  one — and a permission prompt outranks an idle one, because the first is a
- *  decision a session is stalled on and the second is a turn that simply ended.
+/** Where a row sorts, as the rail's five groups, before activity is looked at:
+ *  0 Needs you, a session blocked on a permission prompt or a question; 1
+ *  Done · new, a turn that ended since you last looked; 2 Working, a turn
+ *  running or a background job still going; 3 Done, a turn that ended and has
+ *  been seen; 4 Ready, a session not yet given a prompt (node-face.ts
+ *  neverPrompted), which its card calls Ready too.
+ *
+ *  It is an inbox's order (V4 top-10, inbox; herdr's: blocked, done and
+ *  unread, working, seen). A blocked session is stalled on a decision only you
+ *  can make, so it is first. A finished turn you have not looked at is your
+ *  turn too, only not a blocking one: its result waits to be read, so it comes
+ *  next, above the sessions at work, which need nothing from you yet. Once you
+ *  have seen it, it is Done, below them. It sat under Working before.
  *  Waiting is not the row's `state`: an idle_prompt sits on a session that is
  *  legitimately done and still reads `done` two columns to the left.
  *
  *  Exported for the suite, along with buildRows below (#378). Both were
  *  module-private, which meant a bare-node suite could not call either and the
  *  only thing standing over this ordering was a regex matching the literal text
- *  `isAlarming(r.waiting) ? 0 : 1` somewhere in this file. Measured: reversing
- *  the two tiers here AND reversing the longest-blocked-first comparator below
- *  left all 1849 tests green, because the reversed expressions still contain
- *  the text the regex looked for. Neither function renders anything — they are
- *  a rule about what the sidebar puts at the top, and a rule that cannot be
- *  called is a rule nothing can check. */
-export function rank(r: Row): number {
-  if (r.waiting) return isAlarming(r.waiting) ? 0 : 1;
-  return r.state === "active" ? 2 : 3;
+ *  of the expression somewhere in this file. Neither function renders anything —
+ *  they are a rule about what the sidebar puts at the top, and a rule that
+ *  cannot be called is a rule nothing can check. */
+export function rank(r: Row): RailGroup {
+  if (isAlarming(r.waiting)) return 0;
+  // A job still going wears the Working mark even though its turn has ended.
+  if (r.job && (r.job.state === "working" || r.job.state === "blocked")) return 2;
+  const turnEnded = r.state !== "active" || r.waiting?.kind === "idle";
+  if (!turnEnded) return r.neverPrompted ? 4 : 2;
+  return r.unseen ? 1 : 3;
 }
 
-export function buildRows(state: GraphState, now: number): Row[] {
+/** The newest call still running on an active agent. The reducer appends, so
+ *  the last open one; scanning from the end stops at the first open call. */
+function inFlightCall(a: GraphState["agents"] extends Map<string, infer A> ? A : never): Row["tool"] {
+  if (a.state !== "active") return null;
+  for (let i = a.tools.length - 1; i >= 0; i--) {
+    const t = a.tools[i];
+    if (t.endedAt == null) return runningTool(t);
+  }
+  return null;
+}
+
+/** `watching` are the sessions you are looking at (selected, or open on the
+ *  stage): their finished turn is seen as it ends, so they never pass through
+ *  Done · new on the way to the effect that writes the marker. */
+export function buildRows(state: GraphState, now: number, watching?: ReadonlySet<string>): Row[] {
   const rows: Row[] = [];
   for (const a of state.agents.values()) {
     if (a.kind !== "root") continue;
+    // Codex child threads keep root nodes for their own lifecycle and usage,
+    // but the session list is for the main conversations the reader talks to.
+    if (a.provider === "codex" && a.parentId) continue;
     // `toolCount`, not `tools.length` — the reducer keeps only a bounded
     // window of recent calls, but the counter tracks every call ever made.
     let toolCount = a.toolCount;
@@ -94,9 +175,12 @@ export function buildRows(state: GraphState, now: number): Row[] {
     const note = sessionNoteShown(a);
     const recap = note?.kind === "recap" ? { text: note.text, at: note.at } : null;
     const status = note && note.kind !== "recap" ? note : null;
+    const ended = turnEndedAt(a);
+    // Named as every surface names it (rail-row-copy.ts sessionNames).
+    const { title: label, folder, task } = sessionNames(a);
     rows.push({
       sessionId: a.sessionId,
-      label: a.label || a.cwdBasename || translate("board.kind.session"),
+      label,
       cwdBasename: a.cwdBasename,
       // A turn that stopped on an error is drawn as a failure here as on its
       // card (#2185); it sorts with the ended ones either way.
@@ -105,6 +189,7 @@ export function buildRows(state: GraphState, now: number): Row[] {
       recap,
       status,
       modelId: a.model,
+      provider: a.provider === "codex" ? "codex" : "claude",
       effort: a.effort,
       // The ROOT's plan: the Task tools' list is the session's, shared with its
       // subagents, and a row is a session (agent-plan.ts).
@@ -114,40 +199,58 @@ export function buildRows(state: GraphState, now: number): Row[] {
       cost,
       startedAt: a.startedAt,
       lastActivity,
+      turnEndedAt: ended,
+      unseen: ended != null && !watching?.has(a.sessionId) && isUnseen(a.sessionId, ended),
+      job: a.job ?? null,
+      neverPrompted: neverPrompted(a),
+      turnStartedAt: a.prompts.at(-1)?.at ?? a.startedAt,
+      tool: inFlightCall(a),
+      cwd: a.cwd,
+      ...(task ? { task } : null),
+      fullTask: lastTypedPrompt(a),
+      ...(folder ? { folder } : null),
+      ...(a.toolErrorCount ? { toolErrorCount: a.toolErrorCount } : null),
     });
   }
-  // Sort: blocked first, then active, then done by most-recent ended. Among the
-  // blocked rows the LONGEST-blocked comes first — the opposite of the
-  // most-recent ordering everything below uses, because on this list the number
-  // that decides whether you go look is how long the session has been stuck.
+  const twins = twinClocks(rows.map(r => ({ id: r.sessionId, title: r.label, task: r.task, startedAt: r.startedAt })));
+  for (const r of rows) {
+    const twin = twins.get(r.sessionId);
+    if (twin) r.twin = twin;
+  }
+  // Sort: by group, then, among the blocked rows, the LONGEST-blocked first —
+  // the opposite of the most-recent ordering everything else uses, because on
+  // this list the number that decides whether you go look is how long the
+  // session has been stuck. Working goes by when the current turn began
+  // (the newest prompt), newest first, then by id: the one key that does not
+  // move during a turn, where lastActivity moves on every tool call and would
+  // reshuffle the group under your eyes. Done · new goes by the turn's end,
+  // newest first; Done and Ready by the latest activity. The groups moved
+  // (Done · new above Working); the order inside each did not.
   rows.sort((x, y) => {
     const rx = rank(x), ry = rank(y);
     if (rx !== ry) return rx - ry;
-    if (x.waiting && y.waiting) return x.waiting.since - y.waiting.since;
+    if (x.waiting && y.waiting && rx === 0) return x.waiting.since - y.waiting.since;
+    if (rx === 2) return (y.turnStartedAt ?? y.startedAt) - (x.turnStartedAt ?? x.startedAt) || (x.sessionId < y.sessionId ? -1 : x.sessionId > y.sessionId ? 1 : 0);
+    if (rx === 1) return (y.turnEndedAt ?? 0) - (x.turnEndedAt ?? 0);
     return y.lastActivity - x.lastActivity;
   });
+  // On the row, so a row that leaves keeps saying it while it fades.
+  const ids = rows.map(r => r.sessionId);
+  for (const r of rows) {
+    r.hover = startedHover(r.startedAt, r.sessionId, ids, now);
+    r.exactHover = startedHover(r.startedAt, r.sessionId, ids, now, undefined, true);
+  }
   return rows;
 }
 
-/** The whole line, uncut, and who wrote it: two lines of a sidebar cut most
- *  questions short, and how far to trust a line depends on whether Claude
- *  Code's classifier wrote it or the deck read it off the newest reply. */
-function statusTooltip(s: SessionNote, t: TFunction): string {
-  return [s.text, s.reply ? t("board.list.suggestedReply", { reply: s.reply }) : "", noteSource(s)].filter(Boolean).join("\n");
-}
+// Quick open and the topbar import it from here; it lives in its own module so
+// rail-row-copy.ts need not import this file back.
+export { elapsedShort } from "../elapsed-short";
 
-/** "<1s" / "42s" / "3m" / "1h 15m": the compact clock a row prints, which the
- *  topbar's waiting queue prints too, so a name there and its row here say
- *  the same wait. */
-export function elapsedShort(start: number, end: number | undefined, now: number): string {
-  const ms = (end ?? now) - start;
-  if (ms < 1000) return "<1s";
-  const s = Math.floor(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  return `${h}h ${m % 60}m`;
+/** Whether the focused element shows a focus ring (a key put it there, not a
+ *  press). A browser without the selector answers no. */
+function focusIsVisible(el: Element | null): boolean {
+  try { return !!el && el.matches(":focus-visible"); } catch { return false; }
 }
 
 interface Props {
@@ -166,11 +269,44 @@ interface Props {
   /** On its way out of the left column: still drawn, fading or sliding with
    *  the column's edge, for the length of its exit (LeftColumn.tsx). */
   leaving?: boolean;
+  /** The session the last jump went to (N, W, a notification, ⌘K), with a
+   *  count so the same session twice is two jumps. Its row scrolls into view
+   *  and says "here" once. Never set by a press on the rail itself. */
+  landed?: { id: string; nonce: number } | null;
+  /** The sessions you are looking at: selected, or open on the stage. Their
+   *  finished turns count as seen in the rows themselves. */
+  watching?: ReadonlySet<string>;
+  /** Workspace's open panes, using the numbers drawn in their headers. */
+  openPanes?: ReadonlyMap<string, PaneLink>;
+  /** WORKSPACE: Enter on a row opens the session in the pane with the keys in
+   *  it (a click leaves them here). Absent on the Board. */
+  onOpenKeys?: (sessionId: string) => void;
+  /** WORKSPACE (internal #102): ⇧↵ on a row, or the row dragged onto a pane,
+   *  opens the session beside the pane in focus. Absent on the Board. */
+  onOpenBeside?: (sessionId: string) => void;
+  /** New session, the Plus in the header: the Command Panel's own launch
+   *  (use-stage.ts newSessionFrom), given the button as the popover's anchor.
+   *  Absent where that launch does not exist, and the Plus with it. */
+  onNewSession?: (anchor: HTMLElement) => void;
+  /** The phone's "Can't reach your computer" card, drawn inside the panel under
+   *  its header so the list can never cover it. Absent when the link is up. */
+  offline?: ReactNode;
+  /** The empty board's notice, on a phone, where this panel covers the canvas
+   *  it would sit on: shown in place of the one-line empty state. */
+  emptyNotice?: ReactNode;
+  /** The right edge that drags the list's width (RailEdge.tsx, internal
+   *  #103), drawn last, over the rows. The width itself is the column's
+   *  --list-w (LeftColumn). Absent on a phone, where the list is the
+   *  screen's width. */
+  edge?: ReactNode;
 }
 
-export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false }: Props) {
+/** A row that has left the list, kept drawn until its fade and its closing space are done. */
+interface Ghost { row: Row; group: RailGroup; after: string | null; until: number }
+interface Entry { id: string; row: Row; ghost: boolean }
+
+export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, openPanes, onOpenKeys, onOpenBeside, onNewSession, offline = null, emptyNotice = null, edge = null }: Props) {
   const t = useT();
-  const language = useLanguage();
   const singleKeys = useSingleKeyShortcuts();
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
   // the reducer mutates it in place, so identity never moves and the rest of the
@@ -178,20 +314,205 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
   // only when an envelope lands; the periodic sweeps that settle a dead session
   // and evict a finished one move only `revision`.
   //
-  // `now` is here on its own merits — every row prints an elapsed time — and it
+  // `now` is here on its own merits — every row prints an age — and it
   // ticks every 250ms, so this list was never visibly stale the way the usage
   // panel's was (#575). That is luck, not correctness: the accident that saved
   // it was a clock with nothing to do with whether the state changed, and the
   // day someone gives these rows a cheaper refresh rule the bug arrives with no
-  // edit to this line to explain it.
-  const rows = useMemo(() => buildRows(state, now), [state, state.revision, now]);
-  const liveCount = rows.filter(r => r.state === "active").length;
-  // Permission only, like the topbar chip and the tab strip — and through the
-  // same predicate they use, rather than a fourth hand-written copy of it. An
-  // idle prompt is a turn that ended, not a session that is stuck: it keeps its
-  // row and its place at the top of the sort (see rank() above, which asks the
-  // same question), but it is not what this number is counting.
-  const waitingCount = rows.filter(r => isAlarming(r.waiting)).length;
+  // edit to this line to explain it. The seen version is the other input: a
+  // session looked at moves out of Done · new.
+  const seenVersion = useSessionsSeenVersion();
+  const watchKey = watching ? [...watching].sort().join("\n") : "";
+  const rows = useMemo(() => buildRows(state, now, watching), [state, state.revision, now, seenVersion, watchKey]);
+  const byId = new Map(rows.map(r => [r.sessionId, r]));
+  // New finished turns keep their priority in buildRows, but share Done's
+  // header, count and fold with seen turns. Looking at one clears its row
+  // marker without moving it between two identically named sections.
+  const fresh: Slot[] = rows.map(r => {
+    const group = rank(r);
+    return { id: r.sessionId, group: group === 1 ? 3 : group };
+  });
+
+  // THE ORDER HELD. While the pointer is over the rail, or keyboard focus is in
+  // it, the drawn order is the one on screen: rows change in place, a session
+  // that joins takes the end of its group. Pointer-pressed focus does not count
+  // (:focus-visible), or a click would hold the list until the next click away.
+  const [pointerIn, setPointerIn] = useState(false);
+  const aside = useRef<HTMLElement>(null);
+  // Focus is asked when it is needed, not remembered from events: the hold
+  // follows document.activeElement on every render (the clock renders this
+  // four times a second) and on focusin/focusout, so a focused element that is
+  // removed, made inert or unmounted lets the hold go.
+  const [, askFocus] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // focusout comes before activeElement has moved: ask once it has.
+    const ask = () => { clearTimeout(timer); timer = setTimeout(askFocus, 0); };
+    document.addEventListener("focusin", ask);
+    document.addEventListener("focusout", ask);
+    return () => { clearTimeout(timer); document.removeEventListener("focusin", ask); document.removeEventListener("focusout", ask); };
+  }, []);
+  const active = typeof document === "undefined" ? null : document.activeElement;
+  const focusInside = !!active && !!aside.current?.contains(active) && !active.closest("[inert]");
+  const aimed = railHeld({ pointerInside: pointerIn, focusInside, focusVisible: focusInside && focusIsVisible(active) });
+  const pointerEnter = () => setPointerIn(true);
+  const pointerLeave = () => setPointerIn(false);
+  const heldRef = useRef<Slot[] | null>(null);
+  const drawnRef = useRef<Slot[]>([]);
+  let layout = fresh;
+  let moves = 0;
+  if (aimed) {
+    const held = holdOrder(heldRef.current ?? drawnRef.current, fresh);
+    layout = held.order;
+    moves = held.moves;
+    heldRef.current = layout;
+  } else {
+    heldRef.current = null;
+  }
+  drawnRef.current = layout;
+
+  // A ROW THAT LEAVES stays drawn, inert, where it was until its fade and its
+  // closing space are done, and is dropped by the clock that already re-renders
+  // this list four times a second. Joins and leaves play from rail-motion.ts,
+  // by id, for rows that are really new or really gone. Over twenty rows both
+  // happen at once.
+  const reduced = prefersReducedMotion();
+  const ghosts = useRef(new Map<string, Ghost>());
+  const prev = useRef<{ slots: Slot[]; rows: Map<string, Row> } | null>(null);
+  const clock = Date.now();
+  const live = new Set(layout.map(s => s.id));
+  if (prev.current && joinMotion({ rows: rows.length, reduced }) !== "instant") {
+    prev.current.slots.forEach((s, i) => {
+      const row = prev.current!.rows.get(s.id);
+      if (!live.has(s.id) && !ghosts.current.has(s.id) && row) {
+        ghosts.current.set(s.id, { row, group: s.group, after: i > 0 ? prev.current!.slots[i - 1].id : null, until: clock + leaveHoldMs(reduced) });
+      }
+    });
+  }
+  for (const [id, g] of ghosts.current) if (g.until <= clock || live.has(id)) ghosts.current.delete(id);
+  prev.current = { slots: layout, rows: byId };
+
+  // THE FOLD, in memory for the page's life.
+  const [folds, setFolds] = useState<{ open: ReadonlySet<RailGroup>; mode: Partial<Record<RailGroup, FoldMode>> }>({ open: new Set(), mode: {} });
+  const toggleFold = (g: RailGroup, rowsInside: number, byKey: boolean) => setFolds(f => {
+    const open = new Set(f.open);
+    if (!open.delete(g)) open.add(g);
+    return { open, mode: { ...f.mode, [g]: foldMotion({ rowsInside, byKey, reduced: prefersReducedMotion() }) } };
+  });
+  const onToggle = (g: RailGroup, rowsInside: number) => (e: MouseEvent) => toggleFold(g, rowsInside, e.detail === 0);
+
+  const slotsOf = (g: RailGroup) => layout.filter(s => s.group === g);
+  const counts = RAIL_GROUPS.map(g => slotsOf(g).length) as [number, number, number, number, number];
+  const plan = foldPlan(counts);
+
+  /** A group's entries in drawn order, the rows that have just left among them. */
+  const entriesOf = (g: RailGroup): Entry[] => {
+    const entries: Entry[] = slotsOf(g).map(s => ({ id: s.id, row: byId.get(s.id)!, ghost: false }));
+    for (const [id, gh] of ghosts.current) {
+      if (gh.group !== g) continue;
+      const at = gh.after == null ? -1 : entries.findIndex(e => e.id === gh.after);
+      entries.splice(at + 1, 0, { id, row: gh.row, ghost: true });
+    }
+    return entries;
+  };
+
+  const list = useRef<HTMLUListElement>(null);
+  useRailFlip(list, layout.map(s => `${s.group}:${s.id}`).join("|"), aimed);
+  useRailMembership(list, layout.map(s => s.id));
+
+  // LAND. A jump that arrives while the rail is open scrolls the row into view
+  // at once and lights it for a moment; a jump to a row behind a fold opens the
+  // fold first. Two things that look like jumps are not: the nonce the rail was
+  // opened under, and the press on one of its own rows, which is where you
+  // already are. A press is flagged until the render it causes has seen the
+  // nonce it made. A landing is handled the moment it is used (the scroll
+  // below), so a row drawn again, in a fold body or as a ghost, never replays it.
+  const handled = useRef<number | null>(null);
+  if (handled.current === null) handled.current = landed?.nonce ?? 0;
+  const ownPress = useRef(false);
+  const press = (sessionId: string) => {
+    ownPress.current = true;
+    onSelect(sessionId);
+    setTimeout(() => { ownPress.current = false; }, 0);
+  };
+  let landing: { id: string; nonce: number } | null = null;
+  if (landed && landed.nonce !== handled.current) {
+    if (ownPress.current) { handled.current = landed.nonce; ownPress.current = false; }
+    else landing = landed;
+  }
+  const folded = new Set<string>();
+  for (const g of RAIL_GROUPS) {
+    const entries = entriesOf(g).filter(e => !e.ghost);
+    if (!folds.open.has(g)) for (const e of entries.slice(plan[g].shown)) folded.add(e.id);
+  }
+  useEffect(() => {
+    if (!landing) return;
+    const row = byId.get(landing.id);
+    if (!row) return;
+    const el = list.current?.querySelector<HTMLElement>(`[data-rail-id="${CSS.escape(landing.id)}"]`);
+    if (el) {
+      handled.current = landing.nonce;
+      el.scrollIntoView({ block: "nearest", behavior: "instant" });
+    } else if (folded.has(landing.id)) {
+      const g = layout.find(s => s.id === landing.id)!.group;
+      setFolds(f => ({ open: new Set(f.open).add(g), mode: { ...f.mode, [g]: "instant" } }));
+    }
+  }, [landing?.nonce, folds]);
+
+  // A row's words and glyph follow its own state, not the group a held order
+  // keeps it in: they change in place while the row waits for its move.
+  const contexts = compactRowContexts(rows, new Map(layout.map(slot => [slot.id, slot.group])));
+  const renderRow = (e: Entry): ReactNode => (
+    <RailRow key={e.id} row={e.row} group={rank(e.row)} now={now} leaving={e.ghost}
+      selected={selectedIds.has(e.id)} removed={removedIds?.has(e.id) ?? false}
+      landNonce={landing?.id === e.id ? landing.nonce : null} onSelect={press} onOpenKeys={e.ghost ? undefined : onOpenKeys}
+      onOpenBeside={e.ghost ? undefined : onOpenBeside}
+      compact={!!onOpenKeys}
+      context={contexts.get(e.row.sessionId)}
+      pane={openPanes?.get(e.row.sessionId)}
+      // Named in place (internal #101), from the session as the board has it.
+      rename={e.ghost ? null : renameFacts(state.agents.get(e.id))} />
+  );
+
+  const nodes: ReactNode[] = [];
+  // No summary line over the groups any more (V4 top-10 #5): "Nobody's
+  // waiting · 5 working" said what the group headings under it and the top
+  // bar's counts already say. An empty Needs you is simply not drawn.
+  if (rows.length === 0) {
+    nodes.push(emptyNotice
+      ? <li key="empty" className="sl-empty sl-empty-notice">{emptyNotice}</li>
+      : <li key="empty" className="sl-empty">{t("board.list.empty")}</li>);
+  }
+  let drawn = false;
+  for (const g of RAIL_GROUPS) {
+    const entries = entriesOf(g);
+    if (entries.length === 0) continue;
+    const { shown, rest: restCount } = plan[g];
+    const open = folds.open.has(g);
+    const mode = folds.mode[g] ?? "animate";
+    // Rows up to the cut are drawn; ghosts past it are not worth drawing.
+    const visible: Entry[] = [];
+    const behind: Entry[] = [];
+    let n = 0;
+    for (const e of entries) {
+      if (e.ghost) { if (behind.length === 0) visible.push(e); }
+      else if (n++ < shown) visible.push(e);
+      else behind.push(e);
+    }
+    // A group that can fold wears its header as the button: the whole group
+    // folded away, or opened and able to fold again.
+    const canFold = restCount > 0 && (shown === 0 || open);
+    nodes.push(
+      <GroupHead key={`head-${g}`} group={g} count={counts[g]} spaced={drawn}
+        fold={canFold ? { open, motion: mode, onToggle: onToggle(g, behind.length) } : undefined} />,
+    );
+    drawn = true;
+    for (const e of visible) nodes.push(renderRow(e));
+    if (restCount > 0) {
+      if (shown > 0 && !open) nodes.push(<MoreLine key={`more-${g}`} count={restCount} onToggle={onToggle(g, behind.length)} />);
+      nodes.push(<FoldBody key={`fold-${g}`} open={open} motion={mode}>{behind.map(renderRow)}</FoldBody>);
+    }
+  }
 
   return (
     // The id outlived the aria-controls it was named for: the topbar toggle
@@ -200,157 +521,34 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
     // aria-label that makes the rotor's complementary entries tellable apart —
     // and that is now this panel's only announcement, since nothing reports its
     // open state any more.
-    <aside className={`session-list${leaving ? " leaving" : ""}`} id="session-list" aria-label={t("board.list.title")}>
+    <aside className={`session-list${leaving ? " leaving" : ""}`} id="session-list" aria-label={t("board.list.title")}
+      ref={aside} onPointerEnter={pointerEnter} onPointerLeave={pointerLeave}>
+      {/* Order held: an overlay on the header's own box, so it takes no space in
+          the list and never moves a row it is protecting. Not a live region. */}
+      {aimed && moves > 0 && <div className="sl-held"><PauseGlyph /><span>{heldLine(moves)}</span></div>}
       <div className="sl-header">
         {/* h2, under the topbar's h1 — the level every panel title sits at
             (#381). This <aside> was already the shape the other two panels
-            were given there; only its heading moved. */}
+            were given there; only its heading moved. The groups say what the
+            waiting and live chips used to. */}
         <h2>{t("board.list.title")} <span className="sl-count">{rows.length}</span></h2>
-        {/* Beside the live count, not instead of it: the two answer different
-            questions, and a session can be both (a permission prompt lands
-            mid-turn). Codex sessions are counted in neither — they emit no
-            notification, so their absence from this number is the absence of a
-            signal rather than a claim that none of them is blocked. */}
-        {waitingCount > 0 && <span className="sl-waiting-count">{t("board.list.waitingCount", { n: waitingCount })}</span>}
-        {liveCount > 0 && <span className="sl-live-count">{t("board.list.liveCount", { n: liveCount })}</span>}
-        <button className="glyph-btn sl-close" onClick={onClose} title={withKey(t("board.list.hideSidebar"), "L", singleKeys)} aria-label={t("board.list.hide")}>‹</button>
+        <div className="sl-header-end">
+          {/* New session, V4's Plus: the launch the Command Panel's navigator
+              already has (its popover hangs off this button's id). Drawn only
+              where that launch exists. */}
+          {onNewSession && (
+            <button type="button" id={RAIL_NEW_SESSION_ID} className="sl-icon-btn" aria-haspopup="dialog"
+              onClick={e => onNewSession(e.currentTarget)} title={t("board.newSession.hint")} aria-label={t("board.newSession.title")}><PlusGlyph /></button>
+          )}
+          {/* The way out at phone width, where the drawer covers the canvas; on
+              a wider window L and the Sessions stripe door close the list, so
+              the frame draws no × (hidden there, not removed). */}
+          <button type="button" className="sl-icon-btn sl-close" onClick={onClose} title={withKey(t("board.list.hideSidebar"), "L", singleKeys)} aria-label={t("board.list.hide")}><CloseGlyph /></button>
+        </div>
       </div>
-      <ul className="sl-rows">
-        {rows.length === 0 && <li className="sl-empty">{t("board.list.empty")}</li>}
-        {rows.map(r => {
-          const isSelected = selectedIds.has(r.sessionId);
-          const removed = removedIds?.has(r.sessionId) ?? false;
-          return (
-            <li key={r.sessionId} className="sl-row-item">
-              <button
-                type="button"
-                className={`sl-row state-${r.state}${isSelected ? " selected" : ""}${removed ? " removed" : ""}`}
-                aria-current={isSelected ? "true" : undefined}
-                onClick={() => onSelect(r.sessionId)}
-                title={removed ? t("board.list.bring", { label: r.label }) : t("board.list.focus", { label: r.label })}
-              >
-              {/* The dot stays hidden and the word beside it is new (#373).
-                  A row's accessible name is its contents, so this joins it in
-                  DOM order — "live vcrm-core Opus 5 …" — and the state is heard
-                  exactly where it is seen, which is what 1.3.1 asks of a
-                  relationship carried by position. Before this the row said
-                  "vcrm-core Opus 5 9 tools $3.66 waiting 19s" and the state was
-                  the dot's hue alone; `waiting` was already words, and it is
-                  not this fact — a permission prompt lands on a session that is
-                  still live, and both are true at once.
-                  Hidden text rather than the two alternatives. An aria-label on
-                  the row would REPLACE that whole name, so the label, model,
-                  tool count, cost and clock would have to be rebuilt inside it
-                  and kept in step with the markup forever — two sources for one
-                  name, and the one a reader hears is the one that silently
-                  stops matching. A title is not announced here at all: the row
-                  already has one, and for an element with contents `title` is
-                  only the fallback the name computation never reaches — it is
-                  also unreachable by keyboard and by touch. */}
-              <span className={`sl-dot state-${r.state}`} aria-hidden />
-              <span className="vis-hidden">{stateLabel(r.state, t)}</span>
-              <div className="sl-row-body">
-                <div className="sl-row-head">
-                  <span className="sl-label">{r.label}</span>
-                  {/* Words, in the row's name, rather than the dimming alone:
-                      the press on this row does something different, and a
-                      reader has to hear that before making it. */}
-                  {removed && <span className="sl-removed">{t("board.list.offBoard")}</span>}
-                  {r.modelId && <span className="model-chip" data-family={modelFamily(r.modelId)} title={modelChipTitle(r.modelId, r.effort)}>{modelChipText(r.modelId, r.effort)}</span>}
-                </div>
-                <div className="sl-row-meta">
-                  {/* One tool, as the peek card and the card's label say it
-                      (#1810): the row is a button, so this is heard as well. */}
-                  <span title={t("board.list.toolCalls")}><b>{r.toolCount}</b> {t("board.meta.tools", { count: r.toolCount })}</span>
-                  {/* "session spend", not "total spend" (#687). The row sums
-                      the root and every subagent of this session that is still
-                      on the board, and `pruneOldAgents` takes finished
-                      subagents out from under a session that is still running
-                      once the map passes 200 — measured, a live root with 261
-                      agents lost 67.10M tokens out of its roll-up in one sweep.
-                      So "total" was a claim this figure cannot keep, and the
-                      scope it CAN claim is the session named beside it. */}
-                  {r.cost > 0 && <span className="sl-cost" title={t("insights.board.sessionSpend")}><b>{fmtCost(r.cost)}</b></span>}
-                  {/* How long it has been stuck, in the slot the run time had.
-                      On a blocked row that is the number worth the space: the
-                      session's own age says nothing about whether to go look,
-                      and "waiting 6m" says all of it. The run time is still on
-                      the tooltip, where it costs nothing.
-                      "waiting" only for the blocks the header counts — a
-                      permission prompt or a question, isAlarming's set. A turn
-                      that simply ended reads "your turn", which is what the
-                      card and the peek call it; it said "waiting" too, and the
-                      list then held more "waiting" rows than its own header
-                      counted. */}
-                  {r.waiting
-                    ? (
-                      <span
-                        className="sl-waiting"
-                        title={[
-                          waitingSentence(r.waiting, t),
-                          blockedToolTooltip(r.waiting, waitingSentence(r.waiting, t), t),
-                          t(isAlarming(r.waiting) ? "board.list.blockedSince" : "board.list.turnSince", { since: new Date(r.waiting.since).toLocaleTimeString(language), started: new Date(r.startedAt).toLocaleString(language) }),
-                        ].filter(Boolean).join("\n")}
-                      >
-                        {isAlarming(r.waiting) ? t("board.list.waiting") : t("board.list.yourTurn")} {elapsedShort(r.waiting.since, undefined, now)}
-                        {/* The tool NAME only, never the preview: this sits at the
-                            end of a row that already carries a model, a tool count
-                            and a cost, and the preview is a command line. The
-                            tooltip above takes both. */}
-                        {r.waiting.tool && <span className="sl-waiting-tool"> · {r.waiting.tool.name}</span>}
-                      </span>
-                    )
-                    : (
-                      <span className="sl-elapsed" title={t("board.node.started", { time: new Date(r.startedAt).toLocaleString(language) })}>{elapsedShort(r.startedAt, r.state === "active" ? undefined : r.lastActivity, now)}</span>
-                    )}
-                </div>
-                {/* How far down its own checklist the session is, and the step
-                    under way (#2157). One line, above the note: the note says
-                    what the last reply was, this says where the work stands,
-                    and it holds still while the note is rewritten. The count is
-                    said as words to a screen reader, which reads "3/7" as a
-                    date. */}
-                {r.plan && (
-                  <span className={r.plan.allDone ? "sl-plan sl-plan-done" : "sl-plan"} title={r.planTitle}>
-                    <span className="sl-plan-count" aria-hidden>{r.plan.done}/{r.plan.total}</span>
-                    <span className="vis-hidden">{planSpoken(r.plan, t)}</span>
-                    <span className="sl-plan-step" aria-hidden>
-                      {r.plan.allDone || !r.plan.current ? t("board.state.done") : `${r.plan.next ? t("board.plan.next") : ""}${r.plan.current}`}
-                    </span>
-                  </span>
-                )}
-                {/* Claude Code's recap, while it still describes the session.
-                    Three lines here against the card's two: this is the column
-                    a person reads down to choose which session to go back to,
-                    and it is wider than a card. All of it is the title, and all
-                    of it is in the detail panel. */}
-                {r.recap && <span className="sl-recap" title={r.recap.text}><RecapMark />{r.recap.text}</span>}
-                {/* What it is doing, asking or got done, in the recap's slot,
-                    two lines of it and both held while a turn runs, so the row
-                    keeps one height as the text is rewritten. The tag is a word
-                    in the row's name, not a colour: "needs you" is heard as
-                    well as seen. */}
-                {r.status && (
-                  <span className={`sl-status status-${r.status.kind}`} title={statusTooltip(r.status, t)}>
-                    {/* A real space after the tag, not only its margin: the row's
-                        name is its text, and "doneShipped" is one word to a
-                        screen reader. */}
-                    <span className="sl-status-tag">{noteTag(r.status.kind)}</span>{" "}
-                    {r.status.text}
-                  </span>
-                )}
-                {/* A line of its own, under the question: inside the line's
-                    clamp, a long question cut it off, and the short answer is
-                    the part a person can act on from here. It is Claude Code's
-                    guess, so it is shown as one — muted, quoted — and never
-                    typed for anybody. One line, so a long one is cut, and
-                    carries itself whole on hover. */}
-                {r.status?.reply && <span className="sl-status-reply" title={t("board.list.reply", { reply: r.status.reply })}>{t("board.list.reply", { reply: r.status.reply })}</span>}
-              </div>
-              </button>
-            </li>
-          );
-        })}
+      {offline}
+      <ul className="sl-rows" ref={list}>
+        {nodes}
       </ul>
       {(() => {
         // Counted from what is off the board now, not from the stored ids: a
@@ -384,6 +582,10 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
           </div>
         );
       })()}
+      {/* The foot of the rail, below the list that scrolls: the Usage panel's
+          5-hour reading as the page last read it, aged against the board's
+          clock. No reading, nothing drawn. */}
+      {edge}
     </aside>
   );
 }

@@ -42,10 +42,8 @@ function contrast(a: Rgba, b: Rgba): number {
 
 describe("Material status text on its painted background", () => {
   const cases = [
-    ...["active", "done", "err"].map(state => ({
-      name: `card ${state}`,
-      chain: [root, el("div", ["react-flow__node"]), el("div", ["agent-node", `state-${state}`]), el("span", ["state-pill", `state-${state}`])],
-    })),
+    // CHANGED ON PURPOSE (V4's Figma): the card's state pill is gone (the card says its state with a mark
+    // and a word, and the recap names its session with the done mark), so its three cases left.
     ...["live", "paused", "dead"].map(state => ({
       name: `connection ${state}`,
       chain: [root, el("header", ["topbar"]), el("div", ["status"]), el("span", ["pill", state])],
@@ -71,10 +69,20 @@ describe("Material status text on its painted background", () => {
       });
     }
   }
-  it("keeps the inferred waiting tool readable on the session list", () => {
-    const chain = [root, el("aside", ["session-list"]), el("span", ["sl-waiting-tool"])];
-    const foreground = cascade(selector => selects(selector, chain), "color", 1920);
-    expect(foreground).not.toBeNull();
-    expect(contrast(color(foreground!), color(tokens.panel))).toBeGreaterThanOrEqual(4.5);
-  });
+  // V4's rail names the blocked tool in --text-secondary and the wait in --warn
+  // (Figma Rail / Row), both plain tokens, so there is no tone-toward-the-panel
+  // mix for Material to decline any more; what stays worth holding is that both
+  // read on the panel.
+  for (const [name, leaf] of [
+    ["blocked tool", el("b", ["sl-tool"])],
+    ["wait", el("span", ["sl-time", "warn"])],
+  ] as const) {
+    it(`keeps the rail's ${name} readable on the session list`, () => {
+      const chain = [root, el("aside", ["session-list"]), el("ul", ["sl-rows"]), el("li", ["sl-row-item"]), el("div", ["sl-row-in"]),
+        el("button", ["sl-row"]), el("span", ["sl-text"]), leaf];
+      const foreground = cascade(selector => selects(selector, chain), "color", 1920);
+      expect(foreground).not.toBeNull();
+      expect(contrast(color(foreground!), color(tokens.panel))).toBeGreaterThanOrEqual(4.5);
+    });
+  }
 });

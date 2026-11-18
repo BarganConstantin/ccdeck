@@ -65,7 +65,7 @@ export function DetailPending({ data, loading, error, onRetry, what }: {
     return <p className="fg-empty">{t("forge.gone", { what })}</p>;
   }
   if (error) return <ReadFailure error={error} onRetry={onRetry} />;
-  if (loading) return <LoadingRows rows={5} label={t("forge.loadingThe", { what })} />;
+  if (loading) return <LoadingRows variant="lines" rows={5} label={t("forge.loadingThe", { what })} />;
   return null;
 }
 

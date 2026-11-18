@@ -460,25 +460,35 @@ describe("which panels the UI draws for each machine", () => {
     // The gate is one name since 2026-10-08, `accountsDrawn`, because the
     // left column mounts on it too; Claude Code is in its definition.
     expect(leadUpTo(appSrc, "<AccountsPanel leaving=")).toContain('{accountsDrawn && (shownAccountProvider === "claude" || accountSide.bothMounted) && (');
-    expect(appSrc).toMatch(/const accountsDrawn = isDrawn\(accountsPanelOpen, accountsPhase\) && \(providers\.claude \|\| providers\.codex\);/);
+    // CHANGED ON PURPOSE (one side column between 641 and 839): drawn from the
+    // panel open on screen, which a folded left column is not.
+    expect(appSrc).toMatch(/const accountsDrawn = isDrawn\(accountsOnScreen, accountsPhase\) && \(providers\.claude \|\| providers\.codex\);/);
   });
 
   it("hides the accounts button too, rather than opening onto nothing", () => {
     // The left stripe — and the phone's dock, which draws the same list — holds
     // Claude's accounts button where Claude Code is and Codex's where only Codex is.
     expect(appSrc).toContain("left: providers.claude ? [accounts, sessionList] : providers.codex ? [codex, sessionList] : [sessionList]");
-    expect(appSrc).toMatch(/<EdgeDock items=\{\[\.\.\.rails\.left, /);
+    // CHANGED ON PURPOSE (the owner's phone layout): the dock's JSX now breaks
+    // after the tag (items on their own line, plus the offline flag).
+    expect(appSrc).toMatch(/<EdgeDock\s+items=\{\[\.\.\.rails\.left, /);
     // With both, one Accounts button covers both CLIs (a switch in the panel's
     // header picks the side); only quick open keeps a door to Codex's side.
     expect(appSrc).toContain("codexDoor: providers.claude && providers.codex ? [codex] : []");
     // Account capacity and Reset calendar open Claude's accounts report, so they
-    // are Claude's alone and follow its button off a Codex-only stripe.
-    expect(appSrc).toMatch(/leftStripe: \[\s*\.\.\.\(providers\.claude \? \[named\(providers\.codex \? t\("board\.rail\.accounts"\) : t\("board\.rail\.group\.accounts"\), \[accounts, \.\.\.capacity\]\)\] : \[\]\),\s*\.\.\.\(providers\.codex && !providers\.claude \? \[\[codex\]\] : \[\]\),\s*\[sessionList\],\s*\]/);
+    // are Claude's alone and follow its button off a Codex-only bar. V4's Panel
+    // bar: Sessions first, then Accounts (or Codex's button where it is all
+    // there is).
+    expect(appSrc).toContain('named(t("shell.rail.left"), [sessionList, ...(providers.claude ? [accounts] : providers.codex ? [codex] : [])])');
+    expect(appSrc).toContain('providers.claude ? named(t("board.rail.group.accounts"), capacity) : []');
     expect(appSrc).toMatch(/capacity: providers\.claude \? capacity : \[\]/);
-    // The connected trackers (#2178) are a group of their own after it, so
-    // they cannot stand in for the accounts button either.
-    expect(appSrc).toMatch(/<EdgeRail side="left" label=\{t\("shell.rail.left"\)\} groups=\{\[\.\.\.rails\.leftStripe, rails\.integrations, rails\.explore\]\}/);
-    // And nowhere else: the right stripe and the utilities never carry it.
+    // The connected trackers (#2178) are in the bar's last run, so they cannot
+    // stand in for the accounts button either.
+    // CHANGED ON PURPOSE (V4's Figma): the one bar is two stripes, each its own toolbar.
+    // CHANGED ON PURPOSE (V4 top-10 #4): the left stripe also takes its More
+    // (the capacity run among its rows), because the occasional doors moved there.
+    expect(appSrc).toMatch(/<EdgeRail side="left" label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.leftStripe\} more=\{rails\.leftMore\} foot=\{rails\.leftFoot\} \/>/);
+    // And nowhere else: the phone's grouping and the utilities never carry it.
     expect(appSrc).toMatch(/right: \[\s*named\(t\("board\.rail\.group\.usage"\), \[usage, machine\]\),\s*named\(t\("board\.rail\.group\.activity"\), \[history, \.\.\.activity\]\),\s*named\(t\("board\.rail\.group\.watchers"\), \[browserWatch, \.\.\.radar\]\),\s*radio,\s*\]/);
     expect(appSrc).toMatch(/utilities: \[settings, feedback\]/);
   });
@@ -515,5 +525,9 @@ describe("which panels the UI draws for each machine", () => {
     expect(usageSrc).toContain("useCodexQuota(providers.codex)");
     // Usage insights retired the local token summary and its unused poll.
     expect(usageSrc).not.toContain("useCodexUsage(");
+    // Accounts reads the active Claude plan label from /api/quota, gated the
+    // same way: a Codex-only machine never asks.
+    const appSrc = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+    expect(appSrc).toContain("useMeterQuota(accountsDrawn && providers.claude)");
   });
 });

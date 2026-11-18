@@ -1,0 +1,28 @@
+/* The sliding thumb of V4's segmented control (use-segment-thumb.ts). The group
+   is the track; the thumb is its ::before, a --panel box the size of the
+   selected segment (20 high in the kit) at a segment's radius, moved with
+   transform and sized with width (the hook writes --thumb-x/-y/-w/-h on the
+   group). The segments sit above it, transparent, so only their label changes
+   colour. data-thumb="set" puts the thumb where it is with no transition (first
+   paint never slides), "live" lets it move. A pointer change slides over Base
+   on --ease; a key change is at once, as every key-opened thing is
+   (input-modality.ts marks the root); under reduced motion the thumb jumps and
+   the label colour fades in Fast. */
+[data-thumb]::before {
+  content: "";
+  position: absolute;
+  top: var(--thumb-y, 1px);
+  left: 0;
+  width: var(--thumb-w, 0);
+  height: var(--thumb-h, 20px);
+  border-radius: var(--r-ctl);
+  background: var(--panel);
+  transform: translateX(var(--thumb-x, 0));
+}
+[data-thumb="live"]::before {
+  transition: transform var(--dur-base) var(--ease), width var(--dur-base) var(--ease);
+}
+:root[data-motion="instant"] [data-thumb]::before { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  [data-thumb="live"]::before { transition: none; }
+}

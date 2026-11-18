@@ -103,7 +103,7 @@ describe("the three new rows", () => {
   it("refuse a sibling nobody has read a rate for, rather than pricing it as its family", () => {
     for (const id of [
       "gpt-6-sol-mini", "gpt-6-sol-pro", "gpt-6-luna-nano", "gpt-6-luna_mini", "gpt-6.1-sol-pro",
-      "gpt-6.1", "gpt-6.1-luna", "gpt-6.2-sol", "gpt-6",
+      "gpt-6.1", "gpt-6.1-luna", "gpt-6.2-sol-mini", "gpt-6",
     ]) {
       expect(ratesForModel(id), id).toBeNull();
     }

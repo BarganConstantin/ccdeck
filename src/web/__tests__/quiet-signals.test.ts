@@ -189,72 +189,96 @@ describe("the contrast maths, checked against the two ends everybody knows", () 
 });
 
 describe("1. the tool-category chip you switched off (#368.1)", () => {
-  /** The bar is translucent over the canvas, which is NOT --panel — the report
-   *  quoted --panel's numbers. Its own fill is what the chip actually sits on. */
-  function chipBar(theme: Theme): Rgba {
-    // One rule serves both themes now (the light override only ever carried a
-    // different shadow, and the bar has none); --panel resolves per theme.
-    const raw = declOf(".cat-filter-bar", "background")!;
-    return over(resolve(raw, theme), tok("--bg", theme));
+  /** What a category's word actually sits on. CHANGED ON PURPOSE: the legend on
+   *  the canvas is gone; the toggles are the Tools menu's rows (one button at
+   *  every width), on the popover's --panel. */
+  function menuBed(theme: Theme): Rgba {
+    expect(declOf(".anchored-popover", "background"), "the menu's surface").toBe("var(--panel)");
+    return tok("--panel", theme);
+  }
+  /** The kit's menu row under the pointer: --selected, 8% of --text over --panel. */
+  function hoveredBed(theme: Theme): Rgba {
+    expect(TOK[theme]["--selected"]).toBe("color-mix(in srgb, var(--text) 8%, var(--panel))");
+    const text = tok("--text", theme);
+    return over([text[0], text[1], text[2], 0.08], tok("--panel", theme));
   }
 
-  it("carries `off` on the colour tier alone — no opacity anywhere on the chip", () => {
+  it("carries `off` on the colour tier alone — no opacity anywhere on the row", () => {
     // This is the regression that matters: any alpha at all puts --muted under
     // AA in dark, because it only clears it by 0.30 at full strength.
-    expect(declOf(".cat-filter.off", "opacity"), "resting").toBeNull();
-    expect(declOf(".cat-filter.off:hover", "opacity"), "hover").toBeNull();
-    // And the now-dead property is gone from the chip's transition list.
-    expect(declOf(".cat-filter", "transition")).not.toMatch(/opacity/);
+    expect(declOf(".cat-tools-item.off", "opacity"), "resting").toBeNull();
+    expect(declOf(".ap-menu-item:hover:not(:disabled)", "opacity"), "hover").toBeNull();
+    expect(declOf(".ap-menu-item", "transition") ?? "").not.toMatch(/opacity/);
   });
 
-  it("reads the off label at 4.5:1 on the bar's own fill, in both themes", () => {
+  it("reads the off label at 4.5:1 on what it sits on, in both themes", () => {
     // Composites whatever `opacity` the rule declares, because that is the
     // mechanism: the fade applied to the chip applied to its label too.
     for (const theme of themes) {
-      const bed = chipBar(theme);
-      const fg = resolve(declOf(".cat-filter.off", "color")!, theme);
-      const alpha = +(declOf(".cat-filter.off", "opacity") ?? 1);
-      expect(contrastRatio(faded(fg, alpha, bed), bed), `${theme} off chip`).toBeGreaterThanOrEqual(BODY);
+      const bed = menuBed(theme);
+      const fg = resolve(declOf(".cat-tools-item.off", "color")!, theme);
+      const alpha = +(declOf(".cat-tools-item.off", "opacity") ?? 1);
+      expect(contrastRatio(faded(fg, alpha, bed), bed), `${theme} off row`).toBeGreaterThanOrEqual(BODY);
     }
   });
 
   it("shows there is no opacity that would have worked — 0.9 is still under AA in dark", () => {
     // The report proposed `opacity: 0.75` as the floor. It is 3.23:1.
-    const bed = chipBar("dark");
-    const fg = resolve(declOf(".cat-filter.off", "color")!, "dark");
-    expect(contrastRatio(faded(fg, 0.75, bed), bed)).toBeLessThan(NON_TEXT + 0.3);
+    // CHANGED ON PURPOSE: the demonstration stays on the bare canvas it was
+    // last measured on; it is about fading a label, not about this control.
+    const bed = tok("--bg", "dark");
+    // CHANGED ON PURPOSE: the off label is --text-secondary now (V4's Figma), so
+    // the demonstration is pinned to the --muted label it was written about;
+    // it shows that fading a label cannot reach AA, whatever the label is.
+    const fg = resolve("var(--muted)", "dark");
+    // CHANGED ON PURPOSE (V4's legend): measured on the bare canvas the legend
+    // sits on now, not the slab it replaced, 0.75 is 3.33:1 rather than 3.23:1,
+    // still nowhere near AA.
+    expect(contrastRatio(faded(fg, 0.75, bed), bed)).toBeCloseTo(3.33, 2);
+    expect(contrastRatio(faded(fg, 0.75, bed), bed)).toBeLessThan(BODY);
     expect(contrastRatio(faded(fg, 0.9, bed), bed)).toBeLessThan(BODY);
     expect(contrastRatio(fg, bed)).toBeGreaterThanOrEqual(BODY);
   });
 
-  it("never lets the pointer take contrast away — off:hover is louder than off", () => {
+  it("never lets the pointer take contrast away — off:hover is louder than off, and reads at 4.5:1", () => {
+    // CHANGED ON PURPOSE: a menu row answers the pointer with the --selected
+    // bed, where --text-dim is 3.95:1 in dark, so a hidden row's word lifts to
+    // --text-secondary under it. It comes after `.off` at a higher weight.
+    expect(declOf(".ap-menu-item:hover:not(:disabled)", "color")).toBeNull();
     for (const theme of themes) {
-      const bed = chipBar(theme);
-      const rest = contrastRatio(resolve(declOf(".cat-filter.off", "color")!, theme), bed);
-      const hover = contrastRatio(resolve(declOf(".cat-filter.off:hover", "color")!, theme), bed);
-      expect(hover, `${theme} off:hover vs off`).toBeGreaterThan(rest);
+      const rest = resolve(declOf(".cat-tools-item.off", "color")!, theme);
+      const lifted = resolve(declOf(".cat-tools-item.off:hover", "color")!, theme);
+      const bed = hoveredBed(theme);
+      expect(contrastRatio(lifted, bed), `${theme} off row under the pointer`).toBeGreaterThanOrEqual(BODY);
+      expect(contrastRatio(lifted, bed), `${theme} off:hover vs off`).toBeGreaterThan(contrastRatio(rest, bed));
     }
+    expect(css.indexOf("\n.cat-tools-item.off:hover"), "the hover rule follows .off").toBeGreaterThan(css.indexOf("\n.cat-tools-item.off {"));
   });
 
   it("still reads off as the quieter of the two states, and on as fully lit", () => {
     for (const theme of themes) {
-      const bed = chipBar(theme);
-      const on = contrastRatio(resolve(declOf(".cat-filter", "color")!, theme), bed);
-      const off = contrastRatio(resolve(declOf(".cat-filter.off", "color")!, theme), bed);
-      expect(on, `${theme} on chip`).toBeGreaterThanOrEqual(BODY);
+      const bed = menuBed(theme);
+      const on = contrastRatio(resolve(declOf(".ap-menu-item", "color")!, theme), bed);
+      const off = contrastRatio(resolve(declOf(".cat-tools-item.off", "color")!, theme), bed);
+      expect(on, `${theme} on row`).toBeGreaterThanOrEqual(BODY);
       expect(off, `${theme} off is quieter`).toBeLessThan(on);
     }
-    // The glyph is drawn in the label's own colour now, so it steps down with
-    // the word; the strike through the name stays the channel that is not a
-    // colour.
-    expect(declOf(".cat-filter.off .cat-name", "text-decoration")).toBe("line-through");
+    // CHANGED ON PURPOSE (V4's legend): the channels that are not a colour are
+    // the checkbox's tick and the dot's shape, a filled disc against a hollow
+    // ring, where it was a strike through the name.
+    expect(declOf(".cat-tools-item.off .cat-dot", "background")).toBe("transparent");
+    expect(declOf(".cat-tools-item.off .cat-dot", "border")).toBe("1.5px solid var(--text-dim)");
   });
 });
 
 describe("2. the quota pace marker (#368.2)", () => {
   // The fill and the marker are coloured in the component, not the sheet, so
   // the token sets come from there — a new state added to either is caught.
-  const FILLS = [...(/const\s+color\s*=\s*([^;]+);/.exec(quotaBar)![1])
+  // CHANGED ON PURPOSE (compact accounts, #2539): the fill wears main's quota
+  // colours for every account, --accent below 70, --warn from 70, --err from 90.
+  // The fill's inks are quotaFill's since every quota meter shares one level
+  // (V4 top-10 #9); they were quotaMeterColor's, the same three.
+  const FILLS = [...(/export function quotaFill[^{]*\{\s*return\s+([^;]+);/.exec(quotaBar)![1])
     .matchAll(/var\((--[\w-]+)\)/g)].map(m => m[1]);
   const MARKERS = [...(/className="qb-pace-marker"[\s\S]*?\/>/.exec(quotaBar)![0])
     .matchAll(/var\((--[\w-]+)\)/g)].map(m => m[1]);
@@ -297,14 +321,18 @@ describe("2. the quota pace marker (#368.2)", () => {
       }
       // Surplus puts the marker outside the fill, on the bare track, where it
       // has to carry itself — the ring is near-invisible on --line by design.
-      const track = resolve(declOf(".qb-track", "background")!, theme);
+      // CHANGED ON PURPOSE (V4's Figma): the track is --ctl-fill, a wash of the ink, over the panel.
+      const track = over(resolve(TOK[theme][/^var\((--[\w-]+)\)$/.exec(declOf(".qb-track", "background")!)![1]], theme), tok("--panel", theme));
       expect(contrastRatio(tok("--ok", theme), track), `${theme} --ok marker on the track`)
         .toBeGreaterThanOrEqual(NON_TEXT);
     }
   });
 
-  it("keeps the track clipping the ring, which is what leaves only the two side edges", () => {
-    expect(declOf(".qb-track", "overflow")).toBe("hidden");
+  // CHANGED ON PURPOSE (V4's Figma): the track is 2 high, so it no longer clips; the tick stands
+  // 2px clear above and below it (the rail is inset -2px), and the ring is a spread on all sides.
+  it("lets the tick stand clear of the 2px track instead of clipping it", () => {
+    expect(declOf(".qb-track", "overflow")).toBeNull();
+    expect(declOf(".qb-pace-rail", "inset")).toBe("-2px 0");
   });
 });
 
@@ -318,7 +346,7 @@ describe("3. the chips that paint --line under a dim foreground (#368.3)", () =>
   it("finds the chips that do it, including the two #368 measured", () => {
     const names = bedded.map(r => r.selector);
     expect(names).toContain(".up-quota-hint code");
-    expect(names).toContain(".ver-banner .ver-cmd-hint");
+    // CHANGED ON PURPOSE (V4's Figma): the update banner's "copy" word chip is gone, the command box has an icon Copy, so .ver-cmd-hint no longer exists.
     expect(bedded.length).toBeGreaterThanOrEqual(4);
   });
 
@@ -344,57 +372,10 @@ describe("3. the chips that paint --line under a dim foreground (#368.3)", () =>
   });
 });
 
-describe("4. the sparkline that prints its counts nowhere (#368.4)", () => {
-  /** Base rule plus the light override, merged the way the cascade merges them. */
-  function spark(cls: string, theme: Theme): { fill: Rgba; opacity: number } {
-    const base = rule(`.tool-spark-bar${cls}`);
-    const light = rule(`:root[data-color-scheme="light"] .tool-spark-bar${cls}`);
-    const pick = (p: string) => (theme === "light" ? decl(light, p) ?? decl(base, p) : decl(base, p));
-    return { fill: resolve(pick("fill")!, theme), opacity: +(pick("opacity") ?? 1) };
-  }
-
-  const ratio = (cls: string, theme: Theme) =>
-    Math.min(...nodeStops(theme).map(bed => contrastRatio(faded(spark(cls, theme).fill, spark(cls, theme).opacity, bed), bed)));
-
-  it("draws the idle bar at 3:1 against the node it is painted on, in both themes", () => {
-    // No adjacent number anywhere — the counts live in a title — so 1.4.11's
-    // redundancy exception does not cover this meter the way it covers .qb-pct.
-    for (const theme of themes) {
-      // The floor, outside the ratio it is the floor for (#648's shape, applied
-      // here by #665). `gradientStops` already refuses a --node-grad it cannot
-      // read; this is what still fails if that reader is ever softened back to
-      // a `?? []` and `Math.min()` starts answering Infinity again.
-      expect(nodeStops(theme).length, `${theme}: no node stops — the bar below would be measured against nothing`)
-        .toBeGreaterThanOrEqual(2);
-      expect(ratio("", theme), `${theme} idle spark bar`).toBeGreaterThanOrEqual(NON_TEXT);
-    }
-  });
-
-  it("keeps the three tiers pointing the right way — idle quietest, latest loudest", () => {
-    // This is why light is NOT lifted with dark. --muted there is 7.21:1 and
-    // would put "nothing ran" above both active and latest.
-    for (const theme of themes) {
-      // The same floor, on the file's other sweep over these stops.
-      expect(nodeStops(theme).length, `${theme}: no node stops — the three tiers below would all read Infinity`)
-        .toBeGreaterThanOrEqual(2);
-      const idle = ratio("", theme);
-      const active = ratio(".active", theme);
-      const latest = ratio(".latest", theme);
-      expect(idle, `${theme} idle < active`).toBeLessThan(active);
-      expect(active, `${theme} active < latest`).toBeLessThan(latest);
-    }
-  });
-
-  it("lifts the dark bar only, and leaves --muted-dim its decorative jobs", () => {
-    expect(declOf(".tool-spark-bar", "fill")).toBe("var(--muted)");
-    expect(declOf(':root[data-color-scheme="light"] .tool-spark-bar', "fill")).toBe("var(--muted-dim)");
-    // The two louder tiers each carry an extra class, so they out-specify the
-    // light idle override whatever the source order.
-    for (const cls of [".active", ".latest"]) {
-      expect(decl(rule(`:root[data-color-scheme="light"] .tool-spark-bar${cls}`), "fill"), cls).not.toBeNull();
-    }
-  });
-});
+// 4. (the sparkline that printed its counts nowhere, #368.4) is gone with the
+// chart: V4's Agent / Card draws tool-kind icons in the foot in its place, so
+// there are no bars left to hold to 3:1. The icons are a glyph beside the
+// cost and the clock, which print their own figures.
 
 describe("5. one focus language, and nothing quietly opting out of it", () => {
   // This began as the search field's own ring (#368.5): `outline: none` on a
@@ -409,17 +390,24 @@ describe("5. one focus language, and nothing quietly opting out of it", () => {
     // Nothing does today. The loop is what matters: the next rule that opts out
     // has to opt back in for the keyboard.
     // Search focuses its entire labelled wrapper; map suppresses only pointer focus.
-    expect(declOf(".radio-panel[data-keyboard-interaction] .radio-search:focus-within", "outline")).toBe("2px solid var(--accent)");
-    expect(declOf(".radio-map-canvas:focus-visible", "outline")).toBe("2px solid var(--accent)");
+    // V4's Figma: the radio search is a text field, so no ring, its border
+    // turns --accent (radio.css); the map canvas takes the global ring.
+    expect(declOf(".radio-search:focus-within", "border-color")).toBe("var(--accent)");
     expect(declOf(".radio-search:focus-within", "outline")).toBe("none");
     expect(declOf(".radio-pin:focus-visible .radio-pin-dot", "stroke")).toBe("var(--accent)");
-    // Quick open's input draws the ring on the field row it sits in, inset
-    // under the dialog's clipped edge.
-    expect(declOf(".qo-field:has(.qo-input:focus-visible)", "outline")).toBe("2px solid var(--accent)");
+    // CHANGED ON PURPOSE (V4's Figma): quick open's input draws no ring; the
+    // rule under the field turns --accent while it holds focus, as the radio
+    // search's border does.
+    expect(declOf(".qo-field:has(.qo-input:focus-visible)", "outline")).toBeNull();
+    expect(declOf(".qo-field:has(.qo-input:focus-visible)", "border-bottom-color")).toBe("var(--accent)");
     // A Jira issue's main button draws its ring on the whole row, around the
     // disclosure and actions button that sit beside it.
-    expect(declOf(".jr-row:has(> .jr-row-main:focus-visible)", "outline")).toBe("2px solid var(--accent)");
+    expect(declOf(".jr-row:has(> .jr-row-main:focus-visible)", "outline")).toBe("var(--focus-w) solid var(--accent)");
     expect(killers).toEqual([
+      // The text-field family (tokens.css): V4's Figma gives fields no ring, their border turns --accent.
+      // CHANGED ON PURPOSE (V4's Figma): the other accounts' order is a menu
+      // button now, not a select, so it left this family for the global ring.
+      ".settings-filter-field:focus-visible, .sm-select:focus-visible, .ap-manage-input:focus-visible,\n.aa-field input:focus-visible, .radio-filter-search input:focus-visible,\n.tr-input:focus-visible, .tr-select:focus-visible,\n.qh-window select:focus-visible, .jr-move-pop select:focus-visible, .jr-transition select:focus-visible,\n.jr-comment-compose textarea:focus-visible, .su-pricing select:focus-visible,\n.ap-field select:focus-visible, .ap-pop .ap-field select:focus-visible,\n.bw-settings select:focus-visible",
       ".qo-input:focus-visible",
       ".radio-pin",
       ".radio-search:focus-within",
@@ -428,20 +416,28 @@ describe("5. one focus language, and nothing quietly opting out of it", () => {
       ".radio-panel .radio-map-canvas:focus:not(:focus-visible),\n.radio-panel .radio-map-canvas[data-pointer-focus]:focus",
       ".radio-panel:not([data-keyboard-interaction]) .radio-filter-popup :focus-visible",
       ".jr-row-main:focus-visible",
+      // CHANGED ON PURPOSE (the phone layout): a phone sheet takes focus by
+      // script when it opens, and after a keyboard press the ring would be
+      // drawn around the whole sheet. The four sheet containers draw none,
+      // inside the phone query only (phone-sheet.css); the controls inside
+      // keep the global ring, so there is nothing to restore on the container.
+      ".app.app.app .usage-panel[tabindex=\"-1\"]:focus-visible,\n  .app.app.app .sysdetail[tabindex=\"-1\"]:focus-visible,\n  .app.app.app .detail[tabindex=\"-1\"]:focus-visible,\n  .app.app.app .accounts-panel[tabindex=\"-1\"]:focus-visible",
     ]);
-    for (const sel of killers.filter(sel => !sel.startsWith(".radio") && !sel.startsWith(".qo-") && !sel.startsWith(".jr-row-main"))) {
+    for (const sel of killers.filter(sel => !sel.startsWith(".radio") && !sel.startsWith(".qo-") && !sel.startsWith(".jr-row-main") && !sel.startsWith(".settings-filter-field") && !sel.startsWith(".app.app.app .usage-panel[tabindex"))) {
       expect(declOf(`${sel}:focus-visible`, "outline"), sel).not.toBeNull();
     }
   });
 
   it("draws every ring in the deck's one focus language, not a second one", () => {
-    for (const sel of [".ap-manage-input:focus-visible", ".aa-field input:focus-visible"]) {
-      expect(declOf(sel, "outline"), sel).toBe("2px solid var(--accent)");
-    }
+    // V4's Figma: the ring is --focus-w of --accent; the text fields (which
+    // set outline: none and turn their border instead) are the one exception.
+    expect(declOf(":focus-visible", "outline")).toBe("var(--focus-w) solid var(--accent)");
+    // (v4-focus-ring.test.ts pins each field's none + border-color in the grouped rule.)
     // Offset may vary, colour and weight may not.
     for (const [, body] of css.matchAll(/:focus-visible[^{}]*\{([^}]*)\}/g)) {
       const outline = decl(body, "outline");
-      if (outline && outline !== "none") expect(outline).toBe("2px solid var(--accent)");
+      // Forced colours swap the accent for the system Highlight; nothing else varies.
+      if (outline && outline !== "none") expect(outline).toMatch(/^var\(--focus-w\) solid (?:var\(--accent\)|Highlight)$/);
     }
   });
 });

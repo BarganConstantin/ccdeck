@@ -1,0 +1,2 @@
+{ "type": "https://api.ccdeck.dev/problems/feedback-limit", "title": "Too many new conversations today", "status": 429,
+  "error": "too_many_conversations", "limit": 10, "retryAfterSec": 5400 }

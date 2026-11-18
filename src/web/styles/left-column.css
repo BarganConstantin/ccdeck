@@ -24,12 +24,8 @@
      · close: the panel slides out with the edge as the column closes, and
        fades as it goes, a little faster than it came.
    240ms on the iOS drawer curve, brisk because the column changes tens of
-   times a day and half of those are from the keyboard. */
-:root {
-  --column-move: 240ms;
-  --column-ease: cubic-bezier(0.32, 0.72, 0, 1);
-}
-
+   times a day and half of those are from the keyboard: V4's --dur-move and
+   --ease-stage (tokens.css), the tempo of the stage and the sliding panels. */
 .left-column {
   grid-column: 1;
   grid-row: 2 / -1;
@@ -39,7 +35,7 @@
   overflow: hidden;
   background: var(--panel);
   border-right: 1px solid var(--line);
-  transition: width var(--column-move) var(--column-ease);
+  transition: width var(--dur-move) var(--ease-stage);
 }
 /* Out is faster than in, and the panel that leaves is held exactly this long. */
 .left-column.closing { transition-duration: var(--side-exit); }
@@ -59,9 +55,21 @@
   z-index: 1;
   border-right-color: transparent;
   transition:
-    transform var(--column-move) var(--column-ease),
-    opacity 180ms cubic-bezier(0.23, 1, 0.32, 1) 40ms;
+    transform var(--dur-move) var(--ease-stage),
+    opacity var(--dur-base) var(--ease) var(--delay-step);
 }
+/* THE LIST'S OWN WIDTH (internal #103): the reader's, dragged at its right edge
+   and kept in the browser (rail-width.ts), or the density's when nothing is
+   kept. --list-w is set on the column (LeftColumn's listWidth) and the list
+   inherits it; a drag writes it as it moves (RailEdge.tsx). Unset (a phone),
+   the list is the rail token, as before. */
+.left-column > .session-list { width: var(--list-w, calc(var(--rail-w) + var(--ui-panel-increase, 0px))); }
+.left-column > .accounts-panel { width: var(--list-w, calc(var(--rail-w) + var(--ui-panel-increase, 0px))); }
+.left-column > .accounts-panel > * { width: 100%; }
+.left-column > .accounts-panel > .ap-failure { width: calc(100% - var(--panel-inset) - var(--panel-inset)); }
+/* A drag moves the column with the pointer, not on its easing, and selects
+   nothing on the way. */
+.left-column[data-resizing] { transition: none; user-select: none; }
 /* How a panel arrives: alone, it came with the column and slides in with the
    edge; beside another, the column was already open and it fades in where it
    stands. */
@@ -80,14 +88,40 @@
   opacity: 0;
   pointer-events: none;
   transition:
-    opacity 120ms cubic-bezier(0.23, 1, 0.32, 1),
-    transform var(--column-move) var(--column-ease);
+    opacity var(--dur-fast) var(--ease),
+    transform var(--dur-move) var(--ease-stage);
 }
 .left-column.closing > .leaving {
   transform: translateX(-100%);
   transition:
     opacity var(--side-exit) linear,
-    transform var(--side-exit) var(--column-ease);
+    transform var(--side-exit) var(--ease-stage);
+}
+
+/* THE ACCOUNTS PANEL'S OWN MOTION (V4's motion spec for a side panel). Open: the
+   column grows on Move while the panel travels the last 12px with it, and its
+   opacity follows 180ms after a 40ms delay, all on the stage curve — it begins
+   invisible, so the column opens before the panel is seen. Close: the panel's
+   opacity goes in 120ms, the column in the 200 it takes, the panel 12px back.
+   (The rail keeps its own: it travels its whole width.) */
+.left-column > .accounts-panel {
+  transition:
+    transform var(--dur-move) var(--ease-stage),
+    opacity var(--accounts-fade-in) var(--ease-stage) var(--delay-step);
+}
+@starting-style {
+  .left-column > .accounts-panel:only-child { transform: translateX(-12px); opacity: 0; }
+}
+.left-column > .accounts-panel.leaving {
+  transition:
+    opacity var(--dur-fast) var(--ease),
+    transform var(--dur-move) var(--ease-stage);
+}
+.left-column.closing > .accounts-panel.leaving {
+  transform: translateX(-12px);
+  transition:
+    opacity var(--dur-fast) var(--ease-stage),
+    transform var(--side-exit) var(--ease-stage);
 }
 
 /* REDUCED MOTION: the column is at its new width on the first frame and does
@@ -100,8 +134,13 @@
   .left-column > .accounts-panel { transition: opacity 140ms ease; }
   .left-column > .leaving,
   .left-column.closing > .leaving { transform: none; transition: none; }
+  /* The accounts panel closes on the same 140ms crossfade it opens on, with no
+     travel. */
+  .left-column > .accounts-panel.leaving { transform: none; transition: none; }
+  .left-column.closing > .accounts-panel.leaving { transform: none; transition: opacity 140ms ease; }
   @starting-style {
     .left-column > :only-child { opacity: 0; }
+    .left-column > .accounts-panel:only-child { transform: none; opacity: 0; }
   }
 }
 
@@ -117,17 +156,21 @@
   .app:has(.left-column):not(:has(.detail)) { grid-template-columns: minmax(0, 1fr); }
   .app:has(.session-list) .canvas-wrap,
   .app:has(.accounts-panel) .canvas-wrap,
-  .app:has(.session-list) .conn-banner,
-  .app:has(.accounts-panel) .conn-banner,
-  .app:has(.session-list) .ver-banner,
-  .app:has(.accounts-panel) .ver-banner { grid-column: 1; }
+  .app:has(.session-list) .banner-strip,
+  .app:has(.accounts-panel) .banner-strip { grid-column: 1; }
   .left-column {
     position: fixed;
-    top: var(--topbar-h);
+    top: calc(var(--topbar-h) + var(--rating-h, 0px)); /* under the banner strip, so its dismiss stays reachable */
     bottom: calc(var(--dock-h) + env(safe-area-inset-bottom));
     left: 0;
     z-index: 21;
     max-width: 100vw;
     box-shadow: var(--shadow-2);
   }
+  /* Rail first: the drawer is the whole width of the screen, and the panel in it. */
+  .left-column:not(.closing) { width: 100vw; }
+  /* Closing falls back to the animated --left-col-w (0px), so the drawer narrows
+     from the full width instead of vanishing in one frame. */
+  .left-column > .session-list,
+  .left-column > .accounts-panel { width: 100%; }
 }

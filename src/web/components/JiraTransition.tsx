@@ -9,7 +9,9 @@ import { selfPressAccepted, selfPressProps } from "../panel-press";
 type Transition = { id: string; name: string; to: string; requiresScreen: boolean };
 
 /** Only Jira's currently available workflow actions are offered. */
-export default function JiraTransition({ api, connectionId, issueKey, onChanged }: { api: JiraApi; connectionId: string; issueKey: string; onChanged: () => void }) {
+export default function JiraTransition({ api, connectionId, issueKey, onChanged, status }: { api: JiraApi; connectionId: string; issueKey: string; onChanged: () => void;
+  /** The issue's current status: the control wears its name, as V4's Figma draws it, and still opens the same list of workflow actions. */
+  status?: string }) {
   const t = useT();
   const write = useJiraWriteState(connectionId, issueKey, "transition", api);
   const { busy, uncertain, loading, operation } = write.state;
@@ -58,7 +60,7 @@ export default function JiraTransition({ api, connectionId, issueKey, onChanged 
     finally { window.clearTimeout(timer); busyRef.current = false; if (attempted) onChanged(); }
   };
   return <span className="jr-transition">
-    <button ref={toggleRef} type="button" className="btn" aria-expanded={open} onClick={() => { if (!selfPressAccepted(busyRef.current)) return; setOpen(x => !x); }} {...selfPressProps(busy)}>{t("integrations.transition.change")}</button>
+    <button ref={toggleRef} type="button" className={status ? "btn jr-status-btn" : "btn"} aria-label={status ? t("integrations.transition.changeStatus", { status }) : undefined} aria-expanded={open} onClick={() => { if (!selfPressAccepted(busyRef.current)) return; setOpen(x => !x); }} {...selfPressProps(busy)}>{status ?? t("integrations.transition.change")}</button>
     {open && <span className="jr-transition-controls">
       {choices && choices.length === 0 && <span className="jr-dim">{t("integrations.transition.none")}</span>}
       {choices && choices.length > 0 && <><label className="vis-hidden" htmlFor="jira-transition-choice">{t("integrations.transition.available")}</label>

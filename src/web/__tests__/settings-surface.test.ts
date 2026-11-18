@@ -91,8 +91,10 @@ describe("a door into Settings opens it at the section it names", () => {
       ["appearance", />Theme<\/h3>/],
       ["reading", />Reset to defaults</],
       ["keyboard", />Single-key shortcuts</],
-      ["notifications", />Notifications while closed</],
-      ["sounds", />Custom sounds</],
+      // CHANGED ON PURPOSE (V4's Figma): the closed-deck row and the own-sounds
+      // group are named as V4 names them.
+      ["notifications", />While the deck is closed</],
+      ["sounds", />Your own</],
       ["integrations", />GitHub</],
       ["data", />Tool history<\/h3>/],
       ["claude", />Messages from other sessions</],
@@ -117,6 +119,26 @@ describe("a door into Settings opens it at the section it names", () => {
       expect(html, id).toContain(`<p class="settings-pane-note">${note}</p>`);
       expect(note.split(/\s+/).length, id).toBeLessThanOrEqual(16);
     }
+  });
+
+  // CHANGED ON PURPOSE (V4's Figma): Experimental is not a tab; the Command
+  // Panel's switch stands in a group of that name at the foot of General, and
+  // nowhere else. The test was "alone in Experimental, nowhere in General".
+  it("draws the Command Panel's switch in General's Experimental group, only when App hands it over, and in no other section", () => {
+    const terminal = { on: false, supported: true, toggle: noop };
+    expect(drawSettings({ section: "general" })).not.toContain("settings-terminal-label");
+    const html = drawSettings({ section: "general", terminal });
+    expect(html).toMatch(/role="switch" aria-checked="false" aria-labelledby="settings-terminal-label"/);
+    expect(html).toContain(">Command Panel<");
+    expect(html).toContain('<h3 id="settings-experimental-caption">Experimental</h3>');
+    expect(html.lastIndexOf('id="settings-experimental-caption"'), "the group is the last in General").toBeGreaterThan(html.lastIndexOf('id="settings-elsewhere-caption"'));
+    expect(html).not.toContain("Not yet available on this platform.");
+    for (const section of ["appearance", "keyboard", "about"] as const) {
+      expect(drawSettings({ section, terminal }), section).not.toContain("settings-terminal-label");
+    }
+    // Where the platform has no panel, the row keeps its words and a note says so.
+    const unsupported = drawSettings({ section: "general", terminal: { on: false, supported: false, toggle: noop } });
+    expect(unsupported).toContain('<p class="settings-note" id="settings-terminal-unavailable">Not yet available on this platform.</p>');
   });
 
   it("gives each subject its own section: the board in General, the look in Appearance, the keys in Keyboard, history in Data", () => {
@@ -147,6 +169,8 @@ describe("a door into Settings opens it at the section it names", () => {
   it("names the eleven sections in the nav, in order, About last", () => {
     // Integrations since #2178: the trackers this deck reads, between Sounds and Data.
     // Claude Code beside Radar, the other section that writes Claude Code's settings.
+    // CHANGED ON PURPOSE (V4's Figma): no Experimental tab; its switch is a
+    // group in General.
     const names = ["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Integrations", "Data", "Claude Code", "Radar", "About"];
     expect(SETTINGS_SECTIONS.map(s => s.label)).toEqual(names);
     // Each tab's text, its glyph's markup stripped: a tab carries a drawn
@@ -186,15 +210,15 @@ describe("each section in the nav carries its glyph", () => {
   const tabs = [...html.matchAll(/<button([^>]*role="tab"[^>]*)>([\s\S]*?)<\/button>/g)]
     .map(m => ({ attrs: m[1], inner: m[2] }));
   const glyphOf = (section: SettingsSection) => renderToStaticMarkup(createElement(SettingsSectionGlyph, { section }));
-  const SPEC = '<svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+  const KIT_SPEC = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"';
+  const SPEC ='<svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
 
-  it("draws one glyph before each name, hidden from assistive technology", () => {
+  it("draws no glyph in the nav: V4's nav item is its name alone (the glyph stays for quick open and the search results)", () => {
     expect(tabs).toHaveLength(SETTINGS_SECTIONS.length);
     tabs.forEach((tab, i) => {
       const { id, label } = SETTINGS_SECTIONS[i];
-      expect(tab.inner.match(/<svg\b/g), id).toHaveLength(1);
-      expect(tab.inner.startsWith(glyphOf(id)), id).toBe(true);
-      expect(tab.inner, id).toBe(`${glyphOf(id)}<span class="settings-tab-label">${label.replace("&", "&amp;")}</span>`);
+      expect(tab.inner.match(/<svg\b/g), id).toBeNull();
+      expect(tab.inner, id).toBe(`<span class="settings-tab-label">${label.replace("&", "&amp;")}</span>`);
     });
   });
 
@@ -212,6 +236,11 @@ describe("each section in the nav carries its glyph", () => {
     // chosen, and the system's text colour under a Contrast theme.
     for (const { id } of SETTINGS_SECTIONS) {
       const glyph = glyphOf(id);
+      // Sections V4's kit has an icon for draw it (14px, 1.5; kit-icons.tsx).
+      if (glyph.startsWith(KIT_SPEC)) {
+        expect(glyph.match(/stroke="[^"]*"/g), id).toContain('stroke="currentColor"');
+        continue;
+      }
       expect(glyph.startsWith(SPEC), id).toBe(true);
       expect(glyph.match(/fill="[^"]*"/g), id).toEqual(['fill="none"']);
       expect(glyph.match(/stroke="[^"]*"/g), id).toEqual(['stroke="currentColor"']);
@@ -275,8 +304,10 @@ describe("the arrow keys walk the nav", () => {
 
   it("is what the nav runs, with the section the arrow lands on shown and focused", () => {
     const modal = (sourceOf("components/SettingsModal.tsx"));
-    expect(modal).toContain('const move = tabStripMove(event, at, SETTINGS_SECTIONS.length, "vertical");');
-    expect(modal).toContain("onSection(SETTINGS_SECTIONS[move.index].id);");
+    // `sections`, the nav this deck draws: the eight, and the hidden Account
+    // section only on a deck with the ccdeck account on (settings.ts).
+    expect(modal).toContain('const move = tabStripMove(event, at, sections.length, "vertical");');
+    expect(modal).toContain("onSection(sections[move.index].id);");
     expect(modal).toContain("tabRefs.current[move.index]?.focus();");
     expect(drawSettings()).toMatch(/role="tablist" aria-label="Settings sections" aria-orientation="vertical"/);
   });
@@ -456,13 +487,17 @@ describe("the README sends a reader to the section a setting is drawn in", () =>
     // kept sending readers to General for all three.
     const pointers: Array<[string, RegExp, RegExp]> = [
       ["single-key shortcuts", /\*\*Single-key shortcuts\*\* in \*\*Settings › ([^*›]+)\*\*/, />Single-key shortcuts</],
-      ["color themes", /\*\*Settings › ([^*›]+)\*\* holds twelve color themes/, />Theme<\/h3>/],
+      ["color themes", /\*\*Settings › ([^*›]+)\*\* holds thirteen color themes/, />Theme<\/h3>/],
       ["the character", /character settings are in \*\*Settings › ([^*›]+)\*\*/, />Character<\/h3>/],
       // Its rows wait for the stored history, so the group is what a first
       // render draws; the README names the group too.
       ["Keep history", /\*\*Keep history\*\* in \*\*Settings › ([^*›]+) › Tool history\*\*/, />Tool history<\/h3>/],
-      ["Clear history", /\*\*Clear\s+history…\*\* under \*\*Settings › ([^*›]+) › Tool history\*\*/, />Tool history<\/h3>/],
-      ["startup recovery", /\*\*Settings › ([^*›]+)\*\* has a separate startup-recovery switch/, />Codex sessions<\/h3>/],
+      // The row is "Clear history" and its button "Clear…" (settings/en.ts,
+      // settings.tools.clear and settings.tools.clearBtn); the README names both.
+      ["Clear history", /\*\*Clear\s+history\*\* under \*\*Settings › ([^*›]+) › Tool history\*\*/, />Tool history<\/h3>/],
+      // CHANGED ON PURPOSE: the two switches are rows of General's one
+      // Sessions group now, each named for its provider, not groups of their own.
+      ["startup recovery", /\*\*Settings › ([^*›]+)\*\* has a separate startup-recovery switch/, />Bring back unfinished Codex turns</],
       ["Updates", /Settings › ([^*›]+) › Updates/, />Updates<\/h3>/],
     ];
     for (const [what, sentence, drawn] of pointers) {

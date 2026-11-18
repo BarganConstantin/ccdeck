@@ -1,8 +1,8 @@
 /* ── Browser watch ────────────────────────────────────────────────────────
-   Its control is on the right stripe (edge-rails.css), where its unread count
+   Its control is on the Panel bar (edge-rails.css), where its unread count
    is `.rail-badge`: in the chrome's resting grey, never in amber. */
 
-.bw-modal { width: var(--dialog-m); }
+.bw-modal { width: var(--dialog-l); }
 /* `flex: none` on every child, and it is not cosmetic. `.modal-body` is a
    column flex container with a bounded height, so a child that overflows it
    gets SHRUNK rather than scrolled — the state rows collapsed to a four-pixel
@@ -25,13 +25,13 @@
 .bw-day { display: flex; flex-direction: column; gap: 8px; }
 .bw-day h4 {
   margin: 0;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   letter-spacing: .1em;
   text-transform: uppercase;
   color: var(--text-dim);
 }
 
-.bw-ep { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--panel); }
+.bw-ep { border: 1px solid var(--line); border-radius: var(--r-panel); overflow: hidden; background: var(--panel); }
 /* Two controls side by side, not one inside the other. The disclosure takes
    the row; the dismiss is a fixed square at its end. */
 .bw-ep-row { display: flex; align-items: stretch; }
@@ -44,9 +44,12 @@
   align-self: center;
   margin-right: 6px;
   color: var(--text-dim);
-  transition: color 120ms ease;
+  transition: color var(--dur-fast) var(--ease);
 }
-.bw-ep-x:hover, .bw-ep-x:focus-visible { color: var(--warn); }
+.bw-ep-x:focus-visible { color: var(--warn); }
+@media (hover: hover) and (pointer: fine) {
+.bw-ep-x:hover { color: var(--warn); }
+}
 .bw-ep.open { border-color: var(--ctl-edge); }
 .bw-ep-head {
   display: grid;
@@ -69,18 +72,19 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: transform 120ms ease, background 120ms ease;
+  transition: transform var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .bw-ep-head:hover { background: var(--bg-soft); }
+}
 /* Joins the press convention rather than taking the exemption, for the reason
    #355 gave the control before it. A full-width row presses at 0.97 the way
    `.session-list .sl-row` does — the same tier, the same number. */
-.bw-ep-head:active { transform: scale(0.97); }
+.bw-ep-head:active { transform: scale(var(--press)); }
 /* INSIDE ITS OWN EDGE (#1815). The card clips at `overflow: hidden` and this
    row fills it flush on three sides, so the global ring, drawn outside, kept
    only its right edge — beside the ×, which then looked like what had focus.
    An inset ring is the one the focus rule allows a component to move. */
-.bw-ep-head:focus-visible { outline-offset: -3px; }
 .bw-ep-host { font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Episodes reads like Activity: the same disclosure chevron, the same right-
    aligned tabular count, so the two views are two modes of one product rather
@@ -92,7 +96,9 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+@media (hover: hover) and (pointer: fine) {
 .bw-ep-head:hover .bw-ep-count { color: var(--text); }
+}
 
 .bw-urls { list-style: none; margin: 0; padding: 0 12px 10px; display: flex; flex-direction: column; gap: 4px; }
 /* Wide enough for a 12-hour clock with its AM/PM, which is what an en-US
@@ -150,7 +156,9 @@
   cursor: pointer;
 }
 .bw-switch-label { font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--muted); white-space: nowrap; }
+@media (hover: hover) and (pointer: fine) {
 .bw-switch:hover .bw-switch-label { color: var(--text); }
+}
 
 .bw-prof-name { font-weight: 600; }
 .bw-note { margin: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text-secondary); max-width: 72ch; line-height: 1.55; }
@@ -161,7 +169,7 @@
    episodes, and two paragraphs of prose above it pushed that list a full
    screen down — a reader had to scroll past the explanation to reach the
    thing being explained. */
-.bw-state { display: flex; flex-direction: column; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.bw-state { display: flex; flex-direction: column; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r-panel); overflow: hidden; }
 .bw-row {
   display: grid;
   grid-template-columns: 8px auto 1fr auto;
@@ -170,7 +178,7 @@
   background: var(--panel);
   padding: 10px 14px;
 }
-.bw-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted-dim); }
+.bw-dot { width: 7px; height: 7px; border-radius: var(--r-pill); background: var(--muted-dim); }
 .bw-row.err .bw-dot { background: var(--err); }
 .bw-row.ok  .bw-dot { background: var(--ok); }
 .bw-row.on  .bw-dot { background: var(--accent); }
@@ -197,7 +205,9 @@
   text-underline-offset: 2px;
   cursor: pointer;
 }
+@media (hover: hover) and (pointer: fine) {
 .bw-why:hover { color: var(--text); }
+}
 
 /* ── The watch switch ─────────────────────────────────────────────────────
    A real switch rather than a button labelled with the action: "turn off"
@@ -236,7 +246,7 @@
    uppercase, so "4 ENTRIES" shouted a number nobody needs shouted. */
 .bw-feed-count {
   margin-left: auto;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   letter-spacing: 0;
   text-transform: none;
   color: var(--text-dim);
@@ -262,20 +272,24 @@
   /* Its own padding and no negative margin — see .bw-log. The hover has a body
      to fill and the row cannot be wider than what holds it. */
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--r-ctl);
   min-width: 0;
-  transition: background 140ms ease;
+  transition: background var(--dur-fast) var(--ease);
 }
 /* A transcript is scanned by running a finger down it, and until now the
    finger had nothing to land on: sixteen near-identical rows, no way to hold
    your place between the stamp on the left and the text on the right. The
    hover is that place. Background only — the row must not move, or the next
    line arrives under a cursor that was pointing at this one. */
+@media (hover: hover) and (pointer: fine) {
 .bw-log-line:hover { background: var(--bg-soft); }
+}
+@media (hover: hover) and (pointer: fine) {
 .bw-log-line:hover .bw-log-time,
 .bw-log-line:hover .bw-log-profile,
 .bw-log-line:hover .bw-log-sys { color: var(--text); }
-.bw-log-time, .bw-log-profile, .bw-log-sys, .bw-log-browser { transition: color 140ms ease; }
+}
+.bw-log-time, .bw-log-profile, .bw-log-sys, .bw-log-browser { transition: color var(--dur-fast) var(--ease); }
 
 /* Arrival. The log is the panel's transcript and a new line in it is the one
    thing here that means something JUST happened — it should be seen landing,
@@ -283,7 +297,7 @@
    this fires on the line that is new and not on the fifteen that shifted down
    to make room for it. */
 @media (prefers-reduced-motion: no-preference) {
-  .bw-log-line { animation: bw-line-in 260ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .bw-log-line { animation: bw-line-in var(--dur-move) var(--ease); }
 }
 @keyframes bw-line-in {
   from { opacity: 0; transform: translateY(-4px); }
@@ -293,14 +307,14 @@
    accent washes out of the row rather than the row sliding in. One authored
    moment, spent on the one line anybody is meant to catch. */
 @media (prefers-reduced-motion: no-preference) {
-  .bw-log-line.find { animation: bw-find-in 900ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .bw-log-line.find { animation: bw-find-in 900ms var(--ease); }
 }
 @keyframes bw-find-in {
   from { background: color-mix(in srgb, var(--accent) 22%, transparent); }
   to { background: transparent; }
 }
 .bw-log-time {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -308,12 +322,13 @@
 /* MONO FOR THE DATA, SANS FOR EVERYTHING ELSE. The panel was mono throughout,
    and everything being mono removes hierarchy rather than creating character —
    a title, a label and a timestamp all looked like the same kind of thing.
-   Here the row's own values stay mono because they are values; the section
+   Here the line the page printed stays mono, because it is output; its time
+   is a figure, in the sans with tabular digits (V4 top-10 #8); the section
    heads, the counts' captions and the status bar are the panel's voice and
    inherit the deck's sans. */
 .bw-log-line {
   font-family: var(--font-mono);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.6;
   color: var(--muted);
 }
@@ -370,9 +385,9 @@
 /* Behind a press. Six names of browsers that are not installed is
    implementation inventory, and it was three lines of it standing at the same
    weight as the profiles that are actually being read. */
-.bw-rest { margin: 0; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--text-secondary); line-height: 1.5; }
+.bw-rest { margin: 0; font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); color: var(--text-secondary); line-height: 1.5; }
 .bw-rest-head { align-self: flex-start; }
-.bw-chev { color: var(--text-dim); font-size: calc(9px + max(0px, var(--ui-text-increase, 0px))); }
+.bw-chev { color: var(--text-dim); font-size: calc(11px + max(0px, var(--ui-text-increase, 0px))); }
 /* NEUTRAL, AND THAT IS THE POINT. This was amber, which made it one of the
    strongest accents on the panel — for a fact the probe cannot actually
    establish. The relay shares an address with claude.ai and api.anthropic.com,
@@ -385,7 +400,7 @@
    `cursor: help`, which promised an affordance a keyboard could not reach. It
    is neither now — the caveat is a real disclosure on the section head, where
    everyone can get to it. */
-.bw-relay { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--text-dim); white-space: nowrap; }
+.bw-relay { font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); color: var(--text-dim); white-space: nowrap; }
 
 /* The first read copies a History database and classifies tens of thousands of
    rows, so the panel is briefly empty on open. A header over nothing reads as
@@ -396,14 +411,14 @@
    motion then needs only `animation: none` — the bar keeps its own colours and
    still reads as a progress track, where restyling it inside the media block
    would have made "less motion" mean "a different look". */
-.bw-loading-bar { position: relative; height: 2px; border-radius: 1px; background: var(--line); overflow: hidden; }
+.bw-loading-bar { position: relative; height: 2px; border-radius: var(--r-ctl); background: var(--line); overflow: hidden; }
 .bw-loading-bar::after {
   content: "";
   position: absolute;
   top: 0;
   bottom: 0;
   width: 32%;
-  border-radius: 1px;
+  border-radius: var(--r-ctl);
   background: var(--accent);
   animation: bw-sweep 1.4s ease-in-out infinite;
 }
@@ -425,11 +440,11 @@
 .bw-mode-dot {
   width: 7px;
   height: 7px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: var(--text-dim);
   flex: none;
   align-self: center;
-  transition: background 200ms ease, box-shadow 200ms ease;
+  transition: background var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease);
 }
 .bw-mode-dot.on { background: var(--accent); }
 /* A slow breath while armed, so "running" is legible without reading a word —
@@ -446,7 +461,7 @@
   font-size: calc(12px + var(--ui-text-increase, 0px));
   color: var(--text);
   font-weight: 600;
-  animation: bw-state-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  animation: bw-state-in var(--dur-base) var(--ease);
 }
 /* Fires when the MEANING changes — the mode word is keyed on the kind, so a
    render that leaves the state where it was does not restart it. Opacity and a
@@ -472,11 +487,11 @@
   padding: 12px 16px;
   background: var(--bg-soft);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-panel);
   transform-origin: top;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .bw-settings { animation: bw-settings-in 240ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .bw-settings { animation: bw-settings-in var(--dur-move) var(--ease); }
 }
 @keyframes bw-settings-in {
   from { opacity: 0; transform: translateY(-6px) scaleY(0.96); }
@@ -490,14 +505,16 @@
   background: var(--ctl-fill);
   border: 1px solid var(--ctl-edge);
   color: var(--text);
-  border-radius: 4px;
+  border-radius: var(--r-ctl);
   padding: 4px 6px;
   font-size: calc(12px + var(--ui-text-increase, 0px));
   cursor: pointer;
-  transition: border-color 120ms ease, color 120ms ease, transform 120ms ease;
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
-.bw-settings select:hover:not(:disabled) { border-color: var(--text); color: var(--text); }
-.bw-settings select:active:not(:disabled) { transform: scale(0.97); }
+@media (hover: hover) and (pointer: fine) {
+.bw-settings select:hover:not(:disabled):not(:focus-visible) { border-color: var(--text); color: var(--text); }
+}
+.bw-settings select:active:not(:disabled) { transform: scale(var(--press)); }
 .bw-settings-note {
   margin: 0;
   flex: 1 1 30ch;
@@ -559,7 +576,7 @@
   align-items: center;
   gap: 8px;
   margin: 0;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -573,23 +590,25 @@
   height: 16px;
   padding: 0;
   border: 1px solid var(--ctl-edge);
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: none;
   color: var(--text-dim);
   font: inherit;
-  font-size: calc(9px + max(0px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(0px, var(--ui-text-increase, 0px)));
   line-height: 1;
   cursor: pointer;
-  transition: color 120ms ease, border-color 120ms ease, transform 120ms ease;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 /* The circle stays 16px because it is a mark beside a label, not a button in a
    row of buttons — but a 16px hit target is a miss for anyone without a mouse
    they can place exactly. The pointer target is 24, matching every glyph
    control in the deck, without the drawing changing size. */
 .bw-help { position: relative; }
-.bw-help::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; }
+.bw-help::after { content: ""; position: absolute; inset: -4px; border-radius: var(--r-pill); }
+@media (hover: hover) and (pointer: fine) {
 .bw-help:hover { color: var(--text); border-color: var(--text); }
-.bw-help:active { transform: scale(0.94); }
+}
+.bw-help:active { transform: scale(var(--press-small)); }
 .bw-help[aria-expanded="true"] { color: var(--text); border-color: var(--text); background: var(--ctl-fill); }
 
 /* THE NUMBERS THE PANEL NEVER HAD. Between "is this alive" and "what exactly
@@ -608,7 +627,7 @@
 .bw-count-n {
   min-width: 3ch;
   text-align: right;
-  font-size: calc(18px + var(--ui-text-increase, 0px));
+  font-size: calc(16px + var(--ui-text-increase, 0px));
   line-height: 1.1;
   color: var(--text);
   font-variant-numeric: tabular-nums;
@@ -623,10 +642,10 @@
 /* What the figures ARE, said once under them rather than guessed at. They are
    rows in the browser's own history newer than this deck's start — not visits
    a person made, and not findings. */
-.bw-since { margin: 0; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--text-dim); }
+.bw-since { margin: 0; font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--text-dim); }
 .bw-since + .bw-since { margin-top: -8px; }
 /* The quiet gate, beside the numbers it decides. */
-.bw-gate { margin: 0; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bw-gate { margin: 0; font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 /* The disc's key, behind the `?` on the section label. Three pairs, which is
    the whole of what the drawing means — as permanent prose it was three lines
@@ -637,11 +656,11 @@
   grid-template-columns: max-content minmax(0, 1fr);
   gap: 4px 12px;
   padding: 8px 12px;
-  border-radius: 6px;
+  border-radius: var(--r-panel);
   background: var(--bg-soft);
 }
-.bw-key dt { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); font-weight: 600; color: var(--muted); }
-.bw-key dd { margin: 0; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--text-secondary); }
+.bw-key dt { font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); font-weight: 600; color: var(--muted); }
+.bw-key dd { margin: 0; font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--text-secondary); }
 
 /* REMOTE CONTROL (#799). The verdict carries the only colour in this block, and
    only when it is bad news: `protected` and `nothing-exposed` are the ordinary
@@ -660,12 +679,12 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--warn);
 }
 .bw-rc-body { display: flex; flex-direction: column; gap: 8px; }
-.bw-rc-note { margin: 0; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--text-secondary); }
+.bw-rc-note { margin: 0; font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--text-secondary); }
 /* The command is the thing a person is about to run as root, so it is
    selectable by hand whatever the copy button does — `user-select: all` is the
    same affordance `.bw-path` gives every other path on this panel. */
@@ -674,21 +693,21 @@
   align-items: flex-start;
   gap: 8px;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   background: var(--bg-soft);
   border: 1px solid var(--line);
 }
 .bw-rc-cmd code {
   flex: 1;
   min-width: 0;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-all;
   user-select: all;
   color: var(--text);
 }
-button.btn.bw-rc-copy { flex: none; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); padding: 2px 8px; }
+button.btn.bw-rc-copy { flex: none; font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); padding: 2px 8px; }
 
 /* WHAT THE MARKS MEAN, in text. Every mark on the disc encodes something and
    none of it was written where a reader could see — a visualization whose
@@ -701,7 +720,7 @@ button.btn.bw-rc-copy { flex: none; font-size: calc(10px + max(-1px, var(--ui-te
    different heights reads as a list of different things. */
 .bw-profiles li { display: flex; align-items: center; gap: 8px; min-height: 24px; font-size: calc(12px + var(--ui-text-increase, 0px)); min-width: 0; }
 .bw-prof-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bw-prof-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); flex: none; }
+.bw-prof-dot { width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--text-dim); flex: none; }
 .bw-prof-dot.on { background: var(--accent); }
 .bw-prof-state { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); margin-left: auto; flex: none; }
 /* Both columns hold the same box, so the row does not grow as lines arrive and
@@ -745,7 +764,7 @@ button.btn.bw-rc-copy { flex: none; font-size: calc(10px + max(-1px, var(--ui-te
 @media (prefers-reduced-motion: reduce) {
   .bw-mode-word,
   .bw-log-line,
-  .bw-settings { animation: bw-state-fade 220ms ease; }
+  .bw-settings { animation: bw-state-fade var(--dur-base) var(--ease); }
 }
 
 /* THE STATES THAT ARE NOT THE HAPPY PATH. A monitoring tool is judged on these,
@@ -756,7 +775,7 @@ button.btn.bw-rc-copy { flex: none; font-size: calc(10px + max(-1px, var(--ui-te
 .bw-trouble {
   margin: 0;
   padding: 12px;
-  border-radius: 6px;
+  border-radius: var(--r-panel);
   border: 1px solid var(--line);
   background: var(--bg-soft);
   font-size: calc(11px + var(--ui-text-increase, 0px));
@@ -774,7 +793,7 @@ button.btn.bw-rc-copy { flex: none; font-size: calc(10px + max(-1px, var(--ui-te
    has, and one a screen reader reads as pairs rather than as prose. */
 .bw-access { margin: 8px 0 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 16px; }
 .bw-access dt {
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;

@@ -12,6 +12,7 @@ import { useViewport } from "reactflow";
 import type { AgentNodeData } from "../types";
 import type { ToolCategory } from "../tool-taxonomy";
 import { BUBBLE_HALF_H, collectBursts, type Burst } from "../burst-layout";
+import { usePublishBubbleBoxes } from "../bubble-boxes";
 
 interface ToolBurstsProps {
   /** The full agents Map. */
@@ -51,6 +52,9 @@ export default function ToolBursts({ agents, visibleAgentIds, positions, pinned,
   const bursts = hiddenCategories && hiddenCategories.size > 0
     ? all.filter(b => !hiddenCategories.has(b.category))
     : all;
+  // The minimap keeps off the bubbles drawn here (minimap-place.ts); they are
+  // not React Flow nodes, so they reach it from this walk, not a second one.
+  usePublishBubbleBoxes(bursts);
   // We always render the layer — even when empty — so that the bubbles'
   // CSS spawn animations don't re-run every time the agent's tool list
   // briefly normalises. Returning null here would unmount the entire

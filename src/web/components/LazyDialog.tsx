@@ -15,6 +15,7 @@
 // deck, which a reload clears and nobody has to hear about.
 import { lazy, useRef, type ComponentType } from "react";
 import { useT } from "../i18n";
+import { Dialog, DialogClose } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 interface Closable {
@@ -43,33 +44,24 @@ export function DialogDidNotLoad({ name, onClose }: { name: string; onClose: () 
   const dialogRef = useModalDismiss(onClose, { focusRef: reloadRef });
   const scrimPress = useScrimDismiss(onClose);
   return (
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div
-        ref={dialogRef}
-        className="modal dialog-missing"
-        onClick={e => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="dialog-missing-title"
-      >
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="dialog-missing" labelledBy="dialog-missing-title">
         <header className="modal-head">
           <div className="modal-title">
             <span id="dialog-missing-title" className="modal-tool-name">{name}</span>
           </div>
           <div className="modal-actions">
-            <button type="button" className="glyph-btn" onClick={onClose} aria-label={t("shell.closeEsc")} title={t("shell.closeEsc")}>×</button>
+            <DialogClose onClick={onClose} label={t("shell.closeEsc")} />
           </div>
         </header>
         <section className="modal-body">
           <p className="dm-note">
             {t("shell.lazy.didNotLoad", { name })}
           </p>
-          <div className="dm-actions">
-            <button type="button" className="btn" onClick={onClose}>{t("shell.close")}</button>
-            <button type="button" ref={reloadRef} className="btn primary" onClick={() => window.location.reload()}>{t("shell.reload")}</button>
-          </div>
         </section>
-      </div>
-    </div>
+        <footer className="modal-foot">
+          <button type="button" className="btn" onClick={onClose}>{t("shell.close")}</button>
+          <button type="button" ref={reloadRef} className="btn primary" onClick={() => window.location.reload()}>{t("shell.reload")}</button>
+        </footer>
+    </Dialog>
   );
 }

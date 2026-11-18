@@ -10,9 +10,13 @@
 // provider's panel (integrations/panels.tsx), handed the connection, a way to
 // read through it, its images, its own memory and whether the window is narrow.
 //
+// THE SIZE is the reader's (DialogResize.tsx): it opens at 88 % of the window,
+// never past 1680 x 1120, and every edge and corner resizes it; the size is
+// remembered per provider. On a phone it is a full-screen sheet.
+//
 // Loaded when it first opens, with every panel, through
 // IntegrationModalOnDemand.tsx: nothing here is in the page's own bundle.
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "../i18n";
 import { connectionApi, connectionAssetUrl, connectionHost } from "../integrations/client";
@@ -22,8 +26,11 @@ import { integrationDef } from "../integrations/registry";
 import type { IntegrationConnection, IntegrationKind } from "../integrations/types";
 import { useFeatureUse } from "../feature-use";
 import { isTabbable, TABBABLE_SELECTOR } from "../modal-dismiss";
-import { prefersReducedMotion } from "../viewport-motion";
 import { useDrillIn } from "./IntegrationSplit";
+import { FreshnessSlot, FreshnessTools } from "./IntegrationFreshness";
+import { Dialog } from "./Dialog";
+import { DialogResizeHandles, DialogSizeMenu, useDialogResize } from "./DialogResize";
+import { KitIcon } from "./kit-icons";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 
 export interface IntegrationModalProps {
@@ -40,34 +47,21 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
   const def = integrationDef(kind);
   const Panel = INTEGRATION_PANELS[kind];
   const selectId = useId();
+  // Where the panel's freshness line and Refresh are drawn: the header's end.
+  const [freshSlot, setFreshSlot] = useState<HTMLElement | null>(null);
   const narrow = useDrillIn();
   // Read once, while focus is still on the rail button that opened this.
   const [opener] = useState(() => (document.activeElement instanceof HTMLElement ? document.activeElement : null));
-  // Closing: focus goes back to the opener at once, and the modal leaves in
-  // 120ms (opacity and 2px down, integrations.css), inert while it does, and
-  // is unmounted when that ends, or after 200ms if the end never arrives.
-  // Under reduced motion it is simply gone.
-  const [closing, setClosing] = useState(false);
-  const closed = useRef(false);
+  // Closing: focus goes back to the opener at once and the owner is told at
+  // once; the shared dialog's presence plays the one exit and keeps the node
+  // drawn, inert, until it ends.
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
-  const finish = useCallback(() => {
-    if (closed.current) return;
-    closed.current = true;
-    onCloseRef.current();
-  }, []);
   const close = useCallback(() => {
-    if (closing || closed.current) return;
     const fallback = Array.from(document.querySelectorAll<HTMLElement>(`[data-rail-item="integration-${kind}"], [data-rail-item="more"]`)).find(el => el.checkVisibility?.() ?? true);
     (opener && opener !== document.body && opener.isConnected && (opener.checkVisibility?.() ?? true) ? opener : fallback)?.focus({ preventScroll: true });
-    if (prefersReducedMotion()) finish();
-    else setClosing(true);
-  }, [closing, opener, kind, finish]);
-  useEffect(() => {
-    if (!closing) return;
-    const t = window.setTimeout(finish, 200);
-    return () => window.clearTimeout(t);
-  }, [closing, finish]);
+    onCloseRef.current();
+  }, [opener, kind]);
   // Where the keyboard starts: the panel's first control (its board or project
   // picker), not the connection selector, whose ring after a pointer open
   // read as an error. A keyboard open still shows the ring there.
@@ -85,9 +79,7 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
   }), []);
   const dialogRef = useModalDismiss(close, { focusRef: firstControl });
   const scrimPress = useScrimDismiss(close);
-  useLayoutEffect(() => {
-    if (dialogRef.current) dialogRef.current.inert = closing;
-  }, [closing, dialogRef]);
+  const resize = useDialogResize(kind, dialogRef);
   // The provider's name, once a day, for the usage reports: never the
   // connection or anything read through it.
   useFeatureUse(kind);
@@ -113,18 +105,36 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
     assetUrl: connectionAssetUrl({ kind, id: connId }),
     prefs: connectionPrefs(kind, connId),
   } : null), [kind, connId]);
+  // The panel is drawn again only when what it is handed changes: a resize
+  // from the Size menu or the keyboard renders the host again, not the board.
+  const onReconnectRef = useRef(onReconnect);
+  onReconnectRef.current = onReconnect;
+  const panel = useMemo(() => (Panel && connection && helpers ? (
+    <Panel
+      key={connection.id}
+      connection={connection}
+      connections={connections}
+      api={helpers.api}
+      assetUrl={helpers.assetUrl}
+      prefs={helpers.prefs}
+      narrow={narrow}
+      onReconnect={() => { close(); onReconnectRef.current(connection.id); }}
+    />
+  ) : null), [Panel, connection, connections, helpers, narrow, close]);
   if (!def || !Panel || !connection || !helpers) return null;
-  const { Glyph } = def;
 
   return createPortal(
-    <div className="modal-backdrop" role="presentation" {...scrimPress}>
-      <div ref={dialogRef} id={`integration-${kind}-modal`} className="modal ig-modal" role="dialog" aria-modal="true" aria-labelledby="integration-modal-title"
-        data-kind={kind} data-closing={closing || undefined} onClick={event => event.stopPropagation()}
-        onAnimationEnd={event => { if (closing && event.target === event.currentTarget) finish(); }}>
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} id={`integration-${kind}-modal`} className="ig-modal" labelledBy="integration-modal-title"
+        data-kind={kind} style={resize.style} data-keyboard-resize={resize.keyboard ? "" : undefined}>
+        {/* The frame clips the content to the rounded corners; the resize
+            handles sit outside it, on and beyond the border. */}
+        <div className="ig-frame">
         {/* A div, not a <header>: the dialog's label already names it, and a
             second banner landmark is one too many (axe). */}
         <div className="ig-head">
-          <h2 className="ig-title" id="integration-modal-title"><span className="ig-title-glyph" aria-hidden><Glyph /></span>{def.label}</h2>
+          {/* V4 marks every provider's dialog with the Integrations glyph; the
+              title already names the provider. */}
+          <h2 className="ig-title" id="integration-modal-title"><span className="ig-title-glyph" aria-hidden><KitIcon name="integrations" /></span>{def.label}</h2>
           {connections.length > 1 ? (
             <label className="ig-conn-select">
               <span className="vis-hidden">{t("integrations.modal.connection")}</span>
@@ -135,22 +145,19 @@ export default function IntegrationModal({ kind, connections, onClose, onReconne
           ) : (
             <span className="ig-conn-name" title={connection.baseUrl}>{connection.name}</span>
           )}
+          <div className="ig-head-end" ref={setFreshSlot} />
           <button type="button" className="glyph-btn ig-close" onClick={close} aria-label={t("integrations.closeProvider", { label: def.label })} title={t("integrations.closeEsc")}>×</button>
         </div>
         <div ref={bodyRef} className="ig-body">
-          <Panel
-            key={connection.id}
-            connection={connection}
-            connections={connections}
-            api={helpers.api}
-            assetUrl={helpers.assetUrl}
-            prefs={helpers.prefs}
-            narrow={narrow}
-            onReconnect={() => { close(); onReconnect(connection.id); }}
-          />
+          <FreshnessSlot.Provider value={freshSlot}>
+          <FreshnessTools.Provider value={resize.enabled ? <DialogSizeMenu resize={resize} /> : null}>
+          {panel}
+          </FreshnessTools.Provider>
+          </FreshnessSlot.Provider>
         </div>
-      </div>
-    </div>,
+        </div>
+        {resize.enabled && <DialogResizeHandles resize={resize} />}
+    </Dialog>,
     document.body,
   );
 }

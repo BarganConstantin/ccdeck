@@ -6,12 +6,17 @@
 // the listener on a stubbed window, and hand it keystrokes shaped the way the
 // handler reads them: the key, its modifiers, `repeat`, and a target with a tag
 // and a role. What each keystroke reached is read back off the spies.
+//
+// The terminal stage is optional twice over, the way it is in the deck: a
+// test that hands no `stage` mounts the hook with exactly the props it took
+// before the stage existed, and a target that is not marked `inPanel` has no
+// `closest` to answer the pane's question with.
 import { vi } from "vitest";
 import type { SetStateAction } from "react";
 import { initialState } from "../reducer";
 import { setSingleKeyShortcuts } from "../single-key-shortcuts";
 import type { Theme } from "../theme";
-import { useDeckShortcuts, type DeckShortcuts } from "../use-deck-shortcuts";
+import { useDeckShortcuts, type DeckShortcuts, type StageShortcuts, type ViewShortcut } from "../use-deck-shortcuts";
 
 /** A flag the handler flips through a React setter, with its value kept. */
 export interface Flag<T> {
@@ -36,6 +41,10 @@ export interface KeyTarget {
   type?: string;
   isContentEditable?: boolean;
   blur?: () => void;
+  /** Inside the terminal pane: the target answers `closest("[data-terminal-panel]")`.
+   *  Left out, the target has no `closest` at all, as every target here had
+   *  before the stage existed. */
+  inPanel?: boolean;
 }
 
 export const BODY: KeyTarget = { tagName: "BODY" };
@@ -45,15 +54,45 @@ export const button = (): KeyTarget => ({ tagName: "BUTTON" });
 export interface DeckKeysOptions {
   /** Whether Claude Code is on the machine; it is, unless a test says not. */
   claude?: boolean;
+  /** The terminal stage the deck is handed, if any — see `stageKeys`. Left
+   *  out, the deck is mounted exactly as it was before the stage existed. */
+  stage?: StageShortcuts | null;
+  /** Ctrl + backtick, Board or Workspace (V4 Workspace): what the deck is
+   *  handed, if anything. Left out, the chord is left to the page. */
+  view?: ViewShortcut | null;
   /** Settings › General's single-key switch; on, as a deck starts, unless a
    *  test says not. Set on every mount, so no test inherits another's. */
   singleKeys?: boolean;
   /** Re-arrange's Undo: true when its window was open and it restored the
    *  board, false once the notice has gone. Absent, there is nothing to undo. */
   undoRearrange?: () => boolean;
+  /** The primary selection; `s1` unless a test says otherwise. */
+  selected?: string | null;
+  /** Whether j has a card to land on (stepAgent's answer); there is one
+   *  unless a test empties the board. */
+  cards?: boolean;
+  /** The Inspector door's press, what D does with nothing to pick. Left out,
+   *  the deck is mounted with the props it had before the door took D. */
+  inspectorDoor?: () => void;
 }
 
-export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange = () => false }: DeckKeysOptions = {}) {
+/** A terminal stage whose every callback is a spy, open on `s1` with three
+ *  sessions in the navigator. Mutable, so a test can move or close it. */
+export function stageKeys(over: Partial<StageShortcuts> = {}): StageShortcuts {
+  return {
+    open: true,
+    current: "s1",
+    order: ["s1", "s2", "s3"],
+    focusTile: vi.fn(),
+    switchTo: vi.fn(),
+    focusPane: vi.fn(),
+    nextAsk: vi.fn(),
+    release: vi.fn(),
+    ...over,
+  };
+}
+
+export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange = () => false, stage, view, selected = "s1", cards = true, inspectorDoor }: DeckKeysOptions = {}) {
   let onKey: ((e: KeyboardEvent) => void) | null = null;
   vi.stubGlobal("window", {
     addEventListener: (type: string, fn: (e: KeyboardEvent) => void) => { if (type === "keydown") onKey = fn; },
@@ -70,7 +109,7 @@ export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange 
     pointerFocusRef,
     nodesRef: { current: [] },
     stateRef: { current: initialState() },
-    primarySelectedIdRef: { current: "s1" },
+    primarySelectedIdRef: { current: selected },
     providersRef: { current: { claude } },
     soundOnRef: { current: true },
     // Mirrored from the flag, the way App mirrors its state into the ref.
@@ -83,7 +122,7 @@ export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange 
     clearSelection: vi.fn(),
     selectAgent: vi.fn(),
     focusAgent: vi.fn(),
-    stepAgent: vi.fn(),
+    stepAgent: vi.fn(() => cards),
     focusSession: vi.fn(),
     requestClear: vi.fn(),
     handleRelayout: vi.fn(),
@@ -101,6 +140,11 @@ export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange 
     setTheme: theme.set,
     openSettings: vi.fn(),
     openQuickOpen: vi.fn(),
+    // Only when a test hands one over, so every other test mounts the deck
+    // with the very props it always had.
+    ...(stage !== undefined ? { stageRef: { current: stage } } : {}),
+    ...(view !== undefined ? { viewRef: { current: view } } : {}),
+    ...(inspectorDoor !== undefined ? { inspectorDoorRef: { current: inspectorDoor } } : {}),
   };
   useDeckShortcuts(props);
   if (!onKey) throw new Error("useDeckShortcuts put no keydown listener on window");
@@ -112,10 +156,16 @@ export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange 
     ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; code?: string;
   } = {}) {
     const target = o.target ?? BODY;
+    const { inPanel, ...rest } = target;
     const e = {
       key, code: o.code, repeat: o.repeat ?? false, shiftKey: o.shiftKey ?? false,
       ctrlKey: o.ctrlKey ?? false, metaKey: o.metaKey ?? false, altKey: o.altKey ?? false,
-      target: { ...target, getAttribute: (name: string) => (name === "role" ? target.role ?? null : null) },
+      code: o.code,
+      target: {
+        ...rest,
+        getAttribute: (name: string) => (name === "role" ? target.role ?? null : null),
+        ...(inPanel !== undefined ? { closest: (sel: string) => (inPanel && sel === "[data-terminal-panel]" ? {} : null) } : {}),
+      },
       preventDefault: vi.fn(),
     };
     // The handler compares the target with the pointer's mark by identity.

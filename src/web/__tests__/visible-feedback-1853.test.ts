@@ -31,6 +31,7 @@ import { crashReportBody } from "../components/ErrorBoundary";
 import { forwardCaughtError, scrubReport } from "../report-errors";
 import { feedbackSeed } from "../feedback-draft";
 import shellEn from "../i18n/areas/shell/en";
+import boardEn from "../i18n/areas/board/en";
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const app = read("../App.tsx");
@@ -211,35 +212,50 @@ describe("the topbar's Feedback button", () => {
     expect(item).toMatch(/onPress: onFeedback/);
     // A modal behind it, so the button says so and holds no state.
     expect(rails).toMatch(/aria-haspopup=\{disclosure \? undefined : "dialog"\}/);
-    // On the bar, in the utility run beside the gear, at every desktop width.
+    // CHANGED ON PURPOSE (V4): on the bar in a corner cell of its own, at
+    // every width, so it never reads as part of Search.
     expect(items).toMatch(/utilities: \[settings, feedback\]/);
-    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\} \/><\/div>\}/);
+    expect(items).toMatch(/corner: feedback,/);
+    expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search\]\} \/><\/div>\}/);
+    expect(app).toMatch(/<div className="tb-corner"><UtilityRun items=\{\[rails\.corner\]\} \/><\/div>/);
   });
 
-  it("draws its glyph on the chrome's one icon spec (#837), and says its word beside it at every desktop width", () => {
+  it("draws its glyph on the chrome's one icon spec (#837), and is named and hinted by its word at every desktop width (V4's Figma draws the bar button icon-only)", () => {
     expect(item).toMatch(/glyph: <FeedbackGlyph \/>/);
-    expect(read("../components/rail-glyphs.tsx")).toMatch(/export const FeedbackGlyph = \(\) => \(\s*<Glyph>/);
+    expect(read("../components/rail-glyphs.tsx")).toMatch(/export const FeedbackGlyph = \(\) => <KitIcon name="feedback" className="glyph" \/>;/);
     // It was a bare glyph beside the theme button, on the reasoning that the
     // bar's words were a set of seven, and at the toolbar's --muted the bubble
     // read as nothing at all; the owner could not find it. Then it said its
     // word only from 1707px, where the busiest bar of eight controls still
     // held it. The controls are on the edges now, so the bar has the room at
     // every width the bar draws them: the word is the label, always, and no
-    // rule in the sheet hides it.
+    // rule in the sheet hides it. V4's Figma then draws the bar's Feedback as a
+    // bare 28x28 icon: the word stays the label and the hint, and the
+    // accessible name ("Send feedback") contains it; the visible word on the bar
+    // is the one #1853 asked for that the frame does not draw.
     expect(item).toMatch(/label: t\("board\.rail\.feedback"\)/);
-    expect(rails).toMatch(/aria-label=\{item\.ariaLabel\}/);
-    expect(rails).toMatch(/variant !== "stripe" && <span className="rail-word">/);
+    expect(boardEn["board.rail.feedback"]).toBe("Feedback");
+    // Search alone is named by the sentence its field shows (fieldText); every
+    // other door, Feedback with it, keeps its own aria-label.
+    expect(rails).toMatch(/aria-label=\{(?:fieldText \?\? )?item\.ariaLabel\}/);
+    expect(rails).toMatch(/variant !== "stripe" && !iconOnly && <span className="rail-word">/);
+    expect(item).toMatch(/barLook: "icon"/);
     expect(edgeSheet).not.toMatch(/rail-btn-bar[^{]*\.rail-word[^{]*\{[^}]*display:\s*none/);
     expect(edgeSheet).not.toMatch(/\.utility-run[^{]*\{[^}]*display:\s*none/);
   });
 
-  it("is in the phone's dock too, by its whole name, behind More", () => {
-    // Under 641px the dock stands in for the stripes and the utilities, and
-    // the three rare dialogs — History, Browser watch, Feedback — sit behind
-    // More, where a row has the room to say "Send feedback" whole.
+  it("is on the phone's bar too, in the same corner, and not behind More", () => {
+    // CHANGED ON PURPOSE (V4): under 641px the dock stands in for the stripes
+    // and Search, and Feedback keeps its corner of the bar, so there is one
+    // entry on every size: More drops its row (it says "Send feedback" whole
+    // wherever a menu still lists it, as quick open does).
     expect(item).toMatch(/menu: t\("board\.rail\.feedback\.menu"\)/);
-    // A connected tracker's row (#2178) comes before it; Feedback stays last.
-    expect(app).toMatch(/more=\{\[rails\.search, \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, rails\.utilities\[1\]\]\}/);
+    // CHANGED ON PURPOSE (critique 3, point 7): the Command Panel's row follows Search.
+    // CHANGED ON PURPOSE (phone More › Open the Command Panel): its press is
+    // openPanelFromMore, the stage's own press plus the Sessions list making way,
+    // which had covered the stage (v4-phone-board-stack.test.tsx).
+    expect(app).toMatch(/more=\{\[rails\.search, \.\.\.commandPanelMore\(stage\.enabled \? openPanelFromMore : undefined\), \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, \.\.\.rails\.utilities\.filter\(item => item !== rails\.corner\)\]\}/);
+    expect(app).not.toMatch(/\{!phone && <div className="tb-corner">/);
     expect(rails).toMatch(/item\.menu \?\? item\.label/);
   });
 

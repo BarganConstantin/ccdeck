@@ -10,32 +10,33 @@
    the header and the nav stay. No floor and no ceiling besides it, so nothing
    a section draws reaches the frame. Centred like every dialog: a height that
    never changes keeps it in one place.
-   The medium dialog, 820px, holds a 184px nav and a section four theme
+   The medium dialog, 820px, holds V4's 200px nav and a section four theme
    previews wide (#2176). */
 .modal.settings-modal {
   width: var(--dialog-m);
   height: min(720px, calc(100dvh - 80px));
   max-height: none;
-  --settings-group-gap: 20px;
+  --settings-group-gap: 0px;
 }
 .settings-body {
   display: grid;
-  grid-template-columns: 184px minmax(0, 1fr);
+  grid-template-columns: 200px minmax(0, 1fr);
   flex: 1;
   min-height: 0;
 }
-/* The nav's column sits a surface down, as the modal's header does, so the
-   section beside it reads as the page and the nav as the thing that turns it.
-   It holds the search field and, under it, the tab strip, which scrolls on
-   its own on a window too short for eight tabs while the field stays. About follows the other sections; small gaps separate behavior,
-   feedback, integrations/data, and application information. */
+/* The nav's column wears the dock's fill (V4), a surface down from the page,
+   so the section beside it reads as the page and the nav as the thing that
+   turns it. It holds the search field and, under it, the tab strip, which
+   scrolls on its own on a window too short for eight tabs while the field
+   stays. The tabs are one even list, 2px apart: V4 draws no gap between
+   groups of them. */
 .settings-side {
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  border-right: 1px solid var(--line);
-  background: var(--bg-soft);
+  border-right: 1px solid var(--line-soft);
+  background: var(--dock);
 }
 .settings-nav {
   display: flex;
@@ -43,42 +44,47 @@
   flex-direction: column;
   gap: 2px;
   min-height: 0;
-  padding: 8px 8px 12px;
+  /* V4's nav is 176 wide inside its 8px pad: the column keeps its 200px and
+     the right side takes the 16px step less the divider's hairline (199px
+     inside the divider), so an item and the search field above it are 176
+     wide. */
+  padding: 8px calc(16px - 1px) 8px 8px;
   overflow-y: auto;
 }
-.settings-tab#settings-tab-notifications, .settings-tab#settings-tab-integrations, .settings-tab#settings-tab-about { margin-top: 8px; }
-/* Selection uses a quiet fill and text weight. Borders belong only to
-   keyboard focus, never to a pointer hover or the selected section. */
+/* V4's nav item: text only, 176 wide and a control tall (28 at Compact, with
+   the nav's 2px gap a 30px pitch), 13/20 in the secondary tier. Selection is the --selected fill and
+   600 weight; borders belong only to keyboard focus, never to a pointer hover
+   or the selected section. */
 .settings-tab {
   display: flex;
   align-items: center;
-  gap: 8px;
   min-height: var(--ctl-h);
-  padding: 0 10px;
+  padding: 4px 8px;
   border: 0;
   border-radius: var(--r-ctl);
   background: transparent;
-  color: var(--muted);
+  color: var(--text-secondary);
   font: inherit;
   font-size: calc(13px + var(--ui-text-increase, 0px));
-  font-weight: 500;
+  line-height: calc(20px + var(--ui-text-increase, 0px));
+  font-weight: 400;
   text-align: left;
   cursor: pointer;
-  transition: background-color 120ms ease-out, color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
-.settings-tab > svg { display: block; flex: none; }
-/* One line, always: a name that wrapped under its glyph would make one tab
-   taller than its neighbours. The clip is a last resort for enlarged text. */
+/* One line, always: a name that wrapped would make one tab taller than its
+   neighbours. The clip is a last resort for enlarged text. */
 .settings-tab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (hover: hover) and (pointer: fine) {
 .settings-tab:hover { background: var(--ctl-fill); color: var(--text); }
+}
 .settings-tab[aria-selected="true"] {
-  background: var(--ctl-fill);
+  background: var(--selected);
   color: var(--text);
   font-weight: 600;
 }
 /* Drawn inside, so the nav's own edge does not clip the ring. */
-.settings-tab:focus-visible { outline-offset: -2px; }
-.settings-tab:active { transform: scale(0.97); }
+.settings-tab:active { transform: scale(var(--press)); }
 /* THE ONE THING IN THE DIALOG THAT SCROLLS, and only when a window is too
    short for its section; a scroll that reaches either end stays here rather
    than handing on to the page behind the scrim. Keyed by its section in the
@@ -97,76 +103,167 @@
   flex-direction: column;
   gap: var(--settings-group-gap);
   min-height: 0;
-  padding: 20px 24px 24px;
+  padding: 16px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable both-edges;
-  scroll-padding: 20px 0 24px;
+  scroll-padding: 16px 0 16px;
 
 }
-/* THE PANE'S HEAD: the section's name, the one 16px line in the dialog, and
-   under it the line saying what the section holds (#2176), with the
-   section's own action on the right where it has one (Text & density's
-   Reset). The name is a step over the 13px rows, and the head stands a group
-   step off the first group, so it heads the page rather than reading as one
-   more group. 22px of line puts the name's middle level with the first tab's.
-   Scrolls with its section; the tab beside it already says where the reader
-   is. */
+/* THE PANE'S HEAD (V4's Page head): the section's name, 16/20 and 600, and
+   under it, 4px off, the line saying what the section holds (#2176) in 12/16
+   --muted, with the section's own action on the right where it has one (Text &
+   density's Reset). The first group's caption stands 8px under it, so it heads
+   the page rather than reading as one more group. Scrolls with its section;
+   the tab beside it already says where the reader is. */
 .settings-pane-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  /* 40 high on every page (V4's Page head): a 20px title, 4px, a 16px line. */
+  min-height: 40px;
 }
-.settings-pane-heading { min-width: 0; }
+.settings-pane-heading { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .settings-pane-title {
   margin: 0;
   color: var(--text);
   font-size: calc(16px + var(--ui-text-increase, 0px));
   font-weight: 600;
-  line-height: calc(22px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
 }
 .settings-pane-note {
-  margin: 2px 0 0;
-  max-width: 60ch;
-  color: var(--text-secondary);
+  margin: 0;
+  color: var(--muted);
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: calc(17px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 .settings-pane-head > .btn { flex: none; }
+/* A REFUSED WRITE, SAID ONCE FOR THE PAGE (SettingsFailureLine.tsx, V4's
+   Banner in the Error tone): right under the page head, the pane's full
+   width, 32 high with its --line rule at the foot (4 + 24 + 3 + 1, the
+   frame every banner has), the 14px mark, the sentence in body text and the
+   kit's close on the right. It sticks to the top of the pane while the page
+   scrolls, so a switch far down a long page that slides back still has its
+   reason in view: at the pane's top edge, the pane's own padding above it
+   (16px, 14px on a phone) taken back, so no row shows through over it. The
+   first group under it keeps the 8px it has under the page head. */
+.settings-failure {
+  position: sticky;
+  top: -16px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--ctl-h-lg);
+  padding: 4px 4px 3px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: var(--lh-body);
+}
+.settings-failure .banner-mark { flex: none; display: inline-flex; width: 14px; height: 14px; color: var(--err); }
+.settings-failure .banner-mark.ok { color: var(--ok); }
+.settings-failure .banner-mark svg { display: block; }
+.settings-failure-text { flex: 1 1 auto; min-width: 0; }
+.settings-failure-act {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease);
+}
+.settings-failure-x {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  width: 24px; height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
+}
+@media (hover: hover) and (pointer: fine) {
+.settings-failure-act:hover { text-decoration: underline; }
+.settings-failure-x:hover { background: var(--line); color: var(--text); }
+}
+.settings-failure-act:active { transform: scale(var(--press)); }
+.settings-failure-x:active { transform: scale(var(--press-small)); }
+.settings-failure + .settings-group > .settings-caption { padding-top: 8px; }
+.settings-failure + .settings-group:not(:has(> .settings-caption)) { padding-top: 8px; }
+/* A fact about a row or a group that is not its note (V4's Forms / Note with
+   its info icon): why a choice waits, said in the note's --muted ink with
+   the kit's 14px info mark on its first line. Under a row's note it is part
+   of the row's left column; under a caption it follows the caption's note. */
+.settings-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  max-width: 400px;
+  color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
+.settings-info > svg { flex: none; width: 14px; height: 14px; margin-top: calc(1px + var(--ui-text-increase, 0px) / 2); }
+.settings-row > .settings-info { grid-column: 1; margin-top: 6px; }
+.settings-caption-text > .settings-info { margin: 6px 0 0; }
 
 .settings-row-with-details > .settings-row { padding-bottom: 0; }
-.settings-row-details { padding: 0 14px calc(8px * var(--ui-space, 1)); color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; min-width: 0; }
+.settings-row-details { padding: 0 0 calc(8px * var(--ui-space, 1)); color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; min-width: 0; }
 .settings-row-details summary { width: fit-content; cursor: pointer; padding-block: 4px; }
 .settings-row-details[open] > div { padding-top: 4px; max-width: 65ch; overflow-wrap: anywhere; }
 
 /* ONE SHAPE FOR EVERY GROUP (SettingsParts.tsx, #2176): a caption, then one
-   bordered list of rows with a hairline between each, the boxed list macOS
-   System Settings, Windows 11 and libadwaita all draw. A group is told from
-   the next by the section's group step; nothing else parts them. The list's
-   ground is the faintest lift off the panel — mixed from the foreground like
-   the control tiers, so it exists in both themes by construction, and 2%,
-   the most it takes before a row's --text-dim note falls under 4.5:1 in dark
-   (contrast-floors.test.ts) — and its edge is --line, the edge every panel in the deck wears. A group whose
-   content draws its own frames (the theme previews, the text-size scale) has
-   no list, so nothing here is a box in a box. */
-.settings-group { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+   list of rows with a hairline between each. V4 draws the list with no box:
+   no edge, no radius, no ground, the rows sitting on the dialog's own fill, so
+   the row notes are measured on that fill (contrast-floors.test.ts) and not on
+   the 2% bed they used to have. The groups are not parted by a gap: the space
+   between one and the next is the caption's own top padding, 16px, or 8px for
+   the first group under the pane's head. A group whose content draws its own
+   frames (the theme previews, the text-size scale) has no list. A group with
+   no title has no caption to carry that space, so it carries it itself. */
+.settings-group { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.settings-group:not(:has(> .settings-caption)):not(:first-child) { padding-top: 16px; }
+.settings-pane-head + .settings-group:not(:has(> .settings-caption)) { padding-top: 8px; }
 .settings-caption {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 2px;
+  padding: 16px 0 2px;
 }
+.settings-group:first-child > .settings-caption,
+.settings-pane-head + .settings-group > .settings-caption { padding-top: 8px; }
+.sm-tones > .settings-group:first-child > .settings-caption { padding-top: 16px; }
 .settings-caption-text { min-width: 0; }
-/* THE ONE GROUP HEADING, under the caption the panels' sections use: the name
-   in --muted at 12px and 600, sentence case, and the one piece of metadata —
+/* THE ONE GROUP HEADING (V4's Section label), under the caption the panels'
+   sections use: the name in --text-secondary at 12/16 and 600, sentence case, and the one piece of metadata —
    a key, a count, a button that acts on the whole group — on the right. The
    tone groups and Custom sounds wear it too (.sm-tone-name). */
 .settings-caption h3,
 .sm-tone-name {
   margin: 0;
-  color: var(--muted);
+  color: var(--text-secondary);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   font-weight: 600;
   line-height: calc(16px + var(--ui-text-increase, 0px));
@@ -189,40 +286,45 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--r-panel);
-  background: color-mix(in srgb, var(--text) 2%, transparent);
 }
-.settings-list > :not(:first-child) { border-top: 1px solid var(--line); }
-/* THE ONE ROW: the name and the line under it on the left, the control on the
-   right, centred on the pair. A <label> when it holds one control, so a press
-   on the name reaches it; `cursor: default` and not `pointer`, because the
-   pointer belongs to the control inside it, which is where the press
-   animation is too. Its vertical room is the density setting's to scale
-   (--ui-space), as every list's is; the 30px control holds a floor under it. */
+.settings-list > :not(:first-child) { border-top: 1px solid var(--line-soft); }
+/* THE ONE ROW (V4's Settings / Row): the name and the line under it on the
+   left, the control on the right, level with the name's line and not centred
+   on the pair. A <label> when it holds one control, so a press on the name
+   reaches it; `cursor: default` and not `pointer`, because the pointer belongs
+   to the control inside it, which is where the press animation is too. It is
+   --row-settings tall (48 Compact, 64 Default) and its block padding is what
+   makes name + note exactly that tall (6 + 20 + 16 + 6; 14 + 36 + 14), so the
+   density sets the height and --ui-space no longer scales a row. The pane's
+   16px is the row's inset, so the row has no horizontal padding of its own. A
+   row with only a name is centred in its height, control and name together. */
 .settings-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  align-items: start;
+  align-content: center;
   column-gap: 16px;
-  row-gap: 2px;
+  row-gap: 0;
   margin: 0;
-  padding: calc(10px * var(--ui-space, 1)) 14px;
+  min-height: var(--row-settings);
+  padding: calc((var(--row-settings) - 36px) / 2) 0;
   min-width: 0;
 }
+.settings-row:not(:has(> .settings-row-note)) { align-items: center; }
 .settings-row-name {
   grid-column: 1;
   min-width: 0;
   color: var(--text);
   font-size: calc(13px + var(--ui-text-increase, 0px));
   font-weight: 500;
-  line-height: calc(18px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
   overflow-wrap: anywhere;
 }
 .settings-row-note {
   grid-column: 1;
   min-width: 0;
-  color: var(--text-dim);
+  max-width: 400px;
+  color: var(--muted);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
@@ -233,23 +335,34 @@
   grid-column: 2;
   grid-row: 1 / span 2;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: flex-end;
   gap: 10px;
   min-width: 0;
   min-height: var(--ctl-h);
 }
-/* A row with no note is one line: the control keeps to the name's line, so
-   the two share a middle. Spanning a second, empty line, the 30px control
-   grew it and centred itself 6px under a name that stayed at the top. */
-.settings-row:not(:has(> .settings-row-note)) > .settings-row-control { grid-row: 1; }
-.settings-row-control > .sm-select { flex: none; min-width: 120px; min-height: var(--ctl-h); }
+/* The control starts level with the name's line (V4's row is items-start). An
+   18px switch sits 1px down so its middle meets the middle of the 20px name
+   line; a select starts at the name's top. A row with no note is one line, so
+   the control keeps to it and the two share a middle. */
+.settings-row-control > [role="switch"] { margin-top: 1px; }
+.settings-row:not(:has(> .settings-row-note)) > .settings-row-control { grid-row: 1; align-items: center; }
+.settings-row:not(:has(> .settings-row-note)) > .settings-row-control > [role="switch"] { margin-top: 0; }
+/* A row whose control is off (V4's Disabled state): the name and the note go
+   to --muted and the control to 0.45. A control in a row dims through the same
+   --dim-off every disabled control reads, which the slot re-says as 0.45 for
+   what is inside it, so the dim stays one token and the rest of the deck
+   keeps its 0.6. */
+.settings-row-control { --dim-off: 0.45; }
+.settings-row:has(> .settings-row-control :is(:disabled, [aria-disabled="true"])) :is(.settings-row-name, .settings-row-note) { color: var(--muted); }
+.settings-row-control [aria-disabled="true"] { opacity: var(--dim-off); }
+.settings-row-control > .v4-select { flex: none; }
 /* A row whose content spans it — the character choices, a confirmation. */
 .settings-row-wide { grid-template-columns: minmax(0, 1fr); }
 /* A value the row reports, in the data face, a figure that ticks. */
 .settings-read {
   color: var(--text);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -269,6 +382,22 @@
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 .settings-row-said:empty { position: absolute; }
+/* Where a write stands (WriteState): one short word, a crossfade between the
+   words, Saved fading out on its own. The line holds its height so nothing
+   below it moves when the word comes or goes. */
+.wstate {
+  display: block;
+  min-height: calc(16px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.wstate-word { display: inline-flex; align-items: center; gap: 6px; animation: wstate-in var(--dur-fast) var(--ease) both; }
+@keyframes wstate-in { from { opacity: 0; } }
+.wstate[data-state="failed"] { color: var(--err); }
+.wstate[data-state="uncertain"] { color: var(--warn); }
+.wstate[data-quiet], .wstate[data-gone] { opacity: 0; }
 /* A reason the row says under itself rather than a result of a press: why
    its control is off (Settings › Claude Code), in the note's quieter ink. */
 .settings-row-said-quiet { color: var(--text-secondary); }
@@ -288,45 +417,77 @@
   text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .settings-link:hover { text-decoration: underline; }
-.settings-link:active { transform: scale(0.97); }
+}
+.settings-link:active { transform: scale(var(--press)); }
+/* The same link as a press that stays in the deck (Elsewhere's Open): V4's
+   text link at 12/16 and 500, no fill and no border, the radius only
+   shaping the focus ring. 24 tall for the target, set 2px up so its words sit
+   level with the row's name. */
+button.settings-link {
+  min-height: 24px;
+  margin-top: -2px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+}
 /* A key cap, in a caption's right-hand slot or beside the switch it flips, and
    on the right of every row of Settings › Keyboard. */
 .settings-key {
   font-family: var(--font-mono);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  font-weight: 600;
-  line-height: calc(12px + var(--ui-text-increase, 0px));
-  color: var(--text-dim);
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
+  font-weight: 500;
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+  color: var(--muted);
   background: var(--bg-soft);
   border: 1px solid var(--line);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  padding: 1px 5px;
+  border-radius: var(--r-tag);
+  /* 16 high with its edge: the 14px line, and the 1px border either side. */
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 0 5px;
   white-space: nowrap;
 }
-/* Settings › Keyboard's shortcuts: a row is a sentence and a cap, so a
-   shorter row than a setting's, and the cap in --text where a reader looks
-   for it. */
-.settings-keys .settings-row { padding-block: calc(6px * var(--ui-space, 1)); }
-.settings-keys .settings-key { color: var(--text); }
-/* The field that narrows a list as it is typed into, the width of the pane. */
-.settings-filter { display: flex; }
+/* Settings › Keyboard's shortcuts: a row is a sentence and a cap, so 28 high
+   (V4 draws no padding on it), the sentence in 12/16 --text-secondary and the
+   cap flush right. */
+.settings-keys .settings-row { min-height: 28px; padding-block: 0; align-items: center; }
+.settings-keys .settings-row-name { font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: calc(16px + var(--ui-text-increase, 0px)); color: var(--text-secondary); }
+/* The field that narrows a list as it is typed into, the width of the pane,
+   with its name over it (V4's Field: 12/16 in 500, 4px above the box). */
+.settings-filter { display: flex; flex-direction: column; gap: 4px; padding-top: 8px; }
+.settings-filter-label {
+  color: var(--text-secondary);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
 .settings-filter-field {
   flex: 1;
   min-width: 0;
   min-height: var(--ctl-h);
   padding: 0 10px;
+  /* V4's field: the edge stays --ctl-edge (the kit's --line is under 3:1). */
   border: 1px solid var(--ctl-edge);
   border-radius: var(--r-ctl);
-  background: var(--ctl-fill);
+  background: var(--bg-soft);
   color: var(--text);
   font: inherit;
   font-size: calc(13px + var(--ui-text-increase, 0px));
+  font-weight: 400;
+  line-height: var(--lh-body);
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
-.settings-filter-field::placeholder { color: var(--text-dim); opacity: 1; }
+.settings-filter-field::placeholder { color: var(--muted); opacity: 1; }
 /* The browser's own clear button, drawn in the field's ink rather than the
    platform's: Chromium paints it a fixed light grey that glared on every dark
    theme. Same cross as the dialog's close, at the glyph spec's 1.4 stroke. */
@@ -340,8 +501,12 @@
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round'%3E%3Cpath d='M3.5 3.5l7 7M10.5 3.5l-7 7'/%3E%3C/svg%3E") center / contain no-repeat;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round'%3E%3Cpath d='M3.5 3.5l7 7M10.5 3.5l-7 7'/%3E%3C/svg%3E") center / contain no-repeat;
 }
+@media (hover: hover) and (pointer: fine) {
 .settings-filter-field::-webkit-search-cancel-button:hover { background-color: var(--text); }
-.settings-filter-field:hover { border-color: var(--text); }
+}
+@media (hover: hover) and (pointer: fine) {
+.settings-filter-field:hover:not(:focus-visible) { border-color: var(--text); }
+}
 /* SEARCH (SettingsSearch.tsx): the same field at the top of the nav's
    column, with a magnifier inside its leading edge — the glyph is centred on
    the field by the flex line it stands in, and drawn on the nav glyphs' spec
@@ -351,11 +516,12 @@
   display: flex;
   flex: none;
   align-items: center;
-  padding: 12px 8px 4px;
+  /* The nav's own inline pad, so the field lines up with the items. */
+  padding: 8px calc(16px - 1px) 4px 8px;
   color: var(--muted);
 }
 .settings-search-glyph { position: absolute; left: 18px; pointer-events: none; }
-.settings-search .settings-search-field { padding-left: 32px; }
+.settings-search .settings-search-field { padding-left: 32px; min-height: 30px; }
 /* While a query is in the field the results stand where the section was,
    which stays mounted and hidden under them. `[hidden]` alone loses to the
    pane's own `display: flex`. */
@@ -381,7 +547,7 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background-color 120ms ease-out, color 120ms ease-out, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 .settings-result > svg { display: block; flex: none; }
 .settings-result-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
@@ -397,9 +563,11 @@
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
+@media (hover: hover) and (pointer: fine) {
 .settings-result:hover { background: var(--ctl-fill); color: var(--text); }
+}
 .settings-result[data-highlighted="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
-.settings-result:active { transform: scale(0.97); }
+.settings-result:active { transform: scale(var(--press)); }
 /* A row's own ground — a hovered result, the mark a result leaves on the row
    it landed on — is rounded with the list at its two ends, so neither pokes a
    square corner past the list's round one. */
@@ -418,8 +586,8 @@
    later. */
 .settings-pane :is(.settings-group, .sm-custom)[data-jumped] { border-radius: var(--r-panel); }
 @media (prefers-reduced-motion: no-preference) {
-  .settings-pane [data-jumped] { animation: settings-jumped 1200ms ease-out; }
-  .settings-pane :is(.settings-group, .reading-options, .sm-custom)[data-jumped] { animation: settings-jumped-group 1200ms ease-out; }
+  .settings-pane [data-jumped] { animation: settings-jumped 1500ms var(--ease); }
+  .settings-pane :is(.settings-group, .reading-options, .sm-custom)[data-jumped] { animation: settings-jumped-group 1500ms var(--ease); }
 }
 /* Held for the first 40% — long enough to be seen where the eye lands —
    then faded to the row's own ground. */
@@ -435,6 +603,17 @@
 @media (prefers-reduced-motion: reduce) {
   .settings-pane [data-jumped] { outline: 2px solid var(--accent); outline-offset: -2px; }
   .settings-pane :is(.settings-group, .reading-options, .sm-custom)[data-jumped] { outline-offset: 6px; }
+}
+/* A note under a group (V4's Forms / Note): one line of --text-secondary on
+   the control wash, never amber. */
+.settings-note {
+  margin: 8px 0 0;
+  padding: 6px 8px;
+  border-radius: var(--r-panel);
+  background: var(--ctl-fill);
+  color: var(--text-secondary);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 .settings-empty, .settings-foot {
   margin: 0;
@@ -453,7 +632,8 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 240px) 40px;
   align-items: center;
   column-gap: 12px;
-  padding: calc(10px * var(--ui-space, 1)) 14px;
+  min-height: var(--row-settings);
+  padding: calc((var(--row-settings) - 36px) / 2) 0;
 }
 .settings-list > .sm-row > label {
   min-width: 0;
@@ -461,7 +641,7 @@
   font-size: calc(13px + var(--ui-text-increase, 0px));
   font-weight: 500;
 }
-.settings-list > .sm-row > .sm-select { grid-column: 2 / -1; min-height: var(--ctl-h); }
+.settings-list > .sm-row > .v4-select { grid-column: 2 / -1; justify-self: end; }
 
 /* AT A PHONE'S WIDTH THE NAV GOES ON TOP (#849's breakpoint), as ONE ROW
    that scrolls sideways. It was a two-by-two grid, which held four sections
@@ -471,7 +651,7 @@
    section under it as tall as it can be. The glyph stays with its name. The
    dialog takes the screen's whole height, 16px off each edge. */
 @media (max-width: 640px) {
-  .modal.settings-modal { height: calc(100dvh - 32px); --settings-group-gap: 20px; }
+  .modal.settings-modal { height: calc(100dvh - 32px); --settings-group-gap: 0px; }
   .settings-body {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
@@ -491,14 +671,13 @@
   }
   .settings-nav::-webkit-scrollbar { display: none; }
   .settings-tab { flex: none; }
-  .settings-tab#settings-tab-notifications, .settings-tab#settings-tab-integrations, .settings-tab#settings-tab-about { margin-top: 0; }
   .settings-pane {
     padding: 14px 14px 32px;
     scroll-padding: 14px 0 32px;
 
   }
-  .settings-row { padding-inline: 12px; }
-  .settings-list > .sm-row { grid-template-columns: minmax(64px, auto) minmax(0, 1fr) 40px; padding-inline: 12px; }
+  .settings-failure { top: -14px; }
+  .settings-list > .sm-row { grid-template-columns: minmax(64px, auto) minmax(0, 1fr) 40px; }
 }
 /* Under 420px a select, or a read-out with something beside it, goes under
    its name rather than squeezing the name to a word a line: the name and the
@@ -507,8 +686,8 @@
    as a phone's own settings keep a toggle on the name's line whatever the
    width. */
 @media (max-width: 420px) {
-  .settings-row:has(> .settings-row-control > :is(select, .settings-read:not(:only-child))) { grid-template-columns: minmax(0, 1fr); }
-  .settings-row:has(> .settings-row-control > :is(select, .settings-read:not(:only-child))) > .settings-row-control {
+  .settings-row:has(> .settings-row-control > :is(.v4-select, .settings-read:not(:only-child))) { grid-template-columns: minmax(0, 1fr); }
+  .settings-row:has(> .settings-row-control > :is(.v4-select, .settings-read:not(:only-child))) > .settings-row-control {
     grid-column: 1;
     grid-row: auto;
     justify-content: flex-start;
@@ -520,53 +699,55 @@
   .settings-tab:active { transform: none; }
   .settings-result:active { transform: none; }
   .settings-link:active { transform: none; }
+  .settings-failure-act:active, .settings-failure-x:active { transform: none; }
 }
 
-/* Each choice previews the deck in that theme,
-   so it is recognised before it is read. The -8px bleed is the plate's own
-   8px padding given back, so each choice has a plate to hover in while the
-   previews stand on the caption's text edge rather than 8px in from it.
+/* Each choice previews the deck in that theme, so it is recognised before it
+   is read (V4's Picker tile): a 128 × 62 preview, the name 6px under it, four
+   to a row at a 141px pitch (a 13px gap).
    THE CHOSEN ONE: its frame goes to the accent and doubles to 2px with a ring
-   rather than a wider border, so nothing shifts; a check stands at the end of
-   its name; the name comes up from --muted to --text; the plate takes an 8%
-   wash. The check and the doubled frame hold the state without the colour.
-   The focus ring is drawn round the whole plate, outside the frame.
-   HOVER lifts the plate and the name, never the frame, so a pointer resting on
-   the other theme cannot pass for choosing it. No press-scale: at 118px a
-   3% shrink is a lurch, not a click. */
+   rather than a wider border, so nothing shifts; the name comes up from
+   --text-secondary to --text in 600; a check stands at the end of the name.
+   The frame, the weight and the check hold the state without the colour.
+   HOVER lifts the name, never the frame, so a pointer resting on the other
+   theme cannot pass for choosing it. No press-scale: at 128px a 3% shrink is
+   a lurch, not a click. */
 .appearance-themes {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
-  gap: 4px;
-  margin: 0 -8px;
+  grid-template-columns: repeat(auto-fill, 128px);
+  gap: 13px;
+  padding: 12px 0 4px;
 }
 .appearance-theme {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
-  padding: 8px;
+  padding: 0;
   border: 0;
   border-radius: var(--r-panel);
   background: transparent;
-  color: var(--muted);
+  color: var(--text-secondary);
   font: inherit;
   font-size: calc(12px + var(--ui-text-increase, 0px));
-  font-weight: 500;
+  font-weight: 400;
   text-align: left;
   cursor: pointer;
-  transition: background-color 120ms ease-out, color 120ms ease-out;
+  transition: color var(--dur-fast) var(--ease);
 }
-.appearance-theme:hover { background: var(--ctl-fill); color: var(--text); }
-.appearance-theme[aria-checked="true"] { background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
-.appearance-theme[aria-checked="true"] { color: var(--text); }
-.appearance-theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (hover: hover) and (pointer: fine) {
+.appearance-theme:hover { color: var(--text); }
+}
+.appearance-theme[aria-checked="true"] { color: var(--text); font-weight: 600; }
 .appearance-preview {
   display: block;
+  height: 62px;
   overflow: hidden;
+  /* --ctl-edge and not V4's --line-soft: the frame is the choice's only
+     boundary, and --line-soft is under 3:1 on the panel (control-edges.test.ts). */
   border: 1px solid var(--ctl-edge);
-  border-radius: calc(var(--r-ctl) + 2px);
-  transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+  border-radius: var(--r-panel);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 .appearance-theme[aria-checked="true"] .appearance-preview {
   border-color: var(--accent);
@@ -575,14 +756,12 @@
 .appearance-preview svg {
   display: block;
   width: 100%;
-  height: auto;
-  aspect-ratio: 2 / 1;
+  height: 100%;
 }
 .appearance-theme-name {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 2px;
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
 .appearance-check {
@@ -594,7 +773,7 @@
   stroke-linecap: round;
   stroke-linejoin: round;
   opacity: 0;
-  transition: opacity 120ms ease-out;
+  transition: opacity var(--dur-fast) var(--ease);
 }
 .appearance-theme[aria-checked="true"] .appearance-check { opacity: 1; }
 
@@ -609,59 +788,81 @@
 .tp-card { fill: var(--tp-surface); stroke: var(--tp-rule); }
 .tp-tag { fill: var(--tp-surface); stroke: var(--tp-mark); }
 
-/* ONE SWITCH (#886). There were four: `.ap-auto-state` (the accounts panel's
-   and the LAN dialog's five), `.sm-toggle` (the sound menu's two), `.bw-toggle`
-   (Browser Watch) and `.ver-auto` (the version banner's pill with a dot) — 35
-   rules between them, so every fix to a switch, its focus ring or its
-   reduced-motion answer had to land four times, and the geometry had drifted:
-   30x18 with a 12px knob in one, 30x17 with an 11px knob in two, the knob at
-   rest in --muted in two and --text in one.
+/* ONE SWITCH (#886, V4's Forms / Switch). There were four: `.ap-auto-state`
+   (the accounts panel's and the LAN dialog's five), `.sm-toggle` (the sound
+   menu's two), `.bw-toggle` (Browser Watch) and `.ver-auto` (the version
+   banner's pill with a dot, since gone from the banner with its switch) — 35 rules between them, so every fix to a switch,
+   its focus ring or its reduced-motion answer had to land four times.
    One now. The element carrying `role="switch"` is the track and the
    `.switch-knob` span inside it is the knob. The state is `aria-checked`, read
    straight off the attribute, so the sheet and the accessibility tree cannot
-   disagree — the `.live` and `.on` classes that restated it are gone. 30x18
-   with a 12px knob leaves two pixels of air all round it, the proportion every
-   platform's own switch uses, and keeps the LAN dialog's switches 24px apart
-   centre to centre at their 6px gap, which is what SC 2.5.8 asks of a target
-   under 24px. */
+   disagree.
+   V4's geometry: a 32x18 track (border-box, the 1px border kept in both
+   states so the box never changes size) and a 14px knob, 2px from the outer
+   edge at rest and at the far end: the 1px stroke sits inside V4's 2px
+   padding, so the knob starts 1px inside the border and travels 14px.
+   Off the track is --bg-soft with the --ctl-edge edge (Figma draws --line,
+   which falls under the 3:1 a switch's edge is held to, control-edges.test.ts)
+   and a --muted knob; on it fills with --accent and the knob goes --panel.
+   The LAN dialog's switches stay 24px apart centre to centre at their 6px gap,
+   which is what SC 2.5.8 asks of a target under 24px. */
 .switch {
   position: relative;
   display: inline-block;
   flex: none;
-  width: 30px;
+  box-sizing: border-box;
+  width: 32px;
   height: 18px;
   padding: 0;
   border: 1px solid var(--ctl-edge);
-  border-radius: 999px;
-  background: var(--ctl-fill);
+  border-radius: var(--r-pill);
+  background: var(--bg-soft);
   font: inherit;
   line-height: 1;
   cursor: pointer;
-  transition: border-color 120ms, background 140ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: border-color var(--dur-fast) var(--ease), background-color var(--dur-base) var(--ease);
 }
+/* The knob leans the way it is about to go, like a held finger, then the back
+   catches up (V4's motion rules, Switch): a press on the pointer stretches it to 18px
+   in Fast, and the release carries it across in Base while it narrows again.
+   The track itself no longer scales. */
 .switch-knob {
   position: absolute;
   top: 50%;
-  left: 2px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
+  left: 1px;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--r-pill);
   background: var(--muted);
   transform: translateY(-50%);
-  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), background 140ms ease;
+  transition: transform var(--dur-base) var(--ease), width var(--dur-base) var(--ease), background-color var(--dur-base) var(--ease);
 }
 /* On: the track fills, and the knob goes dark on it rather than light — on
    --accent a pale knob is a pale shape on a pale ground, and the one thing a
    switch has to say at a glance is which end its knob is at. */
 .switch[aria-checked="true"] { border-color: var(--accent); background: var(--accent); }
-.switch[aria-checked="true"] .switch-knob { background: var(--bg); transform: translateY(-50%) translateX(12px); }
-.switch:hover:not(:disabled) { border-color: var(--text); }
-.switch:hover:not(:disabled) .switch-knob { background: var(--text); }
-.switch[aria-checked="true"]:hover:not(:disabled) .switch-knob { background: var(--bg); }
-.switch:active:not(:disabled) { transform: scale(0.97); }
-.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.switch[aria-checked="true"] .switch-knob { background: var(--panel); transform: translateY(-50%) translateX(14px); }
+@media (hover: hover) and (pointer: fine) {
+  .switch:hover:not(:disabled) { border-color: var(--text); }
+  .switch:hover:not(:disabled) .switch-knob { background: var(--text); }
+  .switch[aria-checked="true"]:hover:not(:disabled) .switch-knob { background: var(--panel); }
+}
+.switch:focus-visible .switch-knob { transition-duration: var(--dur-fast); }
+/* Chrome sets :active on Space too, so the stretch is the pointer's alone. The
+   on knob grows toward the left (14 - 4 = 10px) so its right edge stays put. */
+.switch:active:not(:disabled):not(:focus-visible) .switch-knob { width: 18px; transition-duration: var(--dur-fast); }
+.switch[aria-checked="true"]:active:not(:disabled):not(:focus-visible) .switch-knob { transform: translateY(-50%) translateX(10px); }
 .switch:disabled { cursor: default; opacity: var(--dim-off); }
-/* The track stays 30x18, the size its proportions and the LAN dialog's spacing
+/* Reduced motion: no stretch and no travel. The answers carry the press rules'
+   own selectors: a plainer `.switch:active .switch-knob` lost to them on
+   specificity and the knob still stretched. */
+@media (prefers-reduced-motion: reduce) {
+  .switch { transition: border-color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease); }
+  .switch-knob { transition: background-color var(--dur-fast) var(--ease); }
+  .switch:active:not(:disabled):not(:focus-visible) .switch-knob { width: 14px; }
+  .switch[aria-checked="true"]:active:not(:disabled):not(:focus-visible) .switch-knob { transform: translateY(-50%) translateX(14px); }
+}
+/* The track stays 32x18, the size its proportions and the LAN dialog's spacing
    were argued from above; the target around it is 24px tall (#884), drawn the
    way .ap-failure-x draws its own, so no row moves to make room for it. */
 .switch::after {
@@ -681,6 +882,57 @@
    state their deck was already in. After the shared hover rules, so a pointer
    resting on it does not wash the warning back out. */
 .switch[data-tone="warn"][aria-checked="true"] { border-color: var(--warn); background: var(--warn); }
+
+/* V4's checkbox (Checkbox.tsx): a 14px box with no fill when off, filled with
+   --accent when ticked, and a 1.5 tick in --bg that draws itself by its dash
+   offset over Fast. Unticking fades the tick over Fast and only then resets the
+   dash, so nothing draws backwards. Under reduced motion the tick does not
+   draw, it fades. */
+.cbx { --dim-off: 0.45; position: relative; display: inline-grid; flex: none; width: 14px; height: 14px; }
+.cbx > input {
+  grid-area: 1 / 1;
+  appearance: none;
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-tag);
+  background: transparent;
+  cursor: inherit;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.cbx > input:checked { border-color: var(--accent); background: var(--accent); }
+.cbx > input:disabled { cursor: default; opacity: var(--dim-off); }
+.cbx-tick {
+  grid-area: 1 / 1;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: var(--bg);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease), stroke-dashoffset 0s var(--ease) var(--dur-fast);
+}
+.cbx > input:checked + .cbx-tick {
+  stroke-dashoffset: 0;
+  opacity: 1;
+  transition: stroke-dashoffset var(--dur-fast) var(--ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cbx > input:checked + .cbx-tick { transition: opacity var(--dur-fast) var(--ease); }
+  .cbx-tick { transition: opacity var(--dur-fast) var(--ease), stroke-dashoffset 0s var(--ease) var(--dur-fast); }
+}
+
+/* V4's radio dot (.character-check here, .reading-selected-mark in reading.css):
+   on, it grows from half size with its opacity over Fast; off, it only fades and
+   the scale resets after the fade. A transition, so a first paint is still.
+   Under reduced motion it only fades. */
 
 /* Sized like `.sm-hear` and named for itself. They are the same small button in
    the same slot, but "hear" is what one of them does and a permission prompt is
@@ -806,7 +1058,7 @@ button.btn.sm-hear {
   }
   .sm-row input[type="range"]::-webkit-slider-runnable-track {
     height: 3px;
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     background: linear-gradient(
       to right,
       var(--accent) 0 var(--sm-level, 0%),
@@ -819,7 +1071,7 @@ button.btn.sm-hear {
     width: 11px;
     height: 11px;
     margin-top: -4px;
-    border-radius: 50%;
+    border-radius: var(--r-pill);
     background: var(--accent);
   }
 }
@@ -827,19 +1079,19 @@ button.btn.sm-hear {
   .sm-row input[type="range"] { appearance: none; background: transparent; }
   .sm-row input[type="range"]::-moz-range-track {
     height: 3px;
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     background: color-mix(in srgb, var(--text) 14%, transparent);
   }
   .sm-row input[type="range"]::-moz-range-progress {
     height: 3px;
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     background: var(--accent);
   }
   .sm-row input[type="range"]::-moz-range-thumb {
     width: 11px;
     height: 11px;
     border: none;
-    border-radius: 50%;
+    border-radius: var(--r-pill);
     background: var(--accent);
   }
 }
@@ -861,7 +1113,7 @@ button.btn.sm-hear {
   min-width: 34px;
   text-align: right;
   color: var(--muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   font-variant-numeric: tabular-nums;
 }
@@ -874,24 +1126,51 @@ button.btn.sm-hear {
 .sm-select {
   flex: 1;
   min-width: 0;
-  min-height: 24px;
-  padding: 0 6px;
-  background: var(--sm-fill);
+  min-height: var(--ctl-h);
+  padding: 0 8px 0 12px;
+  background: var(--bg-soft);
   color: var(--text);
   /* The same edge as the buttons beside it, and NOT the softer one this pass
      tried to give it. Measured: on --panel in dark, 33% of --text lands at
      2.76:1, 34% at 2.84 and 35% at 2.92 — every step under the current 36%
      falls through 1.4.11's 3:1, and control-edges.test.ts sweeps this selector
-     by name and says so. The box is already as quiet as a visible boundary
+     by name and says so. V4's field: --ctl-edge is stronger than --sm-edge, so
+     the floor holds. The box is already as quiet as a visible boundary
      gets on this surface; the softening that was available here was the fill,
      and that was spent last pass. */
-  border: 1px solid var(--sm-edge);
-  border-radius: 6px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-ctl);
   font: inherit;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  font-weight: 400;
+  line-height: var(--lh-body);
   accent-color: var(--accent);
 }
-.sm-select:hover { border-color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+.sm-select:hover:not(:focus-visible) { border-color: var(--text); }
+}
+/* THE SELECT (V4's Forms / Select, SelectShell.tsx): 28 high, the option's
+   name at 13/20 after a 12px inner pad, and a 12px chevron 8px from the edge.
+   The native element stays under it for the list and the keys, drawn without
+   the platform's arrow, so the box is as wide as its longest option needs and
+   no wider. The chevron is the shell's, in --muted, and does not take the
+   pointer. */
+.v4-select { position: relative; display: inline-flex; align-items: center; min-width: 0; max-width: 100%; color: var(--muted); }
+.v4-select > .sm-select {
+  flex: 1;
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: var(--ctl-h);
+  /* A floor, so a list that fills in late (Claude Code's own value, a custom
+     tone) does not make the row reflow when it arrives. */
+  min-width: 90px;
+  max-width: 100%;
+  /* The right side holds the chevron: 8px before it, its 12px, 8px after. */
+  padding: 0 calc(8px + 12px + 8px) 0 12px;
+  text-overflow: ellipsis;
+}
+.v4-select:has(> .sm-select:disabled) > .v4-select-chevron { opacity: var(--dim-off); }
+.v4-select-chevron { position: absolute; right: 8px; top: 50%; margin-top: -6px; flex: none; pointer-events: none; }
 
 /* Custom sounds and voices (#1207), under the tones they can stand in for.
    Built from parts that already exist wherever one fits — the heading is a
@@ -914,17 +1193,18 @@ button.btn.sm-hear {
 .sm-voice summary {
   cursor: pointer;
   list-style: none;
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .sm-voice summary:hover .sm-voice-chevron { color: var(--text); }
-.sm-voice summary:active { transform: scale(0.97); }
+}
+.sm-voice summary:active { transform: scale(var(--press)); }
 .sm-custom .sm-voice summary[aria-disabled="true"]:active { transform: none; }
-.sm-voice summary:focus-visible { outline-offset: -2px; }
 .sm-voice summary::-webkit-details-marker { display: none; }
 .sm-voice-chevron {
   display: block;
   color: var(--muted);
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--dur-fast) var(--ease);
 }
 .sm-voice[open] .sm-voice-chevron { transform: rotate(90deg); }
 .sm-voice-fields {
@@ -945,6 +1225,7 @@ button.btn.sm-hear {
 }
 .sm-voice-fields .ap-manage-input,
 .sm-voice-fields .sm-select { width: 100%; min-width: 0; }
+.sm-voice-fields .v4-select { display: flex; width: 100%; min-width: 0; }
 .sm-voice-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .sm-voice-pair label { grid-template-columns: auto minmax(0, 1fr); }
 /* Trimmed like `.sm-hear` and exactly as tall as every other button: the
@@ -963,8 +1244,8 @@ button.btn.sm-custom-action { align-self: flex-start; padding: 0 10px; font-size
   gap: 6px;
   padding: calc(8px * var(--ui-space, 1)) 14px;
 }
-.sm-custom-item > span { color: var(--muted); font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); font-variant-numeric: tabular-nums; }
-button.btn.sm-custom-icon { padding: 0 6px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); }
+.sm-custom-item > span { color: var(--muted); font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); font-variant-numeric: tabular-nums; }
+button.btn.sm-custom-icon { padding: 0 6px; font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); }
 /* Armed is the second press of the one act here nothing can undo, and it
    takes the error colour for the four seconds it waits — the LAN unpair's. */
 button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
@@ -975,23 +1256,65 @@ button.btn.sm-custom-icon.armed { color: var(--bg); background: var(--err); }
    topbar speaker and its tooltip went (2026-10-07) is the only place it is
    said. */
 .sm-note { margin: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.45; color: var(--text-dim); }
-/* Character choices: the row under the switch, in its list (#2176). */
-.character-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Character choices: three picker tiles under the switch's row (V4's Picker
+   tile), 128 wide, the name 6px under a 128 × 80 preview on --bg with the
+   sprite centred, and the same frame as a theme's: 1px --line-soft, 2px
+   --accent for the chosen one. */
+.character-picker { display: flex; flex-wrap: wrap; gap: 13px; padding-top: 4px; }
 .character-choice {
-  display: flex; align-items: center; gap: 8px; flex: 1 1 150px; min-width: 0;
-  padding: 10px; border: 1px solid var(--ctl-edge); border-radius: 6px;
-  color: var(--text); background: var(--panel); font: inherit; text-align: left; cursor: pointer;
+  position: relative; display: flex; flex-direction: column; gap: 6px; flex: none; width: 128px; min-width: 0;
+  padding: 0; border: 0; border-radius: var(--r-panel);
+  color: var(--text-secondary); background: transparent; font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: calc(16px + var(--ui-text-increase, 0px));
+  text-align: left; cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
 }
-.character-choice:hover { background: var(--ctl-fill); }
-.character-choice[aria-checked="true"] { border-color: var(--accent); }
-.character-choice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.character-preview { display: block; flex: 0 0 36px; width: 36px; height: 32px; }
-.character-preview svg { width: 36px; height: 28px; overflow: visible; }
-.character-check { flex: 0 0 16px; width: 16px; height: 16px; margin-left: auto; visibility: hidden; }
-.character-choice[aria-checked="true"] .character-check { visibility: visible; }
+@media (hover: hover) and (pointer: fine) {
+.character-choice:hover { color: var(--text); }
+}
+.character-choice[aria-checked="true"] { color: var(--text); font-weight: 600; }
+.character-preview {
+  display: flex; align-items: center; justify-content: center; width: 128px; height: 80px;
+  box-sizing: border-box; border: 1px solid var(--ctl-edge); border-radius: var(--r-panel); background: var(--bg);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.character-choice[aria-checked="true"] .character-preview { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.character-preview svg { width: 54px; height: 51px; overflow: visible; }
+.character-check { position: absolute; top: 6px; right: 6px; flex: none; width: 16px; height: 16px; color: var(--accent); opacity: 0; transform: scale(0.5); transition: opacity var(--dur-fast) var(--ease), transform 0s var(--ease) var(--dur-fast); }
+.character-choice[aria-checked="true"] .character-check { opacity: 1; transform: none; transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+@media (prefers-reduced-motion: reduce) {
+  .character-check, .character-choice[aria-checked="true"] .character-check { transform: none; transition: opacity var(--dur-fast) var(--ease); }
+}
 .character-preview :is(.fm-body, .fm-leg) { fill: var(--pixel-character-body, var(--accent)); }
 .character-preview .fm-eye { fill: var(--text); }
 @media (max-width: 420px) {
-  .character-picker { flex-direction: column; }
-  .character-choice { flex-basis: auto; }
+  .character-picker { gap: 8px; }
+}
+
+/* Settings › Account (hidden: drawn only on a deck with the ccdeck account on).
+   The code to match in the browser, in the data face and large enough to read
+   across a desk; the presses beside a row; the join preview and the conflict
+   review, a plain table on the list's own ground. */
+.account-code {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: calc(16px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.account-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.account-name { width: 200px; max-width: 100%; }
+.account-preview { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; min-width: 0; margin-top: 8px; }
+.account-preview .account-actions { justify-content: flex-start; }
+.account-preview p { margin: 0; }
+.account-diff { width: 100%; border-collapse: collapse; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+.account-diff caption { text-align: left; padding-bottom: 6px; }
+.account-diff :is(th, td) { padding: 4px 8px 4px 0; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.account-diff thead th { color: var(--muted); font-weight: 600; }
+.account-diff tbody th { color: var(--text); font-weight: 500; }
+.account-diff td { color: var(--text); }
+.account-diff tbody tr + tr :is(th, td) { border-top: 1px solid var(--line); }
+@media (max-width: 520px) {
+  .account-name { width: 100%; }
 }

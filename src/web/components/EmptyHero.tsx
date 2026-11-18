@@ -4,7 +4,6 @@
 // components: the hero for an empty board, which says why it is empty and what
 // would fill it, and the one for a tab the browser is holding behind other deck
 // tabs (#830). App.tsx picks between them.
-import { useEffect, useState } from "react";
 import { PRODUCT } from "../brand";
 import { captureHints } from "../provider-copy";
 import type { Providers } from "../providers";
@@ -19,15 +18,14 @@ function coded(text: string, codes: readonly string[]) {
   return parts.map((part, i) => (codes.includes(part) ? <code key={i}>{part}</code> : part));
 }
 
-function TerminalSymbol({ active = false }: { active?: boolean }) {
-  const [visible, setVisible] = useState(() => typeof document === "undefined" || !document.hidden);
-  useEffect(() => {
-    const changed = () => setVisible(!document.hidden);
-    document.addEventListener("visibilitychange", changed);
-    return () => document.removeEventListener("visibilitychange", changed);
-  }, []);
-  return <div className="empty-symbol" aria-hidden="true" data-active={active && visible}>
-    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 8 4 4-4 4" /><path className="empty-cursor" d="M13 16h5" /></svg>
+/** The 24px icon V4 draws at the head of the two notices — the server out of
+ *  reach, too many tabs. Static: it is a notice's mark, not a sign of life.
+ *  The empty board draws none (V4 top-10 #10): there it was a chevron and a
+ *  blinking cursor over the title, a mark with no job between an empty canvas
+ *  and the words that say why it is empty. */
+function TerminalSymbol() {
+  return <div className="empty-symbol" aria-hidden="true">
+    <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 8 4 4-4 4" /><path d="M13 16h5" /></svg>
   </div>;
 }
 
@@ -38,7 +36,7 @@ function TerminalSymbol({ active = false }: { active?: boolean }) {
 export function TabCapHero({ reservedRight = 0 }: { reservedRight?: number }) {
   const t = useT();
   return (
-    <div className="empty-stage" style={{ right: reservedRight }}><div className="empty-hero">
+    <div className="empty-stage" style={{ right: reservedRight }}><div className="empty-hero empty-notice">
       <TerminalSymbol />
       <h2>{t("board.hero.tabs", { product: PRODUCT })}</h2>
       <p>{coded(t("board.hero.tabsBody", { product: PRODUCT }), [PRODUCT])}</p>
@@ -46,17 +44,23 @@ export function TabCapHero({ reservedRight = 0 }: { reservedRight?: number }) {
   );
 }
 
-export function EmptyHero({ live, everConnected, providers, workspace, onTour, reservedRight = 0 }: {
+export function EmptyHero({ live, everConnected, providers, workspace, onTour, onNewSession, reservedRight = 0 }: {
   live: boolean; everConnected: boolean; providers: Providers; workspace: string | null;
-  onTour: () => void; reservedRight?: number;
+  onTour: () => void;
+  /** Start a session from the deck (use-stage.ts newSessionFromBoard), handed
+   *  the button the stage grows out of. Absent where the deck cannot start one
+   *  — the Command Panel off, a platform without it, its code not loaded — and
+   *  with it the button: the hero is then the one it always was. */
+  onNewSession?: (button: HTMLElement) => void;
+  reservedRight?: number;
 }) {
   const t = useT();
   const offline = !live;
   return (
-    <div className="empty-stage" style={{ right: reservedRight }}><div className="empty-hero">
-      <TerminalSymbol active={live} />
+    <div className="empty-stage" style={{ right: reservedRight }}><div className={offline ? "empty-hero empty-notice" : "empty-hero"}>
       {offline ? (
         <>
+          <TerminalSymbol />
           <h2>{everConnected ? t("board.hero.disconnected") : t("board.hero.unreachable")}</h2>
           {/* In the reader's words, not the route's (#832): `/events` is the
               stream's endpoint and means nothing to somebody who typed
@@ -64,15 +68,17 @@ export function EmptyHero({ live, everConnected, providers, workspace, onTour, r
               where to look. */}
           <p>{coded(t(everConnected ? "board.hero.lost" : "board.hero.cannotReach", { product: PRODUCT }), [PRODUCT])}</p>
         </>
-      ) : agentNoneCopy(providers, workspace, t)}
+      ) : agentNoneCopy(providers, workspace, t, onNewSession)}
       {/* THE WAY BACK TO THE TOUR, on the one screen a person who has not yet
           seen anything is looking at. It is a control on a hero that is
           pointer-transparent by design (a drag starting here still pans), so
           the sheet gives this one element its pointer back. Offline, the hero
           is about the server, and the tour would be a promise about a canvas
-          that cannot fill. */}
+          that cannot fill. Beside New session the tour is a quiet way to learn
+          the deck, as the film beside it is (`data-quiet`, guides.css): one
+          primary on the screen, and it is the one that starts something. */}
       {!offline && (
-        <div className="empty-actions" role="group" aria-label={t("board.hero.explore")}>
+        <div className="empty-actions" role="group" aria-label={t("board.hero.explore")} data-quiet={onNewSession ? "" : undefined}>
           <button type="button" className="btn empty-tour" onClick={onTour}>{t("board.hero.tour")}</button>
           <FilmLink film="tour" action />
         </div>
@@ -81,7 +87,10 @@ export function EmptyHero({ live, everConnected, providers, workspace, onTour, r
   );
 }
 
-function agentNoneCopy(providers: Providers, workspace: string | null, t: TFunction) {
+/** The two commands the hero's second way names, set in <code>. */
+const RUN_COMMANDS = ["claude", "codex"] as const;
+
+function agentNoneCopy(providers: Providers, workspace: string | null, t: TFunction, start?: (button: HTMLElement) => void) {
   // THE SCOPE SENTENCE BELONGS HERE, not only in the detail rail (#802). This
   // hero said "run it in any folder" whatever the deck was watching, and the
   // one user for whom the canvas stays empty is exactly the one who started it
@@ -92,18 +101,34 @@ function agentNoneCopy(providers: Providers, workspace: string | null, t: TFunct
   // text that appears when nothing shows up told that user scope could not be
   // the cause" — and it still did, for anyone who had not opened the rail,
   // which is closed on a fresh install.
+  //
+  // PLAIN WORDS (V4 top-10 #10): a title and one line. The line said how the
+  // canvas draws a session — a node that grows as subagents fork — to somebody
+  // who has not started one; it says what to do now, in the products' names.
+  //
+  // A WAY IN WHERE THE DECK HAS ONE (V4 onboarding). A deck that can start a
+  // session says so first: New session, the screen's one primary, under the
+  // title, and the terminal as the second way in the line under it. Where it
+  // cannot, there is no button that would lead nowhere, and the line is the
+  // one way there is.
   const scope = emptyScope(workspace, t);
   return (
     <>
-      <h2>{t("board.hero.waiting")}</h2>
+      <h2>{t("board.hero.noSessions")}</h2>
+      {start && (
+        <button type="button" className="btn primary empty-new" aria-haspopup="dialog" title={t("board.newSession.hint")}
+          onClick={e => start(e.currentTarget)}>
+          {t("board.newSession.title")}
+        </button>
+      )}
       {scope.kind === "scoped" ? (
         <p>
           {scope.lead} <code>{scope.workspace}</code>{scope.tail}
         </p>
+      ) : start ? (
+        <p className="empty-or">{coded(t("board.hero.orRun"), RUN_COMMANDS)}</p>
       ) : (
-        <p>
-          {coded(t("board.hero.run"), ["claude", "codex"])}
-        </p>
+        <p>{t("board.hero.startHint")}</p>
       )}
       {/* This used to be one sentence for both CLIs, and it sent Codex users to
           install `~/.codex/hooks.json` and grant it `/hooks` trust — work the

@@ -3,7 +3,7 @@
 // (ambient.ts), and the writer pointed the tab's links at those paths when the
 // state changed — so the offline mark was first asked for at the moment the
 // server that had it went away. The request failed and the tab kept whatever
-// icon it wore before: the waiting mark beside `(1) ccdeck`, the pair #719
+// icon it wore before: the waiting mark beside `(1) waiting · ccdeck`, the pair #719
 // removed.
 //
 // Now every state's file is fetched once while the deck is up and held in the

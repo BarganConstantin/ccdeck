@@ -20,7 +20,7 @@ export function useDragTrash() {
   const [trashLabel, setTrashLabel] = useState("");
   const [trashState, setTrashState] = useState<TrashProximity>("far");
   const trashZoneRef = useRef<HTMLDivElement>(null);
-  const trashPhase = usePanelPresence(trashDragging, 140);
+  const trashPhase = usePanelPresence(trashDragging, 150);
   const trashProximityOf = useCallback((event: DragEvent): TrashProximity => {
     const rect = trashZoneRef.current?.getBoundingClientRect();
     const point = clientPointOf(event);

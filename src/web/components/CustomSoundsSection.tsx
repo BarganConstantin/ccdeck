@@ -102,7 +102,7 @@ export default function CustomSoundsSection({
     // a section whose tones above are rows.
     <SettingsGroup
       id="sm-custom-title"
-      title={t("settings.sounds.custom.title")}
+      title={t("settings.sounds.custom.group")}
       note={t("settings.sounds.custom.note")}
       aside={<span className="settings-caption-count">{t("settings.sounds.custom.count", { count: customCount, max: MAX_CUSTOM_ASSETS })}</span>}
       className="sm-custom"

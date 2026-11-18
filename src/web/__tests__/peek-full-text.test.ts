@@ -49,9 +49,26 @@ describe("the hover cards' cut lines", () => {
   });
 
   it("carry their whole text on the canvas card's hover card", () => {
-    expect(peek).toContain('<span className="node-peek-name" title={a.label}>{a.label}</span>');
-    expect(peek).toContain('<p className="node-peek-title" title={naming.face}>{naming.face}</p>');
+    // CHANGED ON PURPOSE (owner's critique, 2026-11-11): a session is named by
+    // its title and its folder · task line, as on every other surface.
+    expect(peek).toContain('<span className="node-peek-name" title={name}>{name}</span>');
+    expect(peek).toContain('<p className="node-peek-title" title={line}>{line}</p>');
     expect(peek).toContain('<span className="node-peek-said" title={waitingLabel(a.waiting)}>');
+  });
+
+  it("says when a session started and its id's tail under the counts, never on the face", () => {
+    const started = peek.indexOf('{a.kind === "root" && <p className="node-peek-facts">{startedHover(a.startedAt, a.sessionId, peers, now)}</p>}');
+    expect(started).toBeGreaterThan(-1);
+    expect(started).toBeGreaterThan(peek.indexOf("{facts}"));
+    expect(started).toBeLessThan(peek.indexOf('className="node-peek-hint">{t("insights.peek.hint")}'));
+  });
+
+  it("cuts the id's tail against every session on the board, so it is as long as it takes", () => {
+    expect(peek).toContain('peers={a.kind === "root" ? peers() : []}');
+    const readers = readFileSync(fileURLToPath(new URL("../use-peek-readers.ts", import.meta.url)), "utf8");
+    expect(readers).toMatch(/const peekPeers = useCallback\(\(\) => \{[\s\S]*?if \(d\?\.kind === "root"\) ids\.push\(d\.sessionId\);[\s\S]*?\}, \[\]\);/);
+    const canvas = readFileSync(fileURLToPath(new URL("../components/CanvasMain.tsx", import.meta.url)), "utf8");
+    expect(canvas).toContain("peers={peekPeers}");
   });
 
   it("carry their whole text on Local network's card, with the route the line draws", () => {

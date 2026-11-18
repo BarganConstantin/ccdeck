@@ -79,3 +79,18 @@ export function sessionDisplay(
     tooltip: t || n || undefined,
   };
 }
+
+/**
+ * What a session is called where it is listed by name: the rail row, the top
+ * bar's waiting queue, Skill activity. The card's face, else the node's own
+ * label (its folder). One rule, so a session reads by one name everywhere
+ * (owner, 2026-11-10). Absent only for a node with no label and no folder.
+ */
+export function sessionListName(a: {
+  sessionName?: string | null;
+  sessionTitle?: string | null;
+  label?: string;
+  cwdBasename?: string;
+}): string | undefined {
+  return sessionDisplay(a.sessionName, a.sessionTitle).face ?? (a.label || a.cwdBasename || undefined);
+}

@@ -13,12 +13,17 @@
 // section says so instead of printing five zeroes (#399).
 import { useRef } from "react";
 import { currentLanguage, t, useT } from "../i18n";
+import { formatPercent } from "../i18n/format";
 import type { AgentNodeData, Provider } from "../types";
 import { fmtBytes } from "../byte-format";
 import { fmtCost } from "../pricing";
 import { effectiveContextWindow } from "../context-window";
+import { contextFill } from "../context-figure";
+import { fmtTokens } from "../token-format";
 import { agentCost } from "../usage-models";
+import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
+import PathText from "./PathText";
 
 /** Every line in this modal whose truth depends on which CLI the session is.
  *
@@ -76,27 +81,6 @@ function fmtN(n: number): string { return n.toLocaleString(currentLanguage()); }
 /** One decimal in the language's own separator: 12.0 reads "12,0" in German. */
 const fmt1 = (n: number): string => n.toLocaleString(currentLanguage(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
-/** Widest path the row can print. `.ctx-md-path` is 12px monospace inside a
- *  560px modal, sharing the row with the size column, so ~60 columns is what
- *  fits before CSS starts clipping. */
-const PATH_MAX_CHARS = 60;
-
-/** Cuts the head off an over-long path and marks the cut with a leading
- *  ellipsis, so the tail survives — every file in this list has the same name
- *  (CLAUDE.md for a Claude session, AGENTS.md for a Codex one), so the trailing
- *  directories are the only thing telling two rows apart. This
- *  used to be `direction: rtl` in styles.css, which got the left-side ellipsis
- *  by flipping the paragraph to RTL and, with it, moved the leading '/' of
- *  every POSIX path to the end of the line. Cutting at a separator keeps half a
- *  directory name off the screen; '\' counts as one because a Windows path
- *  reads C:\Users\… Exported for tests. */
-export function truncatePathStart(path: string, max = PATH_MAX_CHARS): string {
-  if (path.length <= max) return path;
-  const tail = path.slice(path.length - (max - 1)); // one column pays for the ellipsis
-  const sep = tail.search(/[/\\]/);
-  return "…" + (sep === -1 ? tail : tail.slice(sep));
-}
-
 interface Props {
   agent: AgentNodeData;
   onClose: () => void;
@@ -110,12 +94,42 @@ export default function ContextModal({ agent, onClose }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: closeRef });
   const scrimPress = useScrimDismiss(onClose);
+  const copy = contextCopy(agent.provider);
 
+  return (
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="ctx-modal" aria-label={t("insights.context.aria")}>
+        <header className="modal-head">
+          <div className="modal-tool-name">{t("insights.context.title", { label: agent.label })}</div>
+          <button type="button" ref={closeRef} className="glyph-btn ctx-modal-close" onClick={onClose} aria-label={t("insights.audit.closeEsc")} title={t("insights.audit.closeEsc")}>×</button>
+        </header>
+        <div className="modal-body ctx-modal-body">
+          <ContextView agent={agent} meta />
+        </div>
+        <footer className="modal-foot">
+          <button type="button" className="btn primary" onClick={onClose}>{t("shell.done")}</button>
+        </footer>
+    </Dialog>
+  );
+}
+
+// contextFill lives in context-figure.ts (no component behind it), and stays
+// importable from here for the callers that read it with the modal.
+export { contextFill };
+
+/** What the context breakdown says, without the dialog around it: the modal
+ *  wraps it in a header and a close, and the Inspector's Context tab sets it
+ *  under its own head. One body, so the two cannot drift apart. */
+export function ContextView({ agent, meta = false }: {
+  agent: AgentNodeData;
+  /** The modal's line under the meter: the percent and the token count. The
+   *  panel leaves it out, its head prints the figure, and says the kind of
+   *  number there instead. */
+  meta?: boolean;
+}) {
+  const t = useT();
   const ctx = agent.context;
   const usage = agent.usage;
-  const current = ctx?.currentContextTokens ?? 0;
-  const window = effectiveContextWindow(agent.contextWindow, agent.model);
-  const pct = Math.min(100, (current / window) * 100);
+  const { used: current, limit: window, pct } = contextFill(agent);
   // Per model, not at `agent.model` — this panel prints a cumulative token
   // count for the whole session, and a session that switched model has that
   // count spread over two rate cards (#686).
@@ -152,39 +166,48 @@ export default function ContextModal({ agent, onClose }: Props) {
   const copy = contextCopy(agent.provider);
 
   return (
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div ref={dialogRef} className="modal ctx-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t("insights.context.aria")}>
-        <header className="modal-head ctx-modal-head">
-          <div>
-            <div className="modal-tool-name">{t("insights.context.title", { label: agent.label })}</div>
-            <div className="ctx-modal-sub">{copy.subtitle}</div>
-          </div>
-          <button type="button" ref={closeRef} className="glyph-btn ctx-modal-close" onClick={onClose} aria-label={t("insights.audit.closeEsc")} title={t("insights.audit.closeEsc")}>×</button>
-        </header>
-
+    <div className="ctx-view">
+        {/* V4's first line: what kind of number the window figure is. The panel
+            leaves it for its head. */}
+        {meta && <p className="ctx-approx">{capitalFirst(copy.subtitle)}</p>}
         <section className="ctx-window-row">
+          {meta && (
+            <div className="ctx-window-top">
+              <span className="ctx-window-label">{capitalFirst(copy.windowScope)}</span>
+              <span className="ctx-window-pct">{Math.round(pct)}%</span>
+            </div>
+          )}
           {/* A progressbar needs a name of its own (4.1.2): the percentage
               beside it is a sibling, not a label, so without one a reader
               heard "progress bar, 42" with nothing to say what was 42. */}
           <div className="ctx-window-bar" role="progressbar" aria-label={t("insights.context.used")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}>
-            <div className="ctx-window-fill" style={{ transform: `scaleX(${Math.min(100, Math.max(0, pct)) / 100})` }} />
+            <div className="ctx-window-fill" style={{ transform: `scaleX(${Math.min(100, Math.max(0, pct)) / 100})` }} data-level={pct >= 90 ? "full" : pct >= 70 ? "high" : undefined} />
           </div>
-          <div className="ctx-window-meta">
-            <span className="ctx-window-pct">{fmt1(pct)}%</span>
-            <span>{t("insights.context.tok", { current: fmtN(current), window: fmtN(window), scope: copy.windowScope })}</span>
-          </div>
+          {/* The panel's head already prints the figure, so under the meter it
+              says only what kind of number it is. The modal keeps the count
+              here, in the deck's compact figures, with the exact ones on a title. */}
+          {meta ? (
+            <div className="ctx-window-meta" title={t("insights.context.tok", { current: fmtN(current), window: fmtN(window), scope: copy.windowScope })}>
+              <span>{t("insights.context.tokShort", { current: fmtTokens(current), window: fmtTokens(window) })}</span>
+            </div>
+          ) : (
+            <p className="ctx-window-note">{copy.subtitle}</p>
+          )}
         </section>
 
+        <section>
         <h3 className="ctx-section-title">{t("insights.context.cumulative")}</h3>
         <div className="ctx-grid">
-          <Row label={t("insights.context.inputTokens")} val={fmtN(usage.inputTokens)} />
-          <Row label={t("insights.context.outputTokens")} val={fmtN(usage.outputTokens)} />
-          <Row label={t("insights.usage.cacheReads")} val={fmtN(usage.cacheReadTokens)} />
-          <Row label={t("insights.context.cacheWrites")} val={fmtN(usage.cacheCreateTokens)} />
-          <Row label={t("insights.context.total")} val={fmtN(cumulative)} />
-          <Row label={t("insights.context.cost")} val={fmtCost(cost.total)} accent />
+          <Row meta={meta} label={t("insights.context.inputTokens")}        n={usage.inputTokens} />
+          <Row meta={meta} label={t("insights.context.outputTokens")}       n={usage.outputTokens} />
+          <Row meta={meta} label={t("insights.context.cacheReads")} n={usage.cacheReadTokens} />
+          <Row meta={meta} label={t("insights.context.cacheWrites")}        n={usage.cacheCreateTokens} />
+          <Row meta={meta} label={t("insights.context.total")}    n={cumulative} />
+          <Row meta={meta} label={t("insights.context.cost")}      val={fmtCost(cost.total)} />
         </div>
+        </section>
 
+        <section>
         <h3 className="ctx-section-title">{t("insights.context.composition")}</h3>
         {/* Five counts, or the reason there are none. On Claude they come from a
             regex scan of a transcript the server has read from byte zero. Codex
@@ -204,16 +227,18 @@ export default function ContextModal({ agent, onClose }: Props) {
             occupied. */}
         {copy.compositionCounted ? (
           <div className="ctx-grid">
-            <Row label={t("insights.context.userMsgs")} val={fmtN(ctx?.msgsUser ?? 0)} />
-            <Row label={t("insights.context.assistantMsgs")} val={fmtN(ctx?.msgsAssistant ?? 0)} />
-            <Row label={t("insights.context.toolUses")} val={fmtN(ctx?.toolUses ?? 0)} />
-            <Row label={t("insights.context.toolResults")} val={fmtN(ctx?.toolResults ?? 0)} />
-            <Row label={t("insights.context.reminders")} val={fmtN(ctx?.systemReminders ?? 0)} />
+            <Row meta={meta} label={t("insights.context.userMsgs")}       val={fmtN(ctx?.msgsUser ?? 0)} />
+            <Row meta={meta} label={t("insights.context.assistantMsgs")}  val={fmtN(ctx?.msgsAssistant ?? 0)} />
+            <Row meta={meta} label={t("insights.context.toolUses")}           val={fmtN(ctx?.toolUses ?? 0)} />
+            <Row meta={meta} label={t("insights.context.toolResults")}        val={fmtN(ctx?.toolResults ?? 0)} />
+            <Row meta={meta} label={t("insights.context.reminders")}    val={fmtN(ctx?.systemReminders ?? 0)} />
           </div>
         ) : (
           <div className="ctx-empty">{copy.compositionUncounted}</div>
         )}
+        </section>
 
+        <section>
         <h3 className="ctx-section-title">{copy.memoryHeading}</h3>
         {(ctx?.memoryFiles?.length ?? 0) === 0 ? (
           <div className="ctx-empty">{copy.memoryEmpty}</div>
@@ -221,27 +246,45 @@ export default function ContextModal({ agent, onClose }: Props) {
           <ul className="ctx-md-list">
             {ctx!.memoryFiles.map(f => (
               <li key={f.path}>
-                <span className="ctx-md-path" title={f.path}>{truncatePathStart(f.path)}</span>
+                {/* Every file here has one name (CLAUDE.md, or AGENTS.md for Codex),
+                    so the folder above it is kept whole too: that is what tells two
+                    rows apart. */}
+                <PathText className="ctx-md-path" path={f.path} cwd={agent.cwd} keep={2} />
                 <span className="ctx-md-size">{fmtBytes(f.bytes)}</span>
               </li>
             ))}
           </ul>
         )}
-      </div>
+        </section>
     </div>
   );
 }
 
-function Row({ label, val, accent }: { label: string; val: string; accent?: boolean }) {
+/** A row of the breakdown. In the modal (V4) the label is lower-case in English
+ *  and a token count is compact ("12.4k") with the exact count on its title; the
+ *  Inspector's tab keeps its full numbers. */
+function Row({ label, val, n, meta = false }: { label: string; val?: string; n?: number; meta?: boolean }) {
+  const shown = n !== undefined ? (meta ? fmtTokens(n) : fmtN(n)) : val;
   return (
-    <div className={`ctx-row${accent ? " accent" : ""}`}>
-      <span className="ctx-row-label">{label}</span>
-      <span className="ctx-row-val">{val}</span>
+    <div className="ctx-row">
+      <span className="ctx-row-label">{meta ? lowerEnglish(label) : label}</span>
+      <span className="ctx-row-val" title={meta && n !== undefined ? fmtN(n) : undefined}>{shown}</span>
     </div>
   );
 }
 
-/** Compact donut indicator — used on the root agent's node header. */
+/** V4 writes the rows' labels in lower case; only English, where that is how a
+ *  label is written (German nouns keep their capital). */
+function lowerEnglish(label: string): string {
+  return currentLanguage().startsWith("en") ? label.charAt(0).toLowerCase() + label.slice(1) : label;
+}
+function capitalFirst(text: string): string {
+  return text.charAt(0).toLocaleUpperCase(currentLanguage()) + text.slice(1);
+}
+
+/** Compact ring and its percent, "◔ 17%" — on the root agent's card foot,
+ *  beside the token figure. It was in the head beside the state mark, where
+ *  two circles meant two things; it says its number in text now as well. */
 interface DonutProps {
   currentContextTokens: number;
   modelId?: string;
@@ -250,18 +293,10 @@ interface DonutProps {
   size?: number;
   onClick?: () => void;
 }
-export function ContextDonut({ currentContextTokens, modelId, contextWindow, size = 26, onClick }: DonutProps) {
+export function ContextDonut({ currentContextTokens, modelId, contextWindow, size = 14, onClick }: DonutProps) {
   const t = useT();
   const window = effectiveContextWindow(contextWindow, modelId);
   const pct = Math.min(1, currentContextTokens / window);
-  const r = size / 2 - 3;
-  const c = size / 2;
-  const circ = 2 * Math.PI * r;
-  const dash = circ * pct;
-  // Color shifts from accent → warning as we close on the ceiling. The middle
-  // step is --warn: it was --inflight, the one hue that means "running right
-  // now", and a window filling up is a level, not something running (#1649).
-  const stroke = pct > 0.9 ? "var(--err)" : pct > 0.7 ? "var(--warn)" : "var(--accent)";
   return (
     <button
       type="button"
@@ -274,7 +309,7 @@ export function ContextDonut({ currentContextTokens, modelId, contextWindow, siz
       onClick={e => { e.stopPropagation(); onClick?.(); }}
       title={t("insights.context.donutTitle", { current: currentContextTokens.toLocaleString(currentLanguage()), window: window.toLocaleString(currentLanguage()), pct: fmt1(pct * 100) })}
       /* THE NUMBER, not only the verb. `aria-label` on a button overrides its
-         contents, so the <text> percentage inside the svg was never read, and
+         contents, so the percentage the svg used to print was never read, and
          `title` is not consulted once a label is present — leaving a screen
          reader with "Show context breakdown, button" on every root card and no
          way to tell a session at 12% from one at 94%, including the amber and
@@ -283,26 +318,46 @@ export function ContextDonut({ currentContextTokens, modelId, contextWindow, siz
          aria-valuenow; this is the surface that was silent. */
       aria-label={t("insights.context.donutAria", { pct: Math.round(pct * 100), window: window.toLocaleString(currentLanguage()) })}
     >
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
-        <circle cx={c} cy={c} r={r} stroke="var(--line)" strokeWidth="2.5" fill="none" />
-        <circle
-          cx={c} cy={c} r={r}
-          stroke={stroke} strokeWidth="2.5" fill="none"
-          strokeDasharray={`${dash} ${circ - dash}`}
-          strokeDashoffset={circ / 4}
-          strokeLinecap="round"
-          // Named here, valued in styles.css. The literal `stroke-dasharray
-          // 400ms ease` this used to hold was an inline style, which outranks
-          // every selector, so no `prefers-reduced-motion` rule could reach it
-          // (#357) and the arc swept around the circle on every turn however
-          // the reader had set their OS. `--ctx-arc-transition` becomes `none`
-          // under that preference, and the arc simply is its new length.
-          style={{ transition: "var(--ctx-arc-transition)" }}
-        />
-        <text x={c} y={c + 3} textAnchor="middle" fontSize="8" fill="var(--text)" fontWeight="600">
-          {Math.round(pct * 100)}
-        </text>
-      </svg>
+      <ContextRing fill={pct} size={size} />
+      <span className="ctx-donut-pct">{formatPercent(Math.round(pct * 100))}</span>
     </button>
+  );
+}
+
+/** The donut's ring alone, `fill` of the way round (0 to 1). The pane's header
+ *  draws it beside its percent (terminal/StageHeader.tsx), where there is no
+ *  breakdown to open and so no button; one drawing, so the two read alike. */
+export function ContextRing({ fill, size = 14 }: { fill: number; size?: number }) {
+  const pct = Math.min(1, Math.max(0, fill));
+  // The foot's 14px icon box: a 2px ring 12 across, 8 clear inside.
+  const r = size / 2 - 2;
+  const c = size / 2;
+  const circ = 2 * Math.PI * r;
+  const dash = circ * pct;
+  // Color shifts from accent → warning as we close on the ceiling. The middle
+  // step is --warn: it was --inflight, the one hue that means "running right
+  // now", and a window filling up is a level, not something running (#1649).
+  const stroke = pct > 0.9 ? "var(--err)" : pct > 0.7 ? "var(--warn)" : "var(--accent)";
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+      <circle cx={c} cy={c} r={r} stroke="var(--line)" strokeWidth="2" fill="none" />
+      <circle
+        cx={c} cy={c} r={r}
+        stroke={stroke} strokeWidth="2" fill="none"
+        strokeDasharray={`${dash} ${circ - dash}`}
+        strokeDashoffset={circ / 4}
+        strokeLinecap="round"
+        // Named here, valued in styles.css. The literal `stroke-dasharray
+        // 400ms ease` this used to hold was an inline style, which outranks
+        // every selector, so no `prefers-reduced-motion` rule could reach it
+        // (#357) and the arc swept around the circle on every turn however
+        // the reader had set their OS. `--ctx-arc-transition` becomes `none`
+        // under that preference, and the arc simply is its new length.
+        style={{ transition: "var(--ctx-arc-transition)" }}
+      />
+      {/* NO FIGURE INSIDE (owner, 2026-11-10). It was 8px, under the deck's
+          11px floor, and 11px does not fit. The figure is beside the ring,
+          in the foot's own type. */}
+    </svg>
   );
 }

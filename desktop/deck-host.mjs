@@ -52,6 +52,9 @@ export const SHELL_VARS = Object.freeze([
   "AGENTS_DECK_NO_FRESHEN", "AGENTS_DECK_NO_NOTIFY", "AGENTS_DECK_NO_LAN", "AGENTS_DECK_NO_REPORTS",
   "AGENTS_DECK_CSWAP", "AGENTS_DECK_CLAUDE", "AGENTS_DECK_CCUSAGE", "CLAUDE_SWAP_BACKUP", "AGENTS_DECK_LHM_PORT",
   "AGENTS_DECK_SKILL_HOOK", "AGENTS_DECK_NO_RADAR", "AGENTS_DECK_NO_CODEX_LIVE",
+  // Not in README's table while the account it vetoes is hidden — see
+  // login-service.mjs SETTING_VARS, which this is held to.
+  "AGENTS_DECK_NO_ACCOUNT",
 ]);
 
 const MARK = "__CCDECK_ENV__";
@@ -147,7 +150,7 @@ export function launcherScript(app, platform = process.platform) {
 /** Write the launcher next to the deck's hook, and return its path. */
 export function writeLauncher(app, { env = process.env, platform = process.platform } = {}) {
   const dir = join(claudeDir(env), "agent-dag");
-  mkdirSync(dir, { recursive: true });
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
   const path = join(dir, platform === "win32" ? "ccdeck-node.cmd" : "ccdeck-node");
   writeFileSync(path, launcherScript(app, platform));
   if (platform !== "win32") chmodSync(path, 0o755);

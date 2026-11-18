@@ -45,6 +45,7 @@ import { join } from "node:path";
 import { applyEvent, initialState, type GraphState } from "../reducer";
 import type { HookEnvelope, HookPayload } from "../types";
 import { steppedClock } from "./clock-step";
+import { seedPanelOff } from "./seed-panel-off";
 
 // The home the server thinks it has, the config dir the discovery override
 // points at, and the Codex home it tails — all temporary, all set before the
@@ -86,6 +87,9 @@ writeFileSync(join(ALTERNATE_CODEX, "AGENTS.md"), "Alternate home instructions")
 // The AGENTS.md scan is throttled per session on the wall clock, so the second
 // case steps `Date.now` past it rather than sleeping 4.2s (#994).
 const step = steppedClock();
+
+// The panel is on by default; these decks are about something else, so the switch is stored off.
+seedPanelOff();
 
 // @ts-expect-error — .mjs server module, no types
 const { startServer, scanCodexNow, eventsSince, challengeProof } = await import("../../server/index.mjs");

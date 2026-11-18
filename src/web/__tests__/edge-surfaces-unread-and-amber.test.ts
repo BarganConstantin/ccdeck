@@ -59,7 +59,9 @@ const rules = (css: string) => [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([
 describe("Browser watch's unread count on the right stripe", () => {
   it("is drawn beside the icon as .rail-badge, and only when something is unread", () => {
     const button = buttonNamed(rightStripe(2), "Browser watch");
-    expect(button).toMatch(/<\/svg><span class="rail-badge" aria-hidden="true">2<\/span>$/);
+    // CHANGED ON PURPOSE (stripe words): a new profile's stripe shows the word
+    // between the glyph and the count, which ends the row.
+    expect(button).toMatch(/<\/svg><span class="rail-word">Browser watch<\/span><span class="rail-badge" aria-hidden="true">2<\/span>$/);
     expect(buttonNamed(rightStripe(0), "Browser watch")).not.toContain("rail-badge");
   });
 
@@ -96,14 +98,14 @@ describe("amber is the waiting count's and nothing else's", () => {
     expect(edges).not.toMatch(/--warn/);
   });
 
-  it("is nowhere in the queue of names beside the count", () => {
-    const queue = rules(controls).filter(r => /\.(?:wait-names|wait-list|wait-entry|we-name|we-meta|wait-more|wait-ruler)\b/.test(r.sel));
+  it("is nowhere in the queue popover under the count", () => {
+    const queue = rules(controls).filter(r => /\.(?:queue-pop|queue-row|we-name|we-wait|we-what)\b/.test(r.sel));
     expect(queue.length, "the queue's rules are gone from topbar-controls.css").toBeGreaterThan(5);
     for (const { sel, decls } of queue) expect(decls, sel).not.toMatch(/--warn/);
   });
 
   it("is on the count itself, which keeps it", () => {
-    const count = rules(controls).find(r => r.sel === ".topbar .waiting-stat");
+    const count = rules(controls).find(r => r.sel === ".topbar .count-pill.waiting-stat");
     expect(count!.decls).toMatch(/color: var\(--warn\);/);
   });
 });

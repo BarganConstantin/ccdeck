@@ -30,6 +30,8 @@ import { presentsDeckToken } from "./request-gates.mjs";
 // engine's card and /api/version give one answer — see running-version.mjs.
 import { RUNNING_VERSION } from "./running-version.mjs";
 import { terminalCliState, updateTerminalCli } from "./terminal-cli-update.mjs";
+// How many terminal panels have a socket open on this deck — see deckPresence.
+import { openTerminalCount } from "./terminal-socket.mjs";
 
 // Resolved the way pinned-build.mjs resolves it, from a file in the same
 // directory, so every lazy import below is the URL the pin has already evaluated.
@@ -359,14 +361,46 @@ async function handleStop(req, res) {
   send(res, 200, { ok: true, pid: process.pid });
 }
 
+/**
+ * Presence as the away-update reads it: the tabs' own claims (presence.mjs,
+ * fed by POST /api/presence), and every terminal socket open on this deck
+ * counted as one more tab that is being looked at.
+ *
+ * A terminal panel is somebody at an agent's keyboard. A tab claims presence
+ * only while it is visible AND holds focus (src/web/presence.ts), so a person
+ * reading a running agent in the panel while their keyboard is in another
+ * window, or one whose tab sits behind the window they are typing a reply in,
+ * is not "looking" by that rule — and a restart then cuts their terminal: the
+ * socket closes with `server-shutdown`, the tickets die with the process, and
+ * whatever they type before the panel has reconnected goes nowhere. The tmux
+ * session survives all of it; the person's attention is what the away-update
+ * promises not to interrupt.
+ *
+ * The cost is that a panel left open holds the away-update off until it is
+ * closed. That is bounded: four sockets at most (MAX_TERMINALS); a tab that
+ * is closed takes its socket with it at once, and one that loses its network
+ * is dropped after two unanswered pings, about a minute (ws-frames.mjs) —
+ * which is when this stops counting it.
+ *
+ * `report` is the tabs' own; `openTerminals` answers how many sockets are
+ * open (terminal-socket's openTerminalCount).
+ */
+export function deckPresence(tabs, openTerminals) {
+  return {
+    report: (tab, looking, now) => tabs.report(tab, looking, now),
+    looking: (now) => tabs.looking(now) || openTerminals() > 0,
+  };
+}
+
 // The two facts the away-update waits on (awayUpdateTick): whether a turn is
-// running, fed from pushEvent, and whether a tab is being looked at, fed from
-// POST /api/presence. They sat at the top of index.mjs while pushEvent was
-// that file's, because pushEvent can run before the module holding it has
-// finished evaluating; made here, they exist before event-pipeline.mjs's own
-// body runs at all.
+// running, fed from pushEvent, and whether anybody is at the deck — a tab
+// being looked at, fed from POST /api/presence, or a terminal panel open on
+// it. They sat at the top of index.mjs while pushEvent was that file's,
+// because pushEvent can run before the module holding it has finished
+// evaluating; made here, they exist before event-pipeline.mjs's own body runs
+// at all.
 const activity = createActivity();
-const presence = createPresence();
+const presence = deckPresence(createPresence(), openTerminalCount);
 
 // ── updating while nobody is looking ────────────────────────────────────────
 //
@@ -478,6 +512,35 @@ async function handlePresence(req, res) {
   if (!body || typeof body !== "object") return send(res, 400, { ok: false, reason: "bad_request" });
   const ok = presence.report(body.tab, body.looking === true, Date.now());
   return send(res, ok ? 200 : 400, { ok });
+}
+
+/**
+ * What has to happen on the way out that the launcher cannot know about: the
+ * account's last status frame, so the console says "ccdeck stopped" at once
+ * rather than after 90 seconds of silence (account-status.mjs sendStopping).
+ * Registered by whatever needs it, while it needs it — nothing registers one
+ * on a deck with the account off, and then `beforeShutdown` is free.
+ */
+const _beforeShutdown = new Set();
+
+/** Run `fn` on the way out; answers the unregister. */
+export function onBeforeShutdown(fn) {
+  _beforeShutdown.add(fn);
+  return () => _beforeShutdown.delete(fn);
+}
+
+/** The registered steps, all at once, bounded: bin/deck.js's shutdown awaits
+ *  this on every way out — a signal, `ccdeck --stop`, a restart into an update
+ *  — and never waits past `ms`, nor on a step that throws. */
+export async function beforeShutdown(ms = 1_500) {
+  if (_beforeShutdown.size === 0) return;
+  const steps = [..._beforeShutdown].map(fn => Promise.resolve().then(fn).catch(() => {}));
+  let timer;
+  await Promise.race([
+    Promise.all(steps),
+    new Promise(r => { timer = setTimeout(r, ms); timer.unref?.(); }),
+  ]);
+  clearTimeout(timer);
 }
 
 // What index.mjs calls besides the two exported above. Listed rather than

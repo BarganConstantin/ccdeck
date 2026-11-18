@@ -1,0 +1,522 @@
+/* ---------------- Workspace ----------------
+   V4's second view of the same sessions: the Sessions rail, ONE pane, the
+   Inspector. Everything here is keyed on `.app[data-view="workspace"]`, which
+   App draws only while Workspace is on offer (the Command Panel is on, off a
+   phone), so with the flag off nothing below matches and the Board is the
+   sheet it was. After stage-shell.css and the panels' sheets in the list
+   (styles.css), so that a rule here wins a tie with theirs on source order.
+
+   THE COLUMNS ARE THE BOARD'S WITH THE DETAIL PANEL OPEN. The grid is the one
+   tokens.css draws, [left column] [the canvas's cell] [Inspector]: the rail is
+   the left column, the Inspector the detail column, and the pane is the stage
+   dock laid over the canvas's cell, all of it. The canvas stays mounted under
+   it, hidden, so its camera and its layout survive (use-stage.ts). The one
+   thing the grid is not told is a seventh template.
+
+   MOTION: Board to Workspace is a crossfade on Fast, by pointer, between two
+   views that are each laid out at full size before it starts (view-switch.ts
+   draws it with the browser's view transition); by key it is one frame
+   (input-modality.ts sets data-motion="instant" on the root). No clip, no
+   travel. Reduced motion keeps the fade: it moves nothing. */
+
+/* ── the switch, in the topbar ───────────────────────────────────────────── */
+/* The Inspector's tabs pill (detail-panel.css), 24px buttons: a --bg-soft
+   track, the chosen view a --panel chip on it. 28 tall in all: V4's Figma
+   draws the 1px stroke INSIDE its 2px padding, so the box is
+   border-box with 1px of padding inside the 1px edge, not 2px of padding
+   outside it — which measured 30. The gap to Search is the end group's 8
+   (topbar.css), not a margin of its own. */
+.view-switch {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+  padding: 1px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-ctl);
+}
+.view-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 500;
+  transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
+}
+.view-opt .glyph { width: 14px; height: 14px; }
+/* The chosen segment is flat, --panel on the track (V4's Segmented): only
+   floating things cast a shadow. */
+.view-opt[aria-pressed="true"] {
+  background: var(--panel);
+  color: var(--text);
+}
+@media (hover: hover) and (pointer: fine) {
+.view-opt:hover:not([aria-pressed="true"]) { color: var(--text); }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* The chip jumps; only the colour fades, fast. */
+  .view-opt { transition: color var(--dur-fast) var(--ease); }
+}
+
+/* ── the cell: the pane fills it ──────────────────────────────────────────── */
+.stage-dock[data-fill] { justify-self: stretch; width: auto; }
+.stage-dock[data-fill] .stage-in { width: 100%; }
+
+/* The board under the pane is out of sight and out of reach for the whole of
+   Workspace, not only once the stage is open: it is mounted, never shown, and
+   what it draws (its minimap, its hero, its filter) is the Board's. */
+.app[data-view="workspace"] .canvas-wrap > * { visibility: hidden; }
+
+/* Usage and Machine in Workspace are a column of their own or float over the
+   view, so the terminal stays clear: stage-shell.css hides them under a Board
+   stage, which covers the cell they sit in. This stage does not (it ends at
+   the column's edge), so the hide is lifted. Same specificity as that rule,
+   later. */
+.app[data-view="workspace"]:has(.stage-dock) :is(.usage-panel, .sysdetail) { visibility: visible; }
+
+/* THE SIDE COLUMN (side-column.ts, SideColumn.tsx). In Workspace, Usage and
+   This machine dock in one column between the pane's cell and the Inspector:
+   a grid track of its own, so the pane makes room and its terminal reflows,
+   and nothing is drawn over the Inspector, the pane's header or its answer
+   row. The track is `auto` and the column carries its width (inline, from its
+   state: 320 to start, 280 to 420 by its edge). From under the top bar, or a
+   strip banner, to the status bar, as the Inspector is.
+   On the Board, and in Workspace with nothing docked, the element is not a
+   box at all (`display: contents`, panel-place.css): the panels inside are
+   the fixed panels they always were, and a panel popped out of the column
+   floats the same way. */
+.app[data-view="workspace"] .ws-side[data-on] {
+  display: flex;
+  flex-direction: column;
+  grid-column: 2;
+  grid-row: 2 / -1;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+}
+/* Beside the session list the pane's cell is the second track. */
+.app[data-view="workspace"]:has(.left-column) .ws-side[data-on] { grid-column: 3; }
+/* A strip banner takes the row under the top bar (rating.css), as for the
+   Inspector. */
+.app[data-view="workspace"]:has(.banner-mark, .rating-banner) .ws-side[data-on] { grid-row: 3 / -1; }
+
+/* The tracks: the pane's cell gives the column its width. `body` in front,
+   as the narrower windows' templates below, which these outrank. */
+body .app[data-view="workspace"][data-side]:not([data-zoom]) { grid-template-columns: minmax(0, 1fr) auto; }
+body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column) { grid-template-columns: auto minmax(0, 1fr) auto; }
+@media (min-width: 1320px) {
+  body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.detail) { grid-template-columns: minmax(0, 1fr) auto var(--inspector-w); }
+  body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column):has(.detail) { grid-template-columns: auto minmax(0, 1fr) auto var(--inspector-w); }
+  /* The Inspector stays the last track, after the column. */
+  .app[data-view="workspace"][data-side]:not([data-zoom]) .detail { grid-column: -2 / -1; }
+}
+
+/* A PART OF THE COLUMN: the panel's own box (fixed, a border, a shadow, its
+   slot in the rail) gives way to the column's. Each takes the height it is
+   given and scrolls under its own header, which sticks (usage-panel.css,
+   machine-panel.css). Both open share the height at the split, each at least
+   120; one alone has it all. */
+.app[data-view="workspace"] .ws-side[data-on] > :is(.usage-panel, .sysdetail)[data-dock="docked"] {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  width: auto;
+  min-height: 0;
+  max-height: none;
+  flex: 1 1 0px;
+  overflow-y: auto;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.app[data-view="workspace"] .ws-side[data-split] > .usage-panel[data-dock="docked"] {
+  flex-grow: var(--split);
+  min-height: 120px;
+}
+.app[data-view="workspace"] .ws-side[data-split] > .sysdetail[data-dock="docked"] {
+  flex-grow: calc(1 - var(--split));
+  min-height: 120px;
+}
+/* Folded: its header alone, with the one-line summary; the other part takes
+   the height. */
+.app[data-view="workspace"] .ws-side[data-on] > [data-dock="docked"][data-fold] {
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.app[data-view="workspace"] .ws-side > [data-fold] > :is(.up-body, .sd-body) { display: none; }
+
+/* The split: 8 high between the parts, a short grip in its middle. */
+.app[data-view="workspace"] .ws-split {
+  flex: 0 0 8px;
+  height: 8px;
+  position: relative;
+  background: var(--panel);
+  border-block: 1px solid var(--line);
+  cursor: row-resize;
+  touch-action: none;
+}
+.app[data-view="workspace"] .ws-split::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 24px;
+  height: 2px;
+  margin: -1px 0 0 -12px;
+  border-radius: var(--r-ctl);
+  background: var(--line);
+}
+/* The edge: the column's first 6 px, inside it, so nothing of the pane is
+   under it. Over the parts' sticky headers. */
+.app[data-view="workspace"] .ws-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 6px;
+  z-index: 3;
+  cursor: col-resize;
+  touch-action: none;
+}
+.app[data-view="workspace"] .ws-split:focus-visible::after,
+.app[data-view="workspace"] .ws-side[data-resizing] > .ws-split::after { background: var(--muted); }
+.app[data-view="workspace"] .ws-side[data-resizing] > .ws-edge { box-shadow: inset 2px 0 0 var(--accent); }
+@media (hover: hover) and (pointer: fine) {
+  .app[data-view="workspace"] .ws-split:hover::after { background: var(--muted); }
+  .app[data-view="workspace"] .ws-edge:hover { box-shadow: inset 2px 0 0 var(--accent); }
+}
+.app[data-view="workspace"] .ws-split:focus-visible,
+.app[data-view="workspace"] .ws-edge:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
+.app[data-view="workspace"] .ws-side[data-resizing] { user-select: none; }
+
+/* A part's header in the column: the title, the summary while folded, then
+   Fold, Pop out (or Dock, popped out) and the close, at the end of the row. */
+.app[data-view="workspace"] .side-sum {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.app[data-view="workspace"] .up-header:has(> .side-sum) h2 { flex: 0 0 auto; }
+.app[data-view="workspace"] .sd-head > .side-btn:first-of-type { margin-left: auto; }
+.app[data-view="workspace"] .sd-head > .side-btn ~ .sd-close { margin-left: 0; }
+
+/* POPPED OUT, a part floats over the view as on the Board, where it was put
+   (panel-place.css). One with no place yet starts below the pane's header,
+   never over a pane button (--rating-h is the height of whatever strip banner
+   is up, and 0 with none). */
+.app[data-view="workspace"] {
+  --ws-head: calc(var(--topbar-h) + var(--rating-h, 0px) + var(--pane-head-h));
+}
+.app[data-view="workspace"] :is(.usage-panel, .sysdetail)[data-dock="float"]:not([data-place]) {
+  top: calc(var(--ws-head) + 8px);
+  max-height: calc(100vh - var(--ws-head) - 16px - var(--status-room, 0px));
+}
+
+/* The pane's header, empty: its title is a description, not a session. */
+.ts-stage[data-fill][data-empty] .ts-name { color: var(--muted); }
+/* Zoom is a state: pressed is filled, as the kit's IconButton / Active. The
+   ⌨ beside it keeps the accent it has (terminal-stage.css). */
+.ts-tools .glyph-btn[data-zoom][aria-pressed="true"] { background: var(--selected); color: var(--text); }
+
+/* ✕ on a pane (V4's motion spec): the header stays, the terminal host goes out
+   in 70 (terminal-stage.css), and the empty pane comes in on Fast. A
+   transition from @starting-style, so a pane emptied twice does it twice. By a
+   key it is at once; reduced motion keeps the fade, which moves nothing. */
+.ts-stage[data-fill][data-empty] .ts-card {
+  transition: opacity var(--dur-fast) var(--ease);
+}
+@starting-style {
+  .ts-stage[data-fill][data-empty] .ts-card { opacity: 0; }
+}
+:root[data-motion="instant"] .ts-stage[data-fill][data-empty] .ts-card { transition: none; }
+
+/* The empty pane's words (Figma, "Empty workspace"). Someone waiting is one
+   row: the waiting glyph, 8 before who waits, then how long, 12 after. */
+.ts-ws-empty { gap: 8px; }
+.ts-ws-title { margin: 0; font-size: 16px; font-weight: 600; line-height: 20px; color: var(--text); }
+.ts-ws-head { display: flex; align-items: baseline; gap: 8px; }
+.ts-ws-head > .ts-glyph { align-self: center; }
+.ts-ws-wait { margin-left: 4px; font: 500 13px/20px var(--font-sans); font-variant-numeric: tabular-nums; color: var(--warn); }
+.ts-ws-ask { margin: 0; font-size: 12px; line-height: 16px; color: var(--muted); }
+/* The empty pane's quiet line, under New session: what comes after the first
+   pane, in the ask's muted 12px, set 8 below the button. On an 18 line, not
+   16: its keys are the kit's Kbd, 16 tall, and a line that wraps keeps an
+   even step around them. */
+.ts-ws-more { margin: 0; padding-top: 8px; font-size: 12px; line-height: 18px; color: var(--muted); }
+/* The command in the ask's own tone, as V4 sets it: mono on the 20 line. */
+.ts-ws-ask code { font: 400 13px/20px var(--font-mono); color: var(--muted); }
+/* One button, the kit's .btn (its edge and states are the swept ones):
+   "Open <name>", then its key chip, as V4 draws it: on the panel's fill with
+   the label in --text, the kit's height kept. Hover is the kit's own. */
+.btn.ts-ws-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 0 4px 0 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+.ts-ws-open .kbd { background: var(--bg); }
+
+/* The Inspector with no session in focus: one centred line, the hint line's
+   muted ink (Inspector.tsx, EmptyInspector). */
+.insp-none { align-items: center; justify-content: center; text-align: center; gap: 4px; padding: 8px 12px 12px; }
+/* The empty Inspector's tabs are chips, not buttons: the chosen one is
+   marked as the Inspector's chosen tab is (detail-panel.css), with no shadow. */
+.insp-tab[aria-current="true"] {
+  background: var(--panel);
+  color: var(--text);
+  font-weight: 600;
+}
+.insp-tab[aria-current="true"] .glyph { color: var(--text); }
+
+/* ── the view switch ──────────────────────────────────────────────────────── */
+/* THE BOARD'S CANVAS IS HELD AT ITS BOX while Workspace is up (view-switch.ts
+   sets data-pin and the box on the root): it neither narrows to the cell the
+   pane has nor re-fits when the view comes back, and it keeps its camera. It is
+   out of sight and out of reach, as it was. The pane measures the probe in the
+   cell instead (use-stage.ts). */
+.ws-cell {
+  grid-column: 1;
+  grid-row: 3;
+  min-width: 0;
+  min-height: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.app:has(.session-list) .ws-cell,
+.app:has(.accounts-panel) .ws-cell { grid-column: 2; }
+/* The shared column owns this edge, including split terminals whose stages
+   have no left border. Keep exactly one stroke beside a single stage too. */
+@media (min-width: 641px) {
+  .app[data-view="workspace"]:has(.left-column) .stage-dock .ts-stage { border-left: 0; }
+}
+.app[data-view="workspace"][data-pin] .canvas-wrap {
+  position: fixed;
+  left: var(--board-l);
+  top: var(--board-t);
+  width: var(--board-w);
+  height: var(--board-h);
+  visibility: hidden;
+  pointer-events: none;
+}
+/* The crossfade is the browser's: the old view's picture under the new one,
+   fading in over it on Fast, on the deck's curve. Only while view-switch.ts
+   has the root marked. Reduced motion keeps it: it moves nothing. */
+:root[data-view-switch]::view-transition { pointer-events: none; }
+:root[data-view-switch]::view-transition-group(root) { animation-duration: var(--dur-fast); }
+:root[data-view-switch]::view-transition-old(root),
+:root[data-view-switch]::view-transition-new(root) {
+  animation-duration: var(--dur-fast);
+  animation-timing-function: var(--ease);
+}
+/* Nothing else moves across the switch: the new view is drawn in its final
+   state, so the left column is at its width, not easing to it, and a panel
+   that arrives is already there. */
+:root[data-view-switch] .app :is(.left-column, .left-column > *, .detail, .stage-dock, .stage-in, .usage-panel, .sysdetail, .ts-stage .ts-card) {
+  transition: none;
+  animation: none;
+}
+:root[data-view-switch] .app .ws-side { transition: none; }
+/* The stripes too: Workspace draws them as icons (stripe-words.ts), and the
+   Board's words come back at their width, not growing to it, so the canvas
+   is released into the box it was held at. */
+:root[data-view-switch] .app:has(> .edge-rail[data-words]) { transition: none; }
+
+/* The Inspector's Fold is drawn in the column too (V4's Figma). It folds the
+   Inspector alone (App.tsx): with no .detail the grid drops its track and the
+   pane takes the width; the list stays, which only Zoom folds. */
+
+/* ── NARROWER WINDOWS ─────────────────────────────────────────────────────── */
+/* Under 1320 the Inspector is today's detail sheet over the pane, opened by D
+   or the ribbon, instead of a column: the pane is kept above 80 columns
+   (use-view.ts / App: drawn only while a session is selected and the panel
+   open, as on the Board). Fold closes it again. */
+@media (max-width: 1319px) {
+  /* `body` in front of the grid rules: they are Workspace's, which the
+     narrow-window suites (narrow-overflow-1840) do not model as the Board's
+     `.app`, and it makes them outrank the Board's templates whatever the order. */
+  body .app[data-view="workspace"] { grid-template-columns: minmax(0, 1fr); }
+  body .app[data-view="workspace"]:has(.left-column) { grid-template-columns: auto minmax(0, 1fr); }
+  .app[data-view="workspace"] .detail {
+    position: fixed;
+    top: calc(var(--topbar-h) + var(--rating-h, 0px)); /* under the banner strip, so its dismiss stays reachable */
+    right: var(--edge-w); /* clear of the right stripe, whose Inspector door opens it */
+    bottom: var(--status-room);
+    width: min(var(--inspector-w), 100vw);
+    z-index: 20;
+  }
+}
+/* THE SHEET, 1100 TO 1319 (V4's Figma and motion spec): it starts folded, the
+   Inspector's door on the right stripe is what shows, and the sheet opens over
+   the pane's right 320 px, left of the stripe,
+   without a scrim; the pane keeps its width, so Term keeps its columns. It
+   comes in from the right edge on the unfold timing (Move) and leaves the same
+   way on the fold timing, on the panels' curve. Transitions, not keyframes, so
+   a reopen during the close turns around. App.tsx puts data-sheet on it:
+   "pre" is the first frame, off the edge. By a key, or with reduced motion, it
+   is at once: no travel. Zoom has its own rules (further down). */
+@media (min-width: 1100px) and (max-width: 1319px) {
+  .app[data-view="workspace"]:not([data-zoom]) .detail[data-sheet] {
+    box-shadow: var(--shadow-overlay);
+    transform: translateX(0);
+    transition:
+      transform var(--dur-stage-out) var(--ease-stage),
+      box-shadow var(--dur-stage-out) var(--ease-stage);
+  }
+  .app[data-view="workspace"]:not([data-zoom]) .detail[data-sheet="in"] {
+    transition:
+      transform var(--dur-move) var(--ease-stage),
+      box-shadow var(--dur-move) var(--ease-stage);
+  }
+  .app[data-view="workspace"]:not([data-zoom]) .detail:is([data-sheet="pre"], [data-sheet="out"]) {
+    /* Off the window's edge, past the stripe it stands clear of, so a sheet
+       leaving never rests over the Inspector's door. */
+    transform: translateX(calc(100% + var(--edge-w)));
+    box-shadow: none;
+  }
+  :root[data-motion="instant"] .app[data-view="workspace"]:not([data-zoom]) .detail[data-sheet] { transition: none; }
+}
+@media (min-width: 1100px) and (max-width: 1319px) and (prefers-reduced-motion: reduce) {
+  .app[data-view="workspace"]:not([data-zoom]) .detail[data-sheet],
+  .app[data-view="workspace"]:not([data-zoom]) .detail[data-sheet="in"] { transition: none; }
+  .app[data-view="workspace"]:not([data-zoom]) .detail:is([data-sheet="pre"], [data-sheet="out"]) { transform: none; }
+}
+/* There is no tab for a folded Inspector: its door is first on the right stripe
+   (edge-rails.css), so the rightmost pane header keeps its full width and no
+   control of it sits under anything. */
+
+/* Under 1100 the list is a sheet too, from the panel bar's Sessions door: the
+   pane is the one column. */
+@media (max-width: 1099px) {
+  body .app[data-view="workspace"],
+  body .app[data-view="workspace"]:has(.left-column) { grid-template-columns: minmax(0, 1fr); }
+  body .app[data-view="workspace"][data-side]:not([data-zoom]),
+  body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column) { grid-template-columns: minmax(0, 1fr) auto; }
+  .app[data-view="workspace"]:has(.left-column) .ws-side[data-on] { grid-column: 2; }
+  .app[data-view="workspace"] :is(.canvas-wrap, .ws-cell, .stage-dock, .banner-strip) { grid-column: 1; }
+  .app[data-view="workspace"] .left-column {
+    position: fixed;
+    top: calc(var(--topbar-h) + var(--rating-h, 0px)); /* under the banner strip, so its dismiss stays reachable */
+    bottom: var(--status-room);
+    left: var(--edge-w);
+    z-index: 21;
+    max-width: 100vw;
+    box-shadow: var(--shadow-2);
+  }
+}
+
+/* ── ZOOM folds the list and the Inspector ────────────────────────────────── */
+/* Last in the sheet, so it outranks the narrower windows' templates on source
+   order. Kept mounted (scroll, filter text and the tab survive), not drawn;
+   the panel bar, the top bar and the status bar stay. One track.
+
+   THE PANELS TAKE ONE PATH BOTH WAYS (V4's motion spec): fold 200, unfold Move,
+   both on the stage's curve, and Usage and Machine go with them. While Zoom is
+   on or moving they are overlays at the places the grid gave them, over a pane
+   that already has the whole cell (use-zoom-phase.ts holds data-zoom="unfold"
+   for the length of the slide in, and only then gives the grid its tracks
+   back), so the pane's box changes once and its terminal refits once. Nothing
+   scales: it is the panels that travel, the text never moves. Out of sight
+   they are visibility: hidden, after the slide, which is what display: none
+   was. A key is at once (input-modality.ts); reduced motion has no travel and
+   crossfades over --dur-xfade. */
+body .app[data-view="workspace"][data-zoom],
+body .app[data-view="workspace"][data-zoom]:has(.left-column) { grid-template-columns: minmax(0, 1fr); }
+.app[data-view="workspace"][data-zoom] :is(.canvas-wrap, .ws-cell, .stage-dock, .banner-strip) { grid-column: 1; }
+.app[data-view="workspace"][data-zoom] .left-column {
+  position: fixed;
+  top: calc(var(--topbar-h) + var(--rating-h, 0px));
+  bottom: var(--status-room, 0px);
+  left: var(--edge-w);
+  z-index: 21;
+}
+.app[data-view="workspace"][data-zoom] .detail {
+  position: fixed;
+  top: calc(var(--topbar-h) + var(--rating-h, 0px));
+  right: var(--edge-w);
+  bottom: var(--status-room, 0px);
+  width: min(var(--inspector-w), 100vw);
+  z-index: 20;
+}
+.app[data-view="workspace"][data-zoom] :is(.left-column, .detail, .usage-panel, .sysdetail) {
+  transition:
+    transform var(--dur-stage-out) var(--ease-stage),
+    opacity var(--dur-stage-out) var(--ease-stage),
+    visibility 0s var(--ease) var(--dur-stage-out);
+}
+.app[data-view="workspace"][data-zoom="unfold"] :is(.left-column, .detail, .usage-panel, .sysdetail) {
+  transition:
+    transform var(--dur-move) var(--ease-stage),
+    opacity var(--dur-move) var(--ease-stage),
+    visibility 0s var(--ease);
+}
+.app[data-view="workspace"][data-zoom="fold"] .left-column { transform: translateX(-100%); opacity: 0; visibility: hidden; }
+.app[data-view="workspace"][data-zoom="fold"] :is(.detail, .usage-panel, .sysdetail) { transform: translateX(100%); opacity: 0; visibility: hidden; }
+:root[data-motion="instant"] .app[data-view="workspace"][data-zoom] :is(.left-column, .detail, .usage-panel, .sysdetail) { transition: none; }
+
+/* The side column goes with them. Zoomed, it is an overlay at the place the
+   grid gave it, left of the Inspector's when that is a column too; its parts
+   slide by the rules above and the column under them fades on the same
+   timing. No transform on the column itself, so a part popped out of it is
+   still placed against the window. */
+.app[data-view="workspace"][data-zoom] .ws-side[data-on] {
+  position: fixed;
+  top: calc(var(--topbar-h) + var(--rating-h, 0px));
+  right: var(--edge-w);
+  bottom: var(--status-room, 0px);
+  z-index: 20;
+  transition:
+    opacity var(--dur-stage-out) var(--ease-stage),
+    visibility 0s var(--ease) var(--dur-stage-out);
+}
+@media (min-width: 1320px) {
+  .app[data-view="workspace"][data-zoom]:has(.detail) .ws-side[data-on] { right: calc(var(--edge-w) + var(--inspector-w)); }
+}
+.app[data-view="workspace"][data-zoom="unfold"] .ws-side[data-on] {
+  transition:
+    opacity var(--dur-move) var(--ease-stage),
+    visibility 0s var(--ease);
+}
+.app[data-view="workspace"][data-zoom="fold"] .ws-side[data-on] { opacity: 0; visibility: hidden; }
+:root[data-motion="instant"] .app[data-view="workspace"][data-zoom] .ws-side[data-on] { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .app[data-view="workspace"][data-zoom] :is(.left-column, .detail, .usage-panel, .sysdetail),
+  .app[data-view="workspace"][data-zoom="fold"] :is(.left-column, .detail, .usage-panel, .sysdetail),
+  .app[data-view="workspace"][data-zoom="unfold"] :is(.left-column, .detail, .usage-panel, .sysdetail) {
+    transform: none;
+    transition: opacity var(--dur-xfade) var(--ease), visibility 0s var(--ease) var(--dur-xfade);
+  }
+  .app[data-view="workspace"][data-zoom="unfold"] :is(.left-column, .detail, .usage-panel, .sysdetail) {
+    transition: opacity var(--dur-xfade) var(--ease), visibility 0s var(--ease);
+  }
+  :root[data-motion="instant"] .app[data-view="workspace"][data-zoom] :is(.left-column, .detail, .usage-panel, .sysdetail) { transition: none; }
+  .app[data-view="workspace"][data-zoom] .ws-side[data-on] { transition: opacity var(--dur-xfade) var(--ease), visibility 0s var(--ease) var(--dur-xfade); }
+  .app[data-view="workspace"][data-zoom="unfold"] .ws-side[data-on] { transition: opacity var(--dur-xfade) var(--ease), visibility 0s var(--ease); }
+  :root[data-motion="instant"] .app[data-view="workspace"][data-zoom] .ws-side[data-on] { transition: none; }
+}
+

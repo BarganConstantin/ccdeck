@@ -1,0 +1,2 @@
+{ "type": "https://api.ccdeck.dev/problems/device-token", "title": "Polling too fast", "status": 400,
+  "error": "slow_down", "interval": 10 }

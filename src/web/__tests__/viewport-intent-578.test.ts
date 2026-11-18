@@ -337,8 +337,15 @@ describe("the fits the deck asks for stay marked as its own", () => {
   });
 
   it("stamps fitLeft, the fit every structural change runs", () => {
+    // fitLeft stamps through moveCamera (use-camera.ts), the one door every
+    // deliberate move takes. This used to read the next 3000 characters of the
+    // file after fitLeft's opening line and find the stamp in the visibility
+    // handler that follows it, by luck of layout; it now asks the two facts that
+    // make it true: fitLeft calls moveCamera, and moveCamera stamps.
     const fitLeft = cameraCode.slice(cameraCode.indexOf("const fitLeft = useCallback"));
     expect(fitLeft).not.toBe("");
-    expect(fitLeft.slice(0, 3_000)).toMatch(/lastFitTimeRef\.current = Date\.now\(\)/);
+    expect(fitLeft.slice(0, 6_000)).toMatch(/const epoch = moveCamera\(want, duration\);/);
+    const move = cameraCode.slice(cameraCode.indexOf("const moveCamera = useCallback"));
+    expect(move.slice(0, 900)).toMatch(/lastFitTimeRef\.current = Date\.now\(\)/);
   });
 });

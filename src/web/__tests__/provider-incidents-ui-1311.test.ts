@@ -242,9 +242,20 @@ describe("the topbar chip", () => {
     expect(out).toContain('class="provider-incident"');
     expect(out).toContain(">Claude<");
     expect(out).toContain(">· partial outage<");
-    // Where it goes, said to a screen reader and drawn as ↗ for everyone else.
+    // Where it goes, said to a screen reader. V4's Figma draws no ↗ on the chip
+    // (one 14px icon and one line), so the arrow is gone.
     expect(out).toContain('<span class="vis-hidden">, on status.claude.com, opens in a new tab</span>');
-    expect(out).toContain('<span class="pi-go" aria-hidden="true"><svg');
+    expect(out).not.toContain("pi-go");
+    expect(out).toContain('<span class="pi-icon" aria-hidden="true"><span class="pi-dot"></span></span>');
+  });
+
+  it("says when the status page last answered, fresh or stale (Claude · partial outage · as of HH:MM)", () => {
+    // The payload carries `checkedAt`, the time the page last answered, and that
+    // is the "as of"; it carries no started/updated time of the incident itself.
+    const inc = incidentOf(line(), NOW)!;
+    expect(inc.asOf, "a fresh answer is not stale").toBeNull();
+    expect(inc.readAt).toMatch(/\d{2}:\d{2}/);
+    expect(html([line()])).toContain(`<span class="pi-asof">· as of ${inc.readAt}</span>`);
   });
 
   it("is named by the words it shows, whichever of them the sheet shows (2.5.3)", () => {
@@ -269,13 +280,14 @@ describe("the topbar chip", () => {
   });
 
   it("comes before the blocked-session chip, so the alarm is the last thing the readout clips", () => {
-    // The readout packs to its end when it runs out of room: its last child
-    // survives longest, and that has to be the count.
+    // V4's Figma order: the wordmark, the three count pills, then the
+    // chips; so the pill now comes first and the chips after it.
     const src = sourceOf("components/TopbarReadouts.tsx");
     const waiting = src.indexOf("<WaitingStat waitingSessions");
     const chips = src.indexOf("<IncidentChips incidents={incidents} />");
     expect(chips).toBeGreaterThan(0);
-    expect(waiting).toBeGreaterThan(chips);
+    expect(waiting).toBeGreaterThan(0);
+    expect(chips).toBeGreaterThan(waiting);
   });
 });
 
@@ -361,23 +373,37 @@ describe("the tray", () => {
 describe("the sheet", () => {
   const css = sheetText();
 
-  it("never draws the chip in the alarm's shape or colour", () => {
+  it("draws the chip as V4's incident pill: the pill corner by token, a --warn edge, and the alarm's own count apart", () => {
+    // It was a neutral --r-tag control that never wore the alarm's shape or
+    // colour. V4's chip is a pill with the --warn edge for an incident (a
+    // major outage --err, maintenance --line), which is the same pill the
+    // count wears; what still tells them apart is the fill and the word: the
+    // chip has none and says --text, where the count says --warn.
     const chip = css.match(/\.topbar \.provider-incident \{\s*display: inline-flex;[^}]*\}/)![0];
-    expect(chip).toContain("border-radius: var(--r-tag);");
+    expect(chip).toContain("border-radius: var(--r-pill);");
     expect(chip).not.toContain("999px");
-    expect(chip).not.toContain("--warn");
+    expect(chip).toContain("border: 1px solid var(--warn);");
+    expect(chip).toContain("color: var(--text);");
+    expect(chip).not.toMatch(/background:/);
+    expect(css).toContain('.topbar .provider-incident[data-state="major_outage"] { border-color: var(--err); }');
+    expect(css).toContain('.topbar .provider-incident[data-state="maintenance"] { border-color: var(--line); }');
   });
 
   it("keeps the focus ring inside a readout that clips", () => {
-    expect(css).toContain(".topbar .provider-incident:focus-visible { outline-offset: -3px; }");
+    // V4's Figma: the global ring is already inside the box (offset -1.5), so
+    // the chip's own -3px offset is gone and nothing outside can be clipped.
+    expect(css).not.toContain(".topbar .provider-incident:focus-visible { outline-offset");
+    expect(css).toMatch(/:focus-visible \{\s*outline: var\(--focus-w\) solid var\(--accent\);\s*outline-offset: calc\(-1 \* var\(--focus-w\)\);/);
   });
 
   it("shows one length of the words at a time", () => {
     expect(css).toContain(".topbar .provider-incident .pi-short { display: none; }");
     // Two chips below 1680px, and any chip at the narrow breakpoint, swap to the one word.
-    expect(css).toMatch(/@media \(max-width: 1679px\) \{\s*\.topbar \.readout:has\(\.provider-incident \+ \.provider-incident\) :is\(\.pi-words, \.pi-asof\) \{ display: none; \}\s*\.topbar \.readout:has\(\.provider-incident \+ \.provider-incident\) \.pi-short \{ display: inline; \}/);
+    // (Each chip is in its ChipPresence slot now, so "two chips" is two adjacent slots.)
+    const two = String.raw`\.chip-slot:has\(> \.provider-incident\) \+ \.chip-slot:has\(> \.provider-incident\)`;
+    expect(css).toMatch(new RegExp(String.raw`@media \(max-width: 1679px\) \{\s*\.topbar \.readout:has\(${two}\) :is\(\.pi-words, \.pi-asof\) \{ display: none; \}\s*\.topbar \.readout:has\(${two}\) \.pi-short \{ display: inline; \}`));
     expect(css).toMatch(/\.topbar \.readout \.provider-incident :is\(\.pi-words, \.pi-asof\) \{ display: none; \}\s*\.topbar \.readout \.provider-incident \.pi-short \{ display: inline; \}\s*\}/);
-    expect(css).toMatch(/@media \(max-width: 480px\) \{\s*\.topbar \.readout \.provider-incident \{ display: none; \}\s*\}/);
+    expect(css).toMatch(/@media \(max-width: 480px\) \{\s*\.topbar \.readout \.chip-slot:has\(> \.provider-incident\) \{ display: none; \}\s*\}/);
   });
 
   it("outweighs the chip's own rules, which come later in the cascade", () => {
@@ -390,9 +416,10 @@ describe("the sheet", () => {
   });
 
   it("gives each state its own shape, in a contrast theme too", () => {
-    expect(css).toContain('[data-state="degraded"] > .pi-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--err); }');
-    expect(css).toContain('[data-state="maintenance"] > .pi-dot { background: var(--muted); border-radius: 1px; }');
-    expect(css).toContain('[data-state="degraded"] > .pi-dot { background: Canvas; box-shadow: inset 0 0 0 1.5px CanvasText; }');
-    expect(css).toContain('[data-state="maintenance"] > .pi-dot { background: GrayText; }');
+    expect(css).toContain('[data-state="degraded"] .pi-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--err); }');
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the square's 1px hairline radius was not visible; it is square.
+    expect(css).toContain('[data-state="maintenance"] .pi-dot { background: var(--muted); border-radius: 0; }');
+    expect(css).toContain('[data-state="degraded"] .pi-dot { background: Canvas; box-shadow: inset 0 0 0 1.5px CanvasText; }');
+    expect(css).toContain('[data-state="maintenance"] .pi-dot { background: GrayText; }');
   });
 });

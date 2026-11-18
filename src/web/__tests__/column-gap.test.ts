@@ -10,9 +10,14 @@
 // then failed and every session collapsed into one very tall strip that
 // fit-to-view shrank to nothing; on a wider one the columns survived with an
 // ~850px band of empty canvas between them.
+//
+// CHANGED ON PURPOSE (V4 critique, round 2): the gap is no longer a card wide.
+// A column's pitch is its cards and the bubbles' lane at full size, plus a
+// session box's chrome; a wider card widens its own column, not every gap.
 import { describe, it, expect } from "vitest";
 import type { Node } from "reactflow";
 import { autoLayout } from "../layout";
+import { COLUMN_GAP } from "../layout-geometry";
 
 const W = 260, H = 120;
 const TOOL_LANE = 420;
@@ -42,10 +47,9 @@ const columnsOf = (out: Node[]) =>
 
 describe("columnGap ignores the per-session drag handles", () => {
   it("keeps the columns it would have with no handle measured", () => {
-    // Three columns of card + burst lane, with one card of gap between them,
-    // are 2560 wide. With the handle setting the gap they claim 4232, the fit
-    // scores them below two, and the board loses a column to a node nobody
-    // can see.
+    // With the handle setting the gap, columns claimed four cards more width
+    // each, the fit scored them below fewer, and the board lost a column to a
+    // node nobody can see.
     const opts = { availableWidth: 2000, availableHeight: 400 };
     const bare = columnsOf(autoLayout(sessions, [], { ...opts, measured: cards() }));
     const real = columnsOf(autoLayout(sessions, [], { ...opts, measured: withHandles() }));
@@ -53,7 +57,7 @@ describe("columnGap ignores the per-session drag handles", () => {
     expect(real).toEqual(bare);
   });
 
-  it("leaves one card of clear space between the columns, not a session box", () => {
+  it("leaves a box's chrome of clear space past the lane, not a session box", () => {
     const out = autoLayout(sessions, [], {
       measured: withHandles(), availableWidth: 4000, availableHeight: 400,
     });
@@ -61,7 +65,7 @@ describe("columnGap ignores the per-session drag handles", () => {
     expect(xs.length).toBeGreaterThan(1);
     // Pitch minus the card and the burst lane beside it is what the eye reads
     // as the gap.
-    expect(xs[1] - xs[0] - W - TOOL_LANE).toBe(W);
+    expect(xs[1] - xs[0] - W - TOOL_LANE).toBe(COLUMN_GAP);
   });
 
   it("places every card exactly where it would with no handle measured at all", () => {
@@ -71,15 +75,15 @@ describe("columnGap ignores the per-session drag handles", () => {
     expect(real.map(n => n.position)).toEqual(bare.map(n => n.position));
   });
 
-  it("still widens the gap when a real card is measured wider than the default", () => {
-    // The gap follows the widest card on screen so it holds when cards grow.
-    // Dropping the handles must not drop that too.
+  it("widens a column whose real card is measured wider than the default", () => {
+    // The column follows the widest card in it, so its lane holds when cards
+    // grow. Dropping the handles must not drop that too.
     const measured = withHandles();
-    measured.set("s2n0", { width: 400, height: H });   // lands in the second column
+    measured.set("s0n0", { width: 400, height: H });   // the first column's
     const xs = columnsOf(autoLayout(sessions, [], {
       measured, availableWidth: 4000, availableHeight: 400,
     }));
     expect(xs.length).toBeGreaterThan(1);
-    expect(xs[1] - xs[0]).toBe(W + TOOL_LANE + 400);
+    expect(xs[1] - xs[0]).toBe(400 + TOOL_LANE + COLUMN_GAP);
   });
 });

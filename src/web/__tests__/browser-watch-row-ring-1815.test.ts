@@ -45,8 +45,8 @@ describe("a focused finding's row draws its whole ring (#1815)", () => {
     for (const [name, chain] of Object.entries(ROWS)) {
       it(`${name} at ${width}px`, () => {
         const r = ring(chain, width);
-        // The global ring's width, unchanged — only where it is drawn moves.
-        expect(r.width).toBe(2);
+        // V4's Figma: the one ring is 1.5px (--focus-w), inside every box.
+        expect(r.width).toBe(1.5);
         // Inside the row by at least its width, where the card cannot clip it.
         expect(r.offset, `outline-offset ${r.offset}px`).toBeLessThanOrEqual(-r.width);
       });

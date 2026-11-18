@@ -12,10 +12,18 @@
 // gear did not. It is one of the two utilities the topbar keeps, defined in
 // rail-items.tsx, drawn from components/rail-glyphs.tsx, and put on the bar by
 // UtilityRun (components/EdgeRails.tsx) inside App.tsx's <header>.
+//
+// CHANGED ON PURPOSE (V4's tour): V4's topbar draws Quick open alone, and the
+// gear is the Settings door at the foot of the left edge. The V4 tour names
+// the place by the words the page shows — Settings, then its Notifications
+// section — so the guarantee is now that both words are on screen where the
+// tip says.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { LAN_STEPS, WELCOME_STEPS } from "../components/guide-art";
+import board from "../i18n/areas/board/en";
+import settingsCopy from "../i18n/areas/settings/en";
 
 const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
 /** The chrome's controls: what they are, what they look like, and the run that
@@ -24,6 +32,8 @@ const run = ["../rail-items.tsx", "../components/rail-glyphs.tsx", "../component
   .map(rel => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8")).join("\n");
 /** The topbar's own markup in App.tsx. */
 const bar = /<header className="topbar"[\s\S]*?<\/header>/.exec(app)?.[0] ?? "";
+/** Settings' sections, by id and catalog key. */
+const settingsModel = readFileSync(fileURLToPath(new URL("../settings.ts", import.meta.url)), "utf8");
 const copy = [...WELCOME_STEPS, ...LAN_STEPS].flatMap(s => [s.line, s.tip ?? ""]).join("\n");
 
 /** The gear's outline, as the topbar draws it. */
@@ -40,16 +50,22 @@ describe("the tour names the sound control by what it looks like (#818)", () => 
     expect(run).not.toContain('d="M3.2 5.2h2L7.8 3v8L5.2 8.8h-2z"');
   });
 
-  it("points at the gear, which is what the topbar draws", () => {
+  it("points at Settings › Notifications, the words the page draws", () => {
     const tip = WELCOME_STEPS[0].tip ?? "";
-    expect(tip).toMatch(/tone/);
-    expect(tip).toMatch(/notification/);
-    expect(tip).toMatch(/topbar gear/);
-    // The control the tip means, and the cog it is drawn with — in the run
-    // App.tsx draws in the topbar, which holds Settings first.
-    expect(bar).toMatch(/<UtilityRun items=\{\[rails\.search, \.\.\.rails\.utilities\]\}/);
-    expect(run).toMatch(/utilities: \[settings, feedback\]/);
+    expect(tip).toMatch(/notified/);
+    expect(tip).toMatch(/Settings › Notifications/);
+    // Settings is the door at the foot of the left edge, worded as the tip
+    // words it, and drawn with the kit's cog rather than a path of its own.
+    expect(run).toMatch(/leftFoot: \[settings\],/);
     expect(run).toMatch(/ariaLabel: t\("board\.rail\.settings"\), glyph: <SettingsGlyph \/>/);
-    expect(run).toContain(GEAR_PATH);
+    expect(board["board.rail.settings"]).toBe("Settings");
+    expect(run).toContain('<KitIcon name="settings"');
+    expect(run).not.toContain(GEAR_PATH);
+    // And Notifications is one of its sections, by that name.
+    expect(settingsModel).toMatch(/\{ id: "notifications", get label\(\) \{ return t\("settings\.section\.notifications\.label"\); \}/);
+    expect(settingsCopy["settings.section.notifications.label"]).toBe("Notifications");
+    // The topbar keeps Quick open alone, so the tip sends nobody there.
+    expect(bar).toMatch(/<UtilityRun items=\{\[rails\.search\]\}/);
+    expect(copy).not.toMatch(/topbar gear/);
   });
 });

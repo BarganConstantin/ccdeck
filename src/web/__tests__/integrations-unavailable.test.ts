@@ -254,7 +254,8 @@ describe("the rail control and I follow what the deck offers", () => {
     // I opens Jira through openIntegrationRef, which finds the kind among those.
     expect(app).toMatch(/const openIntegrationRef = useMirroredRef\(\(kind: string\) => \{\s*const def = connectedKinds\.find\(p => p\.kind === kind\);/);
     expect(app).toContain("integrations: connectedKinds.map(provider => ({ provider, onPress: () => setIntegrationOpen(provider.kind) })),");
-    expect(app).toContain("connections={kindOffered(integrations, integrationOpen) ? connectionsOf(integrations, integrationOpen) : []}");
+    expect(app).toContain("<DialogPresence when={integrationOpen}>{kind => (");
+    expect(app).toContain("connections={kindOffered(integrations, kind) ? connectionsOf(integrations, kind) : []}");
     expect(sourceOf("use-deck-shortcuts.ts")).toContain('openIntegrationRef?.current("jira")');
   });
 });
@@ -275,11 +276,14 @@ describe("Settings draws Integrations only where it holds something", () => {
   it("leaves Integrations out of the nav of a deck that offers none, and walks the arrows over what it draws", async () => {
     await deckSays([], []);
     const html = draw(createElement(SettingsModal, settingsProps()));
-    expect(tabsOf(html)).toEqual(["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Data", "Claude Code", "Radar", "About"]);
+    expect(tabsOf(html)).toEqual(["General", "Appearance", "Text & density", "Keyboard", "Notifications", "Sounds", "Data", "Claude Code", "Radar", "About"]); // CHANGED ON PURPOSE (V4's Figma): no Experimental tab, it is a group in General
     expect(html).not.toContain('id="settings-tab-integrations"');
     const modal = sourceOf("components/SettingsModal.tsx");
     expect(modal).toContain("const SETTINGS_SECTIONS = sectionsDrawn(integrationsReachHere, section, providers.claude);");
-    expect(modal).toContain("const at = Math.max(0, SETTINGS_SECTIONS.findIndex(s => s.id === section));");
+    // What the nav, its arrows and the pane's head walk: those, plus Account
+    // before About while the ccdeck account is on (settingsSections).
+    expect(modal).toContain("const sections = settingsSections({ account: accountShown, drawn: SETTINGS_SECTIONS });");
+    expect(modal).toContain("const at = sectionIndex(section, sections);");
   });
 
   it("keeps the tab while a stranded connection waits to be disconnected, and where a kind is offered", async () => {

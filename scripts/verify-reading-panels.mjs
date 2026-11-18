@@ -25,7 +25,7 @@ try {
     viewport: { width: 1440, height: 900 },
     reducedMotion: "reduce",
   });
-  await c.addInitScript(() => localStorage.setItem("agent-dag.tourSeen", "1"));
+  await c.addInitScript(() => { localStorage.setItem("agent-dag.tourSeen", "1"); localStorage.setItem("agent-dag.tourEdition", "2"); });
   const p = await c.newPage();
   const errors = [];
   p.on("pageerror", (e) => errors.push(e.message));

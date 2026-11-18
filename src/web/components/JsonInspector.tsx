@@ -104,7 +104,7 @@ function RawJson({ value }: { value: Json }) {
     if (offset < text.length) parts.push(text.slice(offset));
     return parts;
   }, [value]);
-  return <pre className="tr-value">{contents}</pre>;
+  return <pre className="tr-value tr-json-box">{contents}</pre>;
 }
 
 /** Inspect JSON without mounting closed descendants or truncating the raw value. */
@@ -140,7 +140,7 @@ export function JsonInspector({ value, initialMode = "tree" }: { value: Json; in
       </div>
       <p className="tr-note">{t("radar.json.copyHint")}</p>
       {copyError && <p role="alert" className="tr-capture-error">{t("radar.clipboard.value")}</p>}
-      <SearchContext.Provider value={search}><CollapseContext.Provider value={collapseCommand}><div ref={tree} className="tr-value tr-json-tree">
+      <SearchContext.Provider value={search}><CollapseContext.Provider value={collapseCommand}><div ref={tree} className="tr-value tr-json-tree tr-json-box">
         {value === null || typeof value !== "object" ? <JsonNode value={value} /> : <JsonViewer
           key={search ? "search" : "browse"} data={value} editorRef={viewer} theme={viewerTheme}
           rootName="" collapse={search ? false : initialCollapse} collapseAnimationTime={0}

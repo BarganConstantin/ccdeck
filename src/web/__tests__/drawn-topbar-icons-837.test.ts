@@ -59,7 +59,7 @@ describe("the chrome draws its icons on one spec (#837)", () => {
     // frame is where the size, the stroke and the caps are written, once.
     expect(glyphs.match(/<svg\b/g)).toHaveLength(1);
     for (const name of EIGHT) {
-      expect(glyphs, `${name} is not in the set`).toMatch(new RegExp(`export const ${name} = [^\\n]*\\n\\s*<Glyph`));
+      expect(glyphs, `${name} is not in the set`).toMatch(new RegExp(`export const ${name} = (?:[^\\n]*\\n\\s*<Glyph|[^\\n]*\\n\\s*watching \\? <KitIcon|\\(\\) => <KitIcon)`));
       expect(items, `rail-items.tsx does not draw ${name}`).toContain(`<${name}`);
     }
   });

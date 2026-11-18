@@ -42,6 +42,14 @@ export default function LanDeckList({
         // the deck's own dialog now: one press away and read to a screen
         // reader, instead of a second late and over the rows below.
         <li key={`${p.kind}:${p.fp}`} className="ap-lan-who" data-tone={p.tone}>
+          {/* THE MACHINE, in V4's 14px glyph, and the traffic light on its
+              corner: the glyph says what the row is, the mark says whether it
+              is up, down or wrong — three colours, two shapes, as before. */}
+          <svg className="ap-lan-glyph" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+            strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <rect x="1.8" y="2.3" width="10.4" height="7.2" rx="1.2" />
+            <path d="M5 11.9h4M7 9.5v2.4" />
+          </svg>
           <i className={p.here ? "ap-pulse" : "ap-dot"} aria-hidden />
           {/* THE NAME OWNS THE ROW'S WIDTH, and it did not. The state
               was the flex item that grew and the name the one that
@@ -71,11 +79,13 @@ export default function LanDeckList({
             onClick={() => onOpenPeer(p.fp)}>
             <span className="vis-hidden">{t(p.via === "tailscale" ? "lan.list.detailsTs" : "lan.list.details", { name: p.name })}</span>
           </button>
-          {/* One node, two presentations. A row with nothing to report
-              keeps its sentence for anybody being read the list and
-              spends no line on it — `.vis-hidden` is out of flow, and
-              the stylesheet gives such a row a single grid track. */}
-          <span id={`lan-who-state-${i}`} className={p.quiet ? "vis-hidden" : "ap-lan-who-when"}>{p.state}</span>
+          {/* THE SECOND LINE IS EVERY ROW'S, as V4's Figma draws it: whether
+              the machine is there, how its logins are and when it was last
+              heard — `online · all logins fine · 2m ago`. A row with nothing
+              to report used to spend no line on it; the list is rows of two
+              lines now, 44 high, and the sentence is the thing a glance
+              reads. */}
+          <span id={`lan-who-state-${i}`} className="ap-lan-who-when">{p.state}</span>
           {p.kind === "nearby" && pairingMode !== "invite" && (
             <button type="button" className="ap-manage-btn ap-lan-do" {...pressProps(`accept:${p.fp}`)}
               onClick={() => void answer("accept", p.fp, "reach that deck")}

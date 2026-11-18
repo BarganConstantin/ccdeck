@@ -199,20 +199,31 @@ describe("the row renders the windows, and the panel reads the same function", (
   });
 
   it("opens every window as a bar, in the order the server sent them", () => {
-    // `sortedBy` marks the bar the list behind the fold is ordered by (#1579),
-    // and `readAt` dates a window that has reset since (accounts-open-row-reset).
-    expect(clientText()).toMatch(/a\.lanes\.map\(l => <LaneBar key=\{l\.id\} lane=\{l\} nowSec=\{nowSec\} readAt=\{a\.fetchedAt\} frozen=\{frozen\} sortedBy=\{l\.id === keyLane\?\.id\} \/>\)/);
+    // `readAt` dates a window that has reset since (accounts-open-row-reset).
+    // CHANGED ON PURPOSE (internal #94): no bar is marked as the one the list
+    // is sorted by, since the list has one order.
+    expect(clientText()).toMatch(/a\.lanes\.map\(l => <LaneBar key=\{l\.id\} lane=\{l\} nowSec=\{nowSec\} readAt=\{a\.fetchedAt\} frozen=\{frozen\} \/>\)/);
   });
 
   it("opens the live row, and every other row only when the reader opens it", () => {
-    // Shut until the reader opens it — one row, or all of them — and remembered
-    // since #1579, which is other-accounts-order.ts's and accounts-prefs.ts's.
-    expect(panelCode).toMatch(/useState<Openness>\(loadOpenness\)/);
+    // Shut until the reader opens it — one row, or all of them. CHANGED ON
+    // PURPOSE (compact accounts, #2539): the openness is no longer remembered
+    // (#1579 kept it), so a past "Expand all" does not open the roster as a
+    // report on the next visit; every visit starts with every row folded.
+    expect(panelCode).toMatch(/useState<Openness>\(NONE_OPEN\)/);
+    expect(panelCode).not.toMatch(/loadOpenness|saveOpenness/);
     // Whether the reader opened it is read off the set by account, once.
-    expect(clientText()).toMatch(/const opened = isOpen\(openness, a\);/);
-    expect(clientText()).toMatch(/const open = a\.active \|\| opened;/);
+    // The live row is read off its own list, which "Expand all" (a mode of
+    // that set, for the accounts behind the fold) never touches, as it never
+    // reached the live row when that row was open by what it is.
+    expect(clientText()).toMatch(/const opened = a\.active \? liveOpen\.includes\(laneKey\(a\)\) : isOpen\(openness, a\);/);
+    expect(clientText()).toMatch(/a\.active \? setLiveOpen\(o => toggleLane\(o, a\)\) : setOpenness\(o => toggleOne\(o, a\)\)/);
+    // CHANGED ON PURPOSE (V4's Figma): the live row is one shape with the others
+    // and opens only when the reader opens it.
+    expect(clientText()).toMatch(/const open = opened;/);
     // The live row has nothing folded, so it has no door.
-    expect(clientText()).toMatch(/\{!a\.active && \(\s*<button type="button" className="ap-row-open"/);
+    // CHANGED ON PURPOSE (V4's Figma): every row, the live one too, has the door.
+    expect(clientText()).toMatch(/<button type="button" className="ap-row-open"/);
   });
 
   it("points the door at the detail only while the detail exists", () => {

@@ -14,8 +14,10 @@ import QuotaBar from "../components/QuotaBar";
 import { CodexQuotaSection } from "../components/QuotaSections";
 
 const bar = (pct: number) => renderToStaticMarkup(createElement(QuotaBar, { pct, label: "x", nowSec: 0 }));
-const label = (html: string) => /class="qb-pct"[^>]*>([^<]*)</.exec(html)?.[1];
-const fill = (html: string) => Number(/qb-fill" style="transform:scaleX\(([^)]+)\)/.exec(html)?.[1]);
+// The figure sits in a crossfading wrapper span now (FadeFigure), so the text is one span in.
+const label = (html: string) => /class="qb-pct"[^>]*>(?:<span[^>]*>)*([^<]*)</.exec(html)?.[1];
+// The fill may carry data-jump (a change under a point jumps) before its style.
+const fill = (html: string) => Number(/qb-fill"(?: data-jump="true")? style="transform:scaleX\(([^)]+)\)/.exec(html)?.[1]);
 
 describe("the quota bar's percentage (#1804)", () => {
   it.each([
@@ -41,7 +43,10 @@ describe("the quota bar's percentage (#1804)", () => {
     const html = bar(89.6);
     expect(label(html)).toBe("90%");
     expect(fill(html)).toBeCloseTo(0.896, 6);
-    expect(html).toContain("color:var(--warn)");
+    // CHANGED ON PURPOSE (compact accounts, #2539): main's quota colours (under 70 --accent,
+    // 70 to 89 --warn, 90 and up --err); 89.6 is under the red line, so --warn and not --err.
+    expect(html).toContain("background:var(--warn)");
+    expect(html).not.toContain("var(--err)");
   });
 
   it("prints the Codex spend cap as a whole percentage", () => {

@@ -1,15 +1,17 @@
 // The list and the detail of an integration panel (#2178), side by side with a
-// line between them the reader can drag — Tool activity's splitter, an ARIA
-// window splitter: arrows move it, Home and End go to the ends, Enter or a
-// double click puts the automatic width back — and under 900px one screen at
-// a time, the detail drilled into with a Back that returns to the row.
+// divider between them the reader can drag — an ARIA window splitter whose
+// value is the list's width: the arrows move it by 32 (128 with Shift), Home
+// and End go to the ends, Enter or a double click puts the automatic width
+// back — and under 900px one screen at a time, the detail drilled into with a
+// Back that returns to the row. The divider is its own control: a 6px zone
+// with a grip, apart from the dialog's own edges, and it never moves the
+// dialog.
 //
 // The core's, not a provider's: every tracker panel is a list of things and
 // the one thing chosen, and each gets the same split and the same memory of
-// its width (integrations/layout.ts). Until the reader drags it the detail
-// defaults to half the room, or the provider's automatic share, never under
-// 320px nor so much that the list goes
-// under 420px.
+// its width (integrations/layout.ts). The list is held between 280px and 60 %
+// of the room; until the reader drags it, it takes what the provider's
+// automatic detail share leaves.
 //
 // What the host does for every panel, so none has to:
 // - Escape closes an open detail before it closes the modal, at every width:
@@ -27,28 +29,31 @@
 //   in 120ms, laid over the list as it returns. Under reduced motion the
 //   screens change at once, with a fade at most.
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode, type RefObject } from "react";
-import { autoDetailCss, autoDetail, DETAIL_SHARE, clampDetail, DETAIL_WIDTH, DRILL_IN_QUERY, readDetailWidth, writeDetailWidth } from "../integrations/layout";
+import {
+  autoList, clampList, DETAIL_SHARE, DRILL_IN_QUERY, LIST_STEP, LIST_STEP_LARGE, LIST_WIDTH, listCss, listMost, readSplitWidth, splitCss, splitList,
+  writeListWidth, type SplitWidth,
+} from "../integrations/layout";
 import { useT } from "../i18n";
 import { modalStack } from "../modal-dismiss";
 import { useMediaQuery } from "../use-media-query";
 import { prefersReducedMotion } from "../viewport-motion";
 
 function Splitter({ width, workspace, controls, onCommit, automaticDetailShare }: {
-  width: number | null; workspace: RefObject<HTMLDivElement>; controls: string; onCommit: (width: number | null) => void; automaticDetailShare: number;
+  width: SplitWidth; workspace: RefObject<HTMLDivElement>; controls: string; onCommit: (width: number | null) => void; automaticDetailShare: number;
 }) {
   const t = useT();
   const self = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; width: number; room: number; last: number } | null>(null);
   const room = () => workspace.current?.clientWidth ?? window.innerWidth;
-  const shown = width == null ? autoDetail(room(), automaticDetailShare) : clampDetail(width, room());
+  const shown = splitList(width, room(), automaticDetailShare);
   const apply = (next: number) => {
-    workspace.current?.style.setProperty("--ig-detail-w", `${next}px`);
+    workspace.current?.style.setProperty("--ig-list-w", listCss(next));
     self.current?.setAttribute("aria-valuenow", String(next));
   };
   const commit = (next: number | null) => {
     if (next == null) {
-      workspace.current?.style.setProperty("--ig-detail-w", autoDetailCss(automaticDetailShare));
-      self.current?.setAttribute("aria-valuenow", String(autoDetail(room(), automaticDetailShare)));
+      workspace.current?.style.setProperty("--ig-list-w", listCss(null, automaticDetailShare));
+      self.current?.setAttribute("aria-valuenow", String(autoList(room(), automaticDetailShare)));
     } else apply(next);
     onCommit(next);
   };
@@ -62,7 +67,7 @@ function Splitter({ width, workspace, controls, onCommit, automaticDetailShare }
   const move = (event: PointerEvent<HTMLDivElement>) => {
     const d = drag.current;
     if (!d) return;
-    d.last = clampDetail(d.width + d.x - event.clientX, d.room);
+    d.last = clampList(d.width + event.clientX - d.x, d.room);
     apply(d.last);
   };
   const end = () => {
@@ -73,21 +78,25 @@ function Splitter({ width, workspace, controls, onCommit, automaticDetailShare }
     commit(d.last);
   };
   const key = (event: KeyboardEvent<HTMLDivElement>) => {
-    const step = event.shiftKey ? 64 : 16;
+    const step = event.shiftKey ? LIST_STEP_LARGE : LIST_STEP;
     if (event.key === "Enter") { event.preventDefault(); commit(null); return; }
-    const next = event.key === "ArrowLeft" ? shown + step
-      : event.key === "ArrowRight" ? shown - step
-      : event.key === "Home" ? DETAIL_WIDTH.min
-      : event.key === "End" ? DETAIL_WIDTH.max : null;
+    const next = event.key === "ArrowLeft" ? shown - step
+      : event.key === "ArrowRight" ? shown + step
+      : event.key === "Home" ? LIST_WIDTH.min
+      : event.key === "End" ? listMost(room()) : null;
     if (next === null) return;
     event.preventDefault();
-    commit(clampDetail(next, room()));
+    commit(clampList(next, room()));
   };
-  return <div ref={self} className="ig-splitter" role="separator" aria-orientation="vertical" aria-label={t("integrations.split.width")}
-    aria-controls={controls} aria-valuemin={DETAIL_WIDTH.min} aria-valuemax={clampDetail(DETAIL_WIDTH.max, room())} aria-valuenow={shown}
-    tabIndex={0} title={t("integrations.split.resize")}
-    onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}
-    onDoubleClick={() => commit(null)} onKeyDown={key} />;
+  return (
+    <div ref={self} className="ig-splitter" role="separator" aria-orientation="vertical" aria-label={t("integrations.split.listWidth")}
+      aria-controls={controls} aria-valuemin={LIST_WIDTH.min} aria-valuemax={listMost(room())} aria-valuenow={shown}
+      tabIndex={0} title={t("integrations.split.resize")}
+      onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}
+      onDoubleClick={() => commit(null)} onKeyDown={key}>
+      <span className="ig-splitter-grip" aria-hidden="true" />
+    </div>
+  );
 }
 
 export interface IntegrationSplitProps {
@@ -98,9 +107,10 @@ export interface IntegrationSplitProps {
   onBack: () => void;
   /** What Back says it returns to: "Back to the board". */
   backLabel: string;
-  /** Whose detail width this is, remembered per browser: "jira". */
+  /** Whose list width this is, remembered per browser: "jira". */
   storageKey: string;
-  /** Fraction of the workspace used until a pixel width is saved; default 0.5. */
+  /** The detail's share of the workspace until a list width is saved (the
+   *  list takes the rest); default 0.5. */
   automaticDetailShare?: number;
   /** Which thing the detail shows (its key or id). A new one fades the
    *  detail's content in, or brings the drill-in screen in; without it only
@@ -116,13 +126,15 @@ export function useDrillIn(): boolean {
 export default function IntegrationSplit({ list, detail, onBack, backLabel, storageKey, detailKey, automaticDetailShare = DETAIL_SHARE }: IntegrationSplitProps) {
   const t = useT();
   const drillIn = useDrillIn();
-  const detailId = `${useId()}-detail`;
+  const splitId = useId();
+  const detailId = `${splitId}-detail`;
+  const listId = `${splitId}-list`;
   const workspace = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const detailRef = useRef<HTMLElement>(null);
   const backRef = useRef<HTMLButtonElement>(null);
-  const [width, setWidth] = useState<number | null>(() => readDetailWidth(storageKey));
-  const commit = (next: number | null) => { setWidth(next); writeDetailWidth(storageKey, next); };
+  const [width, setWidth] = useState<SplitWidth>(() => readSplitWidth(storageKey));
+  const commit = (next: number | null) => { setWidth(next == null ? null : { list: next }); writeListWidth(storageKey, next); };
   const open = detail != null;
 
   // Back, on a narrow screen: the detail that was showing stays mounted, as it
@@ -190,11 +202,11 @@ export default function IntegrationSplit({ list, detail, onBack, backLabel, stor
 
   return (
     <div ref={workspace} className="ig-split" data-detail={open || undefined} data-drill-in={drillIn || undefined}
-      style={{ "--ig-detail-w": width == null ? autoDetailCss(automaticDetailShare) : `${width}px` } as CSSProperties}>
+      style={{ "--ig-list-w": splitCss(width, automaticDetailShare) } as CSSProperties}>
       {/* The list stays mounted on the drill-in screen, only hidden, so its
           scroll and its open groups are where the reader left them. */}
-      <div ref={listRef} className="ig-list" hidden={(drillIn && open) || undefined}>{list}</div>
-      {open && !drillIn && <Splitter width={width} workspace={workspace} controls={detailId} onCommit={commit} automaticDetailShare={automaticDetailShare} />}
+      <div ref={listRef} className="ig-list" id={listId} hidden={(drillIn && open) || undefined}>{list}</div>
+      {open && !drillIn && <Splitter width={width} workspace={workspace} controls={listId} onCommit={commit} automaticDetailShare={automaticDetailShare} />}
       {shown != null && (
         <section ref={detailRef} className="ig-detail" id={detailId} aria-label={t("integrations.split.details")} data-leaving={isLeaving || undefined}
           onAnimationEnd={event => { if (isLeaving && event.target === event.currentTarget) setLeaving(null); }}>

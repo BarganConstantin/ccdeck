@@ -391,8 +391,14 @@ canvas never leaves — so an open one is a `--text` line on the stripe's inner
 edge, never a tab joined to a page. The topbar keeps the identity, the stream's
 state, the waiting count with the names of who is waiting, and Settings and
 Feedback. Under 641px the stripes and those two become one dock along the
-bottom, `--dock-h` tall. Desktop names and shortcuts appear in hints, including
-when single-key shortcuts are disabled; mobile dock labels remain visible.
+bottom, `--dock-h` tall. A new profile's stripes show each door's word beside
+its glyph, `--edge-words-w` wide; "Hide words" at the left stripe's foot folds
+both to icons, and » brings the words back (`stripe-words.ts`, one choice per
+browser; a profile an earlier version wrote starts with icons). Under 1100px
+the stripes are icons whatever the choice, which is kept, and the switch is not
+drawn: the board needs the room. With icons,
+names and shortcuts appear in hints, including when single-key shortcuts are
+disabled; mobile dock labels remain visible.
 
 **The detail rail is the 360px column.** `--rail-r` is *not* its width — it is the
 right offset the floating panels position against: `368px` (the rail plus an 8px
@@ -458,7 +464,7 @@ offset is a mark, not elevation: `0 0 8px var(--ok|warn|err|inflight)`,
 *this one*, never to lift something off the page.
 
 **A gradient is a token when two rules share it or a theme retunes it** (#1287):
-`--node-grad`, `--topbar-grad`, `--conn-wash` (the disconnected banner),
+`--node-grad`,
 `--burst-live-wash` (a running tool bubble) and `--hero-core` (the empty-canvas orb)
 in both theme blocks; `--meter-grad` (the context meter and the session summary's
 tool bars) and `--wire-dashed` (a LAN wire that is down or cut) once, in a
@@ -718,6 +724,13 @@ on a panel this dense:
 - **`cubic-bezier(0.23, 1, 0.32, 1)`** is the ease-out — 59 uses, where the next
   most common custom curve has 11. Use this one.
 - **`scale(0.97)`** on press, 36 uses. Not a translate, not a shadow change.
+- **The one exception is distance.** The terminal stage growing out of a card and
+  the board folding into its navigator cross most of the screen, and on the house
+  ease-out their first frame covered a third of the way: a jump, then a settle.
+  They ride `cubic-bezier(0.32, 0.72, 0, 1)` (iOS's sheet curve) for 280ms open
+  and 200ms close, on the page's own frames, where a late frame postpones the
+  motion rather than skipping it (`navigator-flip.ts`). Anything that moves a
+  few pixels stays on the house curve.
 - **The pulse is the one ambient loop** (`--pulse-live: 1.2s ease-in-out`), reserved
   for *still asking*.
 - **`prefers-reduced-motion: reduce` is honoured in 25 blocks**, and the motion

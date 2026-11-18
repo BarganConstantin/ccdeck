@@ -574,7 +574,7 @@ export function createProjectRollup({
     prune(state.tally, now());
     const tmp = stateFile + ".tmp";
     try {
-      await mkdir(dirname(stateFile), { recursive: true });
+      await mkdir(dirname(stateFile), { recursive: true, mode: 0o700 });
       await writeFile(tmp, JSON.stringify(state), "utf8");
       // Atomic replace, so a crash never leaves half a file — through the
       // shared retry ladder, because a bare rename loses to a virus scanner or

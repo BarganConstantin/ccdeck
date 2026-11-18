@@ -50,18 +50,18 @@
 // and manage-block.test.ts do, and computes every ratio from the sheet's own
 // token values. The helpers are re-declared rather than imported from another
 // *.test.ts: importing one registers its suites into this file as well. The
-// gradient reader below is the exception that proves it — it lives in a plain
-// module, `./gradient-stops`, which declares no suites and so can be shared by
-// the five files that read the same two gradient tokens (#664, #665).
+// gradient reader the other sweeps share lives in a plain module,
+// `./gradient-stops`, which declares no suites; this file no longer reads a
+// gradient, because the topbar it measured against is flat --panel now.
 import { describe, it, expect } from "vitest";
 import { KEY_HELP } from "../key-help";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { gradientStops } from "./gradient-stops";
 import { clientText } from "./client-source";
+import { en } from "../i18n/en";
 import { soundMenuSurface } from "./sound-menu-surface";
-import { sheetText } from "./sheet-source";
+import { mouseFlat, sheetText } from "./sheet-source";
 import { attr, buttons, createElement, draw, items } from "./edge-keys-rails";
 import { EdgeDock, EdgeRail } from "../components/EdgeRails";
 import { railHint } from "../components/EdgeRails";
@@ -91,6 +91,7 @@ const usagePanel = markup("components", "UsagePanel.tsx");
 const accountsPanel = markup("components", "AccountsPanel.tsx");
 const sessionList = markup("components", "SessionList.tsx");
 const historyModal = markup("components", "UsageHistoryModal.tsx");
+const dialogShell = markup("components", "Dialog.tsx");
 
 /** WCAG 1.4.3 for the glyph, 1.4.11 for the difference between two states. */
 const BODY = 4.5;
@@ -161,7 +162,8 @@ function topLevel(src: string): Array<{ selector: string; body: string }> {
   return out;
 }
 
-const RULES = topLevel(css);
+// The mouse query's rules are read where they stand: a desktop pointer meets them at the top level.
+const RULES = topLevel(mouseFlat(css));
 const selectors = (list: string) => list.split(",").map(s => s.replace(/\s+/g, " ").trim());
 
 /** Every top-level rule naming this exact selector, in source order. */
@@ -197,7 +199,7 @@ function mediaBodyOf(query: string, selector: string): string {
   if (!hits.length) throw new Error(`no rule for ${selector} in @media ${query}`);
   return hits.join(";");
 }
-const HOVER = "(hover: hover)";
+const HOVER = "(hover: hover) and (pointer: fine)";
 const PHONE = "(max-width: 640px)";
 
 const themes = ["dark", "light"] as const;
@@ -225,32 +227,21 @@ function resolve(value: string, theme: Theme): Rgba {
   return parseColor(ref ? TOK[theme][ref[1]] : v);
 }
 
-/** Both ends of the topbar gradient. A 30px button centred in 52px of it is
- *  read against the darker end as much as the lighter one, so a state delta
- *  that only holds at one of them does not hold.
- *
- *  Which is exactly why answering with NO ends was the wrong failure. This
- *  ended in `?? []` until #649: neither `var()` nor `#rrggbb` occurs inside an
- *  `oklch()`, so respelling --topbar-grad in the notation a designer reaches for
- *  next matched nothing, and the three sweeps below that are quantified over
- *  these ends — the on-fill against the bare bar, and the machine meter's ring
- *  against the bar and against its own hover wash — each ran their loop zero
- *  times and passed. The file did go red, but somewhere else: the three cases
- *  that index `barEnds(theme)[0]` threw `Cannot read properties of undefined`,
- *  which names neither the token nor the notation and is a crash rather than
- *  this sweep catching anything. A sweep that cannot read the value it was
- *  pointed at has to fail, and name the value.
- *
- *  Exactly two, because the two labels below ARE the two ends: a third stop
- *  would be announced as a second dark end and quietly measured as one.
- *
- *  The grammar itself moved to `./gradient-stops` with #664 and #665 — three
- *  more files were reading these same gradients through their own copy of the
- *  `?? []` this paragraph describes, and one grammar in five places is one
- *  blind spot in five places. */
-function barEnds(theme: Theme): Array<[string, Rgba]> {
-  const stops = gradientStops("--topbar-grad", theme, TOK[theme], { exactly: 2 });
-  return stops.map((s, i) => [i === 0 ? "the topbar's light end" : "the topbar's dark end", resolve(s, theme)]);
+/** What a fill paints once it is on `bed`: a token (or a literal) that is the
+ *  foreground at some alpha over transparent, or over another opaque token —
+ *  `--selected` is the foreground at 8% over --panel, which is already opaque,
+ *  so it composites onto nothing. Opaque result. */
+function paint(value: string, theme: Theme, bed: Rgba): Rgba {
+  const name = /^var\((--[\w-]+)\)$/.exec(value.trim())?.[1];
+  const raw = ((name ? TOK[theme][name] : value) ?? value).trim();
+  const blend = /^color-mix\(in srgb,\s*var\((--[\w-]+)\)\s+(\d+(?:\.\d+)?)%,\s*(.+)\)$/.exec(raw);
+  if (blend && blend[3].trim() !== "transparent") {
+    const p = Number(blend[2]) / 100;
+    const a = resolve(`var(${blend[1]})`, theme);
+    const b = paint(blend[3], theme, bed);
+    return [0, 1, 2].map(i => a[i] * p + b[i] * (1 - p)).concat(1) as Rgba;
+  }
+  return over(layer(value, theme), bed);
 }
 
 /** A colour as a layer: `resolve`, except that a token spelled as the
@@ -265,21 +256,22 @@ function layer(value: string, theme: Theme): Rgba {
   return [r, g, b, Number(m[2]) / 100];
 }
 
-/** A chrome button whose panel is open: the control fill and the foreground. */
+/** A chrome button whose panel is open: the --selected fill and the foreground. */
 const OPEN = '.rail-btn[aria-expanded="true"]';
-/** And its line on the edge the panel came out of: a stripe's inner edge, the
- *  dock's top edge. Drawn always, shown only while open. */
-const LINES = [".rail-btn-stripe::before", ".rail-btn-dock::before"] as const;
+/** And its line on the edge the panel came out of: a stripe's inner edge. Drawn
+ *  always, shown only while open. CHANGED ON PURPOSE (V4's Figma phone frame):
+ *  the dock has no line any more; its active item is its word in --text. */
+const LINES = [".rail-btn-stripe::before"] as const;
 const LINE_SHOWN = {
   ".rail-btn-stripe::before": '.rail-btn-stripe[aria-expanded="true"]::before',
-  ".rail-btn-dock::before": '.rail-btn-dock[aria-expanded="true"]::before',
 } as const;
 /** The bed the chrome's buttons stand on: a stripe and the dock are both
- *  --bg-soft (edge-rails.css). */
-const CHROME_BED = (theme: Theme) => resolve("var(--bg-soft)", theme);
+ *  --panel (edge-rails.css; V4's Panel bar, it was --bg-soft). */
+const CHROME_BED = (theme: Theme) => resolve("var(--panel)", theme);
 /** A fill mixed from the foreground: the control fill, or the same mix at
- *  another strength. Never a hue. */
-const NEUTRAL_FILL = /^(?:var\(--ctl-fill\)|color-mix\(in srgb, var\(--text\) \d+%, transparent\))$/;
+ *  another strength, over transparent or over --panel (--selected). Never a
+ *  hue. */
+const NEUTRAL_FILL = /^(?:var\(--(?:ctl-fill|selected)\)|color-mix\(in srgb, var\(--text\) \d+%, (?:transparent|var\(--panel\)|var\(--selected\))\))$/;
 
 describe("the contrast maths, against the two ends everybody knows", () => {
   it("puts white on black at 21:1 and a colour on itself at 1:1", () => {
@@ -347,16 +339,16 @@ describe("what the toggle state used to be worth (#370)", () => {
 
 describe("the open state, as the sheet draws it now", () => {
   it("keys it off aria-expanded, in neutrals, so no toggle can be styled and mute", () => {
-    // An open chrome button is the pressed look of the old toolbar: the
-    // control fill and the whole foreground. No accent anywhere in the state —
-    // the accent on the chrome is focus and live data, and a panel that is
-    // showing is neither.
+    // An open chrome button is V4's selected door: the --selected fill (the
+    // foreground at 8% over --panel) and the whole foreground. No accent
+    // anywhere in the state — the accent on the chrome is focus and live data,
+    // and a panel that is showing is neither.
     const open = RULES.find(r => selectors(r.selector).includes(OPEN));
     expect(open, "no rule keyed on aria-expanded").toBeTruthy();
-    // A wash of the foreground itself, so it exists in both themes by
-    // construction (the derived-tier rule in DESIGN.md), at whatever strength
-    // the measurements below allow.
+    // A wash of the foreground itself, so it exists in every theme by
+    // construction (the derived-tier rule in DESIGN.md).
     expect(declIn(open!.body, "background")).toMatch(NEUTRAL_FILL);
+    expect(declIn(open!.body, "background")).toBe("var(--selected)");
     expect(declIn(open!.body, "color")).toBe("var(--text)");
     expect(open!.body, "an open chrome button is painted in the accent again").not.toMatch(/--accent/);
     // Closed, it draws no fill and no edge, which is what makes the fill and
@@ -366,7 +358,7 @@ describe("the open state, as the sheet draws it now", () => {
     expect(decl(".rail-btn", "color")).toBe("var(--muted)");
   });
 
-  it("draws a line on the edge the panel opened from, shown only while it is open", () => {
+  it("draws a line on the edge the panel opened from, shown only while it is open, at once", () => {
     // The dock's line is drawn at a phone's width only, where the dock is.
     const at = (sel: string, prop: string) =>
       sel.includes("dock") ? declIn(mediaBodyOf(PHONE, sel), prop) : decl(sel, prop);
@@ -374,23 +366,34 @@ describe("the open state, as the sheet draws it now", () => {
       expect(at(line, "background"), line).toBe("var(--text)");
       expect(at(line, "opacity"), `${line} at rest`).toBe("0");
       expect(at(LINE_SHOWN[line], "opacity"), `${line} open`).toBe("1");
+      // V4's motion: a selected door goes selected at once, so the line is
+      // shown at once too; it no longer grows from its centre.
+      expect(at(line, "transition"), `${line} grows in`).toBeNull();
     }
     // The stripe's line stands on the inner edge — the right of the left
-    // stripe, the left of the right one. Keep the scrollable left rail's
-    // indicator inside its viewport so it does not create horizontal overflow.
-    expect(decl(".edge-rail-left .rail-btn-stripe::before", "right")).toBe("-1px");
-    expect(decl(".edge-rail-right .rail-btn-stripe::before", "left")).toBe("-3px");
+    // stripe, the left of the right one. The door is 28 in a 39px column, 5.5px
+    // in, so these are the old -1px and -3px seams moved by the door's 4px of
+    // narrowing. Keep the scrollable left rail's indicator inside its viewport
+    // so it does not create horizontal overflow.
+    expect(decl(".edge-rail-left .rail-btn-stripe::before", "right")).toBe("-5px");
+    // V4's Figma: one bar on the left; there is no right bar to draw a line on.
     expect(decl(".rail-btn-stripe::before", "width")).toBe("2px");
-    expect(declIn(mediaBodyOf(PHONE, ".rail-btn-dock::before"), "height")).toBe("2px");
+    // The dock draws no line (V4's phone frame): its open door is its word, --text.
+    expect(declIn(mediaBodyOf(PHONE, ".rail-btn-dock"), "min-height")).toBe("44px");
+    // And the open fill itself arrives at once.
+    const open = RULES.find(r => selectors(r.selector).includes(OPEN))!;
+    expect(declIn(open.body, "transition"), "an open door fades in").toBeNull();
   });
 
   it("holds the line 3:1 or better off the stripe, and off the open fill beside it, in both themes", () => {
-    // The 3:1 #370 asked of the state difference, now carried by the line: it
-    // is what a closed button does not have. Against the bare stripe it stands
-    // beside, and against the open fill, which is the button's own bed.
+    // The 3:1 #370 asked of the state difference, carried by the line: it is
+    // what a closed button does not have. Against the bare stripe it stands
+    // beside, and against the open fill, which is the button's own bed. V4's
+    // --selected fill alone stands about 1.2:1 off the stripe, which is why
+    // the line stays beside it.
     for (const theme of themes) {
       const bed = CHROME_BED(theme);
-      const fill = over(layer(decl(OPEN, "background")!, theme), bed);
+      const fill = paint(decl(OPEN, "background")!, theme, bed);
       const line = resolve(decl(".rail-btn-stripe::before", "background")!, theme);
       expect(contrastRatio(line, bed), `${theme} line vs the stripe`).toBeGreaterThanOrEqual(NON_TEXT);
       expect(contrastRatio(line, fill), `${theme} line vs the open fill`).toBeGreaterThanOrEqual(NON_TEXT);
@@ -403,7 +406,7 @@ describe("the open state, as the sheet draws it now", () => {
     // the open fill.
     for (const theme of themes) {
       const bed = CHROME_BED(theme);
-      const fill = over(layer(decl(OPEN, "background")!, theme), bed);
+      const fill = paint(decl(OPEN, "background")!, theme, bed);
       expect(contrastRatio(resolve(decl(".rail-btn", "color")!, theme), bed), `${theme} word at rest`)
         .toBeGreaterThanOrEqual(BODY);
       expect(contrastRatio(resolve(decl(OPEN, "color")!, theme), fill), `${theme} word open`)
@@ -412,22 +415,25 @@ describe("the open state, as the sheet draws it now", () => {
   });
 
   it("keeps the pointer's own feedback on an open button, and out-specifies the hover it has to beat", () => {
-    // Hover lifts a closed button to the control fill — the open look — so an
+    // Hover lifts a closed button to a light wash of the foreground, so an
     // open button answers the pointer with a deeper fill of its own rather
     // than with nothing.
-    // Only where there is a hover: a tap on the phone's dock left a fill behind.
-    // Measured as the alpha each fill lays down, in both themes: an open
-    // button under the pointer is deeper than an open one at rest, which is
-    // itself deeper than a closed one under the pointer — so hover never
-    // reads as open, and open never stops answering the pointer.
+    // Only where there is a real pointer: a tap on the phone's dock left a
+    // fill behind.
+    // Measured as how far each fill paints from the stripe under it, in both
+    // themes (--selected is already opaque, so an alpha alone cannot rank it):
+    // an open button under the pointer is deeper than an open one at rest,
+    // which is itself deeper than a closed one under the pointer — so hover
+    // never reads as open, and open never stops answering the pointer.
     const hoverOpen = declIn(mediaBodyOf(HOVER, `${OPEN}:hover`), "background")!;
     const hoverClosed = declIn(mediaBodyOf(HOVER, ".rail-btn:hover"), "background")!;
     const resting = decl(OPEN, "background")!;
-    for (const v of [hoverOpen, hoverClosed]) expect(v).toMatch(NEUTRAL_FILL);
+    for (const v of [hoverOpen, hoverClosed, resting]) expect(v).toMatch(NEUTRAL_FILL);
     for (const theme of themes) {
-      const alpha = (v: string) => layer(v, theme)[3];
-      expect(alpha(hoverOpen), `${theme} open under the pointer`).toBeGreaterThan(alpha(resting));
-      expect(alpha(resting), `${theme} open at rest`).toBeGreaterThan(alpha(hoverClosed));
+      const bed = CHROME_BED(theme);
+      const away = (v: string) => Math.abs(relativeLuminance(paint(v, theme, bed)) - relativeLuminance(bed));
+      expect(away(hoverOpen), `${theme} open under the pointer`).toBeGreaterThan(away(resting));
+      expect(away(resting), `${theme} open at rest`).toBeGreaterThan(away(hoverClosed));
     }
     const specificity = (sel: string): number =>
       (sel.match(/\.[\w-]+|\[[^\]]*\]|:(?!:)[\w-]+/g) ?? []).length;
@@ -446,8 +452,9 @@ describe("the open state, as the sheet draws it now", () => {
   });
 
   it("left .primary alone — it means 'the action to take', not 'this is on'", () => {
-    expect(decl("button.btn.primary", "background")).toBe("var(--accent-dim)");
-    expect(decl("button.btn.primary", "color")).toBe("var(--text)");
+    // V4's button: Primary's label is --accent; three themes take a lighter wash.
+    expect(decl("button.btn.primary", "background")).toBe("var(--btn-primary-wash, var(--accent-16))");
+    expect(decl("button.btn.primary", "color")).toBe("var(--accent)");
   });
 });
 
@@ -511,13 +518,20 @@ describe("what each of the four toggles announces", () => {
     expect(chrome.left.map(i => i.id)).toEqual(["accounts", "session-list"]);
     const html = draw(createElement(EdgeRail, { side: "left", label: "Left column", groups: [chrome.left] }));
     expect(html).toMatch(/data-rail-item="session-list"[^>]*>\s*<svg /);
-    expect(buttons(html).get("session-list") && attr(buttons(html).get("session-list")!, "aria-label")).toBe("Session list");
+    // CHANGED ON PURPOSE (stripe words critique): a new profile's stripe shows
+    // the door's word, and a door is named by the word it shows (WCAG 2.5.3),
+    // the panel's own title. With the words hidden it is "Session list" again.
+    expect(buttons(html).get("session-list") && attr(buttons(html).get("session-list")!, "aria-label")).toBe("Sessions");
     // And on a phone, in the dock — the stripes give way to it there.
     const dock = draw(createElement(EdgeDock, { items: [...chrome.left, ...chrome.right[0], chrome.utilities[0]], more: [...chrome.right[1], chrome.utilities[1]] }));
     expect(attr(buttons(dock).get("session-list")!, "aria-expanded")).toBe("false");
     // The panel keeps its landmark name either way, and wears `leaving` while
     // it animates out of the left column (2026-10-08).
-    expect(sessionList).toMatch(/<aside className=\{`session-list\$\{leaving \? " leaving" : ""\}`\} id="session-list" aria-label=\{t\("board\.list\.title"\)\}>/);
+    // (With the rail's ref, which the hold asks for the focus inside it, and the
+    // pointer handlers the order is held under, v4-rail.test.ts.)
+    expect(sessionList).toMatch(/<aside className=\{`session-list\$\{leaving \? " leaving" : ""\}`\} id="session-list" aria-label=\{t\("board\.list\.title"\)\}(?:\s+ref=\{\w+\}|\s+on[A-Z]\w*=\{\w+\})*>/);
+    // The name behind the key is the one V4 draws.
+    expect(en["board.list.title"]).toBe("Sessions");
     // Enumerated rather than asked of one state, so a control that appeared
     // with some other state would fail here. Four, the four panels: the
     // speaker's popover left with the speaker (2026-10-07), the gear opens a
@@ -545,14 +559,16 @@ describe("what each of the four toggles announces", () => {
     expect(body).toMatch(/setSessionListOpen\(open => \{[\s\S]*?return !open;/);
     // Drawn from the flag's own render, and held while it leaves (panel-exit.ts,
     // isDrawn) since the left column animates (2026-10-08).
-    expect(app).toMatch(/const sessionListDrawn = isDrawn\(sessionListOpen, sessionListPhase\);/);
+    // CHANGED ON PURPOSE (one side column between 641 and 839): from the list
+    // open on screen, which a folded left column is not.
+    expect(app).toMatch(/const sessionListDrawn = isDrawn\(listOnScreen, sessionListPhase\);/);
     expect(app).toMatch(/\{sessionListDrawn && \(\s*<SessionList/);
     // The stripe button presses the same toggle L does.
     expect(app).toMatch(/onPress: toggleSessionList/);
     // The close arms the keyboard's hand-off on the way (panel-close-focus.test.ts).
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.sessionList\(\); closeSessionList\(\); \}\}/);
     expect(client).toMatch(/const closeSessionList = useCallback\(\(\) => setSessionListOpen\(false\), \[\]\);/);
-    expect(sessionList).toMatch(/className="glyph-btn sl-close" onClick=\{onClose\}/);
+    expect(sessionList).toMatch(/className="sl-icon-btn sl-close" onClick=\{onClose\}/);
     // Escape is not a third way out and never was: this is an <aside> beside
     // the canvas, not a modal, so it registers no dismisser with modalStack and
     // the key falls through to clearing the canvas selection. Pinned so the
@@ -607,10 +623,12 @@ describe("what each of the four toggles announces", () => {
       expect(tag!, id).not.toMatch(/aria-pressed|aria-expanded/);
     }
     expect(attr(tags.get("history")!, "aria-label")).toBe("Usage history");
-    expect(historyModal).toMatch(/role="dialog" aria-modal="true"/);
+    // On the shared dialog shell, which draws the scrim (#874's .modal-backdrop)
+    // and the surface's role="dialog" aria-modal="true" for every dialog.
+    expect(historyModal).toMatch(/<Dialog scrim=\{scrimPress\}/);
     expect(historyModal).toMatch(/useModalDismiss/);
-    // The shared scrim since #874, which put this dialog on the .modal shell.
-    expect(historyModal).toMatch(/className="modal-backdrop"/);
+    expect(dialogShell).toMatch(/role="dialog"\s+aria-modal="true"/);
+    expect(dialogShell).toMatch(/"modal-backdrop"/);
     expect(declIn(bodyOf(".modal-backdrop"), "position")).toBe("fixed");
   });
 
@@ -629,10 +647,17 @@ describe("the category filter chips, handed over from #368", () => {
   // The chips are components/CategoryFilterBar.tsx's, which App.tsx mounts.
   const bar = markup("components/CategoryFilterBar.tsx");
 
-  it("reports pressed state, and pressed means the category is showing", () => {
-    // The chip's own label is the category name — "edit", not "hide edit" — so
-    // pressed has to mean the category is on. `off` is the hidden set.
-    expect(bar).toMatch(/aria-pressed=\{!off\}/);
+  it("reports its state, and checked means the category is showing", () => {
+    // The row's own label is the category name — "edit", not "hide edit" — so
+    // checked has to mean the category is on. `off` is the hidden set.
+    // CHANGED ON PURPOSE: the legend's pressed items are gone; every width
+    // has the Tools menu, whose rows are the kit's checkboxes.
+    // CHANGED ON PURPOSE (V4 top-10 #5): `<Checkbox checked={!off} onChange=… />` → the
+    // same checkbox with role="menuitemcheckbox" and Enter to tick, because the rows
+    // are a group of the canvas bar's ⋯ menu, whose arrows walk menu items only.
+    expect(bar).toMatch(/<Checkbox role="menuitemcheckbox" checked=\{!off\} onChange=\{\(\) => toggleCat\(c\)\}/);
+    expect(bar).toContain('onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); toggleCat(c); } }}');
+    expect(bar).not.toMatch(/aria-pressed/);
   });
 
   it("dropped role=\"toolbar\" rather than promising arrow keys it does not implement", () => {
@@ -640,7 +665,13 @@ describe("the category filter chips, handed over from #368", () => {
     // Every chip here is its own tab stop. group keeps the naming, which is
     // what the role was really doing.
     expect(bar).not.toMatch(/role="toolbar"/);
-    expect(bar).toMatch(/role="group"\s*\n\s*aria-label=\{t\("board\.cat\.filter"\)\}/);
+    // CHANGED ON PURPOSE (V4 top-10 #5): the group named by aria-label
+    // ("Filter tools by category") → named by its visible "Tool calls" heading,
+    // because inside the ⋯ menu the group's heading is drawn, and a name that is
+    // seen beats one that is only heard. The menu's arrows walk its rows.
+    expect(bar).toMatch(/<div role="group" aria-labelledby=\{headId\} className="cat-tools-group">/);
+    expect(bar).toContain('<div id={headId} className="cat-tools-head">{t("board.detail.toolCalls")}</div>');
+    expect(markup("components/AnchoredPopover.tsx")).toContain('[role="menuitemcheckbox"]');
     // The deck's toolbars since the panel toggles reached the window's edges
     // are the stripes and the dock, and they keep the promise the role makes:
     // one stop, the arrows inside, Home and End (EdgeRails.tsx).
@@ -653,28 +684,34 @@ describe("the category filter chips, handed over from #368", () => {
   });
 
   it("carries `off` in a channel that is not colour", () => {
-    expect(decl(".cat-filter.off .cat-name", "text-decoration")).toBe("line-through");
-    // The chip's glyph is drawn, monochrome, in currentColor, so it follows
-    // the label into the off tier rather than needing a desaturation of its own.
-    // CatGlyph moved to detail-category.tsx with the paths it draws.
-    expect(markup("detail-category.tsx")).toMatch(/<svg className="cat-glyph"[^>]*stroke="currentColor"/);
+    // CHANGED ON PURPOSE (V4's legend): the channel is the dot's shape, a disc
+    // in the category's colour while it shows and a hollow ring in --text-dim
+    // once it is hidden, where it was a strike through the pill's name. Drawn
+    // as a border, so a Contrast theme keeps the ring.
+    // CHANGED ON PURPOSE: the dot and the tick live in the Tools menu's rows.
+    expect(markup("components/CategoryFilterBar.tsx")).toMatch(/<span className="cat-dot" aria-hidden="true" \/>/);
+    expect(decl(".cat-tools-item.off .cat-dot", "background")).toBe("transparent");
+    expect(decl(".cat-tools-item.off .cat-dot", "border")).toBe("1.5px solid var(--text-dim)");
+    expect(RULES.some(r => selectors(r.selector).includes(".cat-tools-item.off .cat-name")), "no strike through the name").toBe(false);
   });
 
-  it("needed one — the two colour tiers alone are under 3:1 apart in both themes", () => {
-    // This is the measurement that makes the strike load-bearing rather than
-    // decoration: --text against --muted, which is the whole of what #368 left.
-    for (const theme of themes) {
-      const on = resolve(decl(".cat-filter", "color")!, theme);
-      const off = resolve(decl(".cat-filter.off", "color")!, theme);
-      expect(contrastRatio(on, off), `${theme} on vs off label`).toBeLessThan(NON_TEXT);
-    }
+  it("needed one — the two colour tiers alone are under 3:1 apart in dark", () => {
+    // This is the measurement that makes the tick and the ring load-bearing
+    // rather than decoration. CHANGED ON PURPOSE: a row that shows reads in
+    // the menu's --text and a hidden one in --text-dim, 2.75:1 apart in dark
+    // (light clears 3:1, dark does not, so colour alone is never enough).
+    const on = resolve(decl(".ap-menu-item", "color")!, "dark");
+    const off = resolve(decl(".cat-tools-item.off", "color")!, "dark");
+    expect(contrastRatio(on, off), "dark on vs off label").toBeLessThan(NON_TEXT);
   });
 
   it("did not spend the contrast #368 just bought to get it", () => {
-    // The strike is geometry; both tiers stay exactly where that issue put them.
-    expect(decl(".cat-filter.off", "color")).toBe("var(--muted)");
-    expect(decl(".cat-filter.off:hover", "color")).toBe("var(--text)");
-    expect(declIn(bodyOf(".cat-filter.off"), "opacity")).toBeNull();
+    // The ring is geometry; neither tier is faded to get it. A hidden row
+    // reads in --text-dim, the dim tier that still clears 4.5:1
+    // (quiet-signals.test.ts).
+    expect(decl(".ap-menu-item", "color")).toBe("var(--text)");
+    expect(decl(".cat-tools-item.off", "color")).toBe("var(--text-dim)");
+    expect(declIn(bodyOf(".cat-tools-item.off"), "opacity")).toBeNull();
   });
 });
 

@@ -11,8 +11,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { codexLanAccounts, type SharedMark } from "../account-lan";
 import type { LanAccount } from "../lan-types";
-import { allOpen, isOpen, orderChoices, orderKey, SLOT_ORDER, sortAccounts, toggleAll, toggleOne, validOrder, type Openness } from "../other-accounts-order";
-import { loadOpenness, loadOrder, saveOpenness, saveOrder } from "../accounts-prefs";
+import { NONE_OPEN, allOpen, byAvailability, isOpen, toggleAll, toggleOne, type Openness } from "../other-accounts-order";
+import { laneKey, toggleLane } from "../lane-open";
 import { sentence } from "../account-issue";
 import { isAutoArmed, pastThreshold } from "../account-fold";
 import { codexHomeTitle } from "../auto-choice";
@@ -31,20 +31,19 @@ import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { type Failure } from "../accounts-reload";
 import { focusDropped } from "../panel-press";
 import { usePanelClock } from "../use-panel-clock";
-import { useNextDraft } from "../use-next-draft";
+import { type Say, useSettingPost } from "../use-setting-post";
 import { useRequestSlot } from "../use-request-slot";
 import { useThresholdDraft } from "../use-threshold-draft";
 import AccountIssuePopover, { WarnGlyph } from "./AccountIssuePopover";
 import AccountProjectsModal from "./AccountProjectsModal";
 import AccountRow from "./AccountRow";
 import AddCodexAccountDialog from "./AddCodexAccountDialog";
+import { DialogPresence } from "./Dialog";
 import AnchoredPopover from "./AnchoredPopover";
 import AutoSwitchPolicy from "./AutoSwitchPolicy";
 import OtherAccounts from "./OtherAccounts";
 import CodexShareDialog from "./CodexShareDialog";
 
-/** Keeps this column's order and open rows apart from Claude's. */
-const SCOPE = ".codex";
 /** A login that moved during a read answers again after the server's one-minute
  *  floor at the latest, so a few tries are enough and nothing runs for ever. */
 const RETRY_MS = 15_000;
@@ -133,12 +132,11 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
   // Local network took the column (#2472): a menu or a warning left open
   // would hang from a row that is no longer drawn.
   useEffect(() => { if (away) { setMenu(null); setIssueOpen(null); } }, [away]);
-  const [openness, setOpenness] = useState<Openness>(() => loadOpenness(SCOPE));
-  const [order, setOrder] = useState<string>(() => loadOrder(SCOPE));
+  const [openness, setOpenness] = useState<Openness>(NONE_OPEN);
+  /** The default account's own press, apart from "Expand all", which speaks for
+   *  the accounts behind the fold. */
+  const [liveOpen, setLiveOpen] = useState<string[]>([]);
   const [auto, setAuto] = useState<AutoStatus | null>(null);
-
-  useEffect(() => { saveOpenness(openness, SCOPE); }, [openness]);
-  useEffect(() => { saveOrder(order, SCOPE); }, [order]);
 
   /** Put focus back when a press took the control it was on: a switch replaces
    *  the row's button with the live dot. Only when it really fell. */
@@ -159,29 +157,30 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
   }, []);
 
   /** Every Auto-switch control's press. */
-  const post = useCallback(async (body: Record<string, unknown>, tag: string) => {
+  const post = useCallback(async (body: Record<string, unknown>, tag: string, say: Say = setFailure) => {
     if (!claim(tag)) return null;
-    setFailure(null);
+    say(null);
     try {
       const response = await fetch("/api/codex-auto", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       });
       const out = await response.json().catch(() => null) as (AutoStatus & { reason?: string }) | null;
       if (out?.ok) setAuto(out);
-      else setFailure({ text: t("codex.panel.settingNotSaved") });
+      else say({ text: t("codex.panel.settingNotSaved") });
       return out;
     } catch {
-      setFailure({ text: t("codex.panel.unreachable") });
+      say({ text: t("codex.panel.unreachable") });
       return null;
     } finally { release(); }
   }, [claim, release, t]);
 
+  // What is pressed inside the Auto-switch popover says its refusal inside it.
+  const { settingFailure, settingPost, clearSettingFailure } = useSettingPost(post);
   const {
     threshold, thresholdPick, thresholdCtl, thresholdSaved, thresholdRef, thresholdSaveRef,
     thresholdCustom, thresholdRefusal, thresholdFieldRef,
     proposeThreshold, typeThreshold, cancelThreshold, leaveThreshold, doThreshold,
-  } = useThresholdDraft({ auto, post, load: loadAuto });
-  const { nextPick, nextCtl, nextSaved, nextRef, nextSaveRef, proposeNext, doNext } = useNextDraft({ auto, post, load: loadAuto });
+  } = useThresholdDraft({ auto, post: settingPost, load: loadAuto });
 
   async function refreshProfiles(signal = profileController.current?.signal): Promise<CodexProfile[] | undefined> {
     if (signal?.aborted) return undefined;
@@ -207,7 +206,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
   }
 
   useEffect(() => {
-    if (liveSelection?.state !== 'waiting' && liveSelection?.continuation !== 'waiting') return;
+    if (!['waiting', 'switching'].includes(liveSelection?.state ?? '') && liveSelection?.continuation !== 'waiting') return;
     const timer = setInterval(() => {
       if (profileRefreshes.current === 0) void refreshProfiles().catch(() => {});
     }, 2000);
@@ -311,11 +310,13 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
   useEffect(() => { if (rosterRead) onNotice?.(needsAttention); }, [onNotice, needsAttention, rosterRead]);
   const others = rows.filter(row => row !== head);
   const otherAccounts = others.map(row => row.account);
-  const choices = orderChoices(otherAccounts).map(choice => choice.id === SLOT_ORDER ? { ...choice, label: t("codex.order.added") } : choice);
-  const shownOrder = validOrder(order, otherAccounts);
-  const rest = sortAccounts(otherAccounts, shownOrder,
-    a => { const row = others.find(r => r.account === a); return !a.disabled && !row?.issue?.blocksSwitch; }, nowSec)
-    .map(a => others.find(row => row.account === a) as Row);
+  // Usable accounts first, the order of adding inside each group — the Claude
+  // column's rule (internal #94, other-accounts-order.ts byAvailability), with
+  // this column's own issue saying whether a switch reaches the account.
+  const rest = byAvailability(otherAccounts, a => {
+    const row = others.find(r => r.account === a);
+    return { reachable: !a.disabled && !row?.issue?.blocksSwitch, rateLimited: row?.issue?.kind === "rate" };
+  }, nowSec).map(a => others.find(row => row.account === a) as Row);
   const rowOf = (id: string | undefined) => rows.find(row => row.profile.id === id);
   const rowBoundary = (id: string) => restOpen && rest.some(row => row.profile.id === id) ? "ap-codex-rest-list" : "ap-codex-scroll";
 
@@ -439,8 +440,11 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
 
   /** One account's row, drawn the same above the fold and behind it. */
   const voice = codexVoice(t);
+  const pendingSwitch = ['waiting', 'switching'].includes(liveSelection?.state ?? '');
+  const usingAccount = profiles?.find(profile => profile.id === liveSelection?.profileId)?.label;
   const liveNote = liveSelection?.continuation === 'manual_required' ? t("codex.row.continueUnconfirmed")
-    : liveSelection?.state === 'waiting' ? t("codex.row.switchWaiting")
+    : pendingSwitch ? (usingAccount && liveSelection?.profileId !== liveSelection?.requestedProfileId
+      ? t("codex.row.switchWaitingUsing", { account: usingAccount }) : t("codex.row.switchWaiting"))
     : liveSelection?.continuation === 'waiting' ? t("codex.row.childrenResuming") : null;
   const accountRow = ({ profile, reading, account: a, issue }: Row) => {
     const plan = shownReading(reading)?.plan;
@@ -456,20 +460,24 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
           ...voice,
           // Only a live switch still under way, or one that needs a hand: a
           // switch that took is the row's own dot, as on Claude's side.
-          switched: liveNote ?? undefined,
+          switched: pendingSwitch ? undefined : liveNote ?? undefined,
           readPlan: plan ? t("codex.row.readPlanNamed", { plan: sentence(plan), rest: voice.readPlan ?? "" }) : voice.readPlan,
           waiting: reads ? t("codex.row.reading") : undefined,
+          noReading: t("codex.row.notChecked"),
         }}
-        opened={isOpen(openness, a)} onToggleLanes={() => setOpenness(o => toggleOne(o, a))}
+        // Codex says the plan of every account it has read, so every row says
+        // it, before the reset.
+        planLabel={plan ? sentence(plan) : null}
+        opened={a.active ? liveOpen.includes(laneKey(a)) : isOpen(openness, a)}
+        onToggleLanes={() => (a.active ? setLiveOpen(o => toggleLane(o, a)) : setOpenness(o => toggleOne(o, a)))}
         busy={busy} pressProps={pressProps} onSwitch={doSwitch}
         menuOpen={menu?.id === profile.id} onOpenMenu={(_, start) => openMenu(profile.id, start)} onCloseMenu={() => setMenu(null)}
         refusal={failure?.row === a.num ? failure : !dismissedLiveFailure && liveSelection?.state === 'failed' && liveSelection.requestedProfileId === profile.id
           ? { text: t(liveFailureKey(liveSelection.reason)), row: a.num } : null} onDismissRefusal={() => { setFailure(null); setDismissedLiveFailure(true); }}
         onSignIn={() => signIn(profile)}
-        switchedHere={liveSelection?.state !== 'failed' && (switched?.id === profile.id || (liveSelection?.state === 'waiting' && liveSelection.requestedProfileId === profile.id)
+        switchedHere={liveSelection?.state !== 'failed' && (switched?.id === profile.id || (pendingSwitch && liveSelection?.requestedProfileId === profile.id)
           || (['manual_required', 'waiting'].includes(liveSelection?.continuation ?? '') && profile.active === true))} swapped={null} displaced={undefined}
-        issueExpanded={issueOpen?.anchor === `ap-codex-issue-${a.num}`} onOpenIssue={(_, anchor) => openIssue(profile.id, anchor)}
-        sortKey={a.active ? null : orderKey(shownOrder)} />
+        issueExpanded={issueOpen?.anchor === `ap-codex-issue-${a.num}`} onOpenIssue={(_, anchor) => openIssue(profile.id, anchor)} />
     );
   };
 
@@ -480,9 +488,9 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
       thresholdCustom={thresholdCustom} thresholdRefusal={thresholdRefusal} thresholdFieldRef={thresholdFieldRef}
       proposeThreshold={proposeThreshold} typeThreshold={typeThreshold}
       cancelThreshold={cancelThreshold} leaveThreshold={leaveThreshold} doThreshold={doThreshold}
-      nextPick={nextPick} nextCtl={nextCtl} nextSaved={nextSaved} nextRef={nextRef} nextSaveRef={nextSaveRef}
-      proposeNext={proposeNext} doNext={doNext}
-      pressProps={pressProps} post={post} load={loadAuto} />
+      pressProps={pressProps} post={post} settingPost={settingPost}
+      settingFailure={settingFailure} clearSettingFailure={clearSettingFailure}
+      load={loadAuto} boundaryId="ap-codex-scroll" />
   ) : null;
 
   const credentialTimedOut = liveSelection?.state === 'failed' && liveSelection.reason === 'native_timeout';
@@ -517,7 +525,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
           )}
           <button type="button" className="glyph-btn ap-refresh" aria-label={t("codex.panel.reload")} title={t("codex.panel.reloadTitle")}
             {...pressProps("reload", reloading)} onClick={() => void reload()}>
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <svg className="refresh-glyph" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M11.6 6.2A4.8 4.8 0 1 0 11 9.6" />
               <path d="M11.9 2.6v3.7h-3.6" />
             </svg>
@@ -545,6 +553,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
           ) : (
             <>
               {error && <p role="alert" className="ap-codex-hint">{t("codex.panel.refreshFailed")}</p>}
+              {pendingSwitch && liveNote && <p role="status" className="ap-codex-hint">{liveNote}</p>}
               {reconnectRow && <div className="ap-empty" role="status">
                 {!credentialTimedOut && <span>{t("codex.panel.liveControlPaused")}</span>}
                 <button type="button" className="ap-fix" {...pressProps(`switch-${reconnectRow.account.num}`)}
@@ -580,9 +589,6 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
                   threshold={auto?.ok ? threshold : null}
                   open={restOpen}
                   onToggle={() => setRestOpen(open => !open)}
-                  order={shownOrder}
-                  choices={choices}
-                  onOrder={setOrder}
                   allOpen={allOpen(openness, rest.map(row => row.account))}
                   onToggleAll={() => setOpenness(o => toggleAll(o, rest.map(row => row.account)))}
                 />
@@ -590,12 +596,12 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
               {rest.length > 0 && restOpen && (
                 <div className="ap-rest-panel" id="ap-codex-rest-panel">
                   <ul className="ap-list ap-others" id="ap-codex-rest-list">{rest.map(accountRow)}</ul>
-                  {policyBlock}
                 </div>
               )}
-              {/* Nothing to fold, so nothing to hide it behind: the policy stands
-                  under the roster it is about, as Claude's does (AccountsPanel). */}
-              {rest.length === 0 && policyBlock}
+              {/* UNDER THE ROSTER IT IS ABOUT, fold open or shut, through the
+                  same component as Claude's: its state and its threshold are
+                  readable without opening anything. */}
+              {policyBlock}
               {failure && failure.row == null && (
                 <div className="ap-failure" role="alert">
                   <span className="ap-failure-text">{failure.text}</span>
@@ -717,7 +723,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
       )}
       {/* Under the name the row has now; an account gone from a roster that
           was read takes its report with it, as Claude's does. */}
-      {projectsFor && (() => {
+      <DialogPresence when={projectsFor}>{projectsFor => {
         const row = rowOf(projectsFor.id);
         if (profiles && !row) return null;
         return (
@@ -726,13 +732,16 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
             returnFocusTo={() => document.getElementById(projectsFor.from)}
             onClose={() => setProjectsFor(null)} />
         );
-      })()}
-      {transfer && <CodexShareDialog initial={transfer.pick ? [transfer.pick] : undefined}
-        returnFocusTo={transfer.from ? () => document.getElementById(transfer.from!) : undefined}
-        profiles={profiles ?? []} onClose={() => setTransfer(null)} />}
-      {dialog && (
+      }}</DialogPresence>
+      <DialogPresence when={transfer}>{transfer => (
+        <CodexShareDialog initial={transfer.pick ? [transfer.pick] : undefined}
+          returnFocusTo={transfer.from ? () => document.getElementById(transfer.from!) : undefined}
+          profiles={profiles ?? []} onClose={() => setTransfer(null)} />
+      )}</DialogPresence>
+      <DialogPresence when={dialog}>
+        {d => (
         <AddCodexAccountDialog
-          profile={dialog.id && dialog.label ? { id: dialog.id, label: dialog.label, account: dialog.account } : undefined}
+          profile={d.id && d.label ? { id: d.id, label: d.label, account: d.account } : undefined}
           onCreate={createProfile}
           onCopyCommand={id => void copyCommand(`/api/codex-profile-login?id=${encodeURIComponent(id)}`, t("codex.panel.commandCopied"))}
           onSignedIn={async id => {
@@ -749,7 +758,8 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
           onImported={() => { void refreshProfiles().catch(() => setError(true)); }}
           onClose={() => { setDialog(null); void refreshProfiles().catch(() => setError(true)); }}
         />
-      )}
+        )}
+      </DialogPresence>
     </>
   );
 }

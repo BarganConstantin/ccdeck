@@ -124,21 +124,31 @@ describe("no panel can size the column by its content (2026-10-08)", () => {
 
   it("draws each panel at its own width, out of the column's flow", () => {
     const own = (sel: string) => decl(rules.find(r => r.selector === sel)?.body ?? "", "width");
-    expect(own(".session-list")).toBe(`${column.SESSION_LIST_WIDTH}px`);
-    expect(own(".accounts-panel")).toBe(`${column.ACCOUNTS_PANEL_WIDTH}px`);
+    // The rail draws at V4's --rail-w, the density's token (Default and
+    // Comfortable 288, Compact and below 264 — use-left-column.ts's
+    // useRailWidth reads the same one for the column); SESSION_LIST_WIDTH is
+    // the Default value the token falls back to.
+    expect(own(".session-list")).toBe("calc(var(--rail-w))");
+    expect(css).toMatch(new RegExp(`:root\\s*\\{[^}]*--rail-w:\\s*${column.SESSION_LIST_WIDTH}px;`));
+    // CHANGED ON PURPOSE (V4's Figma): the accounts panel is drawn at the same
+    // token (264 at Compact), and the column holds the rail's width for it.
+    expect(own(".accounts-panel")).toBe("calc(var(--rail-w))");
     const inside = rules.find(r => selectorsOf(r.selector).includes(".left-column > .session-list")
       && selectorsOf(r.selector).includes(".left-column > .accounts-panel"));
     expect(decl(inside?.body ?? "", "position")).toBe("absolute");
   });
 
-  it("is as wide as App says, eased over --column-move", () => {
+  it("is as wide as App says, eased over V4's --dur-move on --ease-stage", () => {
     const body = rules.find(r => r.selector === ".left-column")?.body ?? "";
     expect(decl(body, "width")).toBe("var(--left-col-w)");
-    expect(decl(body, "transition")).toMatch(/^width var\(--column-move\) var\(--column-ease\)$/);
-    expect(css).toMatch(new RegExp(`--column-move:\\s*${column.COLUMN_MOVE_MS}ms;`));
+    expect(decl(body, "transition")).toMatch(/^width var\(--dur-move\) var\(--ease-stage\)$/);
+    expect(css).toMatch(new RegExp(`--dur-move:\\s*${column.COLUMN_MOVE_MS}ms;`));
     // App's width, plus the reading preference's panel increase while open:
     // 0px at the Default text size, so the column is exactly App's width.
     expect(sourceOf("components/LeftColumn.tsx")).toMatch(/"--left-col-w": width === 0 \? "0px" : `calc\(\$\{width\}px \+ var\(--ui-panel-increase, 0px\)\)`/);
-    expect(sourceOf("App.tsx")).toMatch(/<LeftColumn width=\{leftColumnTarget\}>/);
+    // CHANGED ON PURPOSE (internal #103): the column also holds the Sessions
+    // list's own width (--list-w) for the list in it; its own width is still
+    // App's leftColumnTarget.
+    expect(sourceOf("App.tsx")).toMatch(/<LeftColumn width=\{leftColumnTarget\} listWidth=\{phone \? undefined : listWidth\}/);
   });
 });

@@ -180,6 +180,15 @@ export const RATES: Array<{ match: RegExp; rates: ModelRates | ((now: number) =>
   // Order matters — the first match wins, so each family's variants precede
   // its bare alias.
 
+  // https://developers.openai.com/api/docs/pricing (2026-11-18), Standard
+  // short context. The unsplit cache-write counter uses the 30-minute rate.
+  { match: /^gpt[-_]6[-_.]2[-_]astra\b(?![-_][A-Za-z])/i,
+    rates: { input: 8, output: 40, cacheRead: 0.40, cacheWrite: 10 } },
+  { match: /^gpt[-_]6[-_.]2[-_]sol\b(?![-_][A-Za-z])/i,
+    rates: { input: 2, output: 10, cacheRead: 0.10, cacheWrite: 2.50 } },
+  { match: /^gpt[-_]6[-_.]1[-_]terra\b(?![-_][A-Za-z])/i,
+    rates: { input: 1, output: 5, cacheRead: 0.05, cacheWrite: 1.25 } },
+
   // gpt-6-astra — $10 / $50  (cached $1, cache write $12.50).  1.05M.
   //
   // Read 2026-09-15 from developers.openai.com/api/docs/pricing, where it was

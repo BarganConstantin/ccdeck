@@ -13,6 +13,7 @@ import { isAlarming } from "./ambient-counts";
 import { clusterHeader, type ClusterHeader } from "./cluster-header";
 import { planLine, planSummary } from "./agent-plan";
 import { branchShort, type BranchSummary } from "./node-face";
+import { PACKED_GAP } from "./packed-board";
 import { HEADER_H, LABEL_LIFT, PAD } from "./session-chrome";
 import { sessionDisplay } from "./session-display";
 import type { AgentNodeData } from "./types";
@@ -69,6 +70,14 @@ const LABEL_GUTTER = 240;
 export const LABEL_INDENT = 16;
 
 /**
+ * The same reach where the faces draw the board packed (packed-board.ts): two
+ * columns' cards stand PACKED_GAP apart, their boxes that less a PAD each, and
+ * the pill, which starts LABEL_INDENT inside its box, stops 8 short of the
+ * next box, so it never reaches the next column's box or its pill.
+ */
+export const PACKED_LABEL_GUTTER = PACKED_GAP - 2 * PAD - LABEL_INDENT - 8;
+
+/**
  * The widest the header pill may draw, in SCREEN px, for a cluster box `w`
  * layout units wide shown at `zoom`.
  *
@@ -82,13 +91,14 @@ export const LABEL_INDENT = 16;
  * to minZoom and never hands out a zero, and a zero here would make the cap
  * zero and hide the header entirely.
  */
-export function labelMaxWidth(clusterWidth: number, zoom: number): number {
-  return (clusterWidth + LABEL_GUTTER) * (zoom || 1);
+export function labelMaxWidth(clusterWidth: number, zoom: number, gutter = LABEL_GUTTER): number {
+  return (clusterWidth + gutter) * (zoom || 1);
 }
 
 /**
- * The decorative box under a session's cards: where it sits and how big it is,
- * and the session's hue for the sheet to build its rim and wash from.
+ * The decorative box under a session's cards: where it sits and how big it is.
+ * Nothing else: the box wears no colour of the session's (V4 top-10 #1), so
+ * its neutral wash is the sheet's alone.
  *
  * Layout coordinates, straight out of clusterBounds, with no camera in
  * them. clusterBounds already works in the same space React Flow keeps
@@ -106,7 +116,7 @@ export function labelMaxWidth(clusterWidth: number, zoom: number): number {
  * rather than through left and top. The size stays width and height,
  * which change only when a session gains or loses a node.
  */
-export function clusterBoxStyle(c: Cluster, hue: number): React.CSSProperties {
+export function clusterBoxStyle(c: Cluster): React.CSSProperties {
   return {
     position: "absolute",
     left: 0,
@@ -114,13 +124,13 @@ export function clusterBoxStyle(c: Cluster, hue: number): React.CSSProperties {
     transform: `translate(${c.x}px, ${c.y}px)`,
     width: c.w,
     height: c.h,
-    "--session-hue": hue,
-  } as React.CSSProperties;
+  };
 }
 
 /**
- * The header pill over a session's box, at `zoom`: placed in layout space
- * like the box, drawn at 1× on screen, and capped at labelMaxWidth.
+ * The header label over a session's box, at `zoom`: placed in layout space
+ * like the box, drawn at 1× on screen, and capped at labelMaxWidth. No colour
+ * of the session's, like the box (V4 top-10 #1).
  *
  * The label is the one child that must not scale with the camera: it is
  * text, and a session name drawn at 0.2× is a smudge. It sits in layout
@@ -171,7 +181,7 @@ export function clusterBoxStyle(c: Cluster, hue: number): React.CSSProperties {
  * cap or less — less where the pane's right edge or the chrome over it
  * comes first.
  */
-export function clusterLabelStyle(c: Cluster, zoom: number, hue: number, maxWidth?: number): React.CSSProperties {
+export function clusterLabelStyle(c: Cluster, zoom: number, maxWidth?: number): React.CSSProperties {
   return {
     position: "absolute",
     left: c.x + LABEL_INDENT,
@@ -179,8 +189,7 @@ export function clusterLabelStyle(c: Cluster, zoom: number, hue: number, maxWidt
     transform: `scale(${1 / (zoom || 1)})`,
     transformOrigin: "left top",
     maxWidth: maxWidth ?? labelMaxWidth(c.w, zoom),
-    "--session-hue": hue,
-  } as React.CSSProperties;
+  };
 }
 
 /**
@@ -189,8 +198,14 @@ export function clusterLabelStyle(c: Cluster, zoom: number, hue: number, maxWidt
  * Pure so the geometry can be pinned without a store: the store is where the
  * bug came from, not the arithmetic.
  */
-export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
-  const bySession = new Map<string, { minX: number; minY: number; maxX: number; maxY: number; label: string; name?: string; alarm?: boolean; branch?: string; plan?: string; planLine?: string }>();
+export function clusterBounds(nodes: Iterable<ClusterNode>, { notes = true }: {
+  /** Whether a session's note is drawn, which it is only at the full card
+   *  (context-modal.css). Where it is not, the frame goes round the cards: a
+   *  frame round the note's empty place was the left half of every working
+   *  session's box, drawn empty at every distance a fitted board is seen at. */
+  notes?: boolean;
+} = {}): Cluster[] {
+  const bySession = new Map<string, { minX: number; minY: number; maxX: number; maxY: number; label: string; name?: string; alarm?: boolean; branch?: string; plan?: string; planLine?: string; startedAt?: number }>();
   for (const n of nodes) {
     // Only agent cards define a session's bounds. The invisible per-session
     // drag handle is a React Flow node like any other and its data carries the
@@ -203,6 +218,7 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
     // session (RecapNoteNode), so the frame — which traces what a session drag
     // moves — goes round it as well as round the cards.
     if (n.type !== "agent" && n.type !== "recapNote") continue;
+    if (n.type === "recapNote" && !notes) continue;
     const d = n.data as AgentNodeData;
     if (!d?.sessionId) continue;
     // Skip retiring agents — they're fading out. Including them keeps the
@@ -228,6 +244,7 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
         branch: root?.branch,
         plan: root?.plan,
         planLine: root?.planLine,
+        startedAt: root?.startedAt,
       });
     } else {
       existing.minX = Math.min(existing.minX, x1);
@@ -241,29 +258,20 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
         existing.branch = root.branch;
         existing.plan = root.plan;
         existing.planLine = root.planLine;
+        existing.startedAt = root.startedAt;
       }
     }
   }
 
-  // When multiple sessions resolve to the same label (e.g. two Claude sessions
-  // running in the same cwd both pick the basename as their label), append a
-  // short session-id suffix so the user can tell them apart at a glance.
-  // The ids themselves rather than a count of them, so the suffix can be made
-  // long enough to differ from every other session under the label (#1732).
-  const idsByLabel = new Map<string, string[]>();
-  for (const [sessionId, b] of bySession) {
-    const ids = idsByLabel.get(b.label);
-    if (ids) ids.push(sessionId);
-    else idsByLabel.set(b.label, [sessionId]);
-  }
+  // Every session's id, so the tail each tooltip names is long enough to differ
+  // from all the others on the board (#1732).
+  const peers = [...bySession.keys()];
 
   const out: Cluster[] = [];
   for (const [sessionId, b] of bySession) {
-    const peers = idsByLabel.get(b.label) ?? [];
-    const needsSuffix = peers.length > 1;
     out.push({
       sessionId,
-      ...clusterHeader(b.label, b.name, sessionId, needsSuffix, peers, { branch: b.branch, plan: b.planLine, alarm: b.alarm }),
+      ...clusterHeader(b.label, b.name, sessionId, peers, { branch: b.branch, plan: b.planLine, alarm: b.alarm, startedAt: b.startedAt }),
       x: b.minX - PAD,
       y: b.minY - PAD - HEADER_H,
       w: b.maxX - b.minX + PAD * 2,
@@ -287,7 +295,7 @@ export function clusterBounds(nodes: Iterable<ClusterNode>): Cluster[] {
  * field off whichever node arrived first would leave the header waiting on
  * iteration order for a field the root has had all along.
  */
-function rootFields(d: AgentNodeData): { label?: string; name?: string; alarm: boolean; branch?: string; plan?: string; planLine?: string } | null {
+function rootFields(d: AgentNodeData): { label?: string; name?: string; alarm: boolean; branch?: string; plan?: string; planLine?: string; startedAt: number } | null {
   if (d.kind !== "root") return null;
   const b = (d as AgentNodeData & { branch?: BranchSummary }).branch;
   const plan = planSummary(d.plan);
@@ -311,6 +319,7 @@ function rootFields(d: AgentNodeData): { label?: string; name?: string; alarm: b
     // The root's plan, which for the Task tools is the session's (agent-plan.ts).
     plan: plan ? `plan ${plan.done}/${plan.total}` : undefined,
     planLine: plan ? planLine(plan) : undefined,
+    startedAt: d.startedAt,
   };
 }
 
@@ -326,7 +335,8 @@ export function shallowEqualClusters(a: Cluster[], b: Cluster[]): boolean {
       // tooltip serves, so skipping it would hold a stale one behind a header
       // that had already settled.
       x.name !== y.name ||
-      x.shortId !== y.shortId ||
+      x.idTail !== y.idTail ||
+      x.startedAt !== y.startedAt ||
       x.alarm !== y.alarm ||
       x.branch !== y.branch ||
       x.plan !== y.plan ||

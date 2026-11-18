@@ -41,7 +41,7 @@
    exist to hold. */
 .lan-note {
   margin: 6px 0 0;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--text-dim);
 }
@@ -75,7 +75,7 @@
 .lan-switch-detail {
   display: block;
   margin-top: 1px;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   color: var(--muted);
   overflow-wrap: anywhere;
 }
@@ -94,7 +94,7 @@
 }
 .lan-sub {
   margin: 0 0 6px;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   color: var(--muted);
 }
@@ -111,7 +111,7 @@
    this panel already means by "this is the part that bites". */
 .lan-warn {
   margin: 0 0 8px;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 1.5;
   color: var(--warn);
 }
@@ -126,7 +126,7 @@
 .ap-lan-reach {
   margin: 0 0 10px;
   padding: 8px 10px;
-  border-radius: 4px;
+  border-radius: var(--r-ctl);
   /* The shape `.ap-failure` already uses for "read this before you go on": a
      wash of the tone it is about, at a weight that stays under the text. It
      began as a 2px rule down the left edge, which is the stock callout costume
@@ -158,7 +158,7 @@
    they came for. */
 .ap-lan-reach-fix { margin: 8px 0 0; }
 .ap-lan-reach-fix > summary {
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   cursor: pointer;
   list-style: revert;
   /* 14.5px of line box was the smallest target in the dialog by a clear margin
@@ -166,7 +166,9 @@
      the difference, since the row is full width already. */
   padding: 4px 0;
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-lan-reach-fix > summary:hover { color: var(--text); }
+}
 /* A command is read before it is run, and one that wraps mid-flag is one
    nobody can check. It scrolls in its own box rather than widening the
    dialog. */
@@ -174,12 +176,12 @@
   margin: 6px 0;
   padding: 6px 8px;
   overflow-x: auto;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--text);
   background: var(--bg-soft);
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--r-ctl);
   white-space: pre;
 }
 
@@ -222,22 +224,37 @@ input, textarea { caret-color: var(--accent); }
    the question rather than to the 820px the inspectors need. Everything in it
    is one column: who is asking, what saying yes costs, the fingerprint worth
    comparing, and the two answers. */
-.modal.lan-ask { width: var(--dialog-s); }
-.modal.lan-ask .modal-body { display: flex; flex-direction: column; gap: 10px; }
-/* The emitter is the accent here for the same reason it is on a live roster
-   row: this is the one thing on the screen that is happening now. */
-.lan-ask .modal-title .ap-pulse { color: var(--accent); }
-.lan-ask-who { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text); line-height: 1.5; }
+/* 420 wide, as V4's Figma draws the request: one question, one value, two
+   answers. Its body is the kit's 16px padding and nothing else. */
+.modal.lan-ask { width: min(420px, calc(100vw - 32px)); }
+.modal.lan-ask .modal-body { display: flex; flex-direction: column; gap: 8px; }
+.lan-ask-who { margin: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 600; color: var(--text); line-height: var(--lh-body); }
 .lan-ask-name { font-weight: 600; }
-/* Secondary text on the panel ground, so it is dimmed rather than shouted, and
-   still over the 4.5 bar — the ground here is --panel, not a tinted wash. */
-.lan-ask-fp, .lan-ask-more { margin: 0; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); line-height: 1.5; }
-.lan-ask-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }
-/* Both answers are the same size, because neither is the one the dialog wants
-   pressed — a bigger Accept is a dialog with an opinion about somebody else's
-   machine. The accent on it says which one is the forward move, and that is
-   all it says. */
-.lan-ask-acts .btn { min-width: 92px; justify-content: center; }
+/* What accepting means and what to compare, in the kit's 12/16 body: the first
+   in the secondary ink, because it is prose a reader reads. */
+.lan-ask-note, .lan-ask-fp { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--text-secondary); }
+/* THE ONE VALUE WORTH COMPARING, boxed on its own: 36 tall, the sunken fill, the
+   control radius and no stroke, in the terminal's 13px mono. */
+.lan-ask-fp-box {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  border-radius: var(--r-ctl);
+  background: var(--sunken);
+  font-family: var(--font-mono);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: var(--lh-body);
+  color: var(--text);
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+.lan-ask-more { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); }
+/* Decline then Accept, right-aligned in the kit's 48 foot with an 8 gap. The
+   words set each button's width, as in V4's Figma — neither is made bigger than
+   the other, because neither is the answer the dialog wants pressed. */
+.lan-ask-foot .btn { min-width: 0; }
 
 /* ── one machine, opened from its row ───────────────────────────────────────
    Everything the row's tooltip used to carry, the name this deck gives that
@@ -264,13 +281,24 @@ input, textarea { caret-color: var(--accent); }
 .lan-peer[data-tone="bad"] .lan-peer-head > :is(.ap-pulse, .ap-dot) { color: var(--warn); opacity: 1; }
 .lan-peer[data-tone="warn"] .lan-peer-head > :is(.ap-pulse, .ap-dot) { color: var(--warn); opacity: 1; }
 .lan-peer[data-tone="wait"] .lan-peer-head > .ap-pulse { color: var(--accent); }
-.lan-peer-id { flex: 1 1 auto; min-width: 0; }
+/* The name at the left and the sub-line at the right, 12 apart, on one
+   baseline, as V4's Figma draws the header. It wraps under the name on a column
+   too narrow for both. */
+.lan-peer-id {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  column-gap: 12px;
+}
 /* Baseline, not centre: a name that has wrapped to two lines would otherwise
    hang the pencil halfway down the pair, pointing at neither line. */
 .lan-peer-title { display: flex; align-items: baseline; gap: 2px; min-width: 0; }
 /* The machine's name, in the interface's own face: it is a name somebody
-   chose, not a value to be copied, and `.modal-tool-name`'s monospace is for
-   the tool calls that are. */
+   chose, not a value to be copied, and monospace is for the values that are
+   (`.ap-lan-code`). */
 /* IT WRAPS RATHER THAN TRUNCATES. A hostname is what this whole dialog is
    about, and when no alias is set this is the only place it appears — an
    ellipsis put the end of a long one out of reach entirely, since the file's
@@ -285,7 +313,7 @@ input, textarea { caret-color: var(--accent); }
   line-clamp: 2;
   overflow: hidden;
   overflow-wrap: anywhere;
-  font-size: calc(14px + var(--ui-text-increase, 0px));
+  font-size: calc(13px + var(--ui-text-increase, 0px));
   font-weight: 600;
   line-height: 1.45;
   color: var(--text);
@@ -294,15 +322,20 @@ input, textarea { caret-color: var(--accent); }
    control across the header from the thing it changes is one somebody has to
    go looking for. Quiet until pointed at, like the section's three icons. */
 .lan-peer-rename { flex: none; color: var(--muted); }
+@media (hover: hover) and (pointer: fine) {
 .lan-peer-rename:hover:not(:disabled) { color: var(--text); }
+}
 .lan-peer-edit { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .lan-peer-input { flex: 1 1 auto; min-width: 0; font-size: calc(13px + var(--ui-text-increase, 0px)); }
 .lan-peer-sub {
-  margin: 1px 0 0;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  line-height: 1.45;
+  margin: 0;
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
   color: var(--muted);
   overflow-wrap: anywhere;
+  text-align: right;
 }
 /* The name it gives itself, a step brighter than the words around it: it is
    the second answer to "who is this", not a caption. */
@@ -351,7 +384,7 @@ input, textarea { caret-color: var(--accent); }
   color: var(--text);
   overflow-wrap: anywhere;
 }
-.lan-end-runs { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+.lan-end-runs { font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
 
 .lan-link,
 .lan-lane {
@@ -389,7 +422,7 @@ input, textarea { caret-color: var(--accent); }
      for the lanes drawing in, which animate it. */
   overflow-x: clip;
   clip-path: inset(-4px 0);
-  border-radius: 1px;
+  border-radius: var(--r-ctl);
   background: var(--wire);
 }
 .lan-link-label,
@@ -401,7 +434,7 @@ input, textarea { caret-color: var(--accent); }
   text-align: center;
   overflow-wrap: anywhere;
 }
-.lan-link-label { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--text); }
+.lan-link-label { font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--text); }
 .lan-lane-email { font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 1.45; color: var(--text); }
 
 /* The network, in the row mark's own three states. */
@@ -421,7 +454,7 @@ input, textarea { caret-color: var(--accent); }
   grid-column: 2;
   margin: 2px 0 0;
   text-align: center;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--muted);
   overflow-wrap: anywhere;
@@ -486,7 +519,7 @@ input, textarea { caret-color: var(--accent); }
   width: 8px;
   height: 8px;
   box-sizing: border-box;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   border: 1.5px solid var(--muted);
   box-shadow: 0 0 0 3px var(--panel);
 }
@@ -515,9 +548,9 @@ input, textarea { caret-color: var(--accent); }
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   border: 1px solid var(--accent);
-  animation: ap-ping 2.6s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+  animation: ap-ping 2.6s ease-in-out infinite;
 }
 /* Less motion keeps the ring, still — the way `.ap-pulse` keeps its own. */
 @media (prefers-reduced-motion: reduce) {
@@ -527,7 +560,7 @@ input, textarea { caret-color: var(--accent); }
    not a lane to mark: "current account hidden" when its owner switched the
    telling off, "on another account" when it is on one it does not share. The
    annotation tier, like what it runs. */
-.lan-end-note { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--muted); }
+.lan-end-note { font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.5; color: var(--muted); }
 
 /* A dashed lane is a login with no copy that can move either way. */
 .lan-wire[data-flow="cut"] {
@@ -549,7 +582,7 @@ input, textarea { caret-color: var(--accent); }
   grid-column: 2;
   grid-row: 2;
   text-align: center;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--muted);
   overflow-wrap: anywhere;
@@ -570,7 +603,7 @@ input, textarea { caret-color: var(--accent); }
   column-gap: 14px;
   row-gap: 4px;
   margin-top: 14px;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--muted);
 }
@@ -617,7 +650,7 @@ input, textarea { caret-color: var(--accent); }
   width: 5px;
   height: 5px;
   margin-top: -2.5px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: var(--glint);
 }
 .lan-glint[data-dir="out"]::after { right: 0; }
@@ -647,26 +680,26 @@ input, textarea { caret-color: var(--accent); }
      half a beat apart each way, so an exchange reads as two turns rather
      than as traffic. */
   .lan-lane .lan-wire {
-    animation: lan-draw-both 560ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i, 0) * 70ms + 80ms) both;
+    animation: lan-draw-both 560ms var(--ease) calc(var(--i, 0) * 70ms + 80ms) both;
   }
   .lan-lane[data-draw="in"] .lan-wire {
-    animation: lan-draw-in 560ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i, 0) * 70ms + 80ms) both;
+    animation: lan-draw-in 560ms var(--ease) calc(var(--i, 0) * 70ms + 80ms) both;
   }
   .lan-lane[data-draw="out"] .lan-wire {
-    animation: lan-draw-out 560ms cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i, 0) * 70ms + 80ms) both;
+    animation: lan-draw-out 560ms var(--ease) calc(var(--i, 0) * 70ms + 80ms) both;
   }
   .lan-map[data-link="up"] .lan-lane .lan-glint[data-dir="out"] {
-    animation: lan-run-out 4.2s cubic-bezier(0.65, 0, 0.35, 1) calc(var(--i, 0) * 0.35s + 0.7s) infinite;
+    animation: lan-run-out 4.2s ease-in-out calc(var(--i, 0) * 0.35s + 0.7s) infinite;
   }
   .lan-map[data-link="up"] .lan-lane .lan-glint[data-dir="in"] {
-    animation: lan-run-in 4.2s cubic-bezier(0.65, 0, 0.35, 1) calc(var(--i, 0) * 0.35s + 2.8s) infinite;
+    animation: lan-run-in 4.2s ease-in-out calc(var(--i, 0) * 0.35s + 2.8s) infinite;
   }
   /* A check is a question and its answer: out along the network and back. */
   .lan-map[data-asking] .lan-link .lan-glint[data-dir="out"] {
-    animation: lan-run-out 1.3s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+    animation: lan-run-out 1.3s ease-in-out infinite;
   }
   .lan-map[data-asking] .lan-link .lan-glint[data-dir="in"] {
-    animation: lan-run-in 1.3s cubic-bezier(0.65, 0, 0.35, 1) 0.65s infinite;
+    animation: lan-run-in 1.3s ease-in-out 0.65s infinite;
   }
 }
 /* Named again for less motion, where none of them can run — they exist only
@@ -696,7 +729,7 @@ input, textarea { caret-color: var(--accent); }
   margin: 0;
 }
 .lan-fact { display: contents; }
-.lan-fact dt { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.6; color: var(--muted); }
+.lan-fact dt { font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.6; color: var(--muted); }
 .lan-fact dd {
   margin: 0;
   min-width: 0;
@@ -716,10 +749,28 @@ input, textarea { caret-color: var(--accent); }
    moved into the picture, and with them the only row that was ever warned. */
 .lan-fact[data-tone="quiet"] dd,
 .lan-fact[data-tone="meta"] dd { color: var(--muted); }
+/* IN THE DECK'S OWN DIALOG the facts are V4's rows: 24 high, the label in the
+   muted 12/16 and the value in the secondary 12/16, 12 apart; the fingerprint
+   is the one value in the terminal's mono, at full strength. The map's side
+   panel draws the same markup at its own size, so this stays under .lan-peer. */
+.lan-peer .lan-facts { column-gap: 12px; row-gap: 0; align-items: center; }
+.lan-peer .lan-fact dt,
+.lan-peer .lan-fact dd {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+}
+.lan-peer .lan-fact dd { color: var(--text-secondary); }
+.lan-peer .lan-fact[data-tone="quiet"] dd { color: var(--muted); }
+.lan-peer .lan-fp .ap-lan-code { font-size: calc(12px + var(--ui-text-increase, 0px)); }
 .lan-fp { display: inline-flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
 /* Inline in a line of text, where SC 2.5.8 exempts a target from the 24px
    floor — so the word does not push the row it sits in to twice its height. */
 .lan-fp .lan-copy { padding: 0; min-height: 0; }
+/* The copy word beside an address or a fingerprint reads at the 11px floor. */
+.ap-lan-word.lan-copy { font-size: calc(11px + var(--ui-text-increase, 0px)); }
 /* The sentence the row translated, whole and in the monospace it was written
    in: `not listening` is what a row can fit, and the errno and the address
    are what somebody fixing it needs. */
@@ -727,7 +778,7 @@ input, textarea { caret-color: var(--accent); }
   display: block;
   margin-top: 2px;
   font-family: var(--font-mono);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   color: var(--muted);
 }
 .lan-done {
@@ -737,7 +788,7 @@ input, textarea { caret-color: var(--accent); }
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   color: var(--text-dim);
 }
 .lan-done-what { color: var(--muted); }
@@ -778,14 +829,14 @@ input, textarea { caret-color: var(--accent); }
 /* A key the machine held before and dropped: paired, and nothing to dial. Said
    in words in the address's own column, in the annotation tier, rather than as
    an empty cell that reads like a rendering fault. */
-.lan-twin-none { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--muted); }
+.lan-twin-none { font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); color: var(--muted); }
 /* Both lines tall, centred on the entry it ends: the verb is about the whole
    deck, not about either line of it. */
 .lan-twin-do { grid-column: 4; grid-row: span 2; align-self: center; }
 .lan-twin-meta {
   grid-column: 2 / 4;
   margin-bottom: 9px;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--muted);
 }
@@ -800,7 +851,7 @@ input, textarea { caret-color: var(--accent); }
    not a second alarm. */
 .lan-stale {
   margin: 0 0 8px;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--muted);
 }
@@ -809,54 +860,53 @@ input, textarea { caret-color: var(--accent); }
    same sentence under every one of them, in the warning ink each time. */
 .lan-spent {
   margin: 6px 0 0;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--warn);
 }
 /* A bar with something to say instead of a bar with nothing in it. */
 .lan-foot-note {
   margin: 0 auto 0 0;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--muted);
 }
 
-/* The two acts, apart: `check now` on the left, the row's own verb on the far
-   right where every dialog on this deck keeps its answer — and where unpair,
-   the one that cannot be undone from here, is furthest from the press somebody
-   makes most. */
-.lan-peer-foot {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 10px 16px;
-  border-top: 1px solid var(--line);
-  background: var(--bg-soft);
-}
-.lan-peer-foot > .btn:not(.lan-peer-verb) { margin-right: auto; }
-.lan-peer-foot .btn { min-width: 92px; justify-content: center; }
-/* TWO ACTS, TWO WEIGHTS. Both were pills of the same size, and the rare
-   irreversible one carried the louder ink — error text on an error edge —
-   while the safe one somebody presses every day was plain. The row two panels
-   away already disagrees: there, unpair is invisible until the row is pointed
-   at. This is the same verb, so it holds the same line. It keeps its word and
-   its place, loses the border it did not need to be found, and takes the
-   error colour only once it has been armed, which is the moment the colour is
-   actually about something. Never hidden: it is reachable by tab, reads its
-   own name to a screen reader, and answers hover and focus alike. */
+/* The two acts, apart, as V4's Figma places them: Unpair on the left, outlined,
+   and Check now on the right, the primary. The kit's shared foot supplies the
+   48 height, the soft rule and the 16 sides; this only spreads the two ends. A
+   foot with one act keeps it at the right edge, where every dialog on this deck
+   keeps its answer. */
+.lan-peer-foot { justify-content: space-between; }
+.lan-peer-foot > .btn:only-child { margin-left: auto; }
+/* UNPAIR IS OUTLINED, NOT RED, until the second press. It is the one act that
+   cannot be undone from here, so the colour waits for the moment it is about:
+   the quiet kit button at rest, the error edge and ink on hover and on focus,
+   and the filled error once armed. Never hidden: it is reachable by tab, reads
+   its own name to a screen reader, and answers hover and focus alike. */
 .lan-peer-foot .btn.danger:not(.armed) {
-  border-color: transparent;
-  color: var(--muted);
+  background: transparent;
+  border-color: var(--ctl-edge);
+  color: var(--text-secondary);
+  font-weight: 500;
 }
-.lan-peer-foot .btn.danger:not(.armed):hover:not(:disabled),
 .lan-peer-foot .btn.danger:not(.armed):focus-visible {
-  border-color: color-mix(in srgb, var(--err) 65%, transparent);
+  border-color: var(--err);
   color: var(--err);
+}
+@media (hover: hover) and (pointer: fine) {
+.lan-peer-foot .btn.danger:not(.armed):hover:not(:disabled) {
+  border-color: var(--err);
+  color: var(--err);
+}
 }
 /* Armed is the second press of the only irreversible act here, and it keeps
    the error colour without being pointed at — as the row's does. */
 .lan-peer-foot .btn.danger.armed { color: var(--bg); background: var(--err); }
+/* While another press is out Unpair is disabled, and it draws as every
+   disabled button does (button.btn:disabled), which the two rules above
+   outrank: no fill, a --line-soft edge, the label in --muted-dim. */
+.lan-peer-foot .btn.danger:disabled { background: transparent; border-color: var(--line-soft); color: var(--muted-dim); }
 
 /* The alert carries a panel's own inset — 14px, sized for the 288px column it
    was written for — and inside a dialog's 16px padding that put it 30px from
@@ -877,7 +927,7 @@ input, textarea { caret-color: var(--accent); }
   border-top: 1px solid var(--line);
   background: var(--bg-soft);
 }
-.lan-foot-note { margin-right: auto; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.45; color: var(--muted); }
+.lan-foot-note { margin-right: auto; font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.45; color: var(--muted); }
 .lan-setup-foot .btn { min-width: 92px; justify-content: center; }
 
 /* ── the panel's one list of machines ───────────────────────────────────────
@@ -900,7 +950,7 @@ input, textarea { caret-color: var(--accent); }
   align-self: center;
   min-height: 24px;
   padding: 3px 8px;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
 }
 /* UNPAIR IS NOT PART OF READING THE LIST. It is the one act in this section
    that cannot be undone from this section, it is done about twice in a deck's
@@ -927,23 +977,29 @@ input, textarea { caret-color: var(--accent); }
 .ap-lan-who .ap-lan-do.danger {
   opacity: 0;
 }
-.ap-lan-who:hover .ap-lan-do.danger,
 .ap-lan-who:has(:focus-visible) .ap-lan-do.danger,
 .ap-lan-who .ap-lan-do.danger.armed { opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+.ap-lan-who:hover .ap-lan-do.danger { opacity: 1; }
+}
 .ap-lan-who .ap-manage-btn {
   color: var(--muted);
   border-color: transparent;
   background: none;
   /* The tone's corners rather than a pill's — one radius in the row. */
-  border-radius: 4px;
+  border-radius: var(--r-ctl);
 }
 /* A lit row lifts the ground under its verbs as it does under its sentence,
    so they are mixed toward the foreground there too: a step under the name,
    which stays the brightest thing in the row, and clear of 4.5:1 on the tone. */
-.ap-lan-who:is(:hover, :has(:focus-visible)) .ap-manage-btn {
+.ap-lan-who:has(:focus-visible) .ap-manage-btn {
   color: color-mix(in srgb, var(--muted) 65%, var(--text));
 }
-.ap-lan-who .ap-manage-btn:hover:not(:disabled),
+@media (hover: hover) and (pointer: fine) {
+.ap-lan-who:hover .ap-manage-btn {
+  color: color-mix(in srgb, var(--muted) 65%, var(--text));
+}
+}
 .ap-lan-who .ap-manage-btn:focus-visible {
   color: var(--text);
   /* --ctl-edge, which is what a control's own boundary is made of here.
@@ -953,7 +1009,17 @@ input, textarea { caret-color: var(--accent); }
   border-color: var(--ctl-edge);
   background: var(--ctl-fill);
 }
-.ap-lan-who .ap-manage-btn.danger:hover:not(:disabled),
+@media (hover: hover) and (pointer: fine) {
+.ap-lan-who .ap-manage-btn:hover:not(:disabled) {
+  color: var(--text);
+  /* --ctl-edge, which is what a control's own boundary is made of here.
+     --line is the token for a rule BETWEEN things and is deliberately fainter
+     than 3:1 — borrowing it for an edge would draw a boundary nobody with
+     ordinary eyes can find. */
+  border-color: var(--ctl-edge);
+  background: var(--ctl-fill);
+}
+}
 .ap-lan-who .ap-manage-btn.danger:focus-visible {
   color: var(--err);
   border-color: color-mix(in srgb, var(--err) 65%, transparent);
@@ -961,6 +1027,16 @@ input, textarea { caret-color: var(--accent); }
      thing pointed at, and small enough that the row around it does not read
      as destructive. */
   background: none;
+}
+@media (hover: hover) and (pointer: fine) {
+.ap-lan-who .ap-manage-btn.danger:hover:not(:disabled) {
+  color: var(--err);
+  border-color: color-mix(in srgb, var(--err) 65%, transparent);
+  /* The word and a hairline, no fill: the verb's own answer when it is the
+     thing pointed at, and small enough that the row around it does not read
+     as destructive. */
+  background: none;
+}
 }
 /* Armed is the one state that keeps the colour without being pointed at: the
    press has already happened once and the next one is the irreversible half. */
@@ -978,7 +1054,9 @@ input, textarea { caret-color: var(--accent); }
    where its font's baseline puts it, and an SVG sits where the flex box centres
    it, which is the middle. */
 .ap-lan-check { color: var(--muted); }
+@media (hover: hover) and (pointer: fine) {
 .ap-lan-check:hover:not(:disabled) { color: var(--text); }
+}
 /* A ROUND IS A NETWORK ROUND, and it takes as long as the slowest deck. The
    only sign it had started was a word three lines below the glyph that was
    pressed, which is not where the eye is. It turns while it works, at the one
@@ -999,7 +1077,7 @@ input, textarea { caret-color: var(--accent); }
 .ap-lan-checked {
   margin: 0 0 0 auto;
   align-self: center;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: 1.45;
   color: var(--muted);
 }
@@ -1024,13 +1102,16 @@ input, textarea { caret-color: var(--accent); }
   background: none;
   padding: 4px 0;
   min-height: 24px;
+  border-radius: var(--r-tag); /* the focus ring follows it */
   font: inherit;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   color: var(--muted);
   cursor: pointer;
-  transition: color 120ms ease, transform 120ms ease;
+  transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-lan-word:hover:not(:disabled) { color: var(--text); }
+}
 /* THE THREE ARE ONE FAMILY, so what each rule carries is only its ink — and
    the ink is the same for all three.
    Each had a font-size before — 14 on the plus, 12 on the other two — and that
@@ -1046,12 +1127,16 @@ input, textarea { caret-color: var(--accent); }
    theme and an inverted one in the other is worse than none. The plus leads by
    being first and by being the only one of the three that opens something. */
 .ap-lan-plus { color: var(--muted); }
+@media (hover: hover) and (pointer: fine) {
 .ap-lan-plus:hover:not(:disabled) { color: var(--text); }
+}
 /* The cog, between the round and the switch. Quiet as the round is quiet — both
    are things you may press, against a switch that is a state you read — and a
    pixel smaller than the plus, which is a stroke where this is a shape. */
 .ap-lan-set { color: var(--muted); }
+@media (hover: hover) and (pointer: fine) {
 .ap-lan-set:hover:not(:disabled) { color: var(--text); }
+}
 
 /* The fold under the list: how many decks are not on, and whether any of them
    is a problem. It sits at the list's own left edge rather than at the foot's,
@@ -1061,13 +1146,15 @@ input, textarea { caret-color: var(--accent); }
   display: flex;
   align-items: center;
   gap: 5px;
+  /* The kit's 12, like the rows above it. */
+  font-size: calc(12px + var(--ui-text-increase, 0px));
 }
 /* A chevron that turns, which is the whole of the animation budget here: it
    says "this opens downward" before the press and "it is open" after, and it
    is the one moving thing in a section whose job is to be read. */
 .ap-lan-chev {
   display: inline-block;
-  transition: transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform var(--dur-fast) var(--ease);
   transform: rotate(0deg);
   opacity: 0.7;
 }
@@ -1078,8 +1165,7 @@ input, textarea { caret-color: var(--accent); }
 .ap-lan-more-bad { color: var(--warn); }
 /* The same 0.97 every pressable thing in this app gives back. A word without a
    box still has to answer a press. */
-.ap-lan-word:active:not(:disabled) { transform: scale(0.97); }
-.ap-lan-word:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.ap-lan-word:active:not(:disabled) { transform: scale(var(--press)); }
 .ap-lan-word:disabled { cursor: default; opacity: var(--dim-off); }
 /* BOTH OF THESE ANSWER A RULE BELOW THEM IN THE SHEET, WHICH IS WHY THEY ARE
    HERE. The panel's reduced-motion block is 1700 lines further up, and both of
@@ -1091,7 +1177,7 @@ input, textarea { caret-color: var(--accent); }
   /* The round's glyph stops turning and keeps its colour: what the spin says is
      "still going", and the accent it takes with `aria-busy` says the same thing
      without moving. The word under the title says it a third time. */
-  .ap-lan-check[aria-busy="true"], .ap-refresh[aria-busy="true"] { animation: none; }
+  .ap-lan-check[aria-busy="true"] { animation: none; }
   /* The unpair that arrives with the pointer arrives at once. It is a reveal,
      not an entrance — the control has to be there the instant the row is
      hovered, and 120ms of fade is the only part of that anybody can lose. */
@@ -1110,25 +1196,33 @@ input, textarea { caret-color: var(--accent); }
    the only thing larger than the gaps inside them, so the eye groups on
    distance alone; at 20px it was barely over the 14px a heading and its field
    already sit apart, and the two methods ran together. */
-.modal.lan-add .modal-body { display: flex; flex-direction: column; gap: 24px; }
-/* The field is the row: one input and the verb that commits it, with nothing
-   to the left, because the section heading above already says which of the two
-   ways in this is. */
+.modal.lan-add .modal-body { display: flex; flex-direction: column; gap: 16px; }
+/* The rule between the two methods, as V4's Figma draws it: a 1px soft line,
+   16 above it and 16 below, so the distance between the methods is still the
+   largest one in the dialog. */
+.modal.lan-add .modal-section + .modal-section { padding-top: 16px; border-top: 1px solid var(--line-soft); }
+/* The field is the row: a label above it, then one input and the verb that
+   commits it, with nothing to the left. */
 .lan-add .ap-lan-row { gap: 8px; }
-/* Both heading rows are one height, because one of them carries a verb and the
-   other does not — and a rhythm that is only identical in the section without
-   an action is not a rhythm. */
-.lan-add .lan-h { min-height: 24px; margin-bottom: 6px; }
-/* THE OTHER DIRECTION OF THE INVITE, and the reason it is up here. It was a
-   full-width bordered button under the paste field's help: the heaviest mark in
-   the dialog, in the position a form puts its submit, for the one action that
-   does not add a deck. On the heading's own row it reads as what it is — the
-   second thing this method can do — and it takes no border to say so.
-   The heading's own case and tracking are undone: it is a verb, not a label. */
-.lan-h-act {
-  margin-left: auto;
-  text-transform: none;
+.lan-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; margin-top: 8px; }
+.lan-field-label { font-size: calc(12px + var(--ui-text-increase, 0px)); font-weight: 500; line-height: 16px; color: var(--text-secondary); }
+/* V4's field: the sunken fill. The edge stays the shared field's, which holds
+   a boundary to 3:1. */
+.lan-add .ap-manage-input { background: var(--sunken); }
+.lan-add .ap-lan-input { flex: 1 1 auto; }
+.lan-field-act { flex: none; }
+/* The method's heading is a label in the kit's 12 semibold, not the uppercase
+   caption the other dialogs use; and the sentences under it are 12/16. */
+.lan-add .lan-h {
+  min-height: 0;
+  margin: 0 0 4px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
   letter-spacing: normal;
-  font-weight: 400;
+  text-transform: none;
+  color: var(--text-secondary);
 }
-
+.lan-add .lan-note { margin: 4px 0 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); }
+.lan-add .lan-h + .lan-note { margin-top: 0; color: var(--text-secondary); }
+/* Make an invite sits under the paste field, outlined, at the left edge. */
+.lan-make { align-self: flex-start; margin-top: 8px; }

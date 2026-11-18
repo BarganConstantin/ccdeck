@@ -1,0 +1,147 @@
+// V4's Status bar: across the bottom of the window, who has the keys and the
+// keys that work there. The words and their keys are a table (status-hints.ts)
+// that a test holds against the handler; this draws it.
+//
+// FIRST-LOAD. It imports no stage code: the stage tells it two things, whether
+// it is open (a prop) and, through the pane's data attribute, whose pane holds
+// focus (terminal-keys.ts). The layer follows focus live from focusin and
+// focusout on the document: no polling, and nothing moves, a change swaps at once.
+//
+// KEYS UNTIL LEARNED (V4 top-10 #5). A key the reader has used often enough
+// from the keyboard is not named again (key-learning.ts, status-hints.ts
+// unlearnedView). Once a layer has nothing left to name, the bar keeps one
+// quiet "? Keys", the keyboard sheet's door, where every key is still written.
+// The pane's way out is the exception: it is named while the pane has the keys.
+//
+// <footer> is the page's contentinfo landmark. No live region: it would speak on
+// every focus move, and everything it names is on the keyboard sheet (?).
+import { memo, useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useBoardEmpty } from "../board-empty";
+import { isCanvasNodeElement } from "../canvas-node-element";
+import { useLearnedKeys } from "../key-learning";
+import { platformName } from "../platform";
+import { withKey } from "../single-key-shortcuts";
+import { statusViewFor, unlearnedView, type StatusHint } from "../status-hints";
+import { PANE_NAME_ATTR, paneNameOf, TERMINAL_PANEL_SELECTOR } from "../terminal-keys";
+import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
+import { Kbd } from "./Kbd";
+import { useT } from "../i18n";
+
+interface FocusPlace {
+  /** The name of the pane focus is in, or null outside every pane. */
+  pane: string | null;
+  /** Focus is on a card on the board. */
+  onCard: boolean;
+}
+
+const placeOf = (el: Element | null): FocusPlace => ({ pane: paneNameOf(el), onCard: isCanvasNodeElement(el) });
+const samePlace = (a: FocusPlace, b: FocusPlace) => a.pane === b.pane && a.onCard === b.onCard;
+
+/** Where focus is, kept current from the document's focus events. On focusout
+ *  the element focus is going to is `relatedTarget`; document.activeElement is
+ *  still the one it leaves. While focus stays in a pane, the pane's name is
+ *  watched too: the stage renames it in place when it follows another session
+ *  or the session renames itself, and no focus event says so. */
+function useFocusPlace(stageOpen: boolean): FocusPlace {
+  const [place, setPlace] = useState<FocusPlace>(() => (typeof document === "undefined" ? { pane: null, onCard: false } : placeOf(document.activeElement)));
+  useEffect(() => {
+    let watched: Element | null = null;
+    const names = new MutationObserver(() => read(document.activeElement));
+    const read = (el: Element | null) => {
+      const next = placeOf(el);
+      setPlace(prev => (samePlace(prev, next) ? prev : next));
+      const pane = el?.closest?.(TERMINAL_PANEL_SELECTOR) ?? null;
+      if (pane === watched) return;
+      names.disconnect();
+      watched = pane;
+      if (pane) names.observe(pane, { attributes: true, attributeFilter: [PANE_NAME_ATTR] });
+    };
+    const onIn = (e: FocusEvent) => read(e.target as Element | null);
+    const onOut = (e: FocusEvent) => read(e.relatedTarget as Element | null);
+    // The stage opening or closing moves focus without a focus event the bar
+    // can trust (an unmounted pane fires none in every browser): look again.
+    read(document.activeElement);
+    document.addEventListener("focusin", onIn);
+    document.addEventListener("focusout", onOut);
+    return () => {
+      names.disconnect();
+      document.removeEventListener("focusin", onIn);
+      document.removeEventListener("focusout", onOut);
+    };
+  }, [stageOpen]);
+  return place;
+}
+
+/** Memoised: App re-renders on its clock several times a second, and the bar's
+ *  only inputs are its props, focus, the single-key switch, whether the board
+ *  is empty and the keys the reader has learned. */
+export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null, waiting = true, extra, version = null, onVersion, setKeyHelpOpen }: {
+  stageOpen: boolean;
+  zoomedOut: boolean;
+  version?: string | null;
+  onVersion?: () => void;
+  /** The keyboard sheet's switch, the one the canvas's keyboard button and ?
+   *  use: what "? Keys" presses once there is no key left to name. Left out,
+   *  that entry is not drawn. */
+  setKeyHelpOpen?: Dispatch<SetStateAction<boolean>>;
+  /** A session waits on an answer: n has somewhere to go (status-hints.ts). */
+  waiting?: boolean;
+  /** A layer the caller names while a screen has the keys (the Decision card's,
+   *  handed over by prop so this first-load file names no such key). Left out,
+   *  the bar is what it always was. A pane with the keys outranks it. */
+  extra?: { layer: string; label: string; hints: readonly StatusHint[] };
+  /** Where Ctrl + backtick goes, when the deck claims it (status-hints.ts). */
+  viewChord?: "workspace" | "board" | null;
+}) {
+  const t = useT();
+  const singleKeys = useSingleKeyShortcuts();
+  const { pane, onCard } = useFocusPlace(stageOpen);
+  const empty = useBoardEmpty();
+  const uses = useLearnedKeys();
+  const standard = statusViewFor({ stageOpen, pane, onCard, zoomedOut, singleKeys, platform: platformName(), viewChord, empty, waiting });
+  // Keep the learned-key behavior for the deck; an open terminal supplies
+  // its own context through the shared footer slot.
+  const view = extra && pane == null ? extra : unlearnedView(standard, uses);
+  const switchHint = viewChord ? standard.hints.at(-1) : null;
+  return (
+    <footer className="statusbar" aria-label={t("board.keys.statusBar")} data-layer={view.layer}>
+      <div id="ccdeck-stage-status" className="statusbar-stage" />
+      <div className="statusbar-start">
+        {/* Named only while it names a key: on an empty board, or once every
+            key of the layer is learned, the "? Keys" below stands alone. */}
+        {view.label && <span className="statusbar-who"><span className="statusbar-dot" aria-hidden />{view.label}</span>}
+        {view.hints.map(h => (
+          <span className="statusbar-hint" key={h.word}>
+            <span className="statusbar-caps">
+              {h.caps.map(c => <Kbd key={c.text} label={c.spoken}>{c.text}</Kbd>)}
+            </span>
+            {h.word}
+          </span>
+        ))}
+        {/* Nothing left to name: the door to the sheet that names them all,
+            the canvas keyboard button's own press. The ? cap only while the
+            single keys are on, as the button's tooltip says it. */}
+        {view.hints.length === 0 && setKeyHelpOpen && (
+          <button type="button" className="statusbar-keys" onClick={() => setKeyHelpOpen(o => !o)}
+            aria-label={t("board.controls.keysLabel")} aria-haspopup="dialog"
+            aria-keyshortcuts={singleKeys ? "?" : undefined}
+            title={singleKeys ? withKey(t("board.controls.keys"), "?", true) : t("board.controls.keysOff")}>
+            {singleKeys && <Kbd>?</Kbd>}
+            {t("board.keys.statusBar")}
+          </button>
+        )}
+      </div>
+      {switchHint && <span className="statusbar-hint statusbar-view">
+        <span className="statusbar-caps">{switchHint.caps.map(c => <Kbd key={c.text} label={c.spoken}>{c.text}</Kbd>)}</span>
+        {switchHint.word}
+      </span>}
+      {version && (
+        <button type="button" className="statusbar-version" onClick={onVersion}
+          aria-label={t("shell.chip.label", { running: version })}
+          title={t("shell.chip.label", { running: version })} aria-haspopup="dialog">
+          v{version}
+        </button>
+      )}
+    </footer>
+  );
+});

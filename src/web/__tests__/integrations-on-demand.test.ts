@@ -118,7 +118,7 @@ describe("the modal loads when it opens", () => {
     // Its fallback draws nothing (it holds Escape for the dialog meanwhile:
     // integrations-on-demand-escape.test.ts).
     expect(onDemand).toMatch(/<Suspense fallback=\{<Opening onClose=\{props\.onClose\} \/>\}>\s*<LazyIntegrationModal \{\.\.\.props\} \/>\s*<\/Suspense>/);
-    expect(onDemand).toMatch(/function Opening\(\{ onClose \}: \{ onClose: \(\) => void \}\) \{\s*useEffect\(\(\) => modalStack\.push\(onClose, 0, "dialog"\), \[onClose\]\);\s*return null;\s*\}/);
+    expect(onDemand).toMatch(/function Opening\(\{ onClose \}: \{ onClose: \(\) => void \}\) \{\s*(?:\/\/[^\n]*\n\s*)*const closing = useDialogClosing\(\);\s*useEffect\(\(\) => \(closing \? undefined : modalStack\.push\(onClose, 0, "dialog"\)\), \[onClose, closing\]\);\s*return null;\s*\}/);
     expect(app).toMatch(/^import IntegrationModal, \{ preloadIntegrationModal \} from "\.\/components\/IntegrationModalOnDemand";$/m);
     expect(app).not.toMatch(/from "\.\/components\/IntegrationModal";/);
   });

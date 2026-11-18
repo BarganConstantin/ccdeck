@@ -10,7 +10,7 @@
 import { useCallback, useRef, useState, type MutableRefObject, type RefObject } from "react";
 
 import type { GraphState } from "./reducer";
-import { cardBodyPx, nextLod, referenceCard, type CardSize, type LodMode } from "./semantic-zoom";
+import { FAR_ZOOM, cardBodyPx, nextLod, referenceCard, type CardSize, type LodMode } from "./semantic-zoom";
 import { TEXT_SIZE_INCREASE, currentTextSize } from "./reading-preferences";
 
 export function useZoomLod({ stateRef, measuredRef, measuredVersionRef, canvasRef }: {
@@ -62,6 +62,13 @@ export function useZoomLod({ stateRef, measuredRef, measuredVersionRef, canvasRe
   /** The viewport is now at `zoom`. Returns the mode the canvas changed to, or
    *  null when the band it is in holds it where it was. */
   const applyZoom = useCallback((zoom: number): LodMode | null => {
+    // `data-far` beside `data-lod`, written only when it flips: the faces'
+    // words at the farthest zooms (agent-node.css, FAR_ZOOM). Read off the
+    // element rather than a ref, so a canvas mounted afresh is put right on
+    // its first move.
+    const el = canvasRef.current;
+    const far = zoom < FAR_ZOOM;
+    if (el && el.hasAttribute("data-far") !== far) el.toggleAttribute("data-far", far);
     const mode = nextLod(lodRef.current, zoom, lodCard(), cardBodyPx(TEXT_SIZE_INCREASE[currentTextSize()]));
     if (mode === lodRef.current) return null;
     lodRef.current = mode;

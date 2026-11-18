@@ -336,7 +336,7 @@ async function registryInstall(spec = "latest") {
 
 function npmInstall(spec = "latest") {
   return new Promise((resolve, reject) => {
-    mkdirSync(CACHE_DIR, { recursive: true });
+    mkdirSync(CACHE_DIR, { recursive: true, mode: 0o700 });
     const { file, args, opts } = installSpec(spec);
     const child = spawn(file, args, { windowsHide: true, ...opts });
     let out = "", err = "", settled = false;
@@ -411,7 +411,7 @@ function updateCheckDue() {
 // (Re)write the marker so its mtime marks "now" as the last check time.
 export function touchMarker() {
   try {
-    mkdirSync(CACHE_DIR, { recursive: true });
+    mkdirSync(CACHE_DIR, { recursive: true, mode: 0o700 });
     writeFileSync(MARKER, String(Date.now()));
   } catch { /* ignore */ }
 }

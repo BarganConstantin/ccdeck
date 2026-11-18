@@ -26,6 +26,7 @@ import { useRef } from "react";
 import { modalStack } from "../modal-dismiss";
 import { pressState } from "../panel-press";
 import { promptShows } from "../reauth-attention";
+import { Dialog, DialogClose, DialogPresence } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { askedLabel } from "../lan-roster";
 import { useT } from "../i18n";
@@ -79,24 +80,13 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
   const decline = pressState(busy, "dismiss");
 
   return (
-    <div className="modal-backdrop" {...scrimPress} role="presentation">
-      <div
-        ref={dialogRef}
-        className="modal lan-ask"
-        onClick={e => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="lan-ask-title"
-        aria-describedby="lan-ask-who"
-      >
+    <Dialog scrim={scrimPress} dialogRef={dialogRef} className="lan-ask" labelledBy="lan-ask-title" aria-describedby="lan-ask-who">
         <header className="modal-head">
           <div className="modal-title">
-            <i className="ap-pulse" aria-hidden />
             <span id="lan-ask-title" className="modal-tool-name">{t("lan.ask.title")}</span>
           </div>
           <div className="modal-actions">
-            <button type="button" className="glyph-btn" onClick={onLater}
-              aria-label={t("lan.ask.later")} title={t("lan.ask.later")}>×</button>
+            <DialogClose onClick={onLater} label={t("lan.ask.later")} />
           </div>
         </header>
 
@@ -110,24 +100,26 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
             }} />
           </p>
 
-          <p className="modal-note">
+          <p className="lan-ask-note">
             {t("lan.ask.note")}
           </p>
 
           {/* The one value worth comparing, printed rather than described — and
               where the other machine prints its own (#815), because comparing
-              with a screen nobody can find is not a check. */}
-          <p className="lan-ask-fp">
-            <Fill text={t("lan.ask.fp")} parts={{ fp: <code className="ap-lan-code">{request.fp}</code> }} />
-          </p>
+              with a screen nobody can find is not a check. It stands alone in a
+              sunken box, as V4's Figma draws it, under the sentence that says
+              what to compare it with. */}
+          <p className="lan-ask-fp">{t("lan.ask.fp")}</p>
+          <code className="lan-ask-fp-box">{request.fp}</code>
 
           {waiting > 0 && (
             <p className="lan-ask-more">
               {t("lan.ask.more", { count: waiting })}
             </p>
           )}
+        </section>
 
-          <div className="lan-ask-acts">
+        <footer className="modal-foot lan-ask-foot">
             <button type="button" ref={declineRef} className="btn"
               disabled={decline.disabled} aria-busy={decline.busy}
               onClick={onDecline}
@@ -140,15 +132,13 @@ export default function LanPairRequestModal({ request, waiting, busy, now, onAcc
               title={t("lan.ask.acceptTitle")}>
               {busy === "accept" ? t("lan.ask.accepting") : t("lan.ask.accept")}
             </button>
-          </div>
-        </section>
-      </div>
-    </div>
+        </footer>
+    </Dialog>
   );
 }
 
-/** What DeckDialogs draws: the request to ask about now, if there is one and
- *  it is its turn — see pairRequestFor — or null.
+/** What DeckDialogs draws: `node`, the request to ask about now if there is one
+ *  and it is its turn — see pairRequestFor — and `pairing`, whether one is up.
  *
  *  IT WAITS ITS TURN, by the rule the re-sign-in prompt waits by (promptShows).
  *  It arrives on a poll, whatever is open, and it is not portalled, while the
@@ -171,7 +161,12 @@ export function usePairRequestDialog(pairs: ReturnType<typeof useLanPairRequests
   const dialog = pairRequestFor(pairs);
   const shows = promptShows({ rows: dialog ? 1 : 0, ours: oursRef.current, dialogs: modalStack.dialogDepth() });
   oursRef.current = shows;
-  return shows ? dialog : null;
+  const up = shows && dialog ? dialog : null;
+  // `node` is always the presence, so the last request leaves through the shared
+  // exit instead of vanishing; `pairing` is whether a request is up now, which
+  // is false from the moment the last one is answered, exit included: the
+  // sign-in prompt does not wait for the request to finish leaving.
+  return { node: <DialogPresence when={up}>{d => d}</DialogPresence>, pairing: up != null };
 }
 
 /** The request to ask about now, if any — the oldest not put off this session,

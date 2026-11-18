@@ -14,7 +14,7 @@
 // distance the card face's hover tint on the note's plate and the note's own
 // edge (the session's hue) drawn firmer. A shadow is next to invisible on the
 // dark canvas, so at the full size the tint is what says the note heard the
-// pointer. Behind `(hover: hover)`, so a tap on a touch screen does not leave
+// pointer. Behind `(hover: hover) and (pointer: fine)`, so a tap on a touch screen does not leave
 // it lit. The hand stays an open hand at rest and closes during a drag, and
 // nothing on the canvas promises a click with `cursor: pointer`, which this
 // sheet keeps for controls that press (canvas-motion.test.ts).
@@ -32,10 +32,10 @@ const THEMES: Theme[] = ["dark", "light"];
 const DISTANCES: Lod[] = ["compact", "overview"];
 const DESKTOP = 1440;
 
-/** A mouse: the width queries a desktop window matches, and `(hover: hover)`. */
-const mouse = (q: string | null) => q === "(hover: hover)" || mediaApplies(q, DESKTOP);
-/** A touch screen: the same window, and no hover. */
-const touch = (q: string | null) => mediaApplies(q, DESKTOP);
+/** A mouse: the width queries a desktop window matches, `(hover: hover)` and `(pointer: fine)`. */
+const mouse = (q: string | null) => mediaApplies(q, DESKTOP);
+/** A touch screen: the same window, no hover and a coarse pointer. */
+const touch = (q: string | null) => mediaApplies(q, DESKTOP, "touch");
 
 /** What the cascade gives `prop` on the chain's last element under `media`. */
 function cascadeOn(chain: readonly El[], prop: string, media: (q: string | null) => boolean): string | null {
@@ -97,11 +97,15 @@ describe("a zoomed-out note under the pointer", () => {
       expect(hovered).toBe(cascadeOn(cardFace(theme, lod, true), "background", mouse));
     });
 
-    it(`draws its edge, the session's hue, firmer (${name})`, () => {
+    it(`draws its edge firmer, --line-soft to --line (${name})`, () => {
+      // CHANGED ON PURPOSE (V4 top-10 #1): the hovered edge was the session's
+      // hue (`var(--accent)`, rebuilt from --session-hue); the note wears no
+      // session colour now, so the same firmer step is the neutral one.
       const rest = cascadeOn(noteFace(theme, lod, false, kind), "--lod-edge", mouse);
       const hovered = cascadeOn(noteFace(theme, lod, true, kind), "--lod-edge", mouse);
       expect(hovered).not.toBe(rest);
-      expect(hovered).toMatch(/var\(--accent\)/);
+      expect(rest).toBe("var(--line-soft)");
+      expect(hovered).toBe("var(--line)");
       expect(hovered, "orange is kept for a session waiting on you").not.toMatch(/--warn/);
     });
 
@@ -129,7 +133,10 @@ describe("a full-size note under the pointer", () => {
       expect(hovered).toBe(cascadeOn(cardFace(theme, "compact", true), "background", mouse));
     });
 
-    it(`lifts as the card lifts (${name})`, () => {
+    // CHANGED ON PURPOSE (V4's Figma, Agent / Card and Recap note): neither the
+    // card nor the note carries a shadow, at rest or under the pointer, so
+    // "lifts as the card lifts" now means both stay flat, together.
+    it(`stays flat as the card does (${name})`, () => {
       expect(cascadeOn(note(theme, "detail", false, kind), "box-shadow", mouse)).toBe(cascadeOn(card(theme, false), "box-shadow", mouse));
       expect(cascadeOn(note(theme, "detail", true, kind), "box-shadow", mouse)).toBe(cascadeOn(card(theme, true), "box-shadow", mouse));
     });
@@ -138,7 +145,10 @@ describe("a full-size note under the pointer", () => {
       const rest = cascadeOn(note(theme, "detail", false, kind), "border-color", mouse);
       const hovered = cascadeOn(note(theme, "detail", true, kind), "border-color", mouse);
       expect(hovered).not.toBe(rest);
-      expect(hovered).toMatch(/var\(--accent\)/);
+      // CHANGED ON PURPOSE (V4's Figma): the note's edge carries no hue; it
+      // steps from --line-soft to --line under the pointer.
+      expect(rest).toBe("var(--line-soft)");
+      expect(hovered).toBe("var(--line)");
       expect(hovered, "orange is kept for a session waiting on you").not.toMatch(/--warn/);
     });
 
@@ -151,7 +161,10 @@ describe("a full-size note under the pointer", () => {
   it("fades into the hover on what changes, and moves nothing", () => {
     const eased = (cascadeOn(note("dark", "detail", false), "transition", mouse) ?? "none");
     const props = splitTop(eased).map(p => p.split(/\s+/)[0]);
-    expect(props).toEqual(expect.arrayContaining(["background-color", "border-color", "box-shadow"]));
+    // A colour fades in Fast; a shadow lands at once (V4's motion rule 4: only
+    // transform and opacity animate, and colour on a small thing is fine).
+    expect(props).toEqual(expect.arrayContaining(["background-color", "border-color"]));
+    expect(props, "the shadow lands at once").not.toContain("box-shadow");
     for (const moving of ["all", "transform", "translate", "scale", "top", "left", "margin", "width", "height"])
       expect(props, `the hover would carry the note through ${moving}`).not.toContain(moving);
   });

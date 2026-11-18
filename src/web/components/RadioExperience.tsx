@@ -7,6 +7,7 @@ import { useRadioLibrary } from "../use-radio-library";
 import type { Character } from "../character";
 import { nextAvailableRadioStation, type RadioStation } from "../radio-library";
 import { scheduleRadioFailover } from "../radio-failover";
+import { DialogPresence, DialogScrim } from "./Dialog";
 import { useScrimDismiss } from "./use-modal-dismiss";
 import { ClaudeFmCharacter, FmPlaybackFrame, sourceLabel } from "./ClaudeFm";
 import { RadioOpening } from "./RadioLoading";
@@ -62,6 +63,7 @@ export default function RadioExperience({ fm, characterEnabled, character, open,
   return <>
     {characterEnabled && <ClaudeFmCharacter character={character} player={player} source={fm.fmSource} customStation={customStation} />}
     <FmPlaybackFrame player={player} label={label} />
-    {open && createPortal(<div className="modal-backdrop radio-backdrop" {...scrimPress}><Suspense fallback={<RadioOpening onClose={close} />}><RadioPanel fm={fm} player={player} library={library} selected={selected} label={label} enabled={enabled} disabledReason={disabledReason} autoNext={autoNext?.name} onPick={pick} onQueueChange={setQueue} onClose={close} /></Suspense></div>, document.body)}
+    <DialogPresence when={open}>{() => createPortal(<DialogScrim scrim={scrimPress} className="radio-backdrop"><Suspense fallback={<RadioOpening onClose={close} />}><RadioPanel fm={fm} player={player} library={library} selected={selected} label={label} enabled={enabled} disabledReason={disabledReason} autoNext={autoNext?.name} onPick={pick} onQueueChange={setQueue} onClose={close} /></Suspense></DialogScrim>, document.body)}</DialogPresence>
   </>;
 }
+

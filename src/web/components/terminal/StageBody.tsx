@@ -1,0 +1,503 @@
+// The stage's body: the terminal, and the state cards for when there is no
+// pane to show.
+//
+// THE TERMINAL'S HOST IS ALWAYS HERE. xterm is opened once, into this element,
+// for the stage's whole life (use-terminal-session.ts), so the host is drawn in
+// every state — hidden, not removed, while a card speaks instead. Removing it
+// would take the one terminal with it, and the next session would boot a new
+// one into an empty box.
+//
+// EVERY CARD IS CENTRED IN THE PANE (V4). In v3 a card started where the
+// terminal's first line would, 24px in at the grid's own top, so the eye did
+// not move between "the session" and "why the session is not here". Figma V4's
+// "Term pane · stage states" sets each card in the middle of the pane instead,
+// a column centred both ways: a mono context line, a title where the card has
+// one, at most one sentence of 60 characters a line, and its actions, 10px
+// apart, with the primary action in the kit's Primary and "Not now" in its
+// Quiet. Never an empty black box, and never a spinner: attaching is the
+// working glyph and the word beside it, over the last line the board knew,
+// with a hairline under the header once the wait passes 300ms.
+//
+// The words are the deck's. Case C and "gone" print describeTarget's one
+// sentence from the server — but for a session this deck launched on Windows,
+// which it did not start "outside the deck" (LAUNCHED_UNREACHABLE); adopt's
+// 409 is answered in place, beside the button it refused, never in a confirm().
+//
+// A BUTTON THAT IS WORKING SAYS SO AND STAYS ENABLED (#620): disabling the
+// control a press came from drops keyboard focus to <body>. It carries
+// aria-busy instead, and the session controller refuses the second press —
+// synchronously, off its own state, before any re-render could catch up.
+import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
+import { copyText } from "../../copy-text";
+import { CAUGHT_KEYS_ATTR } from "../../shortcuts";
+import type { TmuxProgress } from "../../terminal-api";
+import { LAUNCHED_UNREACHABLE_MSG, PROVENANCE_UNKNOWN_MSG, agentName, elsewhereLine, errorWords, frameRun, launchedUnreachable, provenanceUnknown, type FrameRun, type StagePhase, type StageState } from "./stage-model";
+import { CopyGlyph, StageGlyph } from "./stage-icons";
+import EngineCard, { engineCardCode } from "./EngineCard";
+import type { WaitingCard } from "./stage-board";
+import { Kbd } from "../Kbd";
+import { richText } from "../settings-rich";
+import { t as tNow, useT } from "../../i18n";
+import { useSingleKeyShortcuts } from "../../use-single-key-shortcuts";
+import { useWaitingLoader } from "../../use-waiting-loader";
+import { chatShown, ScreensSlot, useScreenFlags, type ScreensProps } from "../../use-screens";
+import { EMPTY_NEW_SESSION_ID } from "../../stage-shell";
+
+/** The id the empty card's New session button carries, so the popover can
+ *  hang off it: stage-shell.ts's, which says why it lives there. */
+export { EMPTY_NEW_SESSION_ID };
+
+/** What the board knows that helps a card say where the session is. */
+export interface StageContext {
+  /** The last prompt, printed after "❯ ". */
+  prompt?: string | null;
+  /** One line of fact: "3 subagents working · running in another terminal".
+   *  V4's cards draw no such line (the prompt, one paragraph, the actions), so
+   *  the stage does not print it. */
+  fact?: string | null;
+}
+
+export interface StageBodyProps {
+  hostRef: MutableRefObject<HTMLDivElement | null>;
+  /** The name the header shows for this session; the pane carries it for the
+   *  status bar (terminal-keys.ts, PANE_NAME_ATTR). */
+  paneName?: string;
+  phase: StagePhase;
+  context?: StageContext | null;
+  /** The deck's sessions run in the Windows session host. */
+  windows?: boolean;
+  /** This deck launched the session on the stage (panel-launch.ts). */
+  launched?: boolean;
+  /** What the board says the session is doing, for a card about a session
+   *  that runs somewhere the stage cannot reach (#97). */
+  boardState?: StageState | null;
+  onAdopt(): void;
+  handoff?: { moving: boolean; failed?: boolean; toggle(): void };
+  /** "Not now": leave the stage, the session untouched. */
+  onNotNow(): void;
+  onRetry(): void;
+  onNewSession(anchorId: string): void;
+  /** WORKSPACE: this is the pane with nothing in it, and says so (Figma,
+   *  "Empty workspace"), instead of the Board stage's "click a session on the
+   *  board". */
+  workspace?: boolean;
+  /** WORKSPACE, someone waits: the oldest waiting session, named in the empty
+   *  pane. Null: nothing is waiting. */
+  waiting?: WaitingCard | null;
+  /** Open the waiting session, with the keys in its pane: N's answer. */
+  onOpenWaiting?(): void;
+  /** CHAT AND DECISION: what the pane is handed to draw, behind two flags that
+   *  are off (use-screens.ts). The stage hands them for a supported session in
+   *  Workspace, with the conversation read from its transcript. */
+  screens?: ScreensProps;
+}
+
+/** The empty Workspace pane's words: the frame's title, and a line that says
+ *  how a session gets here. */
+export const WS_EMPTY_TITLE_MSG = "board.stage.wsEmptyTitle";
+export const WS_EMPTY_LINE_MSG = "board.stage.wsEmptyLine";
+/** The quiet line under New session: what comes after the first pane. Shift +
+ *  Enter on a row, or a row dragged to a pane's edge, opens another beside it,
+ *  four at most (workspace-split.ts MAX_PANES); 1 to 4 then move the keys
+ *  between them, a sentence of its own because the single keys can be off. */
+export const WS_EMPTY_BESIDE_MSG = "board.stage.wsEmptyBeside";
+export const WS_EMPTY_PANES_MSG = "board.stage.wsEmptyPanes";
+
+/** The first line of the tmux card: what is wrong with tmux, as a fact. */
+export function tmuxFact(reason: string): string {
+  if (reason === "too-old") return tNow("board.stage.tmuxTooOld");
+  if (reason === "missing") return tNow("board.stage.tmuxMissing");
+  return tNow("board.stage.tmuxUnavailable");
+}
+
+/** Why the deck's own tmux is not there, when it tried to fetch it — said
+ *  before the install line, which is then the way forward. */
+/** How far the deck's own tmux has got, as the card's bar fills: a share of
+ *  1, or null while it cannot say (no bytes yet, or no size given). Full
+ *  while the build is checked. */
+export function setupShare(progress?: TmuxProgress): number | null {
+  if (!progress) return null;
+  if (progress.stage === "checking") return 1;
+  return progress.total ? Math.min(1, progress.received / progress.total) : null;
+}
+
+/** The words beside the bar. */
+export function setupLine(progress?: TmuxProgress): string {
+  if (!progress) return tNow("board.stage.setupStarting");
+  if (progress.stage === "checking") return tNow("board.stage.setupChecking");
+  const mb = (n: number) => (n / 1_000_000).toFixed(1);
+  return progress.total
+    ? tNow("board.stage.setupProgress", { received: mb(progress.received), total: mb(progress.total) })
+    : tNow("board.stage.setupReceived", { received: mb(progress.received) });
+}
+
+export function downloadNote(reason: string): string {
+  if (reason === "download_failed") return tNow("board.stage.downloadFailed");
+  if (reason === "checksum_mismatch" || reason === "too_large") return tNow("board.stage.downloadUntrusted");
+  if (reason === "extract_failed" || reason === "does_not_run") return tNow("board.stage.downloadWontRun");
+  return tNow("board.stage.downloadOther");
+}
+
+function InstallPlate({ line }: { line: string }) {
+  const t = useT();
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="ts-cmd">
+      <code title={line}>{line}</code>
+      <button
+        type="button"
+        className="glyph-btn"
+        aria-label={copied ? t("board.stage.copied") : t("board.stage.copyCommand")}
+        title={copied ? t("board.stage.copied") : t("board.stage.copy")}
+        onClick={() => { void copyText(line).then(ok => setCopied(ok)); }}
+      >
+        <CopyGlyph />
+      </button>
+    </div>
+  );
+}
+
+/** The Workspace pane with nothing in it. Nobody waiting: a title, a line and
+ *  New session. Someone waiting: who, for how long, what they ask, and one
+ *  button that opens them (no New session there: the list's + is the way). */
+export function WorkspaceEmpty({ waiting, onOpen, onNewSession }: {
+  waiting: WaitingCard | null | undefined;
+  onOpen?(): void;
+  onNewSession(anchorId: string): void;
+}) {
+  const t = useT();
+  // The `n` on the button is N, a single key: not named with those turned off.
+  const singleKeys = useSingleKeyShortcuts();
+  if (waiting) {
+    return (
+      <div className="ts-card ts-ws-empty" data-waiting="">
+        {/* One row, the glyph first (V4's "Empty workspace, someone waits"). */}
+        <div className="ts-ws-head">
+          <StageGlyph kind="waiting" />
+          <span className="ts-ws-title">{t("board.stage.waitingOnYou", { name: waiting.name })}</span>
+          <span className="ts-ws-wait">{waiting.waited}</span>
+        </div>
+        <p className="ts-ws-ask">
+          {waiting.ask}
+          {waiting.command && <> <code>{waiting.command}</code></>}
+        </p>
+        <button type="button" className="btn ts-ws-open" data-stage-land onClick={onOpen}>
+          <span>{t("board.stage.open", { name: waiting.name })}</span>
+          {singleKeys && <Kbd>n</Kbd>}
+        </button>
+      </div>
+    );
+  }
+  // The first time in Workspace this is all there is to read, so it says how
+  // panes get here: the line names the click (and New session), the quiet
+  // line under the button what comes after the first one. Kbd caps for the
+  // keys, spoken in words; 1 to 4 only while the single keys answer.
+  const beside = <Kbd label={t("board.stage.besideSpoken")}>⇧↵</Kbd>;
+  const digits = <Kbd label={t("board.stage.panesSpoken")}>1–4</Kbd>;
+  return (
+    <div className="ts-card">
+      <div className="ts-empty-block">
+        <p className="ts-ws-title">{t(WS_EMPTY_TITLE_MSG)}</p>
+        <p className="ts-text">{t(WS_EMPTY_LINE_MSG)}</p>
+        <div className="ts-acts">
+          <button type="button" id={EMPTY_NEW_SESSION_ID} className="btn primary" aria-haspopup="dialog" data-stage-land onClick={() => onNewSession(EMPTY_NEW_SESSION_ID)}>
+            {t("board.newSession.title")}
+          </button>
+        </div>
+        <p className="ts-ws-more">
+          {richText(t(WS_EMPTY_BESIDE_MSG, { keys: "{keys}" }), { keys: beside })}
+          {singleKeys && <> {richText(t(WS_EMPTY_PANES_MSG, { keys: "{keys}" }), { keys: digits })}</>}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** The card for a phase with no pane to show, or null when the frame is
+ *  what the body shows. `held`: a switch is holding the last frame up.
+ *  Exported so the suite can draw each one. */
+export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean; timed?: "in" | "out" }) {
+  const t = useT();
+  const { phase } = p;
+  switch (phase.kind) {
+    case "empty":
+      if (p.workspace) return <WorkspaceEmpty waiting={p.waiting} onOpen={p.onOpenWaiting} onNewSession={p.onNewSession} />;
+      return (
+        <div className="ts-card">
+          <p className="ts-text">{t("board.stage.emptyBoard")}</p>
+          <div className="ts-acts">
+            <button type="button" id={EMPTY_NEW_SESSION_ID} className="btn primary" aria-haspopup="dialog" data-stage-land onClick={() => p.onNewSession(EMPTY_NEW_SESSION_ID)}>
+              {t("board.newSession.title")}
+            </button>
+          </div>
+        </div>
+      );
+    case "attaching":
+      // The last frame stays up while the next one attaches: no card over it.
+      if (phase.reconnect || p.held) return null;
+      return (
+        <div className="ts-card" data-timed={p.timed}>
+          <div className="ts-text ts-wait"><StageGlyph kind="working" /><span>{t("board.stage.attaching")}</span></div>
+        </div>
+      );
+    case "starting":
+      return (
+        <div className="ts-card">
+          <div className="ts-text ts-wait"><StageGlyph kind="working" /><span>{t("board.stage.starting", { agent: agentName(phase.agent), cwd: phase.cwd })}</span></div>
+        </div>
+      );
+    case "not-attachable": {
+      const { target } = phase;
+      const ours = launchedUnreachable(target, p);
+      const unsure = provenanceUnknown(target, p);
+      const adoptable = target.adoptable && !ours && !unsure;
+      // Still running in a terminal outside the deck (#97): one paragraph says
+      // what it is doing there and how to bring it here. The stage keeps
+      // looking on its own (use-terminal-session's watch), so there is no
+      // button that could only ask the same question again. On Windows, a
+      // session the deck cannot reach keeps its own sentence.
+      const elsewhere = phase.stillRunning && !ours && !unsure;
+      const handoff = adoptable ? p.handoff : undefined;
+      const offer = adoptable && !phase.stillRunning && !handoff?.moving;
+      return (
+        <div className="ts-card">
+          {p.context?.prompt && <div className="ts-ctx"><span className="ts-prompt">❯ </span>{p.context.prompt}</div>}
+          {handoff?.moving
+            ? <p className="ts-text" role="status">{t("board.stage.handoff.waiting")}</p>
+            : handoff?.failed
+            ? <p className="ts-text" role="status">{t("board.stage.handoff.failed")}</p>
+            // With the move offered, the line says so instead of "quit it there
+            // and Reopen here", which would sit above a button that does it for
+            // you. The header still says whether it is working or waiting.
+            : elsewhere
+            ? <p className="ts-text" role="status">{t(handoff ? "board.stage.handoff.offer" : elsewhereLine(p.boardState))}</p>
+            : <p className="ts-text">{ours ? t(LAUNCHED_UNREACHABLE_MSG) : unsure ? t(PROVENANCE_UNKNOWN_MSG) : target.label}</p>}
+          <div className="ts-acts">
+            {handoff && (elsewhere || handoff.moving) && (
+              <button type="button" className="btn primary" data-stage-land onClick={handoff.toggle}>
+                {t(handoff.moving ? "common.cancel" : "board.stage.handoff.move")}
+              </button>
+            )}
+            {offer && (
+              <button type="button" className="btn primary" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onAdopt}>
+                {t("board.stage.reopenHere")}
+              </button>
+            )}
+            <button type="button" className="btn" data-stage-land={offer ? undefined : true} onClick={p.onNotNow}>{t("common.notNow")}</button>
+          </div>
+        </div>
+      );
+    }
+    case "tmux-installing": {
+      const share = setupShare(phase.progress);
+      const line = setupLine(phase.progress);
+      return (
+        <div className="ts-card">
+          <div className="ts-title">{t("board.stage.tmuxSettingUp")}</div>
+          <p className="ts-text">{t("board.stage.tmuxFetching")}</p>
+          <div className="ts-setup">
+            <div
+              className="ts-setup-bar" role="progressbar" aria-label={t("board.stage.tmuxFetchingLabel")} aria-valuemin={0} aria-valuemax={100}
+              aria-valuenow={share == null ? undefined : Math.round(share * 100)} aria-valuetext={line}
+              data-unknown={share == null || undefined}
+            >
+              <i className="ts-setup-fill" style={share == null ? undefined : { transform: `scaleX(${share})` }} />
+            </div>
+            <span className="ts-setup-line">{line}</span>
+          </div>
+          <div className="ts-acts">
+            <button type="button" className="btn" onClick={p.onNotNow}>{t("common.notNow")}</button>
+          </div>
+        </div>
+      );
+    }
+    case "tmux-missing":
+      return (
+        <div className="ts-card">
+          <div className="ts-title">{tmuxFact(phase.reason)}</div>
+          {phase.download && <p className="ts-note">{downloadNote(phase.download)}</p>}
+          <p className="ts-text">
+            {t("board.stage.twoSentences", { first: t("board.stage.tmuxWhy"), second: phase.reason === "too-old" ? t("board.stage.updateIt") : t("board.stage.installIt") })}
+          </p>
+          {phase.install && <InstallPlate line={phase.install} />}
+          <div className="ts-acts">
+            <button type="button" className="btn" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onRetry}>
+              {phase.busy ? t("board.stage.checking") : t("board.stage.checkAgain")}
+            </button>
+          </div>
+        </div>
+      );
+    case "error": {
+      // The engine's refusal, when it is a state of this machine, is checked
+      // again in place, as tmux missing is; a platform with no panel has
+      // nothing to check, and offers only Not now.
+      const again = phase.code !== "unsupported";
+      const check = !!phase.code;
+      const plain = (
+        <div className="ts-card">
+          <p className="ts-text">{errorWords(phase.message)}</p>
+          <div className="ts-acts">
+            {again && (
+              <button type="button" className="btn" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onRetry}>
+                {check ? (phase.busy ? t("board.stage.checking") : t("board.stage.checkAgain")) : t("board.stage.tryAgain")}
+              </button>
+            )}
+            <button type="button" className="btn" data-stage-land={again ? undefined : true} onClick={p.onNotNow}>{t("common.notNow")}</button>
+          </div>
+        </div>
+      );
+      // No engine here, one that did not verify, one that did not start, or
+      // none for this platform: the engine's install says where it stands
+      // and offers the next step (EngineCard). Where the deck cannot say,
+      // the card above stands.
+      if (engineCardCode(phase.code)) {
+        return (
+          <EngineCard code={phase.code ?? ""} message={errorWords(phase.message)} busy={phase.busy} onRetry={p.onRetry} onNotNow={p.onNotNow} plain={plain} />
+        );
+      }
+      return plain;
+    }
+    default:
+      return null;
+  }
+}
+
+/** How long a control that caught a pane's keys waits after the last key of
+ *  the burst before it answers keys as itself again. Longer than any gap
+ *  between two keys of one sentence; shorter than reading the card. */
+export const CAUGHT_QUIET_MS = 1500;
+/** The same before any key, for a press that has typed nothing yet: longer
+ *  than the gap between a click and the first key of a sentence typed straight
+ *  on, shorter than seeing the card and deciding to press it. */
+export const CAUGHT_FIRST_MS = 600;
+
+/** The catch each control is under, by the way it ends. */
+const catches = new WeakMap<HTMLElement, () => void>();
+
+/**
+ * Focus onto `button` for the keys a pane lost mid-typing, marked
+ * CAUGHT_KEYS_ATTR while the burst lasts: until it loses the focus, or
+ * CAUGHT_QUIET_MS pass with no key (CAUGHT_FIRST_MS when `typing` is false:
+ * nothing typed yet). Meanwhile Space and Enter do not press
+ * it, and the stage's letters pass it by (terminal-keys.ts stageKeyIntent).
+ * In a sentence Space is the commonest key there is, and a Try again pressed
+ * by one unmounted itself and put the rest of the sentence on the body, where
+ * the deck's shortcuts run. Marked only if the focus took, so a mark is never
+ * left on a control that could not hold it. True if it did. A catch on a
+ * control already catching replaces that one, whose window would otherwise
+ * end the new one's mark early.
+ */
+export function catchKeys(button: HTMLElement, { typing = true }: { typing?: boolean } = {}): boolean {
+  catches.get(button)?.();
+  button.focus();
+  if (document.activeElement !== button) return false;
+  let quiet: ReturnType<typeof setTimeout> | null = null;
+  const rearm = (ms: number) => {
+    if (quiet) clearTimeout(quiet);
+    quiet = setTimeout(release, ms);
+  };
+  const onKey = (e: KeyboardEvent) => {
+    const presses = e.key === " " || e.key === "Enter";
+    // The sentence's own keys keep the catch. Space and Enter, the keys that
+    // press it, do not: a deliberate press waits out the window at most, and
+    // pressing again never makes it longer.
+    if (e.type === "keydown" && !presses) rearm(CAUGHT_QUIET_MS);
+    // Space presses a button on its keyup, Enter on its keydown (or the
+    // keypress after it, which a refused keydown never sends).
+    if (e.key === " " || (e.key === "Enter" && e.type === "keydown")) e.preventDefault();
+  };
+  function release() {
+    if (quiet) clearTimeout(quiet);
+    if (catches.get(button) === release) catches.delete(button);
+    button.removeAttribute(CAUGHT_KEYS_ATTR);
+    button.removeEventListener("keydown", onKey);
+    button.removeEventListener("keyup", onKey);
+    button.removeEventListener("blur", release);
+  }
+  catches.set(button, release);
+  button.setAttribute(CAUGHT_KEYS_ATTR, "");
+  button.addEventListener("keydown", onKey);
+  button.addEventListener("keyup", onKey);
+  button.addEventListener("blur", release);
+  rearm(typing ? CAUGHT_QUIET_MS : CAUGHT_FIRST_MS);
+  return true;
+}
+
+/** The host before its first render: nothing shown, nothing held. */
+const NOTHING_SHOWN: FrameRun = { state: "hidden", afterHold: false };
+
+export default function StageBody(p: StageBodyProps) {
+  // What the host did on the last render: a switch holds the frame it was
+  // showing, and the frame that follows a hold rises from the dim rather
+  // than from nothing (stage-model's frameRun).
+  const last = useRef<FrameRun>(NOTHING_SHOWN);
+  const run = frameRun(last.current, p.phase);
+  const { state, afterHold } = run;
+  useEffect(() => { last.current = run; });
+  const { hostRef, paneName: _paneName, screens, ...card } = p;
+  // `workspace` is the EMPTY Workspace pane; a pane handed `screens` is a
+  // session's in Workspace (the stage hands them only there).
+  const flags = useScreenFlags(p.workspace === true || screens !== undefined);
+  const inChat = chatShown(flags, screens);
+  // The attaching card is a wait on data, so it follows the Waiting loader's
+  // rule (V4's motion spec): nothing for the first 150, a Fast fade in, at
+  // least 300 on screen, then a fade out, which is why a pane that is ready
+  // sooner is never preceded by a card it would replace at once.
+  const attaching = !inChat && p.phase.kind === "attaching" && !p.phase.reconnect && state !== "held";
+  const wait = useWaitingLoader(attaching);
+  const lingering = !attaching && !inChat && wait.draw && p.phase.kind === "live";
+  // Out of the accessibility tree whenever a card speaks or a held frame is
+  // only the last session's — but never over a focused textarea: Chrome
+  // refuses aria-hidden on an element whose descendant keeps focus, and says
+  // so in the console. A pane that stops showing a live session cannot take
+  // keys anyway (the controller drops them), so its focus goes back to the
+  // page first, and the keys bar then says the board has them. Set here
+  // rather than in the markup, so the blur is in place before the attribute.
+  const lostKeys = useRef(false);
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    if (state === "shown") { lostKeys.current = false; host.removeAttribute("aria-hidden"); return; }
+    const active = typeof document === "undefined" ? null : document.activeElement as { blur?: () => void } | null;
+    if (active && typeof active.blur === "function" && host.contains(active as Node)) {
+      active.blur();
+      lostKeys.current = true;
+    }
+    host.setAttribute("aria-hidden", "true");
+  }, [state, hostRef]);
+  // A pane that had the keys and lost its connection to tmux hands them to its
+  // card's Try again. Left on the body, the letters still being typed for the
+  // session ran the deck's shortcuts: a "?" opened the key sheet. Only for an
+  // error, whose action is a retry; a card that offers to reopen a session is
+  // never one keystroke away. And only from the body: focus the reader has
+  // moved stays where it is.
+  const kind = p.phase.kind;
+  useLayoutEffect(() => {
+    if (!lostKeys.current || kind === "attaching" || kind === "starting" || kind === "tmux-installing") return;
+    lostKeys.current = false;
+    if (kind !== "error" || typeof document === "undefined") return;
+    if (document.activeElement && document.activeElement !== document.body) return;
+    const retry = hostRef.current?.parentElement?.querySelector<HTMLElement>("[data-stage-land]");
+    if (retry) catchKeys(retry);
+  }, [kind, hostRef]);
+  return (
+    <div className="ts-body" data-view={inChat ? "chat" : undefined} data-frame={state !== "hidden" || undefined}>
+      {/* The pane: every key pressed in here is the session's, Escape
+          included (terminal-keys.ts reads this attribute). */}
+      <div
+        ref={hostRef}
+        className="ts-host"
+        data-terminal-panel=""
+        data-terminal-name={p.paneName}
+        data-shown={state === "shown" || undefined}
+        data-held={state === "held" || undefined}
+        data-after-hold={afterHold || undefined}
+      />
+      {inChat ? null : attaching
+        ? (wait.draw ? <StateCard {...card} held={false} timed={wait.leaving ? "out" : "in"} /> : null)
+        : <StateCard {...card} held={state === "held"} />}
+      {lingering && <StateCard {...card} phase={{ kind: "attaching", reconnect: false }} held={false} timed={wait.leaving ? "out" : "in"} />}
+      <ScreensSlot screens={screens} flags={flags} />
+    </div>
+  );
+}

@@ -38,7 +38,7 @@ describe("published model coverage checked 2026-10-12", () => {
     for (const id of [MODEL, "claude-haiku-5.5", "claude_haiku_5_5", `us.anthropic.${MODEL}`, `anthropic.${MODEL}`, `${MODEL}@default`]) {
       expect(ratesForModel(id)).toEqual({ input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125, cacheWrite1h: 0.2 });
       expect(contextWindowForModel(id)).toBe(1000000);
-      expect(shortModel(id)).toContain("Haiku 5.5");
+      expect(shortModel(id)).toContain("haiku 5.5");
     }
     for (const id of ["claude-haiku-5-6", "claude-haiku-5-5-1", "claude-haiku-5-55", "gpt-5.6-sol-pro", "gpt-5.6-luna-pro", "gpt-5.6-terra-pro", "gpt-5.6-cyber-pro"]) expect(ratesForModel(id)).toBeNull();
     expect(ratesForModel(MODEL, now, "fast")).toBeNull();

@@ -1,17 +1,19 @@
 // What a phone opens by itself when the deck loads.
 //
-// A first run opens Accounts, Usage and the machine panel, and each stays open
-// across reloads until the reader closes it — the layout for a window with a
-// canvas to sit beside. Under 641px nothing sits beside anything: the left
+// A reader may leave Accounts, Usage and the machine panel open, and each stays
+// open across reloads until the reader closes it — a layout for a window with a
+// canvas to sit beside. A first run opens none of them (CHANGED ON PURPOSE,
+// owner 2026-11-11: it used to open all three, each on what was not set up
+// yet). Under 641px nothing sits beside anything: the left
 // column is a drawer over the canvas, Usage takes the top of the screen and the
 // machine panel its foot. A 390px load opened all three, with the accounts
 // drawer over Usage and no part of the board in sight.
 //
-// A phone's load opens one sheet at most: Usage when it is wanted, the machine
-// panel when only it is, and never the drawer, which opens from the dock. What
-// is stored is not touched — a held panel is not the reader closing it — so a
-// wider window opens what it always did, and the reader's own open or close of
-// a held panel is written as ever.
+// A phone's load opens Sessions, full width, and no panel: Usage, the machine
+// panel and Accounts are sheets over it, opened from their doors in the dock.
+// What is stored is not touched — a held panel is not the reader closing it —
+// so a wider window opens what it always did, and the reader's own open or
+// close of a held panel is written as ever.
 //
 // Run, not read: both hooks on fake-react.ts's React, against a stubbed store
 // and a matchMedia that answers the dock's breakpoint (edge-dock-phone.test.ts
@@ -78,47 +80,65 @@ const kept = (panel: Panel) => stored[KEYS[panel]] ?? null;
 beforeEach(() => { stored = {}; writes = []; });
 afterEach(() => { vi.unstubAllGlobals(); });
 
-describe("a phone's load opens one sheet at most", () => {
-  it("opens Usage alone on a first run at 390px", () => {
+// CHANGED ON PURPOSE (the owner's phone layout): a phone opens on Sessions, full
+// width, with no panel open. Usage, This machine and Accounts are sheets over it
+// from their doors, so none of them opens by itself.
+describe("a phone's load opens Sessions and no panel", () => {
+  it("opens Sessions alone on a first run at 390px", () => {
     windowAt(390);
-    expect(load().open).toEqual({ sessionList: false, accounts: false, usage: true, machine: false });
+    expect(load().open).toEqual({ sessionList: true, accounts: false, usage: false, machine: false });
   });
 
-  it("opens Usage alone when every panel was left open", () => {
+  it("opens Sessions alone when every panel was left open", () => {
     windowAt(390, { sessionList: "1", accounts: "1", usage: "1", machine: "1" });
-    expect(load().open).toEqual({ sessionList: false, accounts: false, usage: true, machine: false });
+    expect(load().open).toEqual({ sessionList: true, accounts: false, usage: false, machine: false });
   });
 
-  it("opens the machine panel when it is the one sheet wanted", () => {
-    windowAt(390, { accounts: "1", usage: "0", machine: "1" });
-    expect(load().open).toEqual({ sessionList: false, accounts: false, usage: false, machine: true });
+  it("opens Sessions even when the reader had shut it on a wider window, and when only the machine panel was wanted", () => {
+    windowAt(390, { sessionList: "0", accounts: "1", usage: "0", machine: "1" });
+    expect(load().open).toEqual({ sessionList: true, accounts: false, usage: false, machine: false });
   });
 
-  it("never opens the drawer by itself, whichever panel of the column was left open", () => {
-    windowAt(390, { sessionList: "1", usage: "0", machine: "0" });
-    expect(load().open.sessionList).toBe(false);
+  it("never opens a sheet by itself, whichever panel was left open", () => {
+    windowAt(390, { sessionList: "1", usage: "1", machine: "1" });
+    expect(load().open).toMatchObject({ usage: false, machine: false });
     windowAt(390, { accounts: "1", usage: "0", machine: "0" });
     expect(load().open.accounts).toBe(false);
   });
 
   it("holds at the dock's own breakpoint, and not a pixel wider", () => {
     windowAt(640);
-    expect(load().open).toEqual({ sessionList: false, accounts: false, usage: true, machine: false });
+    expect(load().open).toEqual({ sessionList: true, accounts: false, usage: false, machine: false });
     // One pixel wider the column and both sheets come back — but 641px has no
     // room for the board beside both right panels, so the machine panel waits
     // behind Usage there as it does on any window too narrow for both.
-    windowAt(641);
+    windowAt(641, { accounts: "1", usage: "1", machine: "1" });
     expect(load().open).toEqual({ sessionList: false, accounts: true, usage: true, machine: false });
   });
 });
 
 describe("a held panel is not the reader closing it", () => {
-  it("writes nothing for a held panel, so a first run is still a first run elsewhere", () => {
+  it("writes nothing for a held panel, so a wider window still opens it", () => {
+    windowAt(390, { accounts: "1", usage: "1", machine: "1" });
+    load();
+    expect(kept("accounts")).toBe("1");
+    expect(kept("usage")).toBe("1");
+    expect(kept("machine")).toBe("1");
+    expect(writes.filter(([k]) => k === KEYS.accounts || k === KEYS.usage || k === KEYS.machine)).toEqual([]);
+  });
+
+  it("holds nothing on a phone's first run, where nothing was open to hold", () => {
     windowAt(390);
     load();
-    expect(kept("accounts")).toBeNull();
-    expect(kept("machine")).toBeNull();
-    expect(writes.filter(([k]) => k === KEYS.accounts || k === KEYS.machine)).toEqual([]);
+    expect(kept("accounts")).toBe("0");
+    expect(kept("usage")).toBe("0");
+    expect(kept("machine")).toBe("0");
+  });
+
+  it("opens Sessions on a phone without writing it over a wider window's choice", () => {
+    windowAt(390, { sessionList: "0" });
+    expect(load().open.sessionList).toBe(true);
+    expect(kept("sessionList")).toBe("0");
   });
 
   it("keeps an open panel on record as open", () => {
@@ -145,20 +165,39 @@ describe("a held panel is not the reader closing it", () => {
     expect(kept("machine")).toBe("0");
   });
 
-  it("writes the reader's open of a held session list", () => {
+  it("writes the reader's own close of the list on a phone, and its open again", () => {
     windowAt(390, { sessionList: "1" });
     const deck = load();
     deck.left.toggleSessionList();
+    expect(deck.open.sessionList).toBe(false);
+    expect(kept("sessionList")).toBe("0");
+    deck.left.toggleSessionList();
     expect(deck.open.sessionList).toBe(true);
     expect(kept("sessionList")).toBe("1");
+  });
+
+  it("opens Accounts over the list on a phone without taking its place", () => {
+    windowAt(390, { sessionList: "1", accounts: "1" });
+    const deck = load();
+    deck.left.toggleAccountsPanel();
+    expect(deck.open).toMatchObject({ sessionList: true, accounts: true });
     deck.left.toggleSessionList();
-    expect(kept("sessionList")).toBe("0");
+    deck.left.toggleSessionList();
+    expect(deck.open).toMatchObject({ sessionList: true, accounts: true });
   });
 });
 
 describe("a wider window loads as it always did", () => {
-  it("opens Accounts, Usage and the machine panel on a first run at 1680px, and writes them down", () => {
+  it("opens no panel on a first run at 1680px, and writes that down", () => {
     windowAt(1680);
+    expect(load().open).toEqual({ sessionList: false, accounts: false, usage: false, machine: false });
+    expect(kept("accounts")).toBe("0");
+    expect(kept("usage")).toBe("0");
+    expect(kept("machine")).toBe("0");
+  });
+
+  it("opens what the reader left open at 1680px", () => {
+    windowAt(1680, { accounts: "1", usage: "1", machine: "1" });
     expect(load().open).toEqual({ sessionList: false, accounts: true, usage: true, machine: true });
     expect(kept("accounts")).toBe("1");
     expect(kept("usage")).toBe("1");
@@ -174,7 +213,7 @@ describe("a wider window loads as it always did", () => {
   });
 
   it("is a wide window where the browser cannot be asked", () => {
-    windowAt(null);
+    windowAt(null, { accounts: "1", usage: "1", machine: "1" });
     expect(load().open).toEqual({ sessionList: false, accounts: true, usage: true, machine: true });
   });
 });
@@ -183,11 +222,14 @@ describe("a desktop window too narrow for both right panels", () => {
   // The default 1440x900 desktop window, with the accounts panel open, left the
   // board about 480px beside Usage and the machine panel, and the fit drew every
   // card as a dot. The panels stay side by side (#847); the machine panel waits.
-  it("opens Accounts and Usage on a first run at 1440px, and holds the machine panel", () => {
-    windowAt(1440);
+  it("opens Accounts and Usage where they were left open at 1440px, and holds the machine panel", () => {
+    windowAt(1440, { accounts: "1", usage: "1", machine: "1" });
     expect(load().open).toEqual({ sessionList: false, accounts: true, usage: true, machine: false });
-    // Held, not closed: a wider window still opens it on a first run.
-    expect(kept("machine")).toBeNull();
+  });
+
+  it("opens no panel on a first run at 1440px, so there is nothing to hold", () => {
+    windowAt(1440);
+    expect(load().open).toEqual({ sessionList: false, accounts: false, usage: false, machine: false });
   });
 
   it("holds it when it was left open, and keeps it on record as open", () => {
@@ -205,20 +247,29 @@ describe("a desktop window too narrow for both right panels", () => {
   });
 
   it("opens it beside Usage when the left column is shut and there is room", () => {
-    windowAt(1440, { accounts: "0" });
+    windowAt(1440, { accounts: "0", usage: "1", machine: "1" });
     expect(load().open).toEqual({ sessionList: false, accounts: false, usage: true, machine: true });
   });
 
   it("opens it alone when Usage is shut, in Usage's own slot", () => {
-    windowAt(1440, { usage: "0" });
+    windowAt(1440, { usage: "0", machine: "1" });
     expect(load().open).toMatchObject({ usage: false, machine: true });
   });
 
   it("holds below 600px of board, and not a pixel wider", () => {
     // 40px stripes on both sides, the 288px column, and 588px of right panels.
-    windowAt(1555);
+    const open = { accounts: "1", usage: "1", machine: "1" } as const;
+    windowAt(1555, open);
     expect(load().open.machine).toBe(false);
-    windowAt(1556);
+    windowAt(1556, open);
     expect(load().open.machine).toBe(true);
+  });
+
+  it("holds nothing on a load in Workspace, where the two share one side column", () => {
+    windowAt(1440, { accounts: "1", usage: "1", machine: "1" });
+    let right!: ReturnType<typeof useRightPanels>;
+    mount(() => { const left = useLeftColumn(); right = useRightPanels(leftColumnWidth(left.panel), true); return null; }, {});
+    expect([right.usagePanelOpen, right.machinePanelOpen]).toEqual([true, true]);
+    expect(kept("machine")).toBe("1");
   });
 });

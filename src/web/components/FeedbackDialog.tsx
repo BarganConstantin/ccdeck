@@ -39,6 +39,17 @@
 // own press: Discard, in the foot's far corner whenever there is something to
 // discard, armed by the first press and done by a second, which empties the
 // form and leaves it open with the caret in the message.
+//
+// WITH A ccdeck ACCOUNT CONNECTED (feedback-unread.ts) it is two tabs under
+// one header, "Feedback": Write, this form, and Your conversations, the
+// threads it starts (FeedbackTabs.tsx). Write says who it goes as and offers
+// Send without my account, kept with the draft; unticked, the contact is not
+// asked for and Send starts a conversation through the account's route,
+// ticked, everything is exactly as above. Without an account — off, not
+// connected, revoked — this is the dialog it always was, and the tabs are
+// never drawn. It opens on Write from every door but one: the topbar's
+// Feedback pressed while it shows the dot opens on Your conversations.
+import Checkbox from "./Checkbox";
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from "react";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import { useT } from "../i18n";
@@ -48,10 +59,13 @@ import SuccessMark from "./SuccessMark";
 import FeedbackKinds from "./FeedbackKinds";
 import FeedbackDetails, { DetailsToggle } from "./FeedbackDetails";
 import FeedbackShots, { AddScreenshot, ImageGlyph } from "./FeedbackShots";
+import FeedbackTabs, { ConversationsPanel } from "./FeedbackTabs";
+import { mailsReplies, useFeedbackAccount, type FeedbackAccount } from "../feedback-unread";
 import { carriesFiles, shouldAttachPaste } from "../feedback-images";
 import { platformName } from "../platform";
 import { useFeedbackImages } from "../use-feedback-images";
 import { useFeedbackFacts } from "../use-feedback-facts";
+import { Dialog } from "./Dialog";
 import { useCloseWhenSent, useFeedbackSend } from "../use-feedback-send";
 import { useArmedDiscard, useKeepDraft } from "../use-feedback-draft";
 import {
@@ -59,15 +73,20 @@ import {
   holdsSomething, imagesLostLine,
 } from "../feedback-draft";
 import {
-  BODY_MAX, factsUnknown, factsWith, messageMissing, sentLine, factsLabel, hasMessage, isSendShortcut,
-  isSymbolCap, kindCopy, outcomeAnnouncement, sendShortcutCaps, type FeedbackPrefill, type Kind,
+  ACCOUNT_DIALOG_TITLE_MSG, BODY_MAX, SEND_WITHOUT_ACCOUNT_MSG, accountSentAs, factsUnknown, factsWith, messageMissing,
+  factsLabel, hasMessage, isSendShortcut, isSymbolCap, kindCopy, outcomeAnnouncement, sendShortcutCaps, sentLine,
+  type FeedbackPrefill, type FeedbackTab, type Kind,
 } from "../feedback";
 
 interface Props extends FeedbackPrefill {
   onClose: () => void;
+  /** The account as the crash pane caught it: the tree that publishes it
+   *  (AccountBridge) went down with the crash, and this dialog outlives it.
+   *  Left out, the dialog reads the account as it is now. */
+  account?: FeedbackAccount | null;
 }
 
-export default function FeedbackDialog({ onClose, initialKind, initialBody }: Props) {
+export default function FeedbackDialog({ onClose, initialKind, initialBody, initialTab, account: caught }: Props) {
   const t = useT();
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -78,7 +97,30 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
   const discardRef = useRef<HTMLButtonElement>(null);
   const lockedFrom = useRef<HTMLElement | null>(null);
   const dragDepth = useRef(0);
+  const conversationsTabRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useModalDismiss(onClose, { focusRef: bodyRef });
+  const published = useFeedbackAccount();
+  const account = caught !== undefined ? caught : published;
+  const connected = account?.connected === true;
+  // Whether the account's replies are also mailed: the dialog never promises
+  // an email the API will not send.
+  const mail = mailsReplies(account);
+  const [tab, setTab] = useState<FeedbackTab>(connected && initialTab === "conversations" ? "conversations" : "write");
+  // The conversations' chunk is fetched the first time their tab is drawn.
+  const [conversationsSeen, setConversationsSeen] = useState(tab === "conversations");
+  const showTab = (next: FeedbackTab) => {
+    setTab(next);
+    if (next === "conversations") setConversationsSeen(true);
+  };
+  const conversationsShown = connected && tab === "conversations";
+  /** What Your conversations last said in the one live region. Emptied a
+   *  moment before each new sentence, so the same words twice ("Reply
+   *  sent.") are a change a screen reader hears twice. */
+  const [said, setSaid] = useState("");
+  const announce = (words: string) => {
+    setSaid("");
+    window.setTimeout(() => setSaid(words), 50);
+  };
   // Only a press of the scrim itself: a selection dragged out of the message
   // and let go over it would otherwise close the dialog and lose the report.
   const scrimPress = useScrimDismiss(onClose);
@@ -90,26 +132,34 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
   const [body, setBody] = useState(kept?.body ?? seed.body);
   const [contact, setContact] = useState(kept?.contact ?? "");
   const [imagesLost, setImagesLost] = useState(kept?.imagesLost ?? 0);
+  // Send without my account, as the draft kept it: a draft opened again goes
+  // the way it was going to.
+  const [anonymous, setAnonymous] = useState(kept?.anonymous === true);
+  const asAccount = connected && !anonymous;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [triedToSend, setTriedToSend] = useState(false);
   const [dragging, setDragging] = useState(false);
   const images = useFeedbackImages(kept?.images);
   const facts = factsLabel(useFeedbackFacts());
-  const { outcome, sending, send, clearFailure } = useFeedbackSend(images);
+  const { outcome, sending, sentAsAccount, send, clearFailure } = useFeedbackSend(images, { asAccount });
   const sent = outcome.state === "sent";
   const leaving = useCloseWhenSent(sent, onClose);
-  useKeepDraft(key, seed, { kind, body, contact }, images, sent);
+  useKeepDraft(key, seed, { kind, body, contact, anonymous }, images, sent);
   const discardable = holdsSomething({ body, contact, images: images.shots.length }, seed);
   const discard = useArmedDiscard(() => {
     setKind(seed.kind);
     setBody(seed.body);
     setContact("");
     setImagesLost(0);
+    setAnonymous(false);
     setTriedToSend(false);
     images.clear();
     clearFailure();
     bodyRef.current?.focus();
   });
+  // Typing in the message or the contact takes an armed Discard back.
+  const { armed: discardArmed, disarm: disarmDiscard } = discard;
+  useEffect(() => { if (discardArmed) disarmDiscard(); }, [body, contact]); // eslint-disable-line react-hooks/exhaustive-deps
   const copy = kindCopy(kind);
   const bodyMissing = triedToSend && !hasMessage(body);
   // A draft brought back by a reload whose screenshots stayed behind says so
@@ -119,6 +169,14 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
   const messageDescribedBy = [bodyMissing && "fb-body-error", imagesLostShown && "fb-images-lost"]
     .filter(Boolean).join(" ") || undefined;
   const [capA, capB] = sendShortcutCaps(platformName());
+
+  // Opened on Your conversations, the dialog lands on that tab: the message
+  // it would otherwise take the caret into is in the panel not shown.
+  useEffect(() => {
+    if (tab === "conversations") conversationsTabRef.current?.focus();
+    // Mount only, after the dismiss hook's own first focus.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Sent, the form stays drawn under the thanks, so the dialog keeps its
   // height, and goes inert: nothing in it can be reached or read. Focus in it
@@ -176,7 +234,7 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
    *  is out. The depth counts enters against leaves, since the pointer
    *  crossing into a child is a leave from its parent and would otherwise
    *  flicker the overlay off. */
-  const accepting = !sent && !sending;
+  const accepting = !sent && !sending && !conversationsShown;
   const fileDrag = (e: DragEvent) => carriesFiles(Array.from(e.dataTransfer.types));
   function dragEnter(e: DragEvent) {
     if (!fileDrag(e) || !accepting) return;
@@ -224,25 +282,27 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
     images.add(files);
   }
 
+  // The form and its thanks: the whole dialog without an account, the Write
+  // tab with one. Drawn below the header and its live region, as it always was.
+  const stage = renderStage();
+
   return (
-    <div className="modal-backdrop" {...scrimPress} role="presentation" onDragOver={refuseBesideDialog} onDrop={dropBesideDialog}
-      data-leaving={leaving || undefined}>
-      <div
-        ref={dialogRef}
-        className="modal feedback-dialog"
-        onClick={e => e.stopPropagation()}
-        onDragEnter={dragEnter}
-        onDragOver={dragOver}
-        onDragLeave={dragLeave}
-        onDrop={drop}
-        onPaste={paste}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="feedback-title"
-      >
+    <Dialog
+      scrim={scrimPress}
+      dialogRef={dialogRef}
+      backdropProps={{ onDragOver: refuseBesideDialog, onDrop: dropBesideDialog, "data-leaving": leaving || undefined }}
+      className="feedback-dialog"
+      data-account={connected || undefined}
+      onDragEnter={dragEnter}
+      onDragOver={dragOver}
+      onDragLeave={dragLeave}
+      onDrop={drop}
+      onPaste={paste}
+      labelledBy="feedback-title"
+    >
         <header className="modal-head">
           <div className="modal-title">
-            <span id="feedback-title" className="modal-tool-name">{t("shell.feedback.title")}</span>
+            <span id="feedback-title" className="modal-tool-name">{connected ? t(ACCOUNT_DIALOG_TITLE_MSG) : t("shell.feedback.title")}</span>
           </div>
           <div className="modal-actions">
             <button ref={closeRef} type="button" className="glyph-btn" onClick={onClose} aria-label={t("shell.closeEsc")} title={t("shell.closeEsc")}>×</button>
@@ -251,89 +311,17 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
         {/* The one live region, which also says what an armed Discard will
             do: the button's new name alone is not reliably read out while it
             has the focus, and its tooltip is where the warning lived. */}
-        <p className="vis-hidden" role="status">{discard.armed ? discardArmedTitle() : outcomeAnnouncement(outcome.state)}</p>
-        <div className="fb-stage">
-          <form
-            ref={formRef}
-            className="fb-form"
-            onSubmit={submit}
-            onKeyDown={e => {
-              if (!isSendShortcut(e.nativeEvent)) return;
-              e.preventDefault();
-              e.currentTarget.requestSubmit();
-            }}
-            noValidate
-          >
-            <section ref={fieldsRef} className="modal-body fb-body">
-              <FeedbackKinds kind={kind} onChange={setKind} />
-              <div className="fb-compose">
-                <label className="fb-label" htmlFor="fb-body">{copy.question}</label>
-                <textarea
-                  ref={bodyRef}
-                  id="fb-body"
-                  className="ap-manage-input fb-message"
-                  value={body}
-                  maxLength={BODY_MAX}
-                  rows={5}
-                  placeholder={copy.placeholder}
-                  onChange={e => setBody(e.target.value)}
-                  aria-invalid={bodyMissing || undefined}
-                  aria-describedby={messageDescribedBy}
-                  required
-                />
-                {/* A sibling of the field rather than inside its label: inside,
-                    it would join the field's name and be read twice. */}
-                {bodyMissing && <p id="fb-body-error" className="fb-error">{messageMissing()}</p>}
-                <FeedbackShots images={images} addRef={addRef} />
-                {imagesLostShown && <p id="fb-images-lost" className="fb-hint">{imagesLostLine(imagesLost)}</p>}
-                <div className="fb-tools">
-                  <AddScreenshot images={images} buttonRef={addRef} />
-                  <DetailsToggle open={detailsOpen} onToggle={() => setDetailsOpen(open => !open)} />
-                </div>
-                <FeedbackDetails open={detailsOpen} contact={contact} onContact={setContact} />
-              </div>
-              <p className="fb-facts">
-                {facts ? slot(factsWith(), "facts", <span className="fb-facts-value">{facts}</span>) : factsUnknown()}
-              </p>
-              {outcome.state === "failed" && <p className="fb-error" role="alert">{outcome.message}</p>}
-            </section>
-            <div className="fb-foot">
-              {discardable && (
-                <button
-                  ref={discardRef}
-                  type="button"
-                  className={`btn danger fb-discard${discard.armed ? " armed" : ""}`}
-                  // A held key repeats past the gap while the finger has never
-                  // come up: one decision, not two.
-                  onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
-                  onClick={discard.press}
-                  title={discard.armed ? discardArmedTitle() : discardTitle()}
-                >
-                  {discard.armed ? discardArmedLabel() : discardLabel()}
-                </button>
-              )}
-              <span className="fb-shortcut" aria-hidden="true">
-                <kbd data-symbol={isSymbolCap(capA) || undefined}>{capA}</kbd><kbd>{capB}</kbd> {t("shell.feedback.toSend")}
-              </span>
-              <button type="button" className="btn" onClick={onClose}>{t("shell.cancel")}</button>
-              <button ref={sendRef} type="submit" className="btn primary fb-send" aria-keyshortcuts="Meta+Enter Control+Enter" {...selfPressProps(sending)}>
-                {/* Both words always laid out in one cell, one of them hidden,
-                    so the button is as wide sending as before and Cancel never
-                    shifts under the pointer. */}
-                <span className="fb-send-label">
-                  <span className="fb-send-idle">{t("shell.feedback.send")}</span>
-                  <span className="fb-send-busy">{t("shell.feedback.sending")}</span>
-                </span>
-              </button>
-            </div>
-          </form>
-          {sent && (
-            <div className="fb-done">
-              <SuccessMark />
-              <p className="fb-done-line">{sentLine()}</p>
-            </div>
-          )}
-        </div>
+        <p className="vis-hidden" role="status">{discard.armed ? discardArmedTitle() : conversationsShown ? said : outcomeAnnouncement(outcome.state, sentAsAccount, mail)}</p>
+        {connected && account ? (
+          <FeedbackTabs
+            tab={tab}
+            onTab={showTab}
+            unread={account.unread}
+            conversationsTabRef={conversationsTabRef}
+            write={stage}
+            conversations={conversationsSeen ? <ConversationsPanel account={account} active={conversationsShown} announce={announce} /> : null}
+          />
+        ) : stage}
         <div className="fb-drop" aria-hidden="true" data-active={dragging || undefined}>
           <div className="fb-drop-frame">
             <ImageGlyph className="fb-drop-glyph" />
@@ -341,7 +329,103 @@ export default function FeedbackDialog({ onClose, initialKind, initialBody }: Pr
             <p className="fb-drop-note">{t("shell.feedback.dropNote")}</p>
           </div>
         </div>
-      </div>
-    </div>
+    </Dialog>
   );
+
+  function renderStage() {
+    return (
+      <div className="fb-stage">
+        <form
+          ref={formRef}
+          className="fb-form"
+          onSubmit={submit}
+          onKeyDown={e => {
+            if (!isSendShortcut(e.nativeEvent)) return;
+            e.preventDefault();
+            e.currentTarget.requestSubmit();
+          }}
+          noValidate
+        >
+          <section ref={fieldsRef} className="modal-body fb-body">
+            <FeedbackKinds kind={kind} onChange={setKind} />
+            <div className="fb-compose">
+              <label className="fb-label" htmlFor="fb-body">{copy.question}</label>
+              <textarea
+                ref={bodyRef}
+                id="fb-body"
+                className="ap-manage-input fb-message"
+                value={body}
+                maxLength={BODY_MAX}
+                rows={5}
+                placeholder={copy.placeholder}
+                onChange={e => setBody(e.target.value)}
+                aria-invalid={bodyMissing || undefined}
+                aria-describedby={messageDescribedBy}
+                required
+              />
+              {/* A sibling of the field rather than inside its label: inside,
+                  it would join the field's name and be read twice. */}
+              {bodyMissing && <p id="fb-body-error" className="fb-error">{messageMissing()}</p>}
+              <FeedbackShots images={images} addRef={addRef} />
+              {imagesLostShown && <p id="fb-images-lost" className="fb-hint">{imagesLostLine(imagesLost)}</p>}
+              <div className="fb-tools">
+                <AddScreenshot images={images} buttonRef={addRef} />
+                <DetailsToggle open={detailsOpen} onToggle={() => setDetailsOpen(open => !open)} />
+              </div>
+              {connected && (
+                <div className="fc-account">
+                  <label className="fc-anon">
+                    <Checkbox checked={anonymous} onChange={e => setAnonymous(e.target.checked)} />
+                    {t(SEND_WITHOUT_ACCOUNT_MSG)}
+                  </label>
+                  {!anonymous && <p className="fc-sent-as">{accountSentAs(account?.email ?? null, mail)}</p>}
+                </div>
+              )}
+              <FeedbackDetails open={detailsOpen} contact={contact} onContact={setContact} account={asAccount} mail={mail} />
+            </div>
+            {/* V4's Figma: what rides along on the left, the send key on the right, both quiet. */}
+            <p className="fb-facts">
+              <span className="fb-facts-text">{facts ? slot(factsWith(), "facts", <span className="fb-facts-value">{facts}</span>) : factsUnknown()}</span>
+              <span className="fb-shortcut" aria-hidden="true">
+                <kbd data-symbol={isSymbolCap(capA) || undefined}>{capA}</kbd><kbd>{capB}</kbd> {t("shell.feedback.toSend")}
+              </span>
+            </p>
+            {outcome.state === "failed" && <p className="fb-error" role="alert">{outcome.message}</p>}
+          </section>
+          <div className="fb-foot">
+            {discardable && (
+              <button
+                ref={discardRef}
+                type="button"
+                className={`btn danger fb-discard${discard.armed ? " armed" : ""}`}
+                // A held key repeats past the gap while the finger has never
+                // come up: one decision, not two.
+                onKeyDown={e => { if (e.repeat) e.preventDefault(); }}
+                onClick={discard.press}
+                title={discard.armed ? discardArmedTitle() : discardTitle()}
+              >
+                {discard.armed ? discardArmedLabel() : discardLabel()}
+              </button>
+            )}
+            <button type="button" className="btn" onClick={onClose}>{t("shell.cancel")}</button>
+            <button ref={sendRef} type="submit" className="btn primary fb-send" aria-keyshortcuts="Meta+Enter Control+Enter" {...selfPressProps(sending)}>
+              {/* Both words always laid out in one cell, one of them hidden,
+                  so the button is as wide sending as before and Cancel never
+                  shifts under the pointer. */}
+              <span className="fb-send-label">
+                <span className="fb-send-idle">{t("shell.feedback.send")}</span>
+                <span className="fb-send-busy">{t("shell.feedback.sending")}</span>
+              </span>
+            </button>
+          </div>
+        </form>
+        {sent && (
+          <div className="fb-done">
+            <SuccessMark />
+            <p className="fb-done-line">{sentLine(sentAsAccount, mail)}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
 }

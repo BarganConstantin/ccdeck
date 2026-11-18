@@ -3,7 +3,7 @@
    machine panel. Every series is stacked on one time axis and each keeps its
    own unit: degrees and a percentage share nothing but a range, and one axis
    for both would invite a comparison of shapes that means nothing. */
-.hist-modal { width: var(--dialog-m); }
+.hist-modal { width: var(--dialog-s); }
 .hist-since {
   margin-left: auto;
   margin-right: 10px;
@@ -11,7 +11,7 @@
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.hist-body { padding: 14px 16px 16px; overflow-y: auto; }
+.hist-body { padding: 16px; overflow-y: auto; }
 .hist-empty { margin: 0; padding: 20px 0; text-align: center; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 
 /* Space, not a line. The gap already groups them, and a rule on top of it is
@@ -26,17 +26,19 @@
 /* `<i>` for the unit and the word, which are not emphasis but the caption a
    figure needs; the sheet un-italicises it because the slant would be the only
    slanted text in the panel. */
-.hist-stats i { font-style: normal; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--muted); margin-right: 8px; }
+.hist-stats i { font-style: normal; font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); color: var(--muted); margin-right: 8px; }
 /* The peak, pressable: it pins its own minute under the chart. Drawn exactly
    as the figure beside it, because it is the same kind of figure — only the
    pointer and the underline on hover say it does something. */
 .hist-peak {
   display: inline-flex; align-items: baseline; gap: 4px;
   padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer;
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .hist-peak:hover > span { text-decoration: underline; text-underline-offset: 2px; }
-.hist-peak:active { transform: scale(0.97); }
+}
+.hist-peak:active { transform: scale(var(--press)); }
 @media (prefers-reduced-motion: reduce) {
   .hist-peak:active { transform: none; }
 }
@@ -57,7 +59,7 @@
 .hist-rule, .pl-rule { stroke-width: 1; opacity: 0.6; vector-effect: non-scaling-stroke; }
 .hist-rule.warn, .pl-rule.warn { stroke: var(--warn); stroke-dasharray: 6 4; }
 .hist-rule.hot, .pl-rule.hot { stroke: var(--err); stroke-dasharray: 2 3; opacity: 0.75; }
-.hist-rule-tag { font-size: calc(9px + max(0px, var(--ui-text-increase, 0px))); fill: var(--muted); font-variant-numeric: tabular-nums; }
+.hist-rule-tag { font-size: calc(11px + max(0px, var(--ui-text-increase, 0px))); fill: var(--muted); font-variant-numeric: tabular-nums; }
 .hist-rule-tag.warn { fill: var(--warn); }
 .hist-rule-tag.hot { fill: var(--err); }
 .hist-cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
@@ -70,7 +72,7 @@
   display: flex;
   justify-content: space-between;
   margin-top: 4px;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   /* Held open so the strip does not collapse when the pointer leaves and the
@@ -90,7 +92,7 @@
   margin: -8px -4px -4px 8px;
   font-size: calc(13px + var(--ui-text-increase, 0px));
 }
-.hist-note { margin-top: 5px; font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--muted); }
+.hist-note { margin-top: 5px; font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); color: var(--muted); }
 .hist-load-summary { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; margin: 16px 0 0; font-size: calc(12px + var(--ui-text-increase, 0px)); color: var(--text); line-height: 1.5; }
 .hist-load-summary > span { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
 .hist-load-summary > strong { font-weight: 600; }
@@ -119,6 +121,7 @@
    32px)` is never narrower than `min(880px, 94vw)` was at any window from
    534px up. */
 .pl-modal { width: var(--dialog-l); }
+
 /* The box that holds the table and the band. In the default layout it is what
    the modal already was — a column whose table scrolls and whose band does not
    — and it exists so one media query can turn that column on its side. */
@@ -179,9 +182,22 @@
   .pl-split .pl-cell-head { width: auto; }
   .pl-split .pl-spark { width: 100%; height: 48px; }
 }
-.pl-count {
+/* V4 puts what the list is beside the title (12, --muted); the count of
+   running processes sits in the footer's free left side. */
+.pl-hint {
   margin-left: auto;
-  margin-right: 10px;
+  margin-right: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+}
+.pl-count {
+  margin-right: auto;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
   font-variant-numeric: tabular-nums;
@@ -192,9 +208,28 @@
    further down you read, the more cramped it got, and the last rule sat closest
    to the densest text in the dialog.
 
-   20px between peer bands, 22px under the title because a title is not a peer,
+   V4 pads the body 16 on every side, so it is 26px between the list and the
+   band, 28px under the title (a title is not a peer, so it keeps more), and
    12px at the outer edge top and bottom. */
-.pl-body { padding: 10px 16px; overflow-y: auto; font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.pl-body { padding: 16px; overflow-y: auto; font-size: calc(11px + var(--ui-text-increase, 0px)); }
+/* V4's table: a 24px header row in 11px medium --muted, then 28px rows, the
+   process in 12px --text and the figures in 12px tabular --text-secondary. */
+.pl-body .pl-table thead th { height: 24px; }
+.pl-body .pl-table .sd-sort {
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 14px;
+  font-weight: 500;
+}
+.pl-body .pl-table tbody td { height: 28px; padding-top: 0; padding-bottom: 0; }
+.pl-body .pl-table td.sd-num {
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  font-weight: 400;
+}
+.pl-body .pl-table td.pl-name { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; }
 .pl-empty { margin: 0; padding: 20px 0; text-align: center; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); }
 /* The header row sticks, because a fifty-row table you scroll is a table whose
    column you forget. */
@@ -232,7 +267,7 @@
 .pl-pid-h {
   width: 72px;
   text-align: right;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 500;
   color: var(--muted);
 }
@@ -330,8 +365,15 @@
 /* The row hover lifts every cell to --text, which would flatten the two halves
    of this one back together. It keeps its step, and gains what the light ramp
    has room for. */
+@media (hover: hover) and (pointer: fine) {
 .pl-body tbody tr:hover .pl-cmd { color: var(--muted); }
+}
+@media (hover: hover) and (pointer: fine) {
 .pl-body tbody tr:hover td { color: var(--text); }
+/* The figures are set one class deeper (V4's --text-secondary), so the hover
+   names them too. */
+.pl-body tbody tr:hover td.sd-num { color: var(--text); }
+}
 /* THE MACHINE, UNDER THE LIST IT EXPLAINS. See MachineStrip: this dialog covers
    the panel that carries these readings, so the footer carries them back.
 
@@ -390,7 +432,7 @@
    findable — the cell's title has it in full — where a number pushed out of its
    own cell is the reading itself going missing. */
 .pl-cell-label {
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -408,6 +450,11 @@
    stays where it was. */
 .pl-cell.warn .pl-cell-now { color: var(--warn); }
 .pl-cell.hot .pl-cell-now { color: var(--err); }
+/* And the mark and word that say it, under the line (MachineStrip.tsx). */
+.pl-cell > .level-mark {
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+}
 /* The box IS the scale, which is the panel's own grammar for these readings —
    `.sd-track` holds a `.sd-fill` against the same 0-100. Without it a line at
    4px and a line at 15px in a 24px box are two positions with nothing to be
@@ -415,7 +462,7 @@
 .pl-spark {
   display: block;
   background: var(--line-soft);
-  border-radius: 2px;
+  border-radius: var(--r-ctl);
 }
 .pl-spark-floor { stroke: var(--line-soft); stroke-width: 1; vector-effect: non-scaling-stroke; }
 /* Quieter than the full chart's, and deliberately so: .hist-line is the subject

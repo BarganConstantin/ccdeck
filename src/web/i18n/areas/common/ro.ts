@@ -7,10 +7,16 @@ const catalog: Catalog = {
   "common.time.m": "{m}min",
   "common.details": "Detalii",
   "common.aboutBefore": " despre ",
+  "common.aboutAfter": "​",
   "common.ago.now": "chiar acum",
   "common.ago.m": "acum {n} min",
   "common.ago.h": "acum {n} h",
   "common.ago.d": "acum {n} z",
+  "common.cancel": "Anulează",
+  "common.close": "Închide",
+  "common.notNow": "Nu acum",
+  "common.level.high": "ridicat",
+  "common.level.hot": "fierbinte",
 };
 
 export default catalog;

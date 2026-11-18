@@ -9,9 +9,14 @@
 // reads — `visibility: hidden`, which also takes it out of the accessibility
 // tree. The disclosure is a button with aria-expanded naming the region it
 // controls (the WAI-ARIA disclosure pattern).
+//
+// SENT AS THE ACCOUNT (`account`), there is no contact to ask for: the account
+// is the way back, and replies come in the dialog, on app.ccdeck.dev and, while
+// the API mails them (`mail`), by email. The section then says only where it
+// goes, in whereItGoesAccount's words.
 import { useId } from "react";
 import {
-  addDetails, contactHint, contactLabel, CONTACT_MAX, contactPlaceholder, whereItGoes, isPlainEnter,
+  addDetails, contactHint, contactLabel, CONTACT_MAX, contactPlaceholder, whereItGoes, isPlainEnter, whereItGoesAccount,
 } from "../feedback";
 import { useT } from "../i18n";
 
@@ -22,11 +27,11 @@ export function DetailsToggle({ open, onToggle }: { open: boolean; onToggle: () 
   useT();
   return (
     <button type="button" className="fb-tool fb-more" aria-expanded={open} aria-controls={DETAILS_ID} onClick={onToggle}>
-      {addDetails()}
-      <svg className="fb-chev" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor"
+      <svg className="fb-chev" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor"
         strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden focusable="false">
-        <path d="M2.5 3.75 5 6.25l2.5-2.5" />
+        <path d="M5.25 3.5 8.75 7l-3.5 3.5" />
       </svg>
+      {addDetails()}
     </button>
   );
 }
@@ -35,16 +40,20 @@ interface Props {
   open: boolean;
   contact: string;
   onContact: (contact: string) => void;
+  /** Sent as the ccdeck account: no contact field, and the account's words. */
+  account?: boolean;
+  /** The account's replies are also mailed (the API's `mail`). */
+  mail?: boolean;
 }
 
-export default function FeedbackDetails({ open, contact, onContact }: Props) {
+export default function FeedbackDetails({ open, contact, onContact, account = false, mail = true }: Props) {
   const t = useT();
   const hintId = useId();
   return (
     <div id={DETAILS_ID} className="fb-details" data-open={open || undefined}>
       <div className="fb-details-clip">
         <div className="fb-details-body">
-          <div className="fb-field">
+          {!account && <div className="fb-field">
             <label className="fb-field-label" htmlFor="fb-contact">
               {contactLabel()}
               <span className="fb-optional">{t("shell.feedback.optional")}</span>
@@ -62,10 +71,14 @@ export default function FeedbackDetails({ open, contact, onContact }: Props) {
               onKeyDown={e => { if (isPlainEnter(e.nativeEvent)) e.preventDefault(); }}
             />
             <p id={hintId} className="fb-hint">{contactHint()}</p>
-          </div>
-          <div className="fb-where">
-            {whereItGoes().map(line => <p key={line}>{line}</p>)}
-          </div>
+          </div>}
+          {account ? (
+            <div className="fb-where">{whereItGoesAccount(mail).map(line => <p key={line}>{line}</p>)}</div>
+          ) : (
+            <div className="fb-where">
+              {whereItGoes().map(line => <p key={line}>{line}</p>)}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -76,6 +76,12 @@ export function writesLogFor(payload) {
   return typeof sid !== "string" || sid === "" || !foreignSessions.has(sid);
 }
 
+/** Whether a hook said another deck logs session `sid` (panel-provenance.mjs:
+ *  that deck, not this one, knows whether its panel started it). */
+export function isForeignSession(sid) {
+  return typeof sid === "string" && foreignSessions.has(sid);
+}
+
 /**
  * Who else is holding the log this deck would empty, and whose it is to empty.
  *
@@ -313,7 +319,7 @@ async function openEventLog(persist) {
   _persistWritable = false;
   if (!persist) return;
   persistPath = resolve(persist);
-  try { await mkdir(pdirname(persistPath), { recursive: true }); } catch {}
+  try { await mkdir(pdirname(persistPath), { recursive: true, mode: 0o700 }); } catch {}
   // Asked before the first event, so a log that cannot be written is a fact
   // the deck states rather than one the user discovers by pressing Restart.
   // The mkdir above is inside a bare try/catch, so its failure is already

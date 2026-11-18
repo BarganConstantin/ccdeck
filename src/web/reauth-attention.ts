@@ -118,21 +118,10 @@ export function attentionLead(count: number, t: TFunction = tNow): string {
   return t("accounts.reauth.lead", { count });
 }
 
-/** What one account's row says about it. Calm and factual: the login has
- *  stopped working, nothing is lost, and a sign-in brings it back. */
-export const LOGIN_EXPIRED = "Login expired";
-
-/** What the single-account body says after naming it: what stopped, and that
- *  nothing is lost by signing in again. */
-export const SINGLE_NOTE =
-  "Until then the deck cannot read its usage or switch to it. Signing in again brings it back — "
-  + "it keeps its slot, its alias and its history.";
-
-/** The three fixed sentences above, in the language on show. */
+/** The three fixed sentences, in the language on show. Calm and factual: the
+ *  login has stopped working, nothing is lost, and a sign-in brings it back.
+ *  `singleNoteText` is what the single-account body says after naming it, and
+ *  `laterExplainedText` what "Not now" promises, said on the button's title. */
 export const loginExpiredText = (t: TFunction = tNow): string => t("accounts.reauth.expired");
 export const singleNoteText = (t: TFunction = tNow): string => t("accounts.reauth.singleNote");
 export const laterExplainedText = (t: TFunction = tNow): string => t("accounts.reauth.laterTip");
-
-/** What "Not now" promises, said on the button's title. */
-export const LATER_EXPLAINED =
-  "The account stays marked in the Accounts panel. This will not ask again until it has worked and stopped again.";

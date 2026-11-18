@@ -53,7 +53,8 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { USAGE_FILES } from "./usage-surface";
 import { ACCOUNTS_FILES } from "./accounts-surface";
-import { sheetText } from "./sheet-source";
+import { mouseFlat, sheetText } from "./sheet-source";
+import { en } from "../i18n/en";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const cssRaw = sheetText();
@@ -74,6 +75,8 @@ const agentNode = markup("components", "AgentNode.tsx");
 /** The card's words, stateLabel among them, lifted out of AgentNode.tsx. */
 const agentCopy = markup("agent-copy.ts");
 const sessionList = markup("components", "SessionList.tsx");
+/** The rail's rows, and the glyph each one draws, in RailParts.tsx (V4's Attention rail). */
+const railParts = markup("components", "RailParts.tsx");
 const usagePanel = markup("components", "UsagePanel.tsx");
 /** The usage panel's session rows, and the dot each one draws, lifted out of it. */
 const sessionBreakdown = markup("components", "UsageSessionBreakdown.tsx");
@@ -153,7 +156,8 @@ function topLevel(src: string): Array<{ selector: string; body: string }> {
   return out;
 }
 
-const RULES = topLevel(css);
+// The mouse query's rules are read where they stand: a desktop pointer meets them at the top level.
+const RULES = topLevel(mouseFlat(css));
 const selectors = (list: string) => list.split(",").map(s => s.replace(/\s+/g, " ").trim());
 
 /** Every top-level rule naming this exact selector, in source order. */
@@ -185,7 +189,9 @@ function rootTokens(theme: Theme): Record<string, string> {
 }
 const TOK: Record<Theme, Record<string, string>> = { dark: rootTokens("dark"), light: rootTokens("light") };
 
-/** var() one level deep, plus the color-mix form the control tokens use. */
+/** var() as deep as the tokens go, plus the two color-mix forms the control
+ *  tokens use: --ctl-fill is --text mixed with transparent, and --selected is
+ *  --text mixed into --panel, so the rail row's hover and selection need them. */
 function resolve(value: string, theme: Theme): Rgba {
   const v = value.trim();
   const mix = /^color-mix\(in srgb,\s*(.+?)\s+([\d.]+)%,\s*transparent\)$/.exec(v);
@@ -193,8 +199,13 @@ function resolve(value: string, theme: Theme): Rgba {
     const base = resolve(mix[1], theme);
     return [base[0], base[1], base[2], base[3] * (+mix[2] / 100)];
   }
+  const blend = /^color-mix\(in srgb,\s*(.+?)\s+([\d.]+)%,\s*(var\(\s*--[\w-]+\s*\)|#[0-9a-f]+)\)$/i.exec(v);
+  if (blend) {
+    const [a, p, b] = [resolve(blend[1], theme), +blend[2] / 100, resolve(blend[3], theme)];
+    return [a[0] * p + b[0] * (1 - p), a[1] * p + b[1] * (1 - p), a[2] * p + b[2] * (1 - p), a[3] * p + b[3] * (1 - p)];
+  }
   const ref = /^var\(\s*(--[\w-]+)\s*\)$/.exec(v);
-  return parseColor(ref ? TOK[theme][ref[1]] : v);
+  return ref ? resolve(TOK[theme][ref[1]], theme) : parseColor(v);
 }
 
 /** Every opaque bed one of these dots is painted on, read from the rules that
@@ -206,7 +217,9 @@ function beds(theme: Theme): Array<[string, Rgba]> {
     ["the session list", decl(".session-list", "background")!],
     ["the usage panel", decl(".usage-panel", "background")!],
     ["the detail panel", decl(".detail", "background")!],
-    ["a hovered session row", decl(".session-list .sl-row:hover", "background")!],
+    // The rail's rows left this list: they wear the 14px status glyph, not
+    // .sl-dot, and their hover is the kit's translucent --ctl-fill, which this
+    // table's opaque beds cannot hold. .sl-dot is the usage panel's alone now.
   ] as const;
   return named.map(([name, value]) => [name, resolve(value, theme)]);
 }
@@ -296,7 +309,8 @@ describe("every state now draws a mark, and the mark is the canvas's own", () =>
   it("keeps the running state a dot — a shape that is neither mark", () => {
     for (const { base, states } of FAMILIES) {
       expect(contentOf(base, states[0]), `${base} running`).toBe('""');
-      expect(declIn(bodyOf(`${base}::before`), "border-radius"), base).toBe("50%");
+      // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a dot is the pill token.
+      expect(declIn(bodyOf(`${base}::before`), "border-radius"), base).toBe("var(--r-pill)");
     }
   });
 
@@ -380,6 +394,47 @@ describe("the mark is as visible as the dot it replaced", () => {
   });
 });
 
+// The rail's rows left the beds above with V4's Attention rail; their glyph is
+// held here instead, on the three beds a row paints: the panel at rest, the
+// kit's translucent --ctl-fill laid over it on hover, and --selected. Same
+// floors as the dot it replaced: 4.5:1 for a state, 3:1 for the idle mark in
+// --muted, the fallback's floor.
+describe("the rail's glyph is as visible as the dot it replaced", () => {
+  // The partial mark is two parts: done's tick, and the --warn dot at its
+  // corner, a filled shape read beside the tick, so at the non-text floor.
+  const RAIL_GLYPHS = [
+    { kind: "waiting", sel: '.session-list .sl-glyph[data-glyph="waiting"]', prop: "color", floor: BODY },
+    { kind: "working", sel: '.session-list .sl-glyph[data-glyph="working"] .state-mark', prop: "color", floor: BODY },
+    { kind: "done", sel: '.state-mark[data-kind="done"]', prop: "color", floor: BODY },
+    { kind: "partial", sel: '.state-mark[data-kind="partial"]', prop: "color", floor: BODY },
+    { kind: "partial's dot", sel: ".kit-warn", prop: "fill", floor: NON_TEXT },
+    { kind: "error", sel: '.state-mark[data-kind="err"]', prop: "color", floor: BODY },
+    { kind: "idle", sel: '.state-mark[data-kind="idle"]', prop: "color", floor: NON_TEXT },
+  ] as const;
+
+  function railBeds(theme: Theme): Array<[string, Rgba]> {
+    const rest = resolve(decl(".session-list", "background")!, theme);
+    return [
+      ["the rail", rest],
+      ["a hovered row", over(resolve(decl(".session-list .sl-row:hover", "background")!, theme), rest)],
+      ["the selected row", resolve(decl(".session-list .sl-row.selected", "background")!, theme)],
+    ];
+  }
+
+  it("clears its floor on every bed a row paints, in both themes", () => {
+    for (const theme of themes) {
+      for (const { kind, sel, prop, floor } of RAIL_GLYPHS) {
+        const declared = decl(sel, prop)!;
+        expect(declared, `${sel} colour`).toMatch(/^var\(--/);
+        for (const [bedName, bed] of railBeds(theme)) {
+          expect(contrastRatio(resolve(declared, theme), bed), `${theme} ${kind} glyph on ${bedName}`)
+            .toBeGreaterThanOrEqual(floor);
+        }
+      }
+    }
+  });
+});
+
 describe("the usage panel's dot reaches a rule at all", () => {
   it("scopes no .sl-dot rule to the sidebar it is not always inside", () => {
     // The second defect, and the one nothing in the suite could have caught:
@@ -393,7 +448,8 @@ describe("the usage panel's dot reaches a rule at all", () => {
   });
 
   it("still renders it from both components, which is why the scope had to go", () => {
-    expect(sessionList).toMatch(/className=\{`sl-dot state-\$\{r\.state\}`\}/);
+    // (The rail's rows no longer draw one: V4's Attention rail uses a 14px
+    // status glyph, RailGlyph, and the usage panel is the dot's only home.)
     // The usage panel's rows are UsageSessionBreakdown.tsx's, and the panel
     // mounts it.
     expect(sessionBreakdown).toMatch(/className=\{`sl-dot state-\$\{s\.state\}`\}/);
@@ -427,13 +483,22 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     // the ✓ and the × with `content:`, and generated content IS spoken by some
     // readers — so a dot left exposed would read its mark and then the word
     // beside it said the same thing again.
+    // CHANGED ON PURPOSE (V4's Figma): the tool call and Clear the deck no
+    // longer draw a dot, so four are left (the Inspector's and the usage
+    // panel's three). The floor only proves the scan still finds them.
     const all = dots();
-    expect(all.length).toBeGreaterThanOrEqual(5);
+    expect(all.length).toBeGreaterThanOrEqual(4);
     expect(all.filter(d => !/aria-hidden/.test(d.tag)).map(d => `${d.file}: ${d.tag}`)).toEqual([]);
   });
 
   it("puts the word where the dot is, so it is heard in the order it is seen", () => {
-    expect(sessionList).toMatch(/<span className=\{`sl-dot state-\$\{r\.state\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{stateLabel\(r\.state, t\)\}<\/span>/);
+    // Compact rows lead with the provider avatar; other rows lead with the
+    // hidden glyph. Both announce the state immediately after, ahead of the
+    // name. Compact rows still draw the same hidden glyph beside the clock.
+    expect(railParts).toMatch(/\{compact \? <ProviderAvatar provider=\{r\.provider \?\? "claude"\} \/> : <RailGlyph kind=\{railGlyph\(r, group\)\} \/>\}\s*<span className="vis-hidden">\{stateLabel\(r\.state\)\}<\/span>/);
+    expect(railParts).toMatch(/\{compact && <span className="sl-row-status">\s*\{time && <span className=\{`sl-time \$\{time\.tone\}`\}><span className="vis-hidden">\{time\.spoken\}<\/span>\{time\.text\}<\/span>\}\s*<RailGlyph kind=\{railGlyph\(r, group\)\} \/>/);
+    expect(railParts).toContain('<span className="vis-hidden">{rowSpoken(r)}</span>');
+    expect(railParts).toMatch(/<span className="sl-glyph" data-glyph=\{kind\} aria-hidden>/);
     expect(sessionBreakdown).toMatch(/<span className=\{`sl-dot state-\$\{s\.state\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{stateLabel\(s\.state\)\}<\/span>/);
     expect(app).toMatch(/<span className=\{`status-dot \$\{status\}`\} aria-hidden \/>\s*<span className="vis-hidden">\{t\(TOOL_STATUS_LABEL\[status\]\)\}<\/span>/);
   });
@@ -443,8 +508,15 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     // with two names. StatePill and both lists go through the same function.
     expect(agentCopy).toMatch(/export function stateLabel\(state: AgentNodeData\["state"\], tr: TFunction = t\): string/);
     expect(agentCopy).toMatch(/tr\(state === "active" \? "board\.state\.live" : state === "done" \? "board\.state\.done" : "board\.state\.err"\)/);
-    expect(agentNode).toMatch(/<span className=\{`state-pill state-\$\{state\}`\}>\{stateLabel\(state, t\)\}<\/span>/);
-    for (const [name, src] of [["SessionList", sessionList], ["UsageSessionBreakdown", sessionBreakdown]] as const) {
+    // The words behind those keys are the three the lists have always said.
+    expect([en["board.state.live"], en["board.state.done"], en["board.state.err"]]).toEqual(["live", "done", "err"]);
+    // V4's card is the one surface that says it in sentence case ("Working",
+    // "Done", "Failed", "Waiting"), through cardState (node-face.ts) in the
+    // state's own token; the lists and the card's accessible name keep the
+    // stateLabel words below.
+    expect(agentNode).toMatch(/<span className="state-word">\{state\.word\}<\/span>/);
+    expect(agentNode).not.toMatch(/state-pill/);
+    for (const [name, src] of [["RailParts", railParts], ["UsageSessionBreakdown", sessionBreakdown]] as const) {
       expect(src, name).toMatch(/import \{[^}]*\bstateLabel\b[^}]*\} from "\.\.\/agent-copy"/);
       expect(src, `${name} re-states the vocabulary`).not.toMatch(/\? "live"/);
     }
@@ -463,7 +535,9 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     // than a literal in a function body. What this test is about did not
     // change: the word the modal prints where the duration goes is still
     // `in-flight…`, and it is still written in this file.
-    expect(toolModal).toMatch(/toolDuration\(tool, t\("insights\.tool\.inflight"\)\)/);
+    // CHANGED ON PURPOSE (V4's Figma): the dialog's header uses dialogDuration
+    // ("1.2 s"); the word printed where the duration goes is unchanged.
+    expect(toolModal).toMatch(/dialogDuration\(tool, t\("insights\.tool\.inflight"\)\)/);
     expect(toolModal).toMatch(/<span className="err-tag">\{t\("insights\.tool\.error"\)\}<\/span>/);
   });
 
@@ -476,11 +550,16 @@ describe("what a reader is told, now that the dot is decoration everywhere", () 
     // The key now belongs to the semantic list item around the button. Take the
     // row from that item through the button's first child; the onClick arrow
     // still means the first literal `>` is not a safe opening-tag boundary.
-    const row = /<li key=\{r\.sessionId\}[\s\S]*?<button[\s\S]*?<span/.exec(sessionList)![0];
+    const row = /<li className=\{`sl-row-item[\s\S]*?<button[\s\S]*?<span/.exec(railParts)![0];
     expect(row).not.toMatch(/aria-label/);
     // Pointed at what the press does, which for a row "Remove from board"
     // took off the canvas is bringing it back rather than focusing it.
-    expect(row).toMatch(/title=\{removed \? t\("board\.list\.bring", \{ label: r\.label \}\) : t\("board\.list\.focus", \{ label: r\.label \}\)\}/);
+    // The row's title is rowTooltip (rail-row-copy.ts), whose first line it is.
+    expect(row).toContain('title={[rowTooltip(r, removed, compact), pane ? t(pane.active ? "board.stage.split.activePane" : "board.stage.split.paneNumber", { number: pane.number }) : ""].filter(Boolean).join("\\n")}');
+    // CHANGED ON PURPOSE (the UI in every language): both lines are keys, and
+    // English maps them to the same words.
+    expect(markup("rail-row-copy.ts")).toMatch(/removed \? t\("board\.row\.bringBack", \{ label: r\.label \}\) : t\("board\.row\.focus", \{ label: r\.label \}\)/);
+    expect([en["board.row.bringBack"], en["board.row.focus"]]).toEqual(["Bring {label} back to the board", "Focus {label}"]);
     const toolRow = /<button className="tool clickable"[^>]*>/.exec(app)![0];
     expect(toolRow).not.toMatch(/aria-label/);
   });

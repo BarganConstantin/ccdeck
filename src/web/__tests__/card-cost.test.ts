@@ -43,13 +43,20 @@ describe("the card's cost slot", () => {
     const chip = costChip(card({ model: UNLISTED, usage: usage({ inputTokens: 900, outputTokens: 1_500 }) }));
     expect(chip?.kind).toBe("unpriced");
     expect(chip?.tt).toContain(`model: ${UNLISTED}`);
-    expect(chip?.tt).toMatch(/no published rate/);
+    // CHANGED ON PURPOSE: V4's sentence is capitalised ("No published rate in
+    // this build. The tokens are counted, the dollars are not."), so the match
+    // ignores case. The meaning and the other languages are unchanged.
+    expect(chip?.tt).toMatch(/no published rate/i);
+    expect(chip && chip.tip.sections[0]).toMatchObject({ noRate: true, rows: [] });
   });
 
   it("prints the agent's priced spend with the tooltip that multiplies it out", () => {
     const data = card();
     const chip = costChip(data);
-    expect(chip).toEqual({ kind: "spent", total: agentCost(data).total, floor: false, tt: agentCostTooltip(data) });
+    // CHANGED ON PURPOSE: the chip also carries the tooltip as data (`tip`,
+    // V4's cost tooltip); every field it had is unchanged.
+    expect(chip).toMatchObject({ kind: "spent", total: agentCost(data).total, floor: false, tt: agentCostTooltip(data) });
+    expect(chip?.tip.total).toBe(fmtCost(agentCost(data).total));
     expect(chip && chip.kind === "spent" && chip.total).toBeGreaterThan(0);
   });
 
@@ -80,7 +87,8 @@ describe("the card's cost slot", () => {
     const data = card({ model: "claude-opus-5", usageByModel: { "claude-sonnet-5": SPENT } });
     const chip = costChip(data);
     expect(chip?.tt).toContain("model: claude-sonnet-5\n");
-    expect(chip?.tt.trimEnd().split("\n").pop()).toBe(`total                                 = ${fmtCost(agentCost(data).total)}`);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique): "cache write 5m" (14) is the widest English label now, so the label column and the sum under it are 5 wider.
+    expect(chip?.tt.trimEnd().split("\n").pop()).toBe(`${"total".padEnd(43)}= ${fmtCost(agentCost(data).total)}`);
   });
 
   it("adds the burn rate to the tooltip of a live card, as of the render", () => {

@@ -1,4 +1,4 @@
-// Settings › Appearance: the character beside the minimap (ClaudeFm.tsx) —
+// Settings › Appearance: the character on the canvas bar (ClaudeFm.tsx) —
 // whether it is there, and which one.
 //
 // The switch sat in the group's heading, named by the heading alone, which
@@ -12,7 +12,7 @@ import type { Character } from "../character";
 import { SettingRow, SettingsGroup } from "./SettingsParts";
 import { useT } from "../i18n";
 
-export const CHARACTER_NOTE = "Stands beside the minimap. Press it to play the radio.";
+export const CHARACTER_NOTE = "Stands on the bar at the bottom of the canvas. Press it to play the radio.";
 
 export default function CharacterSection({ characterEnabled, onToggleCharacter, character = "deck", onCharacter }: {
   characterEnabled: boolean; onToggleCharacter: () => void;

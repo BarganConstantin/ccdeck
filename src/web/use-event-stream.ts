@@ -15,7 +15,9 @@
 // `rerender`, both of which belong to the canvas.
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 
+import { ACCOUNT_EVENT, STREAM_OPEN_EVENT } from "./account-events";
 import { createRenderCoalescer } from "./coalesce";
+import { linkDropped, linkOpened, NEVER_OPEN, type LinkMemory } from "./last-news";
 import type { PauseGate } from "./pause";
 import { applyEvent, type GraphState } from "./reducer";
 import type { createChimePlayer } from "./chime-player";
@@ -43,6 +45,11 @@ export function useEventStream({ stateRef, rerender, pauseGate, chimesRef, deskt
    *  tab-census.ts. */
   const [tabCapped, setTabCapped] = useState(false);
   const [everConnected, setEverConnected] = useState(false);
+  /** Whether the stream is open and when it last dropped, in a ref: what the
+   *  phone's "Can't reach your computer" card names as the last news is the
+   *  moment the link dropped (last-news.ts). */
+  const linkRef = useRef<LinkMemory>(NEVER_OPEN);
+  const [lastNewsAt, setLastNewsAt] = useState<number | null>(null);
 
   // SSE subscription.
   //
@@ -101,6 +108,13 @@ export function useEventStream({ stateRef, rerender, pauseGate, chimesRef, deskt
     }, 3_000);
     es.addEventListener("open", () => { setLive(true); setEverConnected(true); });
     es.addEventListener("error", () => { setLive(false); setLiveSince(null); });
+    // The last news, for the phone's card: the moment the stream dropped, if it
+    // was open (last-news.ts).
+    es.addEventListener("open", () => { linkRef.current = linkOpened(linkRef.current); });
+    es.addEventListener("error", () => {
+      linkRef.current = linkDropped(linkRef.current, Date.now());
+      setLastNewsAt(linkRef.current.droppedAt);
+    });
     // What this tab answers a census with, kept beside the stream it describes.
     es.addEventListener("open", () => { streaming = true; setTabCapped(false); });
     es.addEventListener("error", () => { streaming = false; });
@@ -110,6 +124,13 @@ export function useEventStream({ stateRef, rerender, pauseGate, chimesRef, deskt
       setLiveSince(Date.now());
     });
     es.addEventListener("desktop-update", (e) => desktopUpdateRef.current((e as MessageEvent).data));
+    // The ccdeck account's frames, handed on as a window event for whoever
+    // listens (use-account.ts, which loads only while the account is on). A
+    // deck with the account off never sends one.
+    es.addEventListener("account", (e) => {
+      window.dispatchEvent(new CustomEvent(ACCOUNT_EVENT, { detail: (e as MessageEvent).data }));
+    });
+    es.addEventListener("open", () => { window.dispatchEvent(new Event(STREAM_OPEN_EVENT)); });
     es.addEventListener("hook", (e) => {
       try {
         const env: HookEnvelope = JSON.parse((e as MessageEvent).data);
@@ -140,5 +161,5 @@ export function useEventStream({ stateRef, rerender, pauseGate, chimesRef, deskt
     // answers with a full replay of its ring buffer. The gate handles pausing.
   }, [rerender]);
 
-  return { live, tabCapped, everConnected, liveSince };
+  return { live, tabCapped, everConnected, liveSince, lastNewsAt };
 }

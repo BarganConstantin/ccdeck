@@ -58,9 +58,12 @@ vi.mock("../../server/lan-deck.mjs", () => ({
   resetLanLoaded: vi.fn(),
   forgetReach: vi.fn(),
 }));
+// And the terminals: what this file asks of them is whether they were closed.
+const closeOpenTerminals = vi.hoisted(() => vi.fn(() => 0));
+vi.mock("../../server/terminal-socket.mjs", () => ({ closeOpenTerminals }));
 
 // @ts-expect-error — plain .mjs server module, no types
-const { handlePrefsWrite } = await import("../../server/prefs-routes.mjs");
+const { handlePrefsWrite, TERMINAL_TURNED_OFF } = await import("../../server/prefs-routes.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { prefsRead } = await import("../../server/prefs-state.mjs");
 // @ts-expect-error — plain .mjs server module, no types
@@ -121,6 +124,19 @@ describe("POST /api/prefs and the fields the deck writes itself", () => {
     }
   });
 
+  it("does not take the ccdeck account's switch from a page, in either direction", async () => {
+    // Hidden, so deck-owned: a page that could set it could make the deck open
+    // a connection to the API nobody asked for (account-flag.mjs).
+    const { out } = await post({ account: true });
+    expect((await restart()).account).toBe(false);
+    expect(out.accountOn).toBe(false);
+    writeFileSync(FILE, JSON.stringify({ ...ON_DISK, account: true }) + "\n", { mode: 0o600 });
+    await post({ account: false, notifications: true });
+    const now = await restart();
+    expect(now.account, "a hand-edited switch survives a page's write").toBe(true);
+    expect(now.notifications).toBe(true);
+  });
+
   it("takes the page's half of a body that names both", async () => {
     await post({ notifications: true, lan: { name: "renamed", secret: "a-key-from-a-page", port: 1 } });
     const now = await restart();
@@ -148,9 +164,15 @@ const WRITES: [string, unknown, (p: any) => unknown, unknown][] = [
   // until somebody turns it on (#2193).
   ["continueStopped", { continueStopped: true }, p => p.continueStopped, true],
   ["tourSeen", { tourSeen: true }, p => p.tourSeen, true],
+  // V4's tour (use-welcome-and-notes.ts TOUR_SEEN_PREFS): the edition, posted
+  // beside the 3.x marker in the one body.
+  ["tourEdition", { tourSeen: true, tourEdition: 2 }, p => p.tourEdition, 2],
   ["autoUpdate", { autoUpdate: false }, p => p.autoUpdate, false],
   ["recoverClaudeSessions", { recoverClaudeSessions: false }, p => p.recoverClaudeSessions, false],
   ["recoverCodexSessions", { recoverCodexSessions: false }, p => p.recoverCodexSessions, false],
+  // The Command Panel's switch in Settings › Experimental (use-stage.ts
+  // toggleTerminal), from off — every deck's start — to on.
+  ["terminal", { terminal: true }, p => p.terminal, true],
   ["lan.enabled", { lan: { enabled: false } }, p => p.lan.enabled, false],
   ["lan.manual", { lan: { manual: ["10.0.0.1:5000", "10.0.0.2:5001"] } }, p => p.lan.manual, ["10.0.0.1:5000", "10.0.0.2:5001"]],
   ["lan.name", { lan: { name: "studio" } }, p => p.lan.name, "studio"],
@@ -187,15 +209,58 @@ describe("POST /api/prefs and the fields the page edits", () => {
   });
 });
 
+describe("POST /api/prefs and the terminal's switch", () => {
+  beforeEach(() => closeOpenTerminals.mockClear());
+
+  it("closes every open terminal, with a sentence, when the switch goes off", async () => {
+    await post({ terminal: true });
+    expect(closeOpenTerminals).not.toHaveBeenCalled();
+    const { out } = await post({ terminal: false });
+    expect(out.terminalOn).toBe(false);
+    expect(closeOpenTerminals).toHaveBeenCalledTimes(1);
+    expect(closeOpenTerminals).toHaveBeenCalledWith("error", TERMINAL_TURNED_OFF);
+  });
+
+  it("takes only a real false as the switch going off: any other value is no choice, and the default (on) stands", async () => {
+    // CHANGED ON PURPOSE: the panel is on by default, so null no longer reads as off.
+    await post({ terminal: true });
+    const { out } = await post({ terminal: null });
+    expect(out.terminalOn).toBe(true);
+    expect(closeOpenTerminals).not.toHaveBeenCalled();
+  });
+
+  it("leaves them open for a write about anything else", async () => {
+    await post({ notifications: true });
+    await post({ lan: { name: "studio" } });
+    expect(closeOpenTerminals).not.toHaveBeenCalled();
+  });
+
+  it("answers the switch alone: a launch variable from before it turns nothing on", async () => {
+    process.env.CCDECK_TERMINAL = "1";
+    try {
+      const { out } = await post({ terminal: false });
+      expect(out.terminalOn).toBe(false);
+      expect(out).not.toHaveProperty("terminalForced");
+      // CHANGED ON PURPOSE (the engine ships on Windows, so a Windows deck has the panel): Windows joins Linux and macOS.
+      expect(out.terminalSupported, "whether this platform has the panel").toBe(["linux", "darwin", "win32"].includes(process.platform));
+    } finally {
+      delete process.env.CCDECK_TERMINAL;
+    }
+  });
+});
+
 describe("the fields a page may write", () => {
   // A LIST, ON PURPOSE. Naming a field here is deciding that anything able to
   // post to the deck's port may set it, so a new preference stays the deck's
   // own until somebody makes that decision in PAGE_FIELDS and in this test.
   it("are these, and no others", () => {
+    // CHANGED ON PURPOSE (V4's tour): `tourEdition` joined, decided here — it
+    // is the desktop window's record of WHICH tour it saw, written by the same
+    // page that writes `tourSeen`, and worth nothing to anybody else.
     expect(PAGE_FIELDS).toEqual({
       top: [
         "notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "continueStopped",
-        "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions",
+        "tourSeen", "tourEdition", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions", "terminal",
       ],
       lan: [
         "enabled", "name", "shared", "manual", "shareActive", "sendInUse", "pairingMode",
@@ -208,7 +273,9 @@ describe("the fields a page may write", () => {
     // Every field the file holds is on one list or the other, so a new one
     // cannot be added to the file without being sorted onto one.
     const DECKS_OWN = {
-      top: ["reports", "report", "accounts"],
+      // `account` is the hidden ccdeck account's switch (account-flag.mjs):
+      // hand-edited, never a page's while the feature is hidden.
+      top: ["reports", "report", "accounts", "account"],
       // sendInUseSet: set by pagePatch when the page writes sendInUse, never by
       // a page itself (3.48.1).
       lan: ["secret", "onward", "trusted", "unpaired", "port", "aliases", "sendInUseSet"],

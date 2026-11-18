@@ -27,7 +27,8 @@
 // That the two surfaces then WIRE these strings up is a render question and was
 // checked in a browser against the built bundle, not here.
 import { describe, it, expect } from "vitest";
-import { sessionDisplay } from "../session-display";
+import { sessionDisplay, sessionListName } from "../session-display";
+import { sourceOf } from "./client-source";
 import { clusterBounds, type ClusterNode } from "../cluster-bounds";
 import { clusterHeader, truncateName, NAME_COLUMNS, SEP } from "../cluster-header";
 import { applyEvent, initialState } from "../reducer";
@@ -186,16 +187,17 @@ describe("the cluster header falls back to the title too", () => {
     expect(c.fullLabel).not.toContain("…");
   });
 
-  // The id keeps the condition #521 gave it. A title does not earn it and does
-  // not excuse it, exactly as a name does not.
-  it("does not let a title summon or dismiss the short id", () => {
+  // CHANGED ON PURPOSE (owner's critique, 2026-11-11): the pill draws no id;
+  // the tail is the tooltip's, title or not.
+  it("draws no id on the pill and keeps each tail for the tooltip, title or not", () => {
     const alone = clusterBounds([card("s1", 0, { sessionTitle: TITLE })]);
-    expect(alone[0].shortId).toBeUndefined();
+    expect(alone[0].fullLabel).toBe(`vcrm-core${SEP}${TITLE}`);
     const colliding = clusterBounds([
       card("11110000-0000-4000-8000-000000004efa", 0, { sessionTitle: TITLE }),
       card("22220000-0000-4000-8000-000000009bd7", 900, { sessionTitle: TITLE }),
     ]);
-    expect(colliding.map(c => c.shortId)).toEqual(["4efa", "9bd7"]);
+    expect(colliding.map(c => c.idTail)).toEqual(["4efa", "9bd7"]);
+    expect(colliding.map(c => c.fullLabel)).toEqual([`vcrm-core${SEP}${TITLE}`, `vcrm-core${SEP}${TITLE}`]);
   });
 
   it("ignores a title on a subagent, whichever order the store hands them over", () => {
@@ -211,7 +213,7 @@ describe("the cluster header falls back to the title too", () => {
   it("never shows more of the field than the card does", () => {
     for (const [n, t] of [[NAME, TITLE], [null, TITLE], [NAME, null]] as const) {
       const face = sessionDisplay(n, t).face!;
-      const h = clusterHeader("vcrm-core", face, "s1", false);
+      const h = clusterHeader("vcrm-core", face, "s1");
       expect([...h.name!].length).toBeLessThanOrEqual([...face].length);
       expect(face.startsWith(h.name!.replace(/…$/, ""))).toBe(true);
     }
@@ -230,7 +232,8 @@ describe("a session with no naming at all is left exactly as it was", () => {
       card("11110000-0000-4000-8000-000000004efa", 0, {}),
       card("22220000-0000-4000-8000-000000009bd7", 900, {}),
     ]);
-    expect(two.map(c => c.fullLabel)).toEqual(["vcrm-core · 4efa", "vcrm-core · 9bd7"]);
+    // CHANGED ON PURPOSE (owner's critique, 2026-11-11): no id on the pill.
+    expect(two.map(c => c.fullLabel)).toEqual(["vcrm-core", "vcrm-core"]);
   });
 
   it("gives a Codex root no face for the card to draw", () => {
@@ -312,5 +315,28 @@ describe("the SessionNamed payloads a live deck emits", () => {
   it("leaves a session with no SessionNamed event with nothing to draw", () => {
     const root = rooted("s11").agents.get("s11")!;
     expect(sessionDisplay(root.sessionName, root.sessionTitle).face).toBeUndefined();
+  });
+});
+
+// One name everywhere a session is listed by name (owner, 2026-11-10): the rail
+// row, the top bar's waiting queue and Skill activity ask one function.
+describe("the name a session is listed by (sessionListName)", () => {
+  it("is the card's face, else the label, else the folder", () => {
+    expect(sessionListName({ sessionName: "loroloop", sessionTitle: "Fix login", label: "Desktop", cwdBasename: "Desktop" })).toBe("loroloop");
+    expect(sessionListName({ sessionTitle: "Add Codex accounts", label: "alex" })).toBe("Add Codex accounts");
+    expect(sessionListName({ sessionName: "  ", sessionTitle: null, label: "api" })).toBe("api");
+    expect(sessionListName({ label: "", cwdBasename: "web" })).toBe("web");
+    expect(sessionListName({ label: "" })).toBeUndefined();
+  });
+
+  // CHANGED ON PURPOSE (owner 2026-11-10): Skill activity named a session by its
+  // folder (card.label || card.cwdBasename); it says the rail row's name now.
+  it("is what Skill activity names a session by", () => {
+    const app = sourceOf("App.tsx");
+    const at = app.indexOf("const toolAuditSessionLabel");
+    expect(at).toBeGreaterThan(-1);
+    const body = app.slice(at, app.indexOf("}, []);", at));
+    expect(body).toContain("sessionListName(card)");
+    expect(body).not.toContain("card.label");
   });
 });

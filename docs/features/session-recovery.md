@@ -1,8 +1,8 @@
 # Sessions already working when ccdeck starts
 
-Startup recovery is enabled by default. Settings → General has separate
-“Restore unfinished sessions” switches for Codex and Claude; changes apply at
-the next server start. Recovery obeys the deck's provider and workspace scope.
+Startup recovery is enabled by default. Settings → General › Sessions has
+separate switches for Claude and Codex, “Bring back busy Claude sessions” and
+“Bring back unfinished Codex turns”; changes apply at the next server start. Recovery obeys the deck's provider and workspace scope.
 It restores a snapshot, never a new SessionStart or historical tool calls.
 Existing tool statistics and reports do not count old calls again.
 

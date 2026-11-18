@@ -49,17 +49,26 @@ describe("no filter re-rasterises over the live canvas (#882)", () => {
     expect(decl(inflight, "animation")).toMatch(/dashflow/);
   });
 
-  it("draws the filter bar as a solid slab in both themes", () => {
-    // One rule for both themes now: --panel is a token each theme declares,
-    // and the light override only existed to carry a different shadow, which
-    // the bar no longer has.
-    expect(decl(bodyOf(".cat-filter-bar"), "background")).toBe("var(--panel)");
-    expect(decl(bodyOf(".cat-filter-bar"), "backdrop-filter")).toBeNull();
+  it("draws the tool legend with no slab and no blur, in both themes", () => {
+    // CHANGED ON PURPOSE (V4's Figma): the bar was a solid --panel slab; the
+    // legend that replaced it has no box at rest, its words sit on the canvas.
+    // What has to hold is the #882 half: nothing behind it is blurred, in any
+    // state, so nothing re-rasterises under the live canvas.
+    // CHANGED ON PURPOSE (V4 top-10 #5): the legend over the live canvas, with no
+    // background → no legend there at all: its rows are a group of the canvas bar's
+    // ⋯ menu, and neither the menu's surface nor the rows blur what is behind them,
+    // because nothing of the filter floats over the moving canvas any more.
+    expect(RULES.filter(([s]) => s.includes(".cat-filter-bar"))).toEqual([]);
+    for (const sel of [".anchored-popover", ".ap-pop.canvas-more-pop", ".cat-tools-group", ".cat-tools-head"]) {
+      expect(bodyOf(sel), `${sel} has a rule`).not.toBe("");
+      expect(decl(bodyOf(sel), "backdrop-filter"), sel).toBeNull();
+      expect(decl(bodyOf(sel), "filter"), sel).toBeNull();
+    }
   });
 
   it("dims the page under a dialog with its fill alone", () => {
     const scrim = bodyOf(".modal-backdrop");
-    expect(decl(scrim, "--modal-scrim")).toBe("rgba(5,6,9,0.55)");
+    expect(decl(scrim, "--modal-scrim")).toBe("var(--scrim)"); // V4's dialog frame: the theme's scrim token, no literal
     expect(decl(scrim, "background")).toBe("var(--modal-scrim)");
     expect(decl(scrim, "backdrop-filter")).toBeNull();
   });

@@ -88,7 +88,8 @@ describe("re-arrange can be undone with ⌘Z / Ctrl+Z", () => {
 
 describe("the shortcuts sheet says so", () => {
   it("has a line for the chord beside R, printed the Mac way on a Mac", () => {
-    const canvas = KEY_HELP.find(g => g.title === "Canvas")!.rows;
+    // CHANGED ON PURPOSE (V4's Figma): R and its chord are in the Deck group.
+    const canvas = KEY_HELP.find(g => g.title === "Deck")!.rows;
     const r = canvas.findIndex(row => row.cap === "R");
     const chord = canvas[r + 1];
     expect(chord?.cap).toBe("Ctrl + Z");

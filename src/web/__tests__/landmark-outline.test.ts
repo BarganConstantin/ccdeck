@@ -201,16 +201,25 @@ describe("the deck's five regions are five landmarks (#381)", () => {
       // What follows the label is not the rotor's: the accounts panel listens
       // for focus on the whole column (#1497), and handlers render nothing;
       // Usage spreads the place its header moves it to (panel-place.ts), a
-      // ref, a data attribute and a style. The accounts panel also says which
+      // ref, a data attribute and a style; the rail keeps a ref to ask whether
+      // focus is inside it, which renders nothing either. The accounts panel also says which
       // side of the Claude/Codex switch it is (hidden, data-side): the hidden
       // side stays mounted but leaves the tree.
+      // CHANGED ON PURPOSE (the phone layout): it also marks a side the switch
+      // showed again (data-switched), so a phone's sheet does not rise again
+      // for it; a data attribute, nothing the rotor reads.
       expect(code(source(file)), file)
-        .toMatch(new RegExp(`<aside className=${className} id="${cls}" aria-label=${label}(?:\\s+on[A-Z]\\w*=\\{[\\w.]+\\}|\\s+\\{\\.\\.\\.place\\.panel\\}|\\s+hidden=\\{side === "hidden"\\}|\\s+data-side=\\{side\\})*>`));
+        .toMatch(new RegExp(`<aside className=${className} id="${cls}" aria-label=${label}(?:\\s+on[A-Z]\\w*=\\{[\\w.]+\\}|\\s+ref=\\{\\w+\\}|\\s+\\{\\.\\.\\.place\\.panel\\}|\\s+hidden=\\{side === "hidden"\\}|\\s+data-side=\\{side\\}|\\s+data-switched=\\{wasHidden\\.current && side !== "hidden" \\? "" : undefined\\})*>`));
     }
     // The detail panel was already an <aside> and was the unnamed one. Its
     // frame is components/DetailAside.tsx, which App.tsx mounts.
     expect(code(app)).toMatch(/<DetailAside\b/);
-    expect(code(source("components/DetailAside.tsx"))).toMatch(/<aside className="detail" aria-label=\{t\("board\.detailPanel\.title"\)\}>/);
+    // CHANGED ON PURPOSE (the phone layout): on a phone the Inspector sheet is
+    // held for its slide down the bottom edge and wears `leaving` while it goes
+    // (like the other three sheets); the landmark and its name are the same.
+    // CHANGED ON PURPOSE (V4's motion spec): the sheet's entry and exit state rides on the same aside (a ref and data-sheet); the name is unchanged.
+    // CHANGED ON PURPOSE (V4's Figma): the aside carries the id the Inspector's door on the right stripe controls.
+    expect(code(source("components/DetailAside.tsx"))).toMatch(/<aside ref=\{asideRef\} id=\{INSPECTOR_REGION_ID\} className=\{leaving \? "detail leaving" : "detail"\} data-sheet=\{sheetState\} aria-label=\{t\("board\.detailPanel\.title"\)\}>/);
   });
 
   it("has no <div> left wearing one of those class names", () => {
@@ -363,7 +372,10 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
       do { prev = out; out = out.replace(/\{[^{}]*\}/g, " "); } while (out !== prev);
       return out;
     };
-    const heads = [...code(usageAll).replace(/\{t\("([\w.]+)"\)\}/g, (_m, key: string) => (en as Record<string, string>)[key] ?? "").matchAll(/<h3 className="up-section-title">([\s\S]*?)<\/h3>/g)]
+    // CHANGED ON PURPOSE (V4's Figma): the two quota titles carry a `data-down`
+    // hook for the quota-down state, so the opening tag may hold that one
+    // attribute (brace-free inside, so no arrow can end the match early).
+    const heads = [...code(usageAll).replace(/\{t\("([\w.]+)"\)\}/g, (_m, key: string) => (en as Record<string, string>)[key] ?? "").matchAll(/<h3 className="up-section-title"(?: data-down=\{[^{}]*\})?>([\s\S]*?)<\/h3>/g)]
       .map(m => stripBraces(m[1]).replace(/<[^>]*>/g, " ").match(/[A-Za-z][A-Za-z ]*/)?.[0].trim() ?? "");
     expect(heads).toHaveLength(5);
     expect(new Set(heads).size, `two sections share a heading: ${heads.join(", ")}`).toBe(4);
@@ -466,20 +478,25 @@ describe("promoting the headings changed no pixels (#381)", () => {
     // would still be doing that if the title were any size — so the assertion
     // below is that the title is a title, several steps clear of the 11px
     // caption, not that it is one particular number.
-    expect(decl(".detail > h2", "font-size")).toBe("11px");
-    expect(decl(".detail > h2", "text-transform")).toBe("uppercase");
-    expect(decl(".detail-hero .hero-title", "font-size")).toBe("18px");
+    // CHANGED ON PURPOSE (V4's Figma): the caption is 12px 600 in sentence case and the
+    // agent's name 14px 600 (was 11px uppercase and 18px); the relation is the same, the
+    // child combinator keeps the caption rule off the name, and the name is the larger.
+    expect(decl(".detail > h2", "font-size")).toBe("12px");
+    expect(decl(".detail > h2", "text-transform")).toBe("none");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the Inspector's title is a title, at 16.
+    expect(decl(".detail-hero .hero-title", "font-size")).toBe("16px");
     expect(css.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/(^|[,\s])\.detail h2\b/);
   });
 
-  it("holds the wordmark at the brand kit's 16px against the UA sheet's 2em", () => {
-    // 14px until the brand kit, whose pattern for product chrome sets the name
-    // as tall as the 16px mark beside it (topbar-mark.test.ts holds the
-    // relation); what this case is for is unchanged — the heading inherits the
-    // bar's size and never the UA sheet's 2em.
+  it("holds the wordmark at the scale's 13px against the UA sheet's 2em", () => {
+    // 14px, then 16px under the brand kit, and 14px again under V4, whose
+    // card title is 14/20 Semibold beside the 16px mark (topbar-mark.test.ts
+    // holds the relation); what this case is for is unchanged — the heading
+    // inherits the bar's size and never the UA sheet's 2em.
     expect(decl(".topbar .brand h1", "font")).toBe("inherit");
     expect(decl(".topbar .brand h1", "margin")).toBe("0");
-    expect(decl(".topbar .brand", "font-size")).toBe("16px");
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): the scale has no 14; the wordmark is a name, at 13.
+    expect(decl(".topbar .brand", "font-size")).toBe("13px");
   });
 });
 
@@ -503,6 +520,16 @@ describe("the route past a hundred and sixty-six tab stops (#381)", () => {
     const topbar = bare.indexOf('<header className="topbar">', start);
     expect(link).toBeGreaterThan(start);
     expect(link).toBeLessThan(topbar);
+    // Workspace (V4): the canvas is mounted but out of sight there, so the link
+    // reads "Skip to the pane" and moves the focus to the pane (workspace-pane.ts).
+    // The Board's link above is the link it was, verbatim; this is the other form,
+    // also ahead of the topbar and chosen only by the view.
+    const pane = bare.indexOf('<a className="skip-link" href={`#${WORKSPACE_PANE_ID}`}', start);
+    expect(pane).toBeGreaterThan(start);
+    expect(pane).toBeLessThan(topbar);
+    // CHANGED ON PURPOSE (the UI in every language): the link reads its key.
+    expect(bare.slice(pane, topbar)).toContain('>{t(SKIP_TO_PANE_MSG)}</a>');
+    expect(bare.slice(Math.max(0, pane - 40), pane)).toMatch(/\{inWorkspace\s*\?/);
     // The href and the id are the same word, and the element that carries the
     // id is the element the link means to reach: CanvasMain's <main>, which
     // App.tsx mounts after the topbar.
@@ -536,11 +563,12 @@ describe("the route past a hundred and sixty-six tab stops (#381)", () => {
   });
 
   it("shows the reader where they landed", () => {
-    // A programmatic focus target with no ring is a jump to nowhere. Inset,
-    // because .canvas-wrap runs to the window edge and the shared outward
-    // offset would draw two of its sides off screen.
-    expect(decl(":focus-visible", "outline")).toMatch(/2px solid var\(--accent\)/);
-    expect(decl(".canvas-wrap:focus-visible", "outline-offset")).toBe("-3px");
+    // A programmatic focus target with no ring is a jump to nowhere. V4's
+    // Figma: the one ring is inside the box (1.5px, negative offset), so
+    // .canvas-wrap, which runs to the window edge, needs no offset of its own.
+    expect(decl(":focus-visible", "outline")).toMatch(/var\(--focus-w\) solid var\(--accent\)/);
+    expect(decl(":focus-visible", "outline-offset")).toBe("calc(-1 * var(--focus-w))");
+    expect(decl(".canvas-wrap:focus-visible", "outline-offset")).toBeNull();
   });
 });
 
@@ -658,7 +686,7 @@ describe("no control is named by its title attribute alone (#381)", () => {
     // The sentence is usage-panel-rules.ts's since it left the render, so it is
     // asked for rather than matched, and the panel is checked to use it.
     expect(code(usage)).toContain("const refreshLabel = quotaRefreshLabel(providers, t);");
-    expect(quotaRefreshLabel({ kind: "reported", claude: true, codex: true })).toBe("Refresh Claude + Codex quota");
+    expect(quotaRefreshLabel({ kind: "reported", claude: true, codex: true })).toBe("Refresh Claude + Codex quota and usage");
   });
 
   it("names the + and keeps its longer tooltip as the hint", () => {
@@ -679,10 +707,12 @@ describe("the version chip's drift branch says what drifted (#381)", () => {
   });
 
   it("says which way the drift goes, in both kinds", () => {
+    // CHANGED ON PURPOSE: the name starts with the chip's words, and a
+    // release on npm says what its notice says ("is out") rather than "is ready".
     expect(versionNoticeLabel({ kind: "upgrade", from: "1.35.2", to: "1.36.0", open: false }))
-      .toBe("Version v1.35.2, v1.36.0 is available on npm — show what's new and the notice");
+      .toBe("1.36.0 is out. Running v1.35.2; v1.36.0 is available on npm — show what's new and the notice");
     expect(versionNoticeLabel({ kind: "restart", from: "1.35.2", to: "1.36.0", open: false }))
-      .toBe("Version v1.35.2, v1.36.0 is installed and waiting for a restart — show what's new and the notice");
+      .toBe("1.36.0 is ready. Running v1.35.2; v1.36.0 is installed and waiting for a restart — show what's new and the notice");
   });
 
   it("describes the next click rather than the current state", () => {
@@ -711,11 +741,13 @@ describe("the version chip's drift branch says what drifted (#381)", () => {
   });
 
   it("carries the visible text inside the accessible name (2.5.3)", () => {
-    // The chip reads `v1.35.2` on screen; a name that did not contain that
-    // string would leave a voice-control user with nothing to say.
+    // The chip reads `1.36.0 is out` on screen (V4); a name that did not
+    // contain that string would leave a voice-control user with nothing to say.
+    // The running version stays in the name, after it.
     for (const open of [true, false]) {
-      expect(versionNoticeLabel({ kind: "upgrade", from: "1.35.2", to: "1.36.0", open }))
-        .toContain("v1.35.2");
+      const name = versionNoticeLabel({ kind: "upgrade", from: "1.35.2", to: "1.36.0", open });
+      expect(name).toContain("1.36.0 is out");
+      expect(name).toContain("v1.35.2");
     }
   });
 });

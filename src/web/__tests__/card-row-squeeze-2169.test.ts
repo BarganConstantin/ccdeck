@@ -10,6 +10,15 @@
 // had a bug of its own from before #2155: as one run of text the row
 // ellipsised at its end, so "subagent · customer-onboarding" pushed the model
 // chip off the card entirely. Now only the folder is cut short.
+//
+// CHANGED ON PURPOSE (V4 top-10 #2): the card draws no model, so it draws no
+// effort, and the head has nothing left to give up. The squeeze this file
+// pinned (effortWillUncut, nextSqueeze, rowAt, maxSqueeze, squeezeOnResize)
+// and the label measurement that drove it are gone; the name ellipsizes in
+// CSS alone. What still stands is what the tooltip and the accessible name
+// say, the task line being the one cut piece, and the head's shrink order for
+// what is left in it. The tooltip, the list, the peek and the Inspector keep
+// the model and its effort.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -17,58 +26,35 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ReactFlowProvider } from "reactflow";
 import AgentNode from "../components/AgentNode";
-import { maxSqueeze, nextSqueeze, rowAt } from "../card-row-squeeze";
+import * as rowSqueeze from "../card-row-squeeze";
 import { agentAriaLabel, subRowTitle } from "../agent-copy";
 import type { AgentNodeData } from "../types";
-import { cascade, el, selects, sheetRules } from "./sheet-cascade";
+import { sheetRules } from "./sheet-cascade";
 
 const body = (sel: string) => sheetRules().filter(r => r.media == null && r.selectors.includes(sel)).map(r => r.body).join("\n");
 const NO_USAGE = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0 };
+const src = readFileSync(fileURLToPath(new URL("../components/AgentNode.tsx", import.meta.url)), "utf8");
 
-/** Paint after paint, as the card does: measure, step down, measure again. */
-function settle(max: number, tooWide: (row: { kind: boolean; effort: boolean }) => boolean): number {
-  let squeeze = 0;
-  for (let paint = 0; paint < 5; paint++) {
-    const next = nextSqueeze(squeeze, { overflowing: tooWide(rowAt(squeeze)), folderCut: false, max });
-    if (next === squeeze) break;
-    squeeze = next;
-  }
-  return squeeze;
-}
-
-describe("the order a tight row gives way in", () => {
-  it("drops the kind word before the effort", () => {
-    // "session → 1 Opus 5.5 · xhigh" needs 208px of 176: without "session " it fits.
-    const squeeze = settle(2, row => row.kind);
-    expect(rowAt(squeeze)).toEqual({ kind: false, effort: true });
+// CHANGED ON PURPOSE (V4 top-10 #2): "when the effort gives way" and "the
+// squeeze starts again when the name gets wider" pinned the head's squeeze, a
+// notch that dropped the effort when that could uncut the name and reset when
+// the name got wider. The head holds the name and the state alone now.
+describe("the head's squeeze, retired with the model", () => {
+  it("leaves card-row-squeeze.ts the foot's squeeze alone", () => {
+    for (const gone of ["effortWillUncut", "maxSqueeze", "nextSqueeze", "rowAt", "squeezeOnResize"]) {
+      expect(gone in rowSqueeze, gone).toBe(false);
+    }
+    for (const kept of ["footDroppable", "footDropped", "nextFootNotch", "footNotchOnResize"]) {
+      expect(typeof (rowSqueeze as Record<string, unknown>)[kept], kept).toBe("function");
+    }
   });
 
-  it("drops the effort only when the row is still too wide without the kind word", () => {
-    const squeeze = settle(2, row => row.kind || row.effort);
-    expect(rowAt(squeeze)).toEqual({ kind: false, effort: false });
-  });
-
-  it("keeps the whole row where it fits", () => {
-    expect(rowAt(settle(2, () => false))).toEqual({ kind: true, effort: true });
-  });
-
-  it("never steps past the model, however tight the row stays", () => {
-    // The model has no notch: a row still too wide at the last one stays there.
-    expect(settle(2, () => true)).toBe(2);
-    expect(settle(1, () => true)).toBe(1);
-  });
-
-  it("gives up nothing on a row with no chip to protect, and nothing past the kind word with no effort", () => {
-    expect(maxSqueeze({ model: null, provider: "claude" })).toBe(0);
-    expect(maxSqueeze({ model: null, provider: "codex" })).toBe(1);
-    expect(maxSqueeze({ model: "claude-opus-5-5", effort: null })).toBe(1);
-    expect(maxSqueeze({ model: "claude-opus-5-5", effort: "xhigh" })).toBe(2);
-  });
-
-  it("counts a folder cut short as a tight row, so the folder is the last to give way", () => {
-    expect(nextSqueeze(0, { overflowing: false, folderCut: true, max: 2 })).toBe(1);
-    expect(nextSqueeze(1, { overflowing: false, folderCut: true, max: 2 })).toBe(2);
-    expect(nextSqueeze(2, { overflowing: false, folderCut: true, max: 2 })).toBe(2);
+  it("measures nothing in the head: no label ref, no squeeze state, no observer on the name", () => {
+    expect(src).not.toMatch(/labelRef|modelRef|setSqueeze|setLabelWidth|squeezeOnResize/);
+    expect(src).not.toMatch(/titleRef/);
+    expect(src).not.toMatch(/folderCut/);
+    // The foot still measures itself (card-row-squeeze.ts's other half).
+    expect(src).toMatch(/footRef/);
   });
 });
 
@@ -83,41 +69,60 @@ describe("the row the card draws", () => {
       selected: false,
     } as never)));
 
-  it("puts a subagent's folder in a piece of its own, ahead of the chip", () => {
+  // CHANGED ON PURPOSE (V4's Agent / Card). These two cases pinned the second
+  // row: a subagent's folder in a piece of its own AHEAD of the model chip, and
+  // the folder the only piece cut short so the chip was never pushed off. The
+  // kind and folder are the task line on a row of their own.
+  // CHANGED ON PURPOSE (V4 top-10 #2): this also held the model in the head
+  // ("sonnet 5.5 · medium"). The card draws no model now; the task line's
+  // tooltip still names it.
+  it("puts a subagent's kind and folder on the task line, and no model on the card", () => {
     const html = card({ cwdBasename: "customer-onboarding", model: "claude-sonnet-5-5", effort: "medium" });
-    expect(html).toMatch(/<span>subagent<\/span><span class="sub-folder">· customer-onboarding<\/span><span class="model-chip"[^>]*>Sonnet 5\.5 · medium<\/span>/);
+    expect(html).toMatch(/<div class="task-line" title="subagent · customer-onboarding · sonnet 5\.5">subagent · customer-onboarding<\/div>/);
+    expect(html).not.toContain("model-text");
+    expect(html).not.toContain("sonnet 5.5 · medium");
   });
 
-  it("cuts only the folder short; every other piece keeps its width", () => {
-    expect(body(".agent-node .sub-details")).toMatch(/display:\s*flex;/);
-    expect(body(".agent-node .sub-details > *")).toMatch(/flex-shrink:\s*0;/);
-    const folder = body(".agent-node .sub-details > .sub-folder");
-    expect(folder).toMatch(/flex-shrink:\s*1;/);
-    expect(folder).toMatch(/min-width:\s*0;/);
-    expect(folder).toMatch(/text-overflow:\s*ellipsis;/);
-    // Whatever leads once the kind word is gone starts at the edge, not indented,
-    // the folder included; after the kind word the folder keeps its gap.
-    const row = [el("div", ["agent-node"]), el("span", ["sub-details"])];
-    const margin = (classes: string[], states: string[] = []) => cascade(s => selects(s, [...row, el("span", classes, { states })]), "margin-left", 1440);
-    expect(margin(["sub-folder"], ["first-child"])).toBe("0");
-    expect(margin(["model-chip"], ["first-child"])).toBe("0");
-    expect(margin(["spawn-badge"], ["first-child"])).toBe("0");
-    expect(margin(["sub-folder"])).toBe("1ch");
+  // CHANGED ON PURPOSE: this also pinned the model text as `flex: none`.
+  // CHANGED ON PURPOSE (V4 top-10 #2): one line cut with an ellipsis → two
+  // lines clamped, because one line cut most tasks after four words.
+  it("cuts the task line short at two lines", () => {
+    const task = body(".agent-node .task-line");
+    expect(task).toMatch(/-webkit-line-clamp:\s*2;/);
+    expect(task).toMatch(/(?:^|[;\s])line-clamp:\s*2;/);
+    expect(task).toMatch(/overflow:\s*hidden;/);
+    expect(task).not.toMatch(/white-space:\s*nowrap;/);
+    // The name is the head's one piece that gives way.
+    expect(body(".agent-node .title .label")).toMatch(/text-overflow:\s*ellipsis;/);
   });
 
   it("still says the kind where the row has dropped it: in its tooltip and the card's name", () => {
     const a = { kind: "root", childCount: 1, model: "claude-opus-5-5", usage: NO_USAGE, tools: [], label: "billing-api", state: "active", startedAt: 0 } as unknown as AgentNodeData;
-    expect(subRowTitle(a)).toMatch(/^session · → 1 · Opus 5\.5/);
+    expect(subRowTitle(a)).toMatch(/^session · → 1 · opus 5\.5/);
     expect(agentAriaLabel(a, 0)).toContain("session");
   });
+});
 
-  it("measures again when the row's width changes, before the frame is painted", () => {
-    const src = readFileSync(fileURLToPath(new URL("../components/AgentNode.tsx", import.meta.url)), "utf8");
-    expect(src).toMatch(/new ResizeObserver\(/);
-    // Into a state the reset hangs on: a reset alone is lost on a row still at
-    // the top notch, which then keeps a kind word it no longer has room for.
-    expect(src).toMatch(/flushSync\(\(\) => setRowWidth\(width\)\)/);
-    expect(src).toMatch(/useBeforePaint\(\(\) => \{ setSqueeze\(0\); \}, \[[^\]]*, rowWidth\]\)/);
-    expect(src).toMatch(/folderCut: !!folder && folder\.scrollWidth > folder\.clientWidth,/);
+describe("the head's shrink order", () => {
+  // CHANGED ON PURPOSE (V4's Agent / Card): this pinned a floor of about eight
+  // characters on the name. That floor held a short name's box open, so a
+  // marker started a gap after "infra" rather than 6px after it.
+  it("gives the name no floor of its own, so a marker follows a short name closely", () => {
+    const label = body(".agent-node .title .label");
+    expect(label).toMatch(/min-width:\s*0;/);
+    expect(label).not.toMatch(/min\(8ch/);
+    expect(body(".agent-node")).toMatch(/min-width:\s*calc\(220px/);
+  });
+
+  // CHANGED ON PURPOSE (V4 top-10 #2): "gives the model text way first" held
+  // the model text to a 6ch floor and a far larger shrink factor than the
+  // name. The model text and its rule are gone.
+  it("has no model text left to give way", () => {
+    expect(body(".agent-node .title .model-text")).toBe("");
+  });
+
+  it("keeps the restored and ? tags whole", () => {
+    expect(body(".agent-node .title .synth-tag")).toMatch(/flex:\s*none;/);
+    expect(body(".agent-node .title .synth-tag")).toMatch(/white-space:\s*nowrap;/);
   });
 });

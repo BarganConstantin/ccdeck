@@ -10,6 +10,7 @@
 // module loads; index.mjs's routes import it from here. The bodies are
 // unchanged.
 import { noteToolAudit } from "./tool-audit.mjs";
+import { panelProvenance } from "./panel-provenance.mjs";
 import { PRODUCT } from "./brand.mjs";
 import { createBlockNotifier } from "./block-notify.mjs";
 import { notify as osNotify } from "./browser-react.mjs";
@@ -43,7 +44,7 @@ import { outputWatch, touchSession } from "./session-tracking.mjs";
 import { usageDay } from "./usage-day.mjs";
 // What the deck learns about a session that its hooks never say, read off the
 // transcript and sent back through pushEvent — see session-enrichment.mjs.
-import { knownModelId, maybeResolveContext, maybeResolveModel, maybeResolveSessionName, maybeResolveUsage } from "./session-enrichment.mjs";
+import { knownModelId, maybeAnnounceDeckName, maybeResolveContext, maybeResolveModel, maybeResolveSessionName, maybeResolveUsage } from "./session-enrichment.mjs";
 // The Codex half: a session's rollout, found by id — see codex-enrichment.mjs.
 import { maybeResolveCodex } from "./codex-enrichment.mjs";
 // The gate pushEvent asks before a transcript path is followed — see
@@ -57,6 +58,20 @@ import { connectEventSink } from "./event-sink.mjs";
 // function declaration, so it already exists as this line runs, and nothing
 // emits until a request or a timer startServer arms asks it to.
 connectEventSink(pushEvent);
+
+/**
+ * One more reader of every event, connected by whoever needs it: the
+ * account's session counts (session-counts.mjs), which keep the waiting and
+ * running numbers the status frame carries. A slot rather than an import, so
+ * a deck with the account off never loads the module and pays one null check
+ * per event. Handed the payload after the token is taken out, its stamp, and
+ * the options — a replay included, which the counts consume and activity does
+ * not. A tap that throws is the tap's problem, never the event's.
+ */
+let eventTap = null;
+export function connectEventTap(fn) {
+  eventTap = typeof fn === "function" ? fn : null;
+}
 
 /**
  * Where a notification goes. The desktop app, while it is connected, raises it
@@ -129,6 +144,9 @@ export function pushEvent(raw, source, opts = {}) {
   const evt = admitEvent(raw, source, opts.receivedAt ?? Date.now());
   const seq = evt.seq;
   noteToolAudit(raw, source, opts);
+  // Which sessions the Command Panel started, read off the same stream: its own
+  // records, and the starts and ends it weighs them against (panel-provenance.mjs).
+  panelProvenance.observe(raw, source, evt.receivedAt, opts);
 
   // Does this event reach the log at all? Not on a replay (it came from
   // there), not when the hook told us another deck owns this session's log,
@@ -221,6 +239,9 @@ export function pushEvent(raw, source, opts = {}) {
   // Persisted history is not current activity. Fresh recovery snapshots are
   // current evidence even though they bypass replayed-tool accounting.
   if (shouldTrackActivity(raw, opts)) activity.note(raw, evt.receivedAt);
+  if (eventTap) {
+    try { eventTap(raw, evt.receivedAt, opts); } catch { /* the event goes on */ }
+  }
 
   if (persisting) {
     // Fire-and-forget append. JSONL = newline-delimited JSON, so the whole line
@@ -245,6 +266,13 @@ export function pushEvent(raw, source, opts = {}) {
   // replay of a log spanning weeks would otherwise churn the whole LRU through
   // dead session ids before the first live event even arrives.
   if (!opts.replay && raw && typeof raw === "object") touchSession(raw.session_id);
+
+  // A session the reader named in the deck is told its name once per run, on
+  // the first live word from it (internal #101, session-enrichment.mjs). Its
+  // own traffic only: a hook, or the rollout watcher's line.
+  if (!opts.replay && (source === "hook" || source === "codex") && raw && typeof raw === "object") {
+    maybeAnnounceDeckName(raw, source === "codex" || raw.provider === "codex" ? "codex" : "claude");
+  }
 
   // Kick off async transcript scans. Model and usage are both re-read
   // periodically (throttled to 2.5s per session) so the cost columns track

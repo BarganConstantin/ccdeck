@@ -444,8 +444,11 @@ describe("what the dialog says", () => {
     const modal = src("../components/AccountAttentionModal.tsx");
     expect(modal).toMatch(/const dialogRef = useModalDismiss\(onLater, \{ focusRef: firstRef \}\)/);
     expect(modal).toMatch(/const scrimPress = useScrimDismiss\(onLater\);/);
-    expect(modal).toMatch(/<div className="modal-backdrop" \{\.\.\.scrimPress\} role="presentation">/);
-    expect(modal).toMatch(/aria-label=\{t\("accounts\.reauth\.laterEsc"\)\}/);
+    // The scrim (pressing it is Not now) is the shared shell's: the dialog hands it the hook's handlers.
+    expect(modal).toMatch(/<Dialog\s+scrim=\{scrimPress\}\s+dialogRef=\{dialogRef\}/);
+    expect(src("../components/Dialog.tsx")).toMatch(/className=\{className \? `modal-backdrop \$\{className\}` : "modal-backdrop"\}\s+role="presentation"[\s\S]*?\{\.\.\.scrim\}/);
+    // The × is the shell's DialogClose, labelled Not now.
+    expect(modal).toMatch(/<DialogClose onClick=\{onLater\} label=\{t\("accounts\.reauth\.laterEsc"\)\} \/>/);
   });
 });
 
@@ -454,8 +457,11 @@ describe("what the dialog says", () => {
 describe("how it is wired", () => {
   it("opens the existing sign-in dialog for that account, and steps aside while it is open", () => {
     const modal = src("../components/AccountAttentionModal.tsx");
-    expect(modal).toMatch(/<AddAccountDialog\s+email=\{signingIn\.email \|\| null\}/);
+    // Both mounts are DialogPresences, so each keeps its dialog drawn while it leaves.
+    expect(modal).toMatch(/<DialogPresence when=\{signingIn\}>\s*\{s => \(\s*<AddAccountDialog\s+email=\{s\.email \|\| null\}/);
     expect(modal).toMatch(/onSignedIn=\{signedIn\}/);
+    // The prompt steps aside while the sign-in is open.
+    expect(modal).toMatch(/<DialogPresence when=\{!signingIn && shows\}>/);
     const dialog = src("../components/AddAccountDialog.tsx");
     // The address rides on the sign-in it already runs; without one it is the
     // bare request the panel's + → Add has always sent.

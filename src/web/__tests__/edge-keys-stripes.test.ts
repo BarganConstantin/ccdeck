@@ -63,7 +63,14 @@ describe("each stripe is a toolbar, and the dock is one", () => {
     expect(src).toMatch(/const PREV_KEYS = \{ vertical: "ArrowUp", horizontal: "ArrowLeft" \} as const;/);
     expect(src).toMatch(/else if \(e\.key === "Home"\) to = 0;/);
     expect(src).toMatch(/else if \(e\.key === "End"\) to = buttons\.length - 1;/);
-    expect(src).toMatch(/useRoving\(items\.flat\(\)\.length, "vertical"\)/);
+    // CHANGED ON PURPOSE (stripe words): the left stripe's arrows also reach
+    // the switch between words and icons at the foot's end.
+    // CHANGED ON PURPOSE (V4 top-10 #4): the doors then the foot → the doors,
+    // the stripe's More, then the foot, because the More is in the arrows' order.
+    expect(src).toMatch(/const moreIndex = items\.flat\(\)\.length;/);
+    expect(src).toMatch(/const footIndex = moreIndex \+ \(moreHere \? 1 : 0\);/);
+    expect(src).toMatch(/const switchIndex = footIndex \+ foot\.length;/);
+    expect(src).toMatch(/useRoving\(switchIndex \+ \(switchHere \? 1 : 0\), "vertical"\)/);
     expect(src).toMatch(/useRoving\(items\.length \+ 1, "horizontal"\)/);
   });
 });
@@ -71,7 +78,9 @@ describe("each stripe is a toolbar, and the dock is one", () => {
 describe("what each button is to assistive tech", () => {
   it("puts the left column's two on the left, and the rest on the right in their two groups", () => {
     // Accounts at the top, then Session list (the owner's order, 2026-10-08).
-    expect(ids(left())).toEqual(["accounts", "session-list"]);
+    // CHANGED ON PURPOSE (stripe words): the left stripe ends in the switch
+    // between words and icons.
+    expect(ids(left())).toEqual(["accounts", "session-list", "stripe-words"]);
     expect(ids(right())).toEqual(["usage", "machine", "history", "browser-watch"]);
     expect([...right().matchAll(/<div class="rail-group">/g)]).toHaveLength(2);
   });
@@ -152,10 +161,12 @@ describe("the keys did not move with the buttons", () => {
 
 describe("Accounts, and the left column it shares", () => {
   it("is gone without Claude Code — from the stripe and from the dock — rather than present and inert", () => {
-    expect(ids(left({ claude: false, codex: false }))).toEqual(["session-list"]);
+    // CHANGED ON PURPOSE (stripe words): the switch between words and icons
+    // ends the left stripe.
+    expect(ids(left({ claude: false, codex: false }))).toEqual(["session-list", "stripe-words"]);
     expect(ids(dock({ claude: false, codex: false }))).not.toContain("accounts");
     // Codex alone is not Claude's panel: it draws its own button, never "accounts".
-    expect(ids(left({ claude: false }))).toEqual(["codex-accounts", "session-list"]);
+    expect(ids(left({ claude: false }))).toEqual(["codex-accounts", "session-list", "stripe-words"]);
     expect(ids(dock({ claude: false }))).not.toContain("accounts");
     expect(ids(dock({ claude: true }))).toContain("accounts");
   });
@@ -168,10 +179,19 @@ describe("Accounts, and the left column it shares", () => {
     // Codex's own button (a Codex-only deck) opens its side through the same
     // toggle (openAccountSide), never a second way in.
     const app = sourceOf("App.tsx");
-    expect(app).toMatch(/railItems\(\{\s*providers, sessionListOpen, toggleSessionList,\s*accountsPanelOpen, toggleAccountsPanel, accountsPanelId: panelId\(shownAccountProvider\),\s*codexPanelOpen: accountsPanelOpen && shownAccountProvider === "codex",\s*toggleCodexPanel: \(\) => openAccountSide\("codex"\),/);
+    // CHANGED ON PURPOSE (one side column between 641 and 839): the doors read
+    // the panels open on screen, and press through those same two toggles,
+    // answered against the screen while the column is folded
+    // (one-side-column.ts foldAwarePress).
+    expect(app).toMatch(/railItems\(\{\s*providers, sessionListOpen: listOnScreen, toggleSessionList: pressSessionList,\s*accountsPanelOpen: accountsOnScreen, toggleAccountsPanel: pressAccounts, accountsPanelId: panelId\(shownAccountProvider\),\s*codexPanelOpen: accountsOnScreen && shownAccountProvider === "codex",\s*toggleCodexPanel: \(\) => openAccountSide\("codex"\),/);
+    expect(app).toMatch(/const pressSessionList = useMemo\(\(\) => foldAwarePress\(toggleSessionList, \{/);
+    expect(app).toMatch(/const pressAccounts = useMemo\(\(\) => foldAwarePress\(toggleAccountsPanel, \{/);
     expect(app).toContain("if (!accountsPanelOpen || shownAccountProvider === side) toggleAccountsPanel();");
     const column = sourceOf("use-left-column.ts");
-    expect(column).toMatch(/const toggleSessionList = useCallback\(\(\) => \{\s*setSessionListOpen\(open => \{[\s\S]*?if \(!open\) setAccountsPanelOpen\(/);
-    expect(column).toMatch(/const toggleAccountsPanel = useCallback\(\(\) => \{[\s\S]*?if \(!open\) setSessionListOpen\(false\);/);
+    // CHANGED ON PURPOSE (the owner's phone layout): each still evicts the other
+    // beside a canvas; on a phone Accounts is a sheet over the list, so neither
+    // takes the other's place there.
+    expect(column).toMatch(/const toggleSessionList = useCallback\(\(\) => \{\s*setSessionListOpen\(open => \{[\s\S]*?if \(!open && !loadsOnPhone\(\)\) setAccountsPanelOpen\(/);
+    expect(column).toMatch(/const toggleAccountsPanel = useCallback\(\(\) => \{[\s\S]*?if \(!open && !loadsOnPhone\(\)\) setSessionListOpen\(false\);/);
   });
 });

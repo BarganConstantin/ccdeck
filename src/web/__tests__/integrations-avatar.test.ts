@@ -32,9 +32,29 @@ describe("a face", () => {
   it("is two initials when there is no picture, at a size that grows with the text", () => {
     expect(html(IntegrationAvatar, { src: null, name: "Ana Lee" })).toMatch(/class="ig-avatar ig-avatar-initials"[^>]*aria-hidden="true">AL<\/span>/);
     expect(html(IntegrationAvatar, { src: null, name: "Ana Lee", size: 32 })).toMatch(/data-large="true"/);
-    expect(rule(".ig-avatar-initials")).toMatch(/color:\s*var\(--text\)/);
-    expect(rule(".ig-avatar-initials")).toMatch(/font-size:\s*calc\(9px \+ var\(--ui-text-increase, 0px\)\)/);
+    // CHANGED ON PURPOSE (V4's Figma): initials 11/500 in --text-secondary on
+    // the control surface, with no ring, where they were 9/600 in --text
+    // inside a --line ring.
+    expect(rule(".ig-avatar-initials")).toMatch(/color:\s*var\(--text-secondary\)/);
+    expect(rule(".ig-avatar-initials")).toMatch(/background:\s*var\(--bg-soft\)/);
+    expect(rule(".ig-avatar-initials")).toMatch(/font-size:\s*calc\(11px \+ var\(--ui-text-increase, 0px\)\)/);
+    expect(rule(".ig-avatar-initials")).toMatch(/font-weight:\s*500/);
+    expect(rule(".ig-avatar-initials")).not.toMatch(/box-shadow/);
+    // The face keeps its own surface on a chosen row: it is opaque.
+    expect(host).not.toMatch(/\.ig-row\[data-selected\] \.ig-avatar-initials\s*\{/);
   });
+
+  for (const theme of THEMES) {
+    it(`reads initials at 4.5:1 or better on their own surface, resting and chosen, in ${theme}`, () => {
+      const scope = scopeOf(theme);
+      const face = over(color("var(--bg-soft)", scope), panelOf(scope));
+      // A chosen row lifts its quiet tiers to its own ink (--ig-sel-muted).
+      for (const ink of ["var(--text-secondary)", "var(--ig-sel-muted)"]) {
+        const ratio = contrast(over(color(ink, scope), face), face);
+        expect(Math.round(ratio * 100) / 100, `${theme}: ${ink}`).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+  }
 
   it("rings yours in the accent, initials included, and in the highlight under a Contrast theme", () => {
     expect(html(IntegrationAvatar, { src: null, name: "Me", you: true })).toMatch(/data-you="true"/);

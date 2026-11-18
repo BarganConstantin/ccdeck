@@ -176,7 +176,7 @@ export function* tarEntries(buf) {
 export async function unpack(tgz, dest) {
   const tar = await gunzipAsync(tgz);
   const root = path.resolve(dest);
-  await mkdir(root, { recursive: true });
+  await mkdir(root, { recursive: true, mode: 0o700 });
   for (const entry of tarEntries(tar)) {
     if (entry.type !== "0" && entry.type !== "5") continue;
     const parts = entry.name.replace(/\\/g, "/").split("/").filter(p => p && p !== ".");
@@ -189,8 +189,8 @@ export async function unpack(tgz, dest) {
     if (!target.startsWith(root + path.sep)) {
       throw new Error(`the package archive names a path outside itself: ${entry.name}`);
     }
-    if (entry.type === "5") { await mkdir(target, { recursive: true }); continue; }
-    await mkdir(path.dirname(target), { recursive: true });
+    if (entry.type === "5") { await mkdir(target, { recursive: true, mode: 0o700 }); continue; }
+    await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
     // An executable bit is kept, as npm keeps it. ccusage's cli.js would set it
     // on the native binary anyway before running it, but a copy that looks
     // like npm's is one nothing downstream has to know about. Windows has no
@@ -245,7 +245,7 @@ export async function fetchCcusage({
   try {
     await unpack(mainTgz, staging);
     await unpack(nativeTgz, path.join(staging, "node_modules", ...nativeName.split("/")));
-    await mkdir(path.dirname(pkgDir), { recursive: true });
+    await mkdir(path.dirname(pkgDir), { recursive: true, mode: 0o700 });
     const hadOld = existsSync(pkgDir);
     if (hadOld) await renameSoon(pkgDir, old);
     try {

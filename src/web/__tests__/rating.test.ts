@@ -284,10 +284,11 @@ describe("the banner", () => {
     phase: "asking" as const, score: null, onAnswer: () => {}, onLater: () => {}, onClose: () => {}, onFeedback: () => {},
   };
 
+  // CHANGED ON PURPOSE (V4's Figma): the 10 pill is 30 wide, so it carries a second class (`rating-pick ten`) and the pattern accepts it.
   it("offers eleven numbered buttons, each named for a screen reader, and a way to put it off", () => {
     const html = renderToStaticMarkup(createElement(RatingBanner, props));
     expect(html).toContain("How useful is ccdeck to you?");
-    const picks = [...html.matchAll(/<button[^>]*class="rating-pick"[^>]*aria-label="([^"]+)"[^>]*>(\d+)<\/button>/g)];
+    const picks = [...html.matchAll(/<button[^>]*class="rating-pick(?: ten)?"[^>]*aria-label="([^"]+)"[^>]*>(\d+)<\/button>/g)];
     expect(picks.map(m => m[2])).toEqual(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
     expect(picks[0][1]).toMatch(/^0 out of 10/);
     expect(picks[10][1]).toMatch(/^10 out of 10/);
@@ -301,7 +302,10 @@ describe("the banner", () => {
   it("thanks, and for a low score offers the feedback dialog without sending any words", () => {
     const low = renderToStaticMarkup(createElement(RatingBanner, { ...props, phase: "thanks", score: 4 }));
     expect(low).toContain("Thanks");
-    expect(low).toMatch(/<button[^>]*>Tell us what would make it better<\/button>/);
+    // CHANGED ON PURPOSE (V4's Figma): the sentence is in the message and the
+    // button is the short "Tell us" at the row's end, named by the sentence.
+    expect(low).toContain("<strong>Thanks, that helps. Tell us what would make it better.</strong>");
+    expect(low).toMatch(/<button[^>]*aria-label="Tell us what would make it better\."[^>]*>Tell us<\/button>/);
     const high = renderToStaticMarkup(createElement(RatingBanner, { ...props, phase: "thanks", score: 9 }));
     expect(high).toContain("Thanks");
     expect(high).not.toContain("make it better");

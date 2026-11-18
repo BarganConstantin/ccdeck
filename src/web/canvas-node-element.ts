@@ -19,6 +19,26 @@ export function isCanvasNodeElement(el: Element | null | undefined): boolean {
   return !!el && el.classList?.contains?.(RF_NODE_CLASS) === true;
 }
 
+/** A card's wrapper on the canvas, or null when React Flow is not drawing it.
+ *  The element a keyboard-opened peek hangs off (P). */
+export function cardElement(id: string): Element | null {
+  try {
+    return document.querySelector(`.${RF_NODE_CLASS}[data-id="${CSS.escape(id)}"]`);
+  } catch {
+    return null;
+  }
+}
+
+/** Whether any of a card shows inside the canvas's box. React Flow keeps a
+ *  panned-away card in the DOM, so being drawn is not being seen, and a peek
+ *  anchored off screen would open where nobody is looking. */
+export function cardOnScreen(card: Element): boolean {
+  const pane = card.closest(".react-flow")?.getBoundingClientRect();
+  const r = card.getBoundingClientRect();
+  if (!pane || r.width === 0) return false;
+  return r.right > pane.left && r.left < pane.right && r.bottom > pane.top && r.top < pane.bottom;
+}
+
 /** Move the keyboard onto an agent card. Used when j/k traverses while the
  *  keyboard is already on the canvas, so the card the selection moved to is
  *  also the card Enter and Tab now speak about.

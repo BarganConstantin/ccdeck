@@ -2,6 +2,7 @@
 // unit-tested without pulling in React Flow / the DOM.
 import type { AgentNodeData } from "./types";
 import { isAlarming } from "./ambient-counts";
+import { neverPrompted } from "./node-face";
 
 /**
  * React Flow type of the invisible per-session drag handle.
@@ -59,6 +60,9 @@ export function minimapNodeColor(
   if (node.type === "recapNote") return cssVar("--muted");
   const state = node.data?.state;
   if (state === "err") return cssVar("--err");
+  // Ready for a first prompt is active to the reducer and at work on nothing:
+  // the quiet tone, as its card's edge and its list group draw it.
+  if (state === "active" && node.data && Array.isArray(node.data.prompts) && neverPrompted(node.data as AgentNodeData)) return cssVar("--muted");
   if (state === "active") return cssVar("--inflight");
   return cssVar("--ok");
 }

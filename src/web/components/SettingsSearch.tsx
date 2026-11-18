@@ -18,6 +18,7 @@
 // The station search in the radio panel (RadioFilter.tsx) is the same shape.
 import { useEffect, type KeyboardEvent, type RefObject } from "react";
 import { resultPlace, resultSpoken, resultsLine, searchKeyIntent, type SettingsEntry } from "../settings-search";
+import { KitIcon } from "./kit-icons";
 import SettingsSectionGlyph from "./SettingsSectionGlyph";
 import { useT } from "../i18n";
 
@@ -64,11 +65,7 @@ export function SettingsSearchField({ inputRef, query, onQuery, results, active,
           like Keyboard's filter: a placeholder is gone once somebody types,
           and is not a name. The glyph is the field's sign, not its name. */}
       <label className="vis-hidden" htmlFor={SEARCH_FIELD_ID}>{t("settings.search.label")}</label>
-      <svg className="settings-search-glyph" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
-           strokeWidth="1.4" strokeLinecap="round" aria-hidden focusable="false">
-        <circle cx="6" cy="6" r="4.2" />
-        <path d="m9.2 9.2 3.3 3.3" />
-      </svg>
+      <KitIcon name="search" className="settings-search-glyph" />
       <input
         ref={inputRef}
         id={SEARCH_FIELD_ID}

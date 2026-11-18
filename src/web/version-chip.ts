@@ -154,7 +154,22 @@ export function versionNoticeLabel(n: VersionNoticeCopy): string {
   // is promised only while it is not already there, because promising to show
   // something the reader can see is how a name stops being trusted.
   const does = n.open ? t("shell.chip.noticeShow") : t("shell.chip.noticeShowBanner");
-  return t("shell.chip.noticeLabel", { from: n.from, what, does });
+  return t("shell.chip.noticeLabel", { text: versionNoticeText(n), from: n.from, what, does });
+}
+
+/** The drift chip's words (V4's Figma, Top bar: "4.0.1 is ready", the version
+ *  with no "v"), claiming no more than the notice under the bar does. A release
+ *  on npm "is out", the notice's own words: it read "is ready" too, which
+ *  promised a version this deck has not fetched. One already on disk, waiting
+ *  for a restart, keeps "is ready", which is true of it (the notice: installed,
+ *  restart to pick it up). Each language keeps both about as short as the
+ *  English, because at 320px the chip shares the bar with the brand and the
+ *  waiting count. The chip's accessible name starts with these words, so a
+ *  voice-control user can say what they see. */
+export function versionNoticeText(n: Pick<VersionNoticeCopy, "kind" | "to">): string {
+  return n.kind === "restart"
+    ? t("shell.chip.textRestart", { to: n.to })
+    : t("shell.chip.textUpgrade", { to: n.to });
 }
 
 // ── which update a dismissal was about (#1175) ──────────────────────────────
@@ -193,4 +208,14 @@ export function noticeKeyFor(notice: DismissableNotice | null): string {
  */
 export function noticeIsOpen(notice: DismissableNotice | null, dismissed: string): boolean {
   return notice != null && dismissed !== noticeKeyFor(notice);
+}
+
+/** WHEN THE BAR HAS A VERSION TO SAY (V4's Figma, Top bar: the version chip
+ *  only when needed). Only with something to act on: an update the desktop app
+ *  has downloaded, or a version the deck already found out of step with the one
+ *  on disk or on npm. A deck that is simply current draws nothing; its number
+ *  stays in About and Settings > Updates, which also hold the check and the
+ *  release notes the plain chip used to open. */
+export function versionChipNeeded(state: { readyAppUpdate: unknown; notice: unknown }): boolean {
+  return Boolean(state.readyAppUpdate) || Boolean(state.notice);
 }

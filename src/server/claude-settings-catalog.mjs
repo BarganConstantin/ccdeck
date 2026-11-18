@@ -63,7 +63,7 @@ export const CLAUDE_SETTINGS = [
   {
     id: "crossSessionInbound", key: "crossSessionInbound", group: "sessions", kind: "choice", since: "2.1.224",
     label: "Messages from other sessions",
-    note: "What a session does when another of your Claude Code sessions sends it a message.",
+    note: "What a session does when another of your sessions sends it a message.",
     options: [
       { value: null, label: "Claude Code decides" },
       { value: "accept", label: "Accept" },
@@ -75,19 +75,19 @@ export const CLAUDE_SETTINGS = [
   {
     id: "listAgents", key: "permissions.deny", tool: "ListAgents", group: "sessions", kind: "allowTool", since: "2.1.224",
     label: "Let sessions find each other",
-    note: "On, Claude can list your other sessions, with each one's folder and whether it is busy. Off adds a deny rule for ListAgents.",
+    note: "Claude can list your other sessions, their folders and whether they are busy.",
     keywords: ["listagents", "peers", "see other sessions", "privacy", "isolation", "list agents"],
   },
   {
     id: "isolatePeerMachines", key: "isolatePeerMachines", group: "sessions", kind: "switch", unset: false, since: "2.1.224",
     label: "Ask before messaging other machines",
-    note: "Claude asks you before a message leaves this computer for a session on another machine or in the cloud.",
+    note: "Claude asks before a message leaves this computer.",
     keywords: ["remote control", "cloud", "cross-machine", "approval"],
   },
   {
     id: "autoMemoryEnabled", key: "autoMemoryEnabled", group: "memory", kind: "switch", unset: true,
     label: "Auto memory",
-    note: "Claude keeps notes it learns while working and reads them in later sessions. Off, it does neither.",
+    note: "Claude keeps notes it learns and reads them in later sessions.",
     overrides: [
       { env: "CLAUDE_CODE_DISABLE_AUTO_MEMORY", when: "on", effect: "Off" },
       { env: "CLAUDE_CODE_DISABLE_AUTO_MEMORY", when: "off", effect: "On" },
@@ -97,14 +97,14 @@ export const CLAUDE_SETTINGS = [
   {
     id: "autoCompactEnabled", key: "autoCompactEnabled", group: "memory", kind: "switch", unset: true,
     label: "Compact automatically",
-    note: "Claude summarizes a long conversation when it nears the context limit, so the session can go on.",
+    note: "Near the context limit, Claude summarises the conversation so the session can go on.",
     overrides: [{ env: "DISABLE_AUTO_COMPACT", when: "on", effect: "Off" }],
     keywords: ["compact", "context", "summarize", "context window"],
   },
   {
     id: "cleanupPeriodDays", key: "cleanupPeriodDays", group: "memory", kind: "days", unset: 30,
     label: "Keep conversations",
-    note: "Older conversations are deleted without a message and leave the resume list.",
+    note: "Older ones are deleted and leave the resume list.",
     options: [7, 14, 30, 90, 180, 365, 3650],
     keywords: ["transcripts", "history", "retention", "delete", "resume", "cleanup"],
   },

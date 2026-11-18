@@ -64,6 +64,9 @@ export function codexVoice(t: TFunction = translateNow): RowVoice {
     readBy: t("codex.row.readBy"),
     readPlan: t("codex.row.readPlan"),
     neverRead: t("codex.row.neverRead"),
+    // The default account says so in the row's marks, as a grey word: its
+    // figures stay where every row has them.
+    liveTag: t("codex.row.defaultWord"),
   };
 }
 
@@ -164,6 +167,7 @@ function quotaProblem(reason: string, t: TFunction): AccountIssue {
         fix: null,
         tone: "quiet",
         blocksSwitch: false,
+        kind: "rate",
       };
     default:
       return {

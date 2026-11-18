@@ -15,6 +15,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { WELCOME_STEPS } from "../components/guide-art";
+import { en } from "../i18n/en";
 
 // selectAgent moved to use-selection.ts; everything that calls it stayed in
 // App.tsx. The two are read as one, so a body is found wherever it lives.
@@ -29,7 +30,11 @@ const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), 
   + "\n" + readFileSync(fileURLToPath(new URL("../use-agent-focus.ts", import.meta.url)), "utf8")
   + "\n" + readFileSync(fileURLToPath(new URL("../use-canvas-clicks.ts", import.meta.url)), "utf8")
   + "\n" + readFileSync(fileURLToPath(new URL("../components/BoardFlow.tsx", import.meta.url)), "utf8")
-  + "\n" + readFileSync(fileURLToPath(new URL("../components/DetailAside.tsx", import.meta.url)), "utf8");
+  + "\n" + readFileSync(fileURLToPath(new URL("../components/DetailAside.tsx", import.meta.url)), "utf8")
+  // The close is the Inspector's Fold now, in the header it draws.
+  + "\n" + readFileSync(fileURLToPath(new URL("../components/Inspector.tsx", import.meta.url)), "utf8");
+/** The doors on the window's edges, in their order. */
+const rails = readFileSync(fileURLToPath(new URL("../rail-items.tsx", import.meta.url)), "utf8");
 const appCode = app
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
@@ -78,14 +83,32 @@ describe("selecting an agent opens its details (#814)", () => {
   it("keeps the panel's × and D", () => {
     // The × is DetailAside's onClose, which also arms the keyboard's hand-off
     // to the card (panel-close-focus.test.ts).
-    expect(appCode).toMatch(/onClose=\{\(\) => \{ panelReturn\.detail\(\); setDetailOpen\(false\); \}\}/);
-    expect(appCode).toMatch(/aria-label=\{t\("board\.detailPanel\.closeLabel"\)\}\s+onClick=\{onClose\}/);
+    // CHANGED ON PURPOSE (V4's Figma): in the Workspace's Inspector column the
+    // close folds the Inspector alone and hands the keyboard to the pane
+    // (foldInspector); on the Board it is the same hand-off to the card.
+    // CHANGED ON PURPOSE (the phone layout): on a phone the × is the sheet's one
+    // close (sheetClose), so a second ask during the slide is nothing; the
+    // plain close it wraps is the same hand-off as before.
+    // CHANGED ON PURPOSE (V4's Figma): the Workspace sheet from 1100 to 1319 folds the same way.
+    expect(appCode).toMatch(/onClose=\{inWorkspace && \(inspectorColumn \|\| inspectorSheet\) \? foldInspector : sheetClose\("inspector", \(\) => \{ panelReturn\.detail\(\); setDetailOpen\(false\); \}\)\}/);
+    expect(appCode).toMatch(/const foldInspector = useCallback\(\(\) => \{\s*setInspectorFolded\(true\);\s*setDetailOpen\(false\);/);
+    // CHANGED ON PURPOSE (V4's Figma): the Inspector's fold is named "Fold the Inspector".
+    // CHANGED ON PURPOSE (the UI in every language): the name is read through its key.
+    expect(appCode).toMatch(/aria-label=\{tr\("board\.inspector\.fold"\)\}\s+onClick=\{onClose\}/);
+    expect(en["board.inspector.fold"]).toBe("Fold the Inspector");
+    expect(en["board.detailPanel.closeLabel"]).toBe("Close detail panel");
     // D toggles whenever something is selected; with nothing selected it now
     // selects first (#845, d-without-selection-845.test.ts).
     expect(appCode).toMatch(/if \(e\.key === "d" \|\| e\.key === "D"\) \{\s*if \(primarySelectedIdRef\.current\) setDetailOpen\(o => !o\);/);
   });
 
   it("makes the tour's inspect step true (#817)", () => {
-    expect(WELCOME_STEPS.some(s => /^Double-click any node: its prompt, every tool call/.test(s.line))).toBe(true);
+    // CHANGED ON PURPOSE (V4's tour): the step is the Inspector's now, and its
+    // tip names the two ways in — D, held true above, and the door at the top
+    // of the right edge, which is the right stripe's first.
+    const inspect = WELCOME_STEPS.find(s => /^The Inspector shows every agent, subagent and tool call/.test(s.line));
+    expect(inspect).toBeDefined();
+    expect(inspect?.tip).toMatch(/^Press D, or Inspector at the top of the right edge\.$/);
+    expect(rails).toMatch(/rightStripe: \[\s*\[inspector\],/);
   });
 });

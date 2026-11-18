@@ -2,7 +2,7 @@
 //
 // The tab's title and icon are written by useTabAmbient, inside Inner — the
 // tree the error boundary replaces. Its effect has no cleanup, so a crash left
-// the tab as it last was for good: "(2) ccdeck" with the waiting mark, or the
+// the tab as it last was for good: "(2) waiting · ccdeck" with the waiting mark, or the
 // syncing mark, over a deck that had stopped taking events. That frozen
 // reading is what ambient.ts's offline mark exists to replace (#719). Now the
 // boundary puts the tab's icon on the offline mark as it catches the error,
@@ -58,16 +58,16 @@ afterEach(() => {
 
 describe("the tab after a render crash", () => {
   it.each(["waiting", "running", "idle"] as const)("wears the offline mark, not the %s one it had", icon => {
-    const doc = head(icon === "waiting" ? "(2) ccdeck" : "ccdeck", icon);
+    const doc = head(icon === "waiting" ? "(2) waiting · ccdeck" : "ccdeck", icon);
     vi.stubGlobal("document", doc);
     crash();
     expect(doc.links.map(link => link.href)).toEqual([FAVICON_FALLBACK_HREF.offline, FAVICON_HREF.offline]);
   });
 
   it("keeps the count of sessions waiting, as a lost stream does", () => {
-    const doc = head("(2) ccdeck", "waiting");
+    const doc = head("(2) waiting · ccdeck", "waiting");
     vi.stubGlobal("document", doc);
     crash();
-    expect(doc.title).toBe("(2) ccdeck");
+    expect(doc.title).toBe("(2) waiting · ccdeck");
   });
 });

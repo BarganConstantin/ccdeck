@@ -25,9 +25,12 @@ const card = (over: Partial<AgentNodeData> = {}): AgentNodeData => ({
 } as unknown as AgentNodeData);
 
 describe("a card's spoken name (#853)", () => {
+  // CHANGED ON PURPOSE (design recommendations, 2026-11-09): a session with no prompt and no tool
+  // yet is Ready, the word its card shows (cardState), where it said Working.
   it("says name, kind and state first, separated so they can be heard apart", () => {
-    expect(agentAriaLabel(card())).toBe("agents-deck, session, live, 0 tools");
-    expect(agentAriaLabel(card({ kind: "subagent", state: "done" }))).toBe("agents-deck, subagent, done, 0 tools");
+    expect(agentAriaLabel(card())).toBe("agents-deck, session, Ready, 0 tools");
+    expect(agentAriaLabel(card({ prompts: [{ text: "go", at: 1 }] } as Partial<AgentNodeData>))).toBe("agents-deck, session, Working, 0 tools");
+    expect(agentAriaLabel(card({ kind: "subagent", state: "done" }))).toBe("agents-deck, subagent, Done, 0 tools");
   });
 
   it("carries the waiting sentence when the session is blocked on the reader", () => {
@@ -39,12 +42,12 @@ describe("a card's spoken name (#853)", () => {
     // The failures as the reducer counts them, over the agent's whole life
     // (#1809) — the count the card's "err" prints too.
     const tools = [{ ok: true }, { ok: false }, { ok: false }] as AgentNodeData["tools"];
-    expect(agentAriaLabel(card({ tools, toolCount: 3, toolErrorCount: 2 }))).toBe("agents-deck, session, live, 3 tools, 2 failed");
+    expect(agentAriaLabel(card({ tools, toolCount: 3, toolErrorCount: 2 }))).toBe("agents-deck, session, Working, 3 tools, 2 failed");
     expect(agentAriaLabel(card({ toolCount: 1 }))).toContain("1 tool");
   });
 
   it("announces selection in the focused card's existing name", () => {
-    expect(agentAriaLabel(card(), 0, true)).toBe("agents-deck, session, live, 0 tools, selected");
+    expect(agentAriaLabel(card(), 0, true)).toBe("agents-deck, session, Ready, 0 tools, selected");
     expect(agentAriaLabel(card(), 0, false)).not.toContain("selected");
   });
 

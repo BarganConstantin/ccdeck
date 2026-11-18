@@ -29,9 +29,10 @@ export interface PaneBox { left: number; top: number; right: number; bottom: num
 export interface LabelRoom { maxWidth: number; hidden: boolean }
 
 /**
- * The pill's height on screen at its tallest. 10px text at line-height 1,
- * 3px of padding and a 1px border on each side is 18px; the waiting triangle
- * is 10px tall and sits 1px low, which opens the line box to 20.
+ * The label's height on screen at its tallest. 12px text at line-height 1 and
+ * 3px of padding on each side, with no border since it stopped being a pill
+ * (V4 top-10 #1), is 18px; the waiting triangle is 10px tall and sits 1px low,
+ * which can open the line box toward 20, the bound kept here.
  */
 export const LABEL_H = 20;
 
@@ -53,29 +54,30 @@ export const LABEL_MIN_W = 64;
 /**
  * The furniture drawn over the pane, which a pill keeps clear of: the
  * category filter bar, React Flow's panels (the control stack and the
- * minimap), the auto-fit chip and Re-arrange's Undo above it, and the panels
- * that float over the canvas —
- * usage, machine, and the detail panel where a narrow window floats it. A
- * selector that matches beside the pane rather than over it measures to
+ * minimap), Re-arrange's Undo above it, and the panels that float over the
+ * canvas — usage, machine, and the detail panel where a narrow window floats
+ * it. A selector that matches beside the pane rather than over it measures to
  * nothing and drops out.
  */
-export const PANE_CHROME = ".cat-filter-bar, .react-flow__panel, .autofit-chip, .rearrange-undo, .usage-panel, .sysdetail, .detail";
+export const PANE_CHROME = ".cat-filter-bar, .react-flow__panel, .rearrange-undo, .usage-panel, .sysdetail, .detail";
 
 /**
  * How wide `c`'s pill may draw at this camera, and whether it is drawn at all.
  *
  * `view` is React Flow's viewport, `pane` its measured size (0×0 until the
  * first measure, when every pill is drawn as it always was rather than none),
- * `chrome` what paneChrome measured over it.
+ * `chrome` what paneChrome measured over it. `gutter` is how far past its box
+ * the pill may reach (cluster-bounds.ts): less where the board is packed.
  */
 export function labelRoom(
   c: Cluster,
   view: { x: number; y: number; zoom: number },
   pane: { width: number; height: number },
   chrome: readonly PaneBox[],
+  gutter?: number,
 ): LabelRoom {
   const zoom = view.zoom || 1;
-  const cap = labelMaxWidth(c.w, zoom);
+  const cap = labelMaxWidth(c.w, zoom, gutter);
   if (pane.width <= 0 || pane.height <= 0) return { maxWidth: cap, hidden: false };
   // Where clusterLabelStyle puts the pill, brought through the camera.
   const left = (c.x + LABEL_INDENT) * zoom + view.x;

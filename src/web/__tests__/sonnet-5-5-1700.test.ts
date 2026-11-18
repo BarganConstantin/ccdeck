@@ -35,7 +35,8 @@ describe("Claude Sonnet 5.5", () => {
 
   it("has the 1M window and a label a chip can hold", () => {
     expect(contextWindowForModel("claude-sonnet-5-5")).toBe(1_000_000);
-    expect(shortModel("claude-sonnet-5-5")).toBe("Sonnet 5.5");
-    expect(shortModel("us.anthropic.claude-sonnet-5-5")).toBe("Sonnet 5.5");
+    // CHANGED ON PURPOSE (V4's Agent / Card): the family is written in lowercase.
+    expect(shortModel("claude-sonnet-5-5")).toBe("sonnet 5.5");
+    expect(shortModel("us.anthropic.claude-sonnet-5-5")).toBe("sonnet 5.5");
   });
 });

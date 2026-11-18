@@ -1,0 +1,300 @@
+// The one place the deck makes the Command Panel's engine: the optional local
+// engine, started for the panel only once somebody has switched the panel on
+// and asked it something, on the platforms it runs on (Linux, macOS and Windows).
+//
+// NOTHING HAPPENS UNTIL A ROUTE ASKS. Importing this does no I/O. The routes
+// (terminal-routes.mjs) ask only while the panel's switch is on — with it off
+// they are a 404 and never get here — so a deck with the switch off, the
+// default, never looks at the install folder, never builds a client, never
+// starts anything and never touches the network. On a platform without the
+// panel, a route is answered `unsupported` without looking either.
+//
+// SUPPORTED IS NOT SERVED. On every platform a route still goes nowhere
+// unless the engine's own hello advertises a terminal backend
+// (routeThroughEngine in pro-engine-terminal.mjs answers `no-terminal`
+// otherwise): the engine decides, behind its own opt-in, whether it serves
+// the panel on this machine.
+//
+// ONE FOLDER, AND ONLY KEYS SHIPPED IN THIS FILE. The engine is looked for in
+// `<deck data folder>/engine` (CCDECK_HOME when set; deck-home.mjs) and
+// nowhere else: not on PATH, and downloaded only when somebody presses
+// Install on the page (engine-install.mjs). Its manifest must
+// be signed by one of ENGINE_PUBLIC_KEYS — the one release key the published
+// @ccdeck/engine-* packages are signed with — so a folder whose manifest that
+// key did not sign answers `not-verified` without the deck reading the
+// executable, and one under a folder other accounts can change answers
+// `unsafe-folder` (pro-engine-install.mjs), the folder named in the deck's
+// log alone. A deck that is handed an engine by its caller instead
+// (startServer's `terminal.engine`) never uses this.
+//
+// WHERE THE FOLDER COMES FROM. Given keys, the first question that finds the
+// folder missing or older first tries to bring the engine in from the npm
+// package that came with the deck for this machine (engine-package.mjs):
+// verified, never downgrading, copied whole or not at all. A package that is
+// not there, or an import that is refused, leaves whatever is installed as it
+// was. Still only on a question, still only with the switch on. The page's
+// own Install (engine-install.mjs, `installer` below) is the third source:
+// the same package from the npm registry, or a package file, after a press.
+// Every change to the folder, from either, runs under one lock
+// (withEngineLock), and an install stops the running engine first.
+//
+// THE ENGINE IS TOLD IT MAY SERVE THE PANEL, and only this one. The client
+// made here is the only one constructed with `terminal: true`, which is what
+// sets CCDECK_ENGINE_TERMINAL=1 in the engine's environment
+// (pro-engine-client.mjs); any value the deck itself inherited is removed
+// first, for this engine and every other.
+//
+// IT STOPS WHEN THE PANEL IS SWITCHED OFF, a moment after the panels it
+// served have been told (STOP_GRACE_MS, the time those panels' sockets are
+// given to close), and at once when the deck shuts down. Stopping detaches
+// the engine; the sessions it showed keep running. The next question after a
+// stop starts a new one.
+//
+// NEVER UNDER A QUESTION, NEVER TWO. A question asked while on that the
+// engine is still answering when the grace runs out — a launch whose tmux is
+// still making its session — is answered first, and the stop follows: the
+// session is made and labelled with its launch key, not left half made by an
+// engine stopped under it (each question has the client's own deadline, so
+// this ends). Switched back on before the stop has begun, the stop is called
+// off and the engine kept. A question asked while an engine is stopping waits
+// for its process to exit before the next is started (EXIT_WAIT_MS at most,
+// and `restarting` after that), so two never run at once.
+import { promises as fsp } from "node:fs";
+import { posix as posixPath, win32 as winPath } from "node:path";
+import { deckDataDir } from "./deck-home.mjs";
+import { ENGINE_ON_WINDOWS, importEngine } from "./engine-package.mjs";
+import { createEngineInstaller, tightenDataFolder, withEngineLock } from "./engine-install.mjs";
+import { createProEngineClient } from "./pro-engine-client.mjs";
+import { UNSAFE_FOLDER } from "./pro-engine-install.mjs";
+import { engineRefusal, engineTerminals } from "./pro-engine-terminal.mjs";
+import { RUNNING_VERSION } from "./running-version.mjs";
+
+/** The Ed25519 public keys an engine's manifest may be signed with, as PEM or
+ *  KeyObjects. One: the release key the published @ccdeck/engine-* packages
+ *  are signed with (SHA-256 of its DER, ENGINE_RELEASE_KEY_SHA256, below).
+ *  Frozen, so nothing at run time can add one. */
+export const ENGINE_PUBLIC_KEYS = Object.freeze([
+  "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA/ynXDN1fhh2GmedOCCRxR28YClWi+d9HycrnMfFAAmA=\n-----END PUBLIC KEY-----\n",
+]);
+
+/** SHA-256 of the release key's DER (SubjectPublicKeyInfo), so a test can tell
+ *  the key above is the one the packages are signed with and was not changed. */
+export const ENGINE_RELEASE_KEY_SHA256 = "98e8d4289655b4861bb8214cab575416086822757968935eeee639b1fcce16a9";
+
+/** How long after the switch goes off the engine is stopped: the time a
+ *  relayed panel's socket is given to close once it has been told
+ *  (pro-engine-terminal.mjs' SHUTDOWN_GRACE_MS). */
+export const STOP_GRACE_MS = 1_500;
+
+/** How long a question waits for a stopped engine's process to exit before
+ *  it is answered `restarting` (a moment the page waits out) rather than
+ *  have a second engine started beside it. The client gives the engine a
+ *  second to answer its shutdown and then ends it (pro-engine-client.mjs
+ *  close); this is far above that, and is the engine's own drain, the
+ *  longest it takes to go by itself. */
+export const EXIT_WAIT_MS = 5_000;
+
+/** Whether `platform` has the Command Panel: Linux, macOS and, while
+ *  ENGINE_ON_WINDOWS (engine-package.mjs) is set, Windows.
+ *  Only where the engine's hello also advertises a terminal backend does a
+ *  route reach it (`no-terminal` otherwise). */
+export function commandPanelSupported(platform = process.platform) {
+  return platform === "linux" || platform === "darwin" || (platform === "win32" && ENGINE_ON_WINDOWS);
+}
+
+/** The one folder the Command Panel's engine is installed in. Joined with
+ *  `platform`'s separator, not the host's, as deckDataDir is: a bare `join`
+ *  answers `\x\deck\engine` on a Windows runner for a question about Linux. */
+export function engineInstallDir(platform = process.platform, env = process.env) {
+  const { join } = platform === "win32" ? winPath : posixPath;
+  return join(deckDataDir(platform, env), "engine");
+}
+
+/** Whether `promise` settles within `ms`. */
+function settlesWithin(promise, ms) {
+  let timer;
+  const out = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(false), ms);
+    timer.unref?.();
+  });
+  return Promise.race([promise.then(() => true, () => true), out]).finally(() => clearTimeout(timer));
+}
+
+/** The package that came with the deck, brought in (engine-package.mjs) once
+ *  the data folder is the owner's alone: nothing in a folder others may write
+ *  to verifies (tightenDataFolder). The default `importPackage` below, so a
+ *  test that hands in its own import touches no real folder. */
+async function importBesideDeck(options) {
+  await tightenDataFolder(deckDataDir(options.platform, options.env), options.platform);
+  return importEngine(options);
+}
+
+/**
+ * The Command Panel's engine as the routes and the upgrade take it (the shape
+ * engineTerminals gives, with `route` answering a refusal of its own while
+ * there is no client, and `forgetTmux` doing nothing), plus `switchedOff()`,
+ * `switchedOn()` and `stop()`.
+ *
+ * `installer` is the page's Install (engine-install.mjs), made here with the
+ * same platform, keys and import unless one is given; it stops this engine
+ * before it changes the folder (`release`).
+ *
+ * `platform`, `arch`, `env`, `keys`, `lstat`, `importPackage`,
+ * `createClient`, `graceMs`, `exitWaitMs` and `installer` are there for
+ * tests; the deck uses the defaults (`commandPanel`, below).
+ */
+export function commandPanelEngine({
+  platform = process.platform,
+  arch = process.arch,
+  env = process.env,
+  keys = ENGINE_PUBLIC_KEYS,
+  lstat = (path) => fsp.lstat(path),
+  importPackage = importBesideDeck,
+  createClient = createProEngineClient,
+  graceMs = STOP_GRACE_MS,
+  exitWaitMs = EXIT_WAIT_MS,
+  installer,
+} = {}) {
+  let held = null; // { client, terminals, asking: the questions it is answering }
+  let making = null; // the question that is making it, so two make one
+  // A stop asked for and not begun: its grace, then the questions it waits
+  // for. Called off by a question or by the switch going on again.
+  let stopping = null; // { timer }
+  // The last engine stopped, until its process has exited: the next waits.
+  let exiting = null;
+  // Counts stops: a client being made when one came is not made after it.
+  let stops = 0;
+
+  const cancelStop = () => {
+    if (stopping) clearTimeout(stopping.timer);
+    stopping = null;
+  };
+
+  /** The engine's terminals, or why there is none. */
+  async function ready() {
+    if (!commandPanelSupported(platform)) return { refusal: "unsupported" };
+    if (held) return held;
+    making ??= (async () => {
+      const directory = engineInstallDir(platform, env);
+      const at = stops;
+      // Never one beside another: the one stopped last is let go first.
+      if (exiting && !(await settlesWithin(exiting, exitWaitMs))) return { refusal: "restarting" };
+      // With keys to verify against, bring the engine in from its package first.
+      // Under the folder's lock, so never beside an install from the page.
+      const brought = keys.length > 0 ? await withEngineLock(() => importPackage({ platform, env, keys: [...keys] })) : null;
+      try {
+        await lstat(directory);
+      } catch (error) {
+        if (error?.code !== "ENOENT" && error?.code !== "ENOTDIR") return { refusal: "not-verified" };
+        if (brought?.status !== "refused") return { refusal: "not-installed" };
+        return { refusal: brought.reason === UNSAFE_FOLDER ? UNSAFE_FOLDER : "not-verified" };
+      }
+      // Nothing to verify a manifest against: the executable is never read.
+      if (keys.length === 0) return { refusal: "not-verified" };
+      if (at !== stops) return { refusal: "restarting" };
+      const client = createClient({
+        enabled: true,
+        directory,
+        publicKey: [...keys],
+        ...(brought?.minimumVersion === undefined ? {} : { minimumVersion: brought.minimumVersion }),
+        hostVersion: RUNNING_VERSION ?? "0.0.0",
+        terminal: true,
+      });
+      held = { client, terminals: engineTerminals(client), asking: new Set() };
+      return held;
+    })().finally(() => { making = null; });
+    return making;
+  }
+
+  function drop() {
+    const was = held;
+    held = null;
+    stops += 1;
+    if (!was) return;
+    // close() answers once the engine's process has exited (pro-engine-client.mjs).
+    const gone = was.client.close().catch(() => {});
+    exiting = gone;
+    gone.then(() => { if (exiting === gone) exiting = null; });
+  }
+
+  /** The stop the switch-off asked for, once its grace is out: after the
+   *  questions the engine is answering, unless called off meanwhile. */
+  async function stopOnceAnswered(wanted) {
+    while (stopping === wanted && held?.asking.size) await Promise.allSettled([...held.asking]);
+    if (stopping !== wanted) return;
+    stopping = null;
+    drop();
+  }
+
+  /** Stops the engine now and waits for its process to exit (an install is
+   *  about to replace or remove its folder). Answers whether it exited. */
+  async function release() {
+    cancelStop();
+    drop();
+    return exiting ? settlesWithin(exiting, exitWaitMs) : true;
+  }
+
+  const install = installer ?? createEngineInstaller({ platform, arch, env, keys: [...keys], importPackage, beforeChange: release });
+
+  return Object.freeze({
+    get enabled() { return true; },
+    /** The page's Install: status, install, a file, cancel, remove. */
+    installer: install,
+    release,
+    async route(method, body) {
+      cancelStop();
+      const r = await ready();
+      if (r.refusal) return engineRefusal(r.refusal);
+      // Kept while the engine answers it: a stop waits for it (stopOnceAnswered).
+      const asked = r.terminals.route(method, body);
+      r.asking.add(asked);
+      try {
+        return await asked;
+      } finally {
+        r.asking.delete(asked);
+      }
+    },
+    async attach(handle, socket) {
+      // A ticket outlives nothing: with no engine there is nothing it names.
+      return held ? held.terminals.attach(handle, socket) : { ok: false, status: 503 };
+    },
+    /** The deck's own tmux has landed (terminal-routes.mjs): the engine
+     *  running now forgets the miss it remembered. One being made, or the
+     *  next, looks afresh; nothing is started for this. Never rejects. */
+    forgetTmux() {
+      return held ? held.terminals.forgetTmux() : Promise.resolve();
+    },
+    /** The switch went off: stop the engine once its panels have closed —
+     *  one running, or one a question asked while on is making now, which
+     *  is stopped the same grace later (or, made after it, not made) — and
+     *  once it has answered the questions it was asked while on. */
+    switchedOff() {
+      if ((!held && !making) || stopping) return;
+      const wanted = { timer: null };
+      wanted.timer = setTimeout(() => { void stopOnceAnswered(wanted); }, graceMs);
+      wanted.timer.unref?.();
+      stopping = wanted;
+    },
+    /** The switch went on again: a stop that has not begun is called off,
+     *  and the engine kept. One already stopping goes; the next question
+     *  waits for its process to exit (ready). */
+    switchedOn() {
+      cancelStop();
+    },
+    /** The deck is going: stop it now, without waiting for it. */
+    stop() {
+      cancelStop();
+      drop();
+    },
+    /** Whether a client is held, for tests. */
+    get running() { return held !== null; },
+  });
+}
+
+/** The deck's own: the default `engine` of terminal-routes.mjs. */
+export const commandPanel = commandPanelEngine();
+
+/** For bin/deck.js's shutdown, beside closeAllTerminals: never awaited. */
+export function stopCommandPanelEngine() {
+  commandPanel.stop();
+}

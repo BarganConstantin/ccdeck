@@ -140,6 +140,8 @@ describe("the line a row says about it", () => {
   it("names what goes out, in the warning ink once content does", () => {
     expect(telemetryLine(seen("content", ["OTEL_LOG_USER_PROMPTS", "OTEL_LOG_TOOL_DETAILS"]), NOW)).toEqual({
       text: "Telemetry · prompts, tool details",
+      // What goes out, on its own, for the open account row's Telemetry line.
+      words: "prompts, tool details",
       tone: "warn",
       detail: "Acme turns on Claude Code telemetry for new sessions: usage data, and your prompts and tool details, "
         + "sent to http://192.0.2.16:4317. Seen 2h ago, while this account was active.",

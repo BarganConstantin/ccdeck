@@ -67,7 +67,18 @@ describe("the desktop hosted server's runtime packages", () => {
   it.each([
     ["darwin", 1], ["darwin", 3], ["darwin", 4], ["linux", 1], ["win32", 1],
   ])("has prebuilds for the packaged target %s / %s", (platform, arch) => {
-    expect(() => config.beforePack({ electronPlatformName: platform, arch })).not.toThrow();
+    // npm installs only the engine package that fits this machine (the Mac
+    // build fetches its other arch with engine-packages.cjs), and beforePack
+    // checks the engine after the native prebuilds. So from here a target may
+    // stop at one thing only: the engine package of another machine, not
+    // installed here. This machine's own target must pass whole.
+    let error: Error | null = null;
+    try { config.beforePack({ electronPlatformName: platform, arch }); } catch (e) { error = e as Error; }
+    if (error === null) return;
+    const name = /^Missing engine package (@ccdeck\/engine-[a-z0-9]+-[a-z0-9]+) /.exec(error.message)?.[1];
+    expect(name, error.message).toBeTruthy();
+    expect(existsSync(join(repo, "node_modules", name!, "package.json")), name).toBe(false);
+    expect(name).not.toBe(`@ccdeck/engine-${process.platform}-${process.arch}`);
   });
 
   it("rejects unsupported targets before packaging", () => {

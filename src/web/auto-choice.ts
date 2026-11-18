@@ -13,20 +13,21 @@ import { t as tNow, type TFunction } from "./i18n";
 
 export type NextChoice = "room" | "weekly";
 
-/** The picker's options, in its order. "room" is what Auto-switch always did. */
-export const NEXT_OPTIONS: ReadonlyArray<{ value: NextChoice; label: string }> = [
-  { value: "room", label: "Most room left" },
-  { value: "weekly", label: "Soonest weekly reset" },
+/** The picker's options, in its order, each with the key of its name.
+ *  "room" is what Auto-switch always did. */
+export const NEXT_OPTIONS: ReadonlyArray<{ value: NextChoice; labelMsg: string }> = [
+  { value: "room", labelMsg: "accounts.auto.next.room" },
+  { value: "weekly", labelMsg: "accounts.auto.next.weekly" },
 ];
 
 /** Said under the picker while it shows the weekly option, and only then. */
-export const WEEKLY_HINT = "Uses up quota that resets within 4 days first";
+export const WEEKLY_HINT_MSG = "accounts.auto.weeklyHint";
 
-/** The same two, in the language on show (the constants above stay English). */
+/** The same two, in the language on show. */
 export function nextOptionLabel(value: NextChoice, t: TFunction = tNow): string {
-  return t(value === "weekly" ? "accounts.auto.next.weekly" : "accounts.auto.next.room");
+  return t(NEXT_OPTIONS.find(o => o.value === value)?.labelMsg ?? NEXT_OPTIONS[0].labelMsg);
 }
-export function weeklyHint(t: TFunction = tNow): string { return t("accounts.auto.weeklyHint"); }
+export function weeklyHint(t: TFunction = tNow): string { return t(WEEKLY_HINT_MSG); }
 
 export function isNextChoice(v: unknown): v is NextChoice {
   return v === "room" || v === "weekly";

@@ -13,6 +13,8 @@
 // layout on every patch release would throw away hand-arranged canvases for no
 // reason; this is bumped by hand, in the same commit that changes the shape.
 
+import { UI_STORAGE_KEYS } from "./account-ui-fields";
+
 /** Bump ONLY when the stored shape of a key below changes. */
 export const STATE_SCHEMA = "1";
 
@@ -21,6 +23,12 @@ export const SCHEMA_KEY = "agent-dag.schema";
 /** Keys whose contents are tied to a version's data shape. Everything else in
  *  the agent-dag.* namespace is a preference and is kept across upgrades. */
 export const SHAPE_KEYS = ["agent-dag.layout", "agent-dag.viewport"];
+
+/** How many times each key the status bar names has been used from the
+ *  keyboard in this browser, as one JSON object of counts by hint id
+ *  (key-learning.ts). A key used often enough is learned and the bar stops
+ *  naming it. A preference like the rest: kept across upgrades. */
+export const KEY_USES_KEY = "agent-dag.keyUses";
 
 /**
  * One stored string, or null when it is absent OR the browser refuses the store.
@@ -53,7 +61,17 @@ export function readStored(key: string): string | null {
 export function writeStored(key: string, value: string): void {
   if (typeof window === "undefined") return;
   try { window.localStorage.setItem(key, value); } catch { /* private mode, blocked site data, full quota */ }
+  // A setting a ccdeck account can carry, announced to this tab: the browser's
+  // own `storage` event reaches only the OTHER tabs. Heard by the account's
+  // sync (account-bridge.ts) when the account is on; with nobody listening, a
+  // dispatch is all it costs, and only for the dozen keys that sync.
+  if (UI_STORAGE_KEYS.has(key)) {
+    try { window.dispatchEvent(new CustomEvent(STORED_EVENT, { detail: { key, value } })); } catch { /* no events here */ }
+  }
 }
+
+/** What writeStored dispatches for a setting an account can carry. */
+export const STORED_EVENT = "ccdeck:stored";
 
 /** Forgets one key, or does nothing where the store refuses — see `writeStored`. */
 export function removeStored(key: string): void {
@@ -101,5 +119,61 @@ export function pruneStaleState(store: Storeish, schema: string = STATE_SCHEMA):
     }
   }
   try { store.setItem(SCHEMA_KEY, schema); } catch { /* private mode */ }
+  return removed;
+}
+
+/** The three panels a first run used to open by itself: Accounts, Usage and
+ *  This machine. Their flags read a missing value as shut now. */
+export const FIRST_RUN_PANEL_KEYS = ["agent-dag.accountsPanelOpen", "agent-dag.usagePanelOpen", "agent-dag.systemPanelOpen"];
+
+/** Set once the three flags above have been settled on this profile. */
+export const PANEL_DEFAULTS_KEY = "agent-dag.panelDefaults";
+
+/** Written by every earlier load (the detail flag on every one, phones too),
+ *  so a profile holding any of them is not a first run. */
+const EARLIER_LOAD_KEYS = [SCHEMA_KEY, "agent-dag.detailOpen", "agent-dag.sessionListOpen", ...FIRST_RUN_PANEL_KEYS];
+
+/**
+ * A first run opens no panel now (it used to open Accounts and Usage, and This
+ * machine where there was room), so a newcomer meets the board, not two panels
+ * saying what is not set up yet.
+ *
+ * Nobody else's deck changes. Once per profile, before anything reads them: on
+ * a profile an earlier load wrote to, each of the three flags still missing is
+ * stored as open, which is what it read as until now; a fresh profile is left
+ * as it is and gets the closed default. Returns the keys it stored.
+ */
+export function settlePanelDefaults(store: Storeish): string[] {
+  const read = (key: string): string | null => { try { return store.getItem(key); } catch { return null; } };
+  let settled: string | null = null;
+  try { settled = store.getItem(PANEL_DEFAULTS_KEY); } catch { return []; }
+  if (settled !== null) return [];
+  const pinned: string[] = [];
+  if (EARLIER_LOAD_KEYS.some(key => read(key) !== null)) {
+    for (const key of FIRST_RUN_PANEL_KEYS) {
+      if (read(key) !== null) continue;
+      try { store.setItem(key, "1"); pinned.push(key); } catch { /* private mode */ }
+    }
+  }
+  try { store.setItem(PANEL_DEFAULTS_KEY, "1"); } catch { /* private mode */ }
+  return pinned;
+}
+
+/** Keys no build reads any more, forgotten on every load: the places Usage and
+ *  This machine were moved to on the Board. Since critique 3 (2026-11-12) they
+ *  stand in the Board's right column and do not move, so a place an earlier
+ *  build saved is dead weight in the store. A part popped out of Workspace's
+ *  column keeps its own place under its own key (panel-place.ts floatKey),
+ *  which stays. Kept as literals: panel-place.ts reads this module. */
+export const RETIRED_KEYS = ["agent-dag.usagePanelPlace", "agent-dag.machinePanelPlace"];
+
+/** Forgets the keys above. Returns the ones it removed. */
+export function forgetRetired(store: Storeish): string[] {
+  const removed: string[] = [];
+  for (const key of RETIRED_KEYS) {
+    try {
+      if (store.getItem(key) !== null) { store.removeItem(key); removed.push(key); }
+    } catch { /* a locked-down store is not worth failing boot over */ }
+  }
   return removed;
 }

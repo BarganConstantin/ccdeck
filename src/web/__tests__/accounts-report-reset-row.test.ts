@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Account } from "../claude-accounts";
-import { freshness, readingOf, sortReportRows, usageReport, usedAndAvailable } from "../accounts-usage-report";
+import { freshness, readingOf, sortReportRows, updatedLine, usageReport, usedAndAvailable } from "../accounts-usage-report";
 import { UsageReportBody } from "../components/AccountsUsageReport";
 
 const NOW = 1_790_000_000;
@@ -34,10 +34,16 @@ const html = (accounts: Account[]) =>
 /** Each row's two window cells, as markup, in the order they are drawn. */
 const cellsOf = (out: string) => [...out.matchAll(/<td class="ap-report-cell"[^]*?<\/td>/g)].map(m => m[0]);
 
-/** What a cell shows the eye: its markup without what only a screen reader
- *  hears, and without its tags. */
+/** What a cell's figure shows the eye: its markup without what only a screen
+ *  reader hears, and without its tags.
+ *
+ *  CHANGED ON PURPOSE (V4's Figma): the second line under the figure (when the
+ *  window resets) is left out here, as the reset used to be a column of its own
+ *  and these tests are about the figure. Its words are pinned in
+ *  accounts-report-window-lines. */
 const seen = (cell: string) =>
-  cell.replace(/<span class="ap-report-mobile-label"[^>]*>[^<]*<\/span>/g, "").replace(/<span class="vis-hidden">[^<]*<\/span>/g, "").replace(/<[^>]+>/g, "").trim();
+  cell.replace(/<span class="ap-report-mobile-label"[^>]*>[^<]*<\/span>/g, "").replace(/<span class="ap-report-win-sub"[^]*$/, "")
+    .replace(/<span class="vis-hidden"[^>]*>[^<]*<\/span>/g, "").replace(/<[^>]+>/g, "").trim();
 
 describe("a reading past its reset", () => {
   it("a reading past its reset says reset in its row and retains last observed usage", () => {
@@ -65,6 +71,7 @@ describe("a reading past its reset", () => {
     // Judged on what the total takes for it: both windows unused.
     expect(r.rows[0].status).toBe("ready");
     expect(freshness(r.rows[0], NOW)).toEqual({ text: "18h ago", old: true });
+    expect(updatedLine(r.rows[0], NOW)).toEqual({ text: "Updated 18h ago", old: true });
   });
 
   it("says reset the same way when the reading is current but its window has rolled over since", () => {
@@ -85,7 +92,11 @@ describe("a reading past its reset", () => {
     const [cell5] = cellsOf(html([old]));
     expect(seen(cell5)).toBe("33%");
     expect(cell5).toContain('data-uncounted=""');
-    expect(cell5).not.toContain("title=");
+    // CHANGED ON PURPOSE (V4's Figma): the cell itself carries no hover text (it
+    // has nothing to add to a reading that is only old); the recorded reset's
+    // time is on the line under the figure now, where the reset column was.
+    expect(cell5).not.toMatch(/^<td[^>]*title=/);
+    expect(cell5).toMatch(/<span class="ap-report-win-sub" data-sub="" title="Recorded reset: /);
     expect(usageReport([old], NOW).windows[0].used).toBe(33);
   });
 
@@ -100,7 +111,9 @@ describe("a reading past its reset", () => {
     // The total takes the window as unused, so the row says why: it reset.
     const out = html([blocked]);
     expect(cellsOf(out).map(seen)).toEqual(["96%", "84%"]);
-    expect(out).toMatch(/<td class="ap-report-upd" data-old="">[^]*?login expired/i);
+    // CHANGED ON PURPOSE (V4's Figma): the reason is the line under the state's
+    // word, where it used to be a column of its own.
+    expect(out).toMatch(/<span class="ap-report-win-sub" data-old="">[^<]*login expired/i);
   });
 
   it("orders an elapsed window by its last reported usage", () => {

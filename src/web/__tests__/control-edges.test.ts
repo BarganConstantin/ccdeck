@@ -32,7 +32,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { TAG_BUDGET, classesIn, openTags, withoutComments } from "./tsx-scan";
 import { gradientStops } from "./gradient-stops";
-import { sheetText } from "./sheet-source";
+import { mouseFlat, sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const css = sheetText();
@@ -104,7 +104,8 @@ function topLevel(src: string): Array<{ selector: string; body: string }> {
 }
 
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
-const RULES = topLevel(bare);
+// The mouse query's rules are read where they stand, in order: a desktop pointer meets them at the top level.
+const RULES = topLevel(mouseFlat(bare));
 // Hover-gated controls still owe the same contrast in their pointer state.
 const POINTER_RULES = [...bare.matchAll(/@media \(hover: hover\) and \(pointer: fine\)\s*\{/g)]
   .flatMap(m => topLevel(block(bare, m.index! + m[0].length - 1)[0]));
@@ -142,6 +143,8 @@ const decl = (selector: string, prop: string) => declIn(bodyOf(selector), prop);
  *  counted rather than matched lazily: `color-mix(in srgb, var(--x) 6%, …)`
  *  nests, and a `[^)]*` stops inside it. */
 function colourIn(value: string): string {
+  // V4's Figma: the focus width is a token, not a colour (--focus-w).
+  value = value.replace(/var\(--focus-w\)/g, "1.5px");
   const head = /(color-mix|var|rgba?)\(/i.exec(value);
   if (head) {
     const open = head.index + head[0].length - 1;
@@ -385,30 +388,30 @@ describe('the contrast sweep resolves sRGB color mixes', () => {
 });
 
 /** Every opaque bed a control is ever painted on, by the name the sheet gives
- *  it. The topbar is a gradient, so both of its ends count: a pill centred in
- *  52px of it is read against the darker one as much as the lighter.
+ *  it. The topbar is flat --panel now (V4's Top bar; it was a gradient between
+ *  --panel and --bg-soft in dark and two lights in light, so it counted twice:
+ *  "light end" and "dark end"). Its old ends were --panel and --bg-soft (and
+ *  their light twins), and both are still beds in this list under their own
+ *  names, so every floor is still held on them; the bar's own name stays, now
+ *  naming the one bed it is painted with. No floor is lowered.
  *
- *  The two ends are read by `./gradient-stops` now (#664). This file used to
- *  scrape them with a regex ending in `?? []` and then index `top[0]` and
- *  `top[1]` — so a --topbar-grad respelled in a notation that regex could not
- *  see handed four cases here `Cannot read properties of undefined`, a crash
- *  naming neither the token nor the notation, and a --node-grad respelled the
- *  same way went the other way entirely: `textBeds` below simply came back two
- *  beds shorter and 25 of 25 cases passed. Exactly two, because the two labels
- *  ARE the two ends — a third stop would be announced as a second dark end. */
+ *  The beds are read from the sheet by name and checked by VALUE in `bedFloor`
+ *  (#664), so a token respelled in a notation this file cannot read fails
+ *  loudly instead of shortening the list. */
 function surfaces(theme: Theme): Record<string, Rgba> {
   const panel = parseColor(TOK[theme]["--panel"]);
   const bg = parseColor(TOK[theme]["--bg"]);
-  const top = gradientStops("--topbar-grad", theme, TOK[theme], { exactly: 2 }).map(s => resolve(s, theme));
   const bannerTint = resolve(colourIn(decl(".ver-banner", "background")!), theme);
-  const activeTint = resolve(colourIn(decl(".ap-account.active", "background")!), theme);
+  // CHANGED ON PURPOSE (V4's Figma): the selected row's fill is the --selected
+  // token, which is the text ink at 8% over the panel.
+  expect(decl(".ap-account.active", "background")).toBe("var(--selected)");
+  const activeTint = resolve("color-mix(in srgb, var(--text) 8%, transparent)", theme);
   return {
     "--panel": panel,
     "--bg-soft": parseColor(TOK[theme]["--bg-soft"]),
     "--bg": bg,
+    "the topbar": panel,
     "Radar feed": resolve("var(--tr-feed-surface)", theme, ".modal.tr-modal"),
-    "the topbar's light end": top[0],
-    "the topbar's dark end": top[1],
     "the version banner": over(bannerTint, bg),
     "the active account row": over(activeTint, panel),
   };
@@ -418,23 +421,21 @@ function surfaces(theme: Theme): Record<string, Rgba> {
  *  themselves against it. */
 const BEDS = [
   "--panel", "--bg-soft", "--bg",
+  "the topbar",
   "Radar feed",
-  "the topbar's light end", "the topbar's dark end",
   "the version banner", "the active account row",
 ];
 
 /** The floor every bed sweep below opens with, outside the quantification it is
- *  the floor for (#627's lesson, by way of #648 and #662). `gradientStops`
- *  already refuses a --topbar-grad it cannot read, so this is the second line
- *  rather than the first: it is what still fails if that reader is ever softened
- *  back to a `?? []`.
+ *  the floor for (#627's lesson, by way of #648 and #662). It is the line that
+ *  still fails if a bed's reader is ever softened back to a `?? []`.
  *
  *  It checks the VALUES and not only the names, and that is the whole lesson of
  *  #664. Every sweep here looks a bed up BY NAME out of a Record whose keys are
- *  written by hand, so an unreadable gradient does not shorten the key list — it
- *  leaves `beds["the topbar's light end"]` holding `undefined`, and the key
- *  sweep sails straight over it into the same bare TypeError this file used to
- *  report. A floor that counts names is not a floor on the colours. */
+ *  written by hand, so an unreadable token does not shorten the key list — it
+ *  leaves `beds["the topbar"]` holding `undefined`, and the key sweep sails
+ *  straight over it into a bare TypeError. A floor that counts names is not a
+ *  floor on the colours. */
 function bedFloor(beds: Record<string, Rgba>, theme: Theme): void {
   expect(Object.keys(beds), `${theme}: the beds this sweep measures against`).toEqual(BEDS);
   expect(Object.entries(beds).filter(([, c]) => !Array.isArray(c)).map(([n]) => n),
@@ -449,8 +450,9 @@ function bedFloor(beds: Record<string, Rgba>, theme: Theme): void {
 function textBeds(theme: Theme): Array<[string, Rgba]> {
   const named: Array<[string, Rgba]> = (["--panel", "--bg-soft", "--bg"] as const)
     .map(t => [t, parseColor(TOK[theme][t])]);
-  const top = gradientStops("--topbar-grad", theme, TOK[theme], { exactly: 2 }).map((s, i): [string, Rgba] =>
-    [`the topbar, stop ${i}`, resolve(s, theme)]);
+  // The topbar is flat --panel now, which `named` already holds; it keeps its
+  // own name here so a sweep that reads "on the topbar" still says so.
+  const top: Array<[string, Rgba]> = [["the topbar", parseColor(TOK[theme]["--panel"])]];
   const node = gradientStops("--node-grad", theme, TOK[theme]).map((s, i): [string, Rgba] =>
     [`a node, stop ${i}`, resolve(s, theme)]);
   return [...named, ...top, ...node];
@@ -460,11 +462,11 @@ function textBeds(theme: Theme): Array<[string, Rgba]> {
  *  --node-grad used to shorten in silence. */
 const TEXT_BEDS = [
   "--panel", "--bg-soft", "--bg",
-  "the topbar, stop 0", "the topbar, stop 1",
+  "the topbar",
   "a node, stop 0", "a node, stop 1",
 ];
 
-const TOPBAR = ["the topbar's light end", "the topbar's dark end"];
+const TOPBAR = ["the topbar"];
 const BANNER = ["the version banner", "--bg"];
 const ACCOUNTS = ["--panel", "the active account row"];
 
@@ -533,18 +535,37 @@ interface Control {
 }
 
 const CONTROLS: Control[] = [
-  { at: ".qh-provider", states: [".qh-provider:hover"], beds: ["--panel"] },
-  { at: '.qh-provider[aria-pressed="true"]', beds: ["--panel"] },
+  // Local shadcn/ui form recipes retain the existing contrast floor.
+  { at: ".ui-button", states: ['.ui-button:hover:not(:disabled):not([aria-disabled="true"])'], beds: ["--panel"] },
+  { at: ".ui-button-primary", fillFrom: ".ui-button-primary", beds: ["--panel"] },
+  { at: ".ui-input", states: ['.ui-input[aria-invalid="true"]'], beds: ["--panel"] },
+  // CHANGED ON PURPOSE (V4's Figma): the integrations' tabs, detail tabs and the New session chips
+  // are outlined pills on the kit chip's --ctl-edge, swept here like any other control edge.
+  { at: ".fg-tabs .uh-range-btn", states: ['.fg-tabs .uh-range-btn[aria-selected="true"]'], beds: ["--panel"] },
+  { at: ".fd-sections .uh-range-btn", states: ['.fd-sections .uh-range-btn[aria-selected="true"]'], beds: ["--panel"] },
+  { at: '.ns-form .uh-range-btn[aria-pressed="false"]', fillFrom: '.ns-form .uh-range-btn[aria-pressed="false"]', states: ['.ns-form .uh-range-btn[aria-pressed="false"]:hover'], beds: ["--panel"] },
+  // CHANGED ON PURPOSE (#2591): New session's two agent buttons are 40px tall
+  // and keep the control edge in both states; the chosen one takes --accent
+  // as its edge on the --selected fill. Swept like the chips above.
+  { at: ".ns-form .ns-agents .uh-range-btn", fillFrom: '.ns-form .uh-range-btn[aria-pressed="false"]', states: ['.ns-form .ns-agents .uh-range-btn[aria-pressed="true"]'], beds: ["--panel"] },
+  // CHANGED ON PURPOSE (V4's Figma): Quota history's provider switch is a
+  // segmented track in the header. A segment at rest draws no boundary — it is
+  // named by its word, inside the track, as the feedback dialog's kinds are —
+  // and the chosen one is raised onto the panel with the control edge round it,
+  // which is the entry below.
+  // CHANGED ON PURPOSE (V4's Figma): the chosen segment sits on the --bg-soft track, not on the panel.
+  { at: '.qh-provider[aria-pressed="true"]', beds: ["--bg-soft"] },
   { at: ".qh-window select", beds: ["--panel"] },
   { at: ".radio-controls > .radio-player-button", states: ['.radio-controls > .radio-player-button:not(.radio-mute[aria-pressed="true"]):not(:disabled):hover'], beds: ["--bg-soft"] },
   { at: '.radio-controls .radio-mute[aria-pressed="true"]', beds: ["--bg-soft"] },
   { at: ".radio-search", states: [".radio-search:hover:not(:focus-within)"], beds: ["--panel", "--bg-soft"] },
   { at: ".radio-filter-search input", states: [".radio-filter-search input:focus-visible"], beds: ["--panel"] },
-  { at: ".radio-filter-trigger", states: ['.radio-filter-trigger[data-filtered="true"]', ".radio-filter-trigger:focus-visible", ".radio-filter-trigger:hover"], beds: ["--panel", "--bg-soft"] },
+  { at: ".radio-filter-trigger", states: ['.radio-filter-trigger[data-filtered="true"]', ".radio-filter-trigger:hover"], beds: ["--panel", "--bg-soft"] },
   { at: ".radio-map-tools .radio-map-button", beds: ["--bg"] },
   { at: ".radio-play", states: [".radio-play:not(:disabled):hover"], beds: ["--bg-soft"] },
-  { at: '.character-choice', beds: ["--panel"] },
-  { at: '.character-choice[aria-checked="true"]', fillFrom: '.character-choice', beds: ["--panel"] },
+  // CHANGED ON PURPOSE (V4's Figma): the companion tile's frame is its preview's;
+  // the tile itself draws no edge. Held to the same 3:1, at rest and chosen.
+  { at: '.character-preview', states: ['.character-choice[aria-checked="true"] .character-preview'], beds: ["--panel"] },
   { at: '.ap-reset-day-button[aria-pressed="true"]', fillFrom: '.ap-reset-day-button[aria-pressed="true"]', beds: ["--panel"] },
   { at: '.ap-reset-coverage-link[aria-pressed="true"]', beds: ["--panel"] },
   { at: ".ta-search input", states: [".ta-search input:hover"], beds: ["--bg"] },
@@ -555,8 +576,8 @@ const CONTROLS: Control[] = [
   { at: '.tr-message[aria-pressed="true"]', fillFrom: '.tr-message[aria-pressed="true"]', beds: ["--panel"] },
   { at: '.tr-tab[aria-selected="true"]', fillFrom: '.tr-tab[aria-selected="true"]', beds: ["--panel"] },
   { at: ".tr-body .btn.tr-quiet:hover:not(:disabled)", beds: ["--panel"] },
-  { at: ".tr-input:hover", beds: ["--panel"] },
-  { at: ".tr-select:hover", beds: ["--panel"] },
+  { at: ".tr-input:hover:not(:focus-visible)", beds: ["--panel"] },
+  { at: ".tr-select:hover:not(:focus-visible)", beds: ["--panel"] },
   // Continue at the end of a stopped background session's stop row (#2193),
   // edged in the row's own hue on the card's face, and in the text colour
   // under the pointer.
@@ -571,6 +592,12 @@ const CONTROLS: Control[] = [
   // with the primary button's accent edge. Its search fields and its Open in
   // Jira link are the integrations' shared ones.
   { at: 'button.btn.jr-chip[aria-pressed="true"]', fillFrom: 'button.btn.jr-chip[aria-pressed="true"]', beds: ["--panel"] },
+  // The Filters button the chips fold into in a dialog under 900 wide: the
+  // same chip, with the on chip's accent edge while any filter is on.
+  { at: "button.btn.jr-chip.jr-filter-fold-btn[data-on]", fillFrom: "button.btn.jr-chip.jr-filter-fold-btn[data-on]", beds: ["--panel"] },
+  // The forge lists' state chips (#2179): the same chip, on the filter row
+  // over the list, and its accent edge when it is on.
+  { at: 'button.btn.fgl-chip[aria-pressed="true"]', fillFrom: 'button.btn.fgl-chip[aria-pressed="true"]', beds: ["--panel"] },
   // Move's native destination/position fields sit on the anchored panel.
   { at: ".jr-move-pop select", beds: ["--panel"] },
   // The workflow transition selector is drawn in Jira's detail panel.
@@ -579,14 +606,13 @@ const CONTROLS: Control[] = [
   // fields become: on a toolbar over --bg in the modal, or over --panel.
   { at: ".ig-search-input", states: [".ig-search-input:hover"], beds: ["--panel", "--bg"] },
   // topbar
-  // The up-to-date version chip draws no boundary any more: it is metadata
-  // beside the wordmark, identified by its own text, and it wears the
-  // toolbar's resting look. The stale chip is a warning and keeps its edge.
-  { at: ".topbar .brand button.v.stale", states: [".topbar .brand button.v.stale:hover"], beds: TOPBAR },
-  // The app's ready update (#1187): good news, so the accent rather than the
-  // stale chip's amber, and an edge that has to clear 3:1 on its own.
-  { at: ".topbar .brand button.v.ready", states: [".topbar .brand button.v.ready:hover"], beds: TOPBAR },
-  { at: ".selected-ribbon", states: [".selected-ribbon:hover"], beds: TOPBAR },
+  // The version chip draws no boundary in any state now. The up-to-date one is
+  // metadata beside the wordmark, identified by its own text; V4 draws a newer
+  // version, a ready update and the press (#1187) as the --accent-16 wash with
+  // NO edge, so there is no boundary left for this sweep to measure, the way
+  // `.detail-close` left it below. What identifies them is their words, held
+  // to 4.5:1 by the "chip words" case at the foot of this file.
+  // (The selected ribbon, swept here, is gone: V4's Figma.)
   { at: "button.btn", states: ["button.btn:hover"], beds: [...TOPBAR, "--panel"] },
   { at: "button.btn", fillFrom: "button.btn.ig-manage:not(.primary)", states: ["button.btn:hover"], beds: ["--panel"] },
   { at: "button.btn.primary", fillFrom: "button.btn.primary", beds: [...TOPBAR, "--panel"] },
@@ -604,7 +630,7 @@ const CONTROLS: Control[] = [
   // exhaustiveness check at the bottom of this describe is what would say so if
   // it came back.
   { at: "button.btn.danger", fillFrom: "button.btn", states: ["button.btn.danger:hover"], beds: ["--panel"] },
-  { at: ".topbar .waiting-stat", states: [".topbar .waiting-stat:hover"], beds: TOPBAR },
+  { at: ".topbar .count-pill.waiting-stat", states: [".topbar .waiting-stat:hover"], beds: TOPBAR },
   // The permission ask that sits beside the count. Dashed rather than solid, so
   // it reads as an offer next to an alarm — but a dashed boundary is still the
   // whole of what identifies the control, so it is measured on the same floor
@@ -615,7 +641,7 @@ const CONTROLS: Control[] = [
   // the sweep rather than an exemption for the reason 1.4.11 gives: a `select`
   // is identified by nothing but the option text inside it, so the box IS the
   // control. Its bed is --panel, which is the popover's own surface.
-  { at: ".sm-select", states: [".sm-select:hover"], beds: ["--panel"] },
+  { at: ".sm-select", states: [".sm-select:hover:not(:focus-visible)"], beds: ["--panel"] },
   // The sound menu's two small buttons, softened off --ctl-edge onto --sm-edge
   // when they were made secondary. Swept here so the softer edge is MEASURED
   // against 1.4.11 rather than argued for in a comment.
@@ -629,17 +655,18 @@ const CONTROLS: Control[] = [
   // which means it has to be legible the first frame it is there.
   { at: ".skip-link", beds: TOPBAR },
   // version banner
-  { at: ".ver-banner .ver-cmd", states: [".ver-banner .ver-cmd:hover"], beds: BANNER },
-  { at: ".ver-banner .ver-act", states: [".ver-banner .ver-act:hover:not(:disabled)"], beds: BANNER },
-  // The Undo row keeps the banner's shape on a plain --bg-soft bed, and its
-  // button trades the amber edge for the controls' own.
-  { at: ".ver-banner.note .ver-act", states: [".ver-banner.note .ver-act:hover:not(:disabled)"], beds: ["--bg-soft"] },
-  // The auto-restart switch is the shared one since #886. Armed, it fills with
-  // the banner's warning colour, measured here on the banner's own beds.
-  { at: '.ver-banner .switch[aria-checked="true"]', beds: BANNER },
+  // CHANGED ON PURPOSE (V4's Figma): the command is a borderless --sunken box with an icon Copy; the old framed pill is gone, so it draws no edge to sweep. Its Copy is a glyph button with no edge either.
+  // V4's banner: .ver-act is plain accent text with no edge, so it left this
+  // sweep (a text control has no boundary to measure; its ink is held to 4.5:1
+  // on --panel by v4-banner.test.ts).
+  // CHANGED ON PURPOSE (V4's Figma): the banner draws no auto-restart switch any
+  // more; the countdown is said in its sentence and the preference is the
+  // shared switch in Settings › Updates, swept with every other switch.
   // The one question's scale, eleven numbered buttons on the calm `note` bed,
   // framed at rest like the version banner's command and louder on hover.
-  { at: ".rating-banner .rating-pick", states: [".rating-banner .rating-pick:hover"], beds: ["--bg-soft"] },
+  { at: ".rating-banner .rating-pick", states: [".rating-banner .rating-pick:hover"], beds: BANNER },
+  // CHANGED ON PURPOSE (V4's Figma): "Not now" is an outlined 28px button, so its edge is swept like the pills' (the pills now sit on the banner's --panel with no fill).
+  { at: ".rating-banner .rating-later", states: [".rating-banner .rating-later:hover"], beds: BANNER },
   // canvas, detail panel, modals
   // `.detail-close:hover` and `.ctx-modal-close` used to be here, and they are
   // gone rather than exempted. Both are `.glyph-btn` now — a bare character in
@@ -651,8 +678,10 @@ const CONTROLS: Control[] = [
   // check at the bottom of this describe is what keeps that honest — the day
   // either one draws an edge again it lands in `unclassified` and has to come
   // back up here or be written into EXEMPT with a reason.
-  { at: ".session-list .sl-row:hover", fillFrom: ".session-list .sl-row:hover",
-    states: [".session-list .sl-row.selected"], beds: ["--panel"] },
+  // (The session list's rows left this sweep with V4's Attention rail: a rail
+  // row draws no border at rest or on hover, its hover is the kit's --ctl-fill
+  // and its selection --selected, both fills, and the ink on each is held to
+  // 4.5:1 by contrast-floors.test.ts.)
   // accounts panel
   // Every switch in the deck, one control since #886. Its ON state fills with
   // --accent rather than the control fill, which is the point of listing both:
@@ -687,18 +716,18 @@ const CONTROLS: Control[] = [
   { at: ".fb-shot-img", states: [".fb-shot-pick:hover .fb-shot-img", ".fb-shot-pick:focus-visible .fb-shot-img"], beds: ["--panel"] },
   // Settings › Keyboard's filter (#2176): framed at rest, as Tool activity's
   // search field is, and louder under the pointer.
-  { at: ".settings-filter-field", states: [".settings-filter-field:hover"], beds: ["--panel"] },
+  { at: ".settings-filter-field", states: [".settings-filter-field:hover:not(:focus-visible)"], beds: ["--panel"] },
   // The one switch whose on gives something away (#828): on, it fills with
   // --warn; waiting for its second press, its edge is --warn, hovered or not.
   // It lives in the LAN dialog, on the panel.
   { at: '.switch[data-tone="warn"][aria-checked="true"]', beds: ["--panel"] },
-  { at: ".ap-field select", states: [".ap-field select:hover:not(:disabled)"], beds: ACCOUNTS },
+  { at: ".ap-field select", states: [".ap-field select:hover:not(:disabled):not(:focus-visible)"], beds: ACCOUNTS },
   // The Local network intro card, while the section is off: a drawing and two
   // lines in one button, whose boundary is the same --ctl-edge on --ctl-fill
   // every labelled control wears. Its bed is the panel it sits at the foot of.
   { at: ".ap-lan-intro", states: [".ap-lan-intro:hover:not(:disabled)"], beds: ["--panel"] },
   // browser watch
-  { at: ".bw-settings select", states: [".bw-settings select:hover:not(:disabled)"], beds: ["--panel"] },
+  { at: ".bw-settings select", states: [".bw-settings select:hover:not(:disabled):not(:focus-visible)"], beds: ["--panel"] },
   // The overview's help disclosure — a 16px circle whose border IS the control,
   // so all three of its states are measured.
   { at: ".bw-help", states: [".bw-help:hover", '.bw-help[aria-expanded="true"]'], beds: ["--panel"] },
@@ -708,7 +737,7 @@ const CONTROLS: Control[] = [
   // threshold's custom field holding a value it refused does the same, beside
   // the words under its row that say why.
   { at: ".ap-manage-input", states: [
-    ".ap-manage-input:hover",
+    ".ap-manage-input:hover:not(:focus-visible)",
     '.ap-manage-input.fb-message[aria-invalid="true"]',
     '.ap-policy .ap-threshold-input[aria-invalid="true"]',
   ], beds: ACCOUNTS },
@@ -728,11 +757,10 @@ const CONTROLS: Control[] = [
   { at: ".ap-lan-who .ap-manage-btn:hover:not(:disabled)",
     fillFrom: ".ap-lan-who .ap-manage-btn:hover:not(:disabled)",
     states: [".ap-lan-who .ap-manage-btn:focus-visible"], beds: ACCOUNTS },
-  // The Other accounts list's two controls (#1579), on the same terms: no
-  // boundary at rest — the order is its words and the other is named — and the
-  // edge they draw under the pointer and the keyboard measured on the column.
-  { at: ".ap-rest-sort select:hover", fillFrom: ".ap-rest-sort select:hover",
-    states: [".ap-rest-sort select:focus-visible", ".ap-rest-sort select[data-held]"], beds: ACCOUNTS },
+  // The Other accounts list's expand-all (#1579), on the same terms: no
+  // boundary at rest — it is named — and the edge it draws under the pointer
+  // and the keyboard measured on the column. CHANGED ON PURPOSE (internal
+  // #94): the order menu beside it, and its dashed held edge, are gone.
   { at: ".ap-rest-all:hover", fillFrom: ".ap-rest-all:hover",
     states: [".ap-rest-all:focus-visible"], beds: ACCOUNTS },
   // The network map's way in, over Local network's row, on the same terms as
@@ -752,15 +780,17 @@ const CONTROLS: Control[] = [
       // undone.
       ".ap-lan-who .ap-manage-btn.danger.armed",
     ], beds: ACCOUNTS },
-  // The same verb as the row's, holding the same line one panel in. Unpair is
-  // rare and cannot be undone from here, and it sat in the loudest ink on the
-  // surface beside the button somebody presses every day — so it keeps its
-  // word and its place and loses the edge until it is pointed at, exactly as
-  // the row above does. Measured at the state where the edge exists, on the
-  // foot's own ground rather than the body's.
-  { at: ".lan-peer-foot .btn.danger:not(.armed):hover:not(:disabled)",
+  // CHANGED ON PURPOSE (V4's Figma): the deck's own dialog draws Unpair as the
+  // quiet outlined button on the left of its foot, so the control now has an
+  // edge at rest (the shared control edge) as well as under the pointer and
+  // the keyboard, and all three are measured. The foot is the dialog's own
+  // --panel now, not the --bg-soft band it used to be.
+  { at: ".lan-peer-foot .btn.danger:not(.armed)",
     fillFrom: "button.btn",
-    states: [".lan-peer-foot .btn.danger:not(.armed):focus-visible"], beds: ["--bg-soft"] },
+    states: [
+      ".lan-peer-foot .btn.danger:not(.armed):hover:not(:disabled)",
+      ".lan-peer-foot .btn.danger:not(.armed):focus-visible",
+    ], beds: ["--panel"] },
   // The feedback dialog's Discard holds the same line in its own foot: it is
   // drawn only while there is a draft, keeps its word and loses the edge until
   // it is pointed at or focused. The foot is the dialog's panel, not a band.
@@ -768,8 +798,9 @@ const CONTROLS: Control[] = [
     fillFrom: "button.btn",
     states: [".fb-foot .btn.danger:not(.armed):focus-visible"], beds: ["--panel"] },
   { at: ".ap-fix", states: [".ap-fix:hover"], beds: ["--panel"] },
-  // add-account dialog
-  { at: ".aa-tab", states: [".aa-tab.on"], beds: ["--panel"] },
+  // add-account dialog. CHANGED ON PURPOSE (V4's Figma): the two tabs are the
+  // segments of one control and draw no edge of their own — the chosen one is
+  // the panel fill on the --bg-soft box.
   { at: ".aa-link", states: [".aa-link:hover"], beds: ["--panel"] },
   { at: ".aa-field input", beds: ["--panel"] },
   // The escape hatch on an import result row — a pill whose border is the
@@ -803,21 +834,20 @@ function edgeRatio(edge: string, fill: string, bed: Rgba, theme: Theme, scope?: 
  * there or which state it is in. A hairline added on hover, over a control
  * whose resting edge the sweep above already measures, is not — it is a lift.
  */
-const EXEMPT_RINGS = new Set([
+const EXEMPT_RINGS = new Set<string>([
   // An --accent-dim glow added on hover to a pressed icon toggle was excused
   // here, over an edge that stayed; the toggle left the sheet with the topbar's
   // panel buttons (2026-10-08), and so did its glow.
-  // A currentColor hairline on a canvas label that is lifting under the
-  // pointer. .cluster-label is exempt at rest for the reason below — it reads
-  // its own name at 4.5:1 — and session-hue.test.ts owns its rim as decoration.
-  // `.cluster-label.dragging` was excused beside it until #546 took the rule
-  // out of the sheet: nothing ever put `dragging` on that element, and the
-  // check at the bottom of this describe is the one that would have said so
-  // the moment the exemption outlived what it excused.
-  ".cluster-label:hover",
-  // The light cluster label keeps the same decorative hairline. Tool bursts
-  // now lift with a diffuse shadow, so they no longer need ring exemptions.
-  ':root[data-color-scheme="light"] .cluster-label:hover',
+  // `.cluster-label.dragging` was excused here until #546 took the rule out of
+  // the sheet: nothing ever put `dragging` on that element, and the check at
+  // the bottom of this describe is the one that would have said so the moment
+  // the exemption outlived what it excused. Tool bursts lift with a diffuse
+  // shadow, so they need no ring exemption either.
+  // CHANGED ON PURPOSE (V4 top-10 #1): `.cluster-label:hover` and its light
+  // twin were excused for the currentColor hairline the hued pill drew under
+  // the pointer. The label is plain text now and its hover is a colour and an
+  // underline, so it draws no ring and is excused for none (the last case of
+  // the rings' describe holds that).
 ]);
 
 /** Every rule in the sheet that draws a ring somebody has to be able to see:
@@ -890,19 +920,14 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // (#869) makes eleven: React Flow strips the global ring from the node
     // wrapper, so the card draws its own and the ring is its keyboard boundary.
     expect(RING_RULES.flatMap(r => selectors(r.selector)).sort()).toEqual([
-      ".aa-field input:focus-visible",
-      ".ap-field select:focus-visible",
-      ".ap-lan-word:focus-visible",
-      ".ap-manage-input:focus-visible",
-      ".ap-proj-copy:focus-visible",
       // The Projects report's day column: its selection ring and its keyboard
       // focus ring are the whole of its boundary — the bar itself has no box.
       ".ap-proj-day.selected .ap-proj-col",
-      ".ap-proj-day:focus-visible",
-      ".appearance-theme:focus-visible",
-      ".cat-filter:focus-visible",
-      ".character-choice:focus-visible",
-      ".ctx-donut:focus-visible",
+      // Workspace's side column: its width edge and the split between its two
+      // panels are thin grab strips with no box of their own, so the keyboard
+      // ring drawn inside them is the whole of their boundary.
+      ".app[data-view=\"workspace\"] .ws-edge:focus-visible",
+      ".app[data-view=\"workspace\"] .ws-split:focus-visible",
       // The feedback dialog's kinds (#1853): the focused thing is a 1px radio,
       // so the card it stands for draws the ring, as the import card does.
       ".fb-kind:has(input:focus-visible)",
@@ -911,36 +936,33 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // retain opaque semantic beds, measured in jira-contrast.test.ts.
       ".ig-row[data-selected] .ig-avatar-none",
       ".ig-row[data-selected] .ig-chip",
+      // The Inspector's tree: the keyboard's stop is an invisible button, so
+      // the agent card beside it draws the ring, as the feedback kinds' cards do.
+      ".insp-card:has(.insp-pick:focus-visible) .agent-node",
       // The navigable button now puts its focus ring on the whole issue row.
       ".jr-row:has(> .jr-row-main:focus-visible)",
-      // Quick open's field: the input in it is borderless, so the row it
-      // sits in draws the ring, as the feedback kinds' cards do.
-      ".qo-field:has(.qo-input:focus-visible)",
-      ".radio-collection:focus-visible",
-      ".radio-filter-back:focus-visible",
-      ".radio-filter-chip:focus-visible",
-      ".radio-filter-field:focus-visible",
-      ".radio-filter-search input:focus-visible",
-      ".radio-filter-toggle:focus-visible",
-      ".radio-filter-trigger:focus-visible",
-      ".radio-list:focus-visible",
-      ".radio-loading > .icon-btn:focus-visible",
-      ".radio-map-canvas:focus-visible",
-      ".radio-reset:focus-visible",
-      ".radio-workspace-toggle:focus-visible",
-      ".react-flow__node:focus-visible .agent-node",
+      // CHANGED ON PURPOSE (internal #103): the Sessions list's right edge is a
+      // thin grab strip with no box of its own, as Workspace's .ws-edge is, so
+      // the keyboard ring drawn inside it is the whole of its boundary.
+      // CHANGED ON PURPOSE (#2591): the strip moved from the Sessions list to
+      // the left column, so one edge sizes both panels the column can hold.
+      ".left-column > .sl-edge:focus-visible",
+      // (not on a selected card: there the selection ring is the one drawn)
       // And the same ring on the card's face at the compact and overview
       // distances, where the card's own is a hairline of layout units.
       ".react-flow__node:focus-visible .lod-face",
-      ".reading-choice:has(input:focus-visible)",
-      ".selected-ribbon:focus-visible",
-      ".session-list .sl-row:focus-visible",
+      ".react-flow__node:focus-visible:not(.rf-selected) .agent-node",
       // Settings' search results: the highlight the arrows move while focus
       // stays in the field — VIRTUAL_FOCUS again (SettingsSearch.tsx).
       '.settings-result[data-highlighted="true"]',
-      ".switch:focus-visible",
-      '.tr-body :is(button, input, select, summary):focus-visible',
+      // Chat's terminal handoff has a text action without a resting border;
+      // its shared keyboard outline is the action's only ring boundary.
+      ".ts-chat-handoff > button.btn:focus-visible",
       ".uh-bar-col.sel .uh-bar",
+      // CHANGED ON PURPOSE (internal #102): the line between two panes of a
+      // split Workspace is the same kind of grab strip, 1px drawn, so the
+      // keyboard ring drawn round it is the whole of its boundary.
+      ".wsp-divider:focus-visible",
       ":focus-visible",
     ]);
   });
@@ -976,7 +998,8 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // lifting its edge under the pointer and the keyboard, and the message
     // taking the error colour on its edge when Send was pressed with it empty.
     // Radio discovery, session pricing and reset-calendar controls extend the inventory.
-    // Gruvbox adds one resting cluster-label rim; its visible name identifies it.
+    // Gruvbox added one resting cluster-label rim; it left with the session
+    // hue (V4 top-10 #1), and the label draws no edge in any theme.
     // Tool activity's search field adds two: framed at rest, louder under the pointer.
     // Settings' redesign (#2176) adds Keyboard's filter field the same way,
     // two more, and took the Music section's station picker away with its own.
@@ -992,7 +1015,13 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     // the row around it.
     // Jira Move adds a select boundary and the full-row keyboard perimeter;
     // both are swept at the unchanged 3:1 floor, not exempted.
-    expect(EDGED_CONTROLS.length).toBeLessThan(166);
+    // CHANGED ON PURPOSE (V4's Figma): the integrations' tabs, detail tabs and the New session
+    // chips are outlined pills, a few rules more, so the ceiling moves from 166 to 172.
+    // CHANGED ON PURPOSE: Jira's Filters button, the chips folded in a dialog
+    // under 900 wide, adds one: its accent edge while a filter is on, swept
+    // above at the same 3:1 floor. The ceiling moves from 172 to 173.
+    // Button/Input add two boundaries and their hover, invalid and focus states.
+    expect(EDGED_CONTROLS.length).toBeLessThan(180);
     // The shapes #378 and #655 each added, still answered: a ring-only rule and
     // a `-color`-longhand-only rule both read as edges.
     expect(paintsAnEdge("outline: 1px solid var(--line);")).toBe(true);
@@ -1016,16 +1045,14 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
     expect(borderColourIn("border-bottom-color: var(--accent);")).toBe("var(--accent)");
   });
 
-  it("reads the two rules in the sheet that this widening newly sees", () => {
-    // Both recolour the `border-bottom` their base rule declares, and neither
-    // is a control — which is why RING_RULES and EDGED_CONTROLS are unchanged
-    // by #655 and why the case above them could be written from the values the
-    // narrow list produced.
-    expect(borderColourIn(bodyOf(".ver-banner.done")))
-      .toBe("color-mix(in srgb, var(--ok) 30%, transparent)");
-    expect(borderColourIn(bodyOf(':root[data-color-scheme="light"] .conn-banner')))
-      .toBe("rgba(185,28,28,0.45)");
-    for (const s of [".ver-banner.done", ':root[data-color-scheme="light"] .conn-banner']) {
+  it("reads the banners' bottom rule, which is the one border they draw", () => {
+    // V4's banner: the two tinted `-color` longhand rules this case read
+    // (.ver-banner.done and the light .conn-banner) are gone — the banners draw
+    // one flat --line rule in every theme. The banners still are not controls,
+    // so RING_RULES and EDGED_CONTROLS do not move for them.
+    expect(borderColourIn(bodyOf(".ver-banner"))).toBe("var(--line)");
+    expect(borderColourIn(bodyOf(".conn-banner"))).toBe("var(--line)");
+    for (const s of [".ver-banner", ".conn-banner"]) {
       expect(isControlRule(s), `${s} became a control rule — the sets above move`).toBe(false);
     }
   });
@@ -1266,6 +1293,15 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // The stack's frame and the rules between its buttons. Each button is a
       // glyph; the group's outline is a group's outline.
       ".react-flow__controls-button",
+      // CHANGED ON PURPOSE (the owner's phone layout): the phone's key row. Each key
+      // is identified by the cap written in it (Esc, Tab, Ctrl+C...) as the frame
+      // draws it, with a --line rim on --bg-soft like the other quiet buttons.
+      ".ts-key",
+      // A card of the phone's Board (critique 3, point 7): a session's row drawn
+      // as a card, identified by the name, state word and task written in it,
+      // as the Sessions row it stands for is with no edge at all. Its --line rim
+      // on --panel is the card's outline, the canvas cards' own.
+      ".phone-board .pb-card",
       // Rows in the tool list. `border: none` plus a hairline separating one
       // row from the next — the row is identified by the tool's name in it.
       ".detail .tool", "button.tool.clickable", "button.tool.clickable:last-child",
@@ -1277,6 +1313,21 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // has to be worth is measured — as a state rather than as an edge — by
       // usage-series-contrast.test.ts, which holds it to the same bar #583 set.
       ".up-period .uh-range-btn[aria-pressed=\"true\"]",
+      // CHANGED ON PURPOSE (V4's Figma): the Usage panel's period chips are pills
+      // with a 1px --line stroke at rest and an --accent stroke when chosen, each
+      // identified by the word written in it (today, month, all) — like the
+      // history modal's own range strip, which this one is the pills form of.
+      ".up-period .uh-range-btn",
+      // CHANGED ON PURPOSE (V4's Figma): the history modal's own range chips are the
+      // same pills, a 1px --line stroke at rest and an --accent stroke on the
+      // accent wash when chosen, each identified by the word written in it
+      // (7d, 14d, 30d, 90d).
+      ".uh-toolbar .uh-range-btn", '.uh-toolbar .uh-range-btn[aria-pressed="true"]',
+      // CHANGED ON PURPOSE (V4's Figma): Discard, once pressed, is the kit's quiet
+      // button (a --line stroke, no fill, no red) named by the words "Confirm
+      // discard" written in it; the armed state is also said in words to a screen
+      // reader and by the bar that drains across it.
+      ".fb-foot .btn.danger.armed",
       // A control whose own request is in flight. Same reason as the period
       // strip above and the same shape: the boundary is drawn at rest by
       // whatever control this is, and is measured there; `aria-busy` only
@@ -1287,21 +1338,64 @@ describe("every control that draws a boundary draws one that can be seen (1.4.11
       // been announcing to screen readers since it was written, with nothing on
       // screen saying the same thing.
       "button[aria-busy=\"true\"]:not(:disabled)",
-      // A label on the canvas, whose rim is a tint of the session hue and
-      // whose floors session-hue.test.ts owns as decoration. It reads its own
-      // name at 4.5:1, which is the identification. (It read "draggable" here
-      // until #546; it is a fit-view button and never was one.)
-      ".cluster-label",
-      // Gruvbox retunes the same decorative rim, preserving hover and alarm states.
-      ':root[data-theme^="gruvbox-"] .cluster-label:where(:not(:hover):not([data-alarm]))',
-      // The same label for a session stopped until a human answers. It only
-      // RECOLOURS the rim above to --warn — the aria-busy argument: nothing
-      // appears or moves, the label is still identified by the name written in
-      // it, and the state is also said by the triangle and, for a screen
-      // reader, in words. A state indicator on a decorative rim, not a boundary.
-      ".cluster-label[data-alarm]",
+      // CHANGED ON PURPOSE (V4 top-10 #1): `.cluster-label`, its Gruvbox
+      // retune and `.cluster-label[data-alarm]` were named here for the rim
+      // the hued pill drew, decoration whose floors session-hue.test.ts owned.
+      // The label is plain text now — `border: 0`, and the alarm recolours
+      // the words to --warn rather than an edge — so it paints no boundary
+      // for this sweep to classify, and an exemption would only outlive it.
       // A labelled region button: its rim conveys selection, not identity.
       '.radio-regions .radio-region[aria-pressed="true"]',
+      // The text-field family's focus state (V4's Figma: no ring, the 1px border
+      // turns --accent, --err when invalid). A state recolour of an edge the
+      // sweep above measures at rest; its colours are held to 3:1 on every bed
+      // by "the text-field focus border" test below.
+      // A DISABLED field or select: V4's kit draws it in --line, because an
+      // inactive component owes no boundary (1.4.11 exempts it, as 1.4.3 does its text).
+      // A disabled button, of every kind, the same way (V4's kit: no fill, a
+      // --line-soft edge, the label in --muted-dim), and LAN's Unpair, whose
+      // own rules outrank the shared one, says it again.
+      "button.btn:disabled", "button.btn:disabled:hover", ".lan-peer-foot .btn.danger:disabled",
+      ".ap-manage-input:disabled", ".ap-manage-input:disabled:hover:not(:focus-visible)",
+      ".sm-select:disabled", ".sm-select:disabled:hover:not(:focus-visible)",
+      // The checkbox's box: the same --ctl-edge the fields are swept for above,
+      // recoloured to --accent when ticked (a state, as the period strip's).
+      ".cbx > input", ".cbx > input:checked",
+      // A Jira row chosen with others draws the ticked box in its disclosure's
+      // place, the sub-tasks' toggle included: a state mark filled solid in the
+      // accent (its fill is its shape), as the checkbox's ticked state above.
+      // The toggle is named by its label and keeps opening the sub-tasks.
+      ".jr-board[data-multi] .jr-row[data-picked] :is(.jr-toggle-space, .jr-toggle)::before",
+      ".jr-board[data-multi] .jr-row[data-picked] :is(.jr-toggle-space, .jr-toggle)::after",
+      // A key cap: named by the key written in it (and `.qo-esc` by its word);
+      // V4's kit gives it the --line hairline, a label's rim and not a boundary.
+      "kbd.qo-key", ".qo-esc", ".qo-foot kbd", ".fb-shortcut kbd",
+      // CHANGED ON PURPOSE: the category filter's legend items are gone (one
+      // Tools button at every width), so `.cat-filter.off .cat-dot` left this
+      // list.
+      // CHANGED ON PURPOSE (V4 top-10 #3): ".autofit-chip" (the canvas's "Fit
+      // all" button) → gone from this list, because the chip left the canvas:
+      // ⌖ recenter did the same job, so the sheet no longer draws the selector.
+      // CHANGED ON PURPOSE (V4's Figma): the Auto-switch chips are the same
+      // pills — a --line rim at rest, and the chosen one filled with
+      // --accent-16 and edged in --accent — each named by its own word.
+      ".ap-chip", '.ap-chip[aria-pressed="true"]',
+      // CHANGED ON PURPOSE (V4's Figma): an account row's Switch and Sign in
+      // are the kit's quiet buttons — a --line rim on --bg-soft, like the
+      // phone's keys above — each named by the word written in it.
+      ".ap-switch", ".ap-sign-in",
+      ".settings-filter-field:focus-visible", ".sm-select:focus-visible", ".ap-manage-input:focus-visible",
+      ".aa-field input:focus-visible", ".tr-input:focus-visible", ".tr-select:focus-visible",
+      ".qh-window select:focus-visible", ".jr-move-pop select:focus-visible", ".jr-transition select:focus-visible",
+      ".jr-comment-compose textarea:focus-visible", ".su-pricing select:focus-visible",
+      ".ap-field select:focus-visible", ".ap-pop .ap-field select:focus-visible", ".bw-settings select:focus-visible",
+      'input[aria-invalid="true"]:focus-visible', 'textarea[aria-invalid="true"]:focus-visible', 'select[aria-invalid="true"]:focus-visible',
+      // CHANGED ON PURPOSE (V4's Figma): quick open's field draws no ring. The
+      // rule under it takes --accent while the input in it holds focus, the
+      // text-field family's focus colour on the line the frame draws: a state
+      // indicator, as above, not the boundary of a field named by its caret
+      // and its placeholder.
+      ".qo-field:has(.qo-input:focus-visible)",
     ]);
     const swept = new Set<string>();
     for (const c of CONTROLS) {
@@ -1335,7 +1429,12 @@ describe("the rings, which a border sweep cannot see (1.4.11, 2.4.11)", () => {
     // a sheet that has stopped drawing focus rings must.
     const focus = RING_RULES.filter(r => /:focus-visible/.test(r.selector));
     expect(focus.length, "the sheet draws no focus indicator this sweep can find")
-      .toBeGreaterThanOrEqual(8);
+      // CHANGED ON PURPOSE (V4 Figma): 8 became 7 because the five-preview picker of Text &
+      // density, and with it its one ring rule, was deleted; the Select that replaced it takes
+      // the shared `.sm-select:focus-visible` ring already counted. A floor, as above.
+      // CHANGED ON PURPOSE (V4's Figma): 7 became 6 because quick open's field draws no ring;
+      // its input's focus shows as the --accent rule under the field (exempted above).
+      .toBeGreaterThanOrEqual(6);
     expect(RING_RULES.some(r => selectors(r.selector).includes(":focus-visible")),
       "the global :focus-visible bed is gone, so most of the app has no ring").toBe(true);
   });
@@ -1387,6 +1486,27 @@ describe("the rings, which a border sweep cannot see (1.4.11, 2.4.11)", () => {
       expect(excused, `${excused} is a resting rule and may not be excused`)
         .toMatch(/:hover|\.dragging|:active/);
     }
+    // The list's last two entries were the cluster label's hover hairline
+    // (V4 top-10 #1). It went with the hued pill, so the label is held to
+    // drawing none rather than to an exemption for one.
+    const labelHover = RULES.filter(r => selectors(r.selector).some(s => /^(?:.* )?\.cluster-label:hover$/.test(s)));
+    expect(labelHover.length, "the cluster label has no hover rule for this to read").toBeGreaterThan(0);
+    for (const r of labelHover) expect(ringColourIn(r.body), r.selector).toBeNull();
+  });
+});
+
+describe("the text-field focus border (V4's Figma: no ring, the border turns --accent)", () => {
+  it("the text-field focus border's colours clear 3:1 on every bed, both themes", () => {
+    for (const theme of themes) {
+      const beds = surfaces(theme);
+      bedFloor(beds, theme);
+      for (const token of ["var(--accent)", "var(--err)"]) {
+        const edge = resolve(token, theme);
+        for (const [bedName, bed] of Object.entries(beds)) {
+          expect(contrastRatio(over(edge, bed), bed), `${theme} ${token} on ${bedName}`).toBeGreaterThanOrEqual(NON_TEXT);
+        }
+      }
+    }
   });
 });
 
@@ -1395,23 +1515,30 @@ describe("the control surface, promoted (#332)", () => {
     // The property that made #325's fix work and the reason it is safe to
     // promote: a value derived from var(--text) exists in both themes by
     // construction. A value borrowed from another surface does not — --bg-soft
-    // is the proof, byte-identical to --panel on white.
+    // was the proof, byte-identical to --panel on white. V4 aligned light
+    // --bg-soft to Figma's #f7f8fa on 2026-10-31, so it is no longer the same
+    // bytes; the guard is what it always meant: the fill is mixed from the
+    // foreground and borrows from neither surface.
     for (const theme of themes) {
       expect(TOK[theme]["--ctl-fill"], theme).toMatch(/var\(--text\)/);
       expect(TOK[theme]["--ctl-edge"], theme).toMatch(/var\(--text\)/);
+      expect(TOK[theme]["--ctl-fill"], theme).not.toMatch(/var\(--(?:bg-soft|panel)\)/);
+      expect(TOK[theme]["--ctl-edge"], theme).not.toMatch(/var\(--(?:bg-soft|panel)\)/);
     }
-    expect(TOK.light["--bg-soft"]).toBe(TOK.light["--panel"]);
   });
 
   it("did not buy any of it by lifting --line", () => {
     // The trap #325 named and refused. --line is the app's structural hairline
     // — panel edges, table rules, separators, card outlines, the scrollbar
     // thumb — and lifting it to clear 3:1 would redraw all of them to fix a
-    // defect that is the controls'. Pinned by value, in both themes.
+    // defect that is the controls'. Pinned by value, in both themes. V4 aligned
+    // the light pair to Figma on 2026-10-31 (#c8cdd6/#dde1e8 to #d5d9e0/#e4e7ec):
+    // lighter, not darker, so the refusal — contrast bought by darkening the
+    // hairline — still holds.
     expect(TOK.dark["--line"]).toBe("#1f2229");
-    expect(TOK.light["--line"]).toBe("#c8cdd6");
+    expect(TOK.light["--line"]).toBe("#d5d9e0");
     expect(TOK.dark["--line-soft"]).toBe("#1a1c22");
-    expect(TOK.light["--line-soft"]).toBe("#dde1e8");
+    expect(TOK.light["--line-soft"]).toBe("#e4e7ec");
   });
 
   it("left no control reading --line for its own edge", () => {
@@ -1466,9 +1593,11 @@ describe("the control surface, promoted (#332)", () => {
     }
     const darkFill = over(resolve("var(--ctl-fill)", "dark"), parseColor(TOK.dark["--panel"]));
     expect(contrastRatio(parseColor(TOK.dark["--muted"]), darkFill)).toBeLessThan(BODY);
-    for (const sel of [".selected-ribbon", ".aa-field input", ".session-list .sl-row:hover"]) {
+    for (const sel of [".aa-field input"]) {
       expect(decl(sel, "background"), sel).toBe("var(--bg-soft)");
     }
+    // The rail's row hover is the control fill itself, the one this case measures.
+    expect(decl(".session-list .sl-row:hover", "background")).toBe("var(--ctl-fill)");
   });
 
   it("stopped asking --accent-dim to be a boundary anywhere, however the boundary is spelled", () => {
@@ -1543,25 +1672,47 @@ describe("the two status hues, on the canvas as well as on the panels", () => {
     }
   });
 
-  it("reads each status pill's own word at 4.5:1 wherever in the topbar it lands", () => {
-    // The pill is centred in 52px of a gradient, so an alpha wash gave its word
-    // one ratio at the top of the bar and another at the bottom — 4.39:1 and
-    // 3.90:1 for `live`. The light tints are opaque now, which is the same fix
-    // #268 applied to the node rings for the same reason.
+  it("reads each status pill's own word at 4.5:1, and its state edge at 3:1, on the topbar", () => {
+    // V4's stream chip is an outline pill: no fill, the word in --text, and the
+    // state in the 1px edge (--ok, --warn, --err) and the dot. The tints this
+    // sweep used to composite the word over — a wash on the topbar's gradient,
+    // opaque in light so the word had one ratio wherever it landed — went with
+    // the fill, and the bar is one flat bed, so the word is measured on it
+    // directly. The edge is the state's whole signal now, so it is held to the
+    // 3:1 a boundary owes (1.4.11), against the same bed.
     for (const theme of themes) {
       const beds = surfaces(theme);
       bedFloor(beds, theme);
-      for (const [state, token] of [["live", "--ok"], ["paused", "--warn"], ["dead", "--err"]] as const) {
-        const light = RULES.find(r =>
-          selectors(r.selector).includes(`:root[data-color-scheme="light"] .topbar .status .pill.${state}`));
-        const fillRaw = (theme === "light" ? declIn(light!.body, "background") : null)
-          ?? decl(".topbar .status .pill", "background")!;
-        if (theme === "light") expect(fillRaw, state).not.toMatch(/rgba\(/);
-        const fg = parseColor(TOK[theme][token]);
+      expect(decl(".topbar .status .pill", "background"), "the pill has a fill again").toBe("transparent");
+      const word = resolve(decl(".topbar .status .pill", "color")!, theme);
+      // V4 draws Live without a chip, so only the two drawn states owe an edge.
+      for (const [state, token] of [["paused", "--warn"], ["dead", "--err"]] as const) {
+        const edge = parseColor(TOK[theme][token]);
+        expect(borderColour(`.topbar .status .pill.${state}`), state).toBe(`var(${token})`);
         for (const bedName of TOPBAR) {
-          const fill = over(resolve(fillRaw, theme), beds[bedName]);
-          expect(contrastRatio(fg, fill), `${theme} .pill.${state} on ${bedName}`).toBeGreaterThanOrEqual(BODY);
+          expect(contrastRatio(word, beds[bedName]), `${theme} the word on ${bedName}`).toBeGreaterThanOrEqual(BODY);
+          expect(contrastRatio(edge, beds[bedName]), `${theme} .pill.${state} edge on ${bedName}`).toBeGreaterThanOrEqual(NON_TEXT);
         }
+      }
+    }
+  });
+
+  it("reads the chip words at 4.5:1: --text on the accent wash of a newer version, --warn on the bar for the count", () => {
+    // The version chip has no edge to sweep, so its word carries it: --text on
+    // --accent-16 over the bar, and on the stronger 24% under the pointer. The
+    // count's word is --warn on the bare bar, like the pill's edge.
+    for (const theme of themes) {
+      const beds = surfaces(theme);
+      const text = resolve("var(--text)", theme);
+      for (const bedName of TOPBAR) {
+        const wash = (pct: number) => {
+          const [r, g, b] = resolve("var(--accent)", theme);
+          return over([r, g, b, pct / 100], beds[bedName]);
+        };
+        for (const pct of [16, 24]) {
+          expect(contrastRatio(text, wash(pct)), `${theme} --text on the accent at ${pct}% over ${bedName}`).toBeGreaterThanOrEqual(BODY);
+        }
+        expect(contrastRatio(resolve("var(--warn)", theme), beds[bedName]), `${theme} the count on ${bedName}`).toBeGreaterThanOrEqual(BODY);
       }
     }
   });

@@ -1,5 +1,5 @@
 // Keep native caption buttons; only their surrounding chrome belongs to ccdeck.
-export const TITLEBAR_HEIGHT = 38;
+export const TITLEBAR_HEIGHT = 40;
 // The renderer owns the bottom separator. Native controls must stop above it,
 // both at creation and when theme colours are refreshed.
 const CAPTION_OVERLAY_HEIGHT = TITLEBAR_HEIGHT - 1;

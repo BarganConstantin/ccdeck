@@ -51,6 +51,11 @@ export interface GraphState {
   /** Model observations that overtook SubagentStart. Only Start creates a node;
    * cap the pending entries so scans of old subagents cannot grow this forever. */
   pendingSubagentModels: Map<string, string>;
+  /** Session id → the key of the Command Panel launch that started it, for a
+   *  session whose card the board has not made yet (panel-launch.ts). Bounded:
+   *  the newest PANEL_LAUNCHES_MAX; an entry goes when its card takes it, and
+   *  all go with the board on a clear. */
+  panelLaunches: Map<string, string>;
   lastSeq: number;
   /** Which server process the `lastSeq` counter belongs to — the `epoch` the
    *  envelopes carry. Stays null while talking to a server too old to stamp it. */
@@ -88,6 +93,7 @@ export function initialState(): GraphState {
     subagentTombstones: new Map(),
     parkedEnrichment: new Map(),
     pendingSubagentModels: new Map(),
+    panelLaunches: new Map(),
     lastSeq: 0,
     seqEpoch: null,
     totalEvents: 0,

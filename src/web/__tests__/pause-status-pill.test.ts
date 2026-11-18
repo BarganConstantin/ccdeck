@@ -30,8 +30,13 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import {
-  HELD_LABEL_CAP, heldEvents, heldShort, PAUSE_LABEL, pauseTitle, statusPill,
+  HELD_LABEL_CAP, heldEvents, heldShort, PAUSE_LABEL_MSG, pauseLabel, pauseTitle, statusPill,
 } from "../status-pill";
+import { en } from "../i18n/en";
+
+// CHANGED ON PURPOSE (the UI in every language): the name is a key now, read
+// here through the English catalog.
+const PAUSE_LABEL = en[PAUSE_LABEL_MSG];
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const src = (rel: string) => readFileSync(join(HERE, "..", rel), "utf8");
@@ -79,7 +84,7 @@ describe("the slot it is worth (#719)", () => {
   it("does not draw itself while everything is fine", () => {
     // The pill led the readout run and held 49.89px plus a 14px gap for the
     // whole of every session, to report that nothing was wrong. `ambient.ts`
-    // refuses to write `(0) ccdeck` for the same reason: a badge that reports
+    // refuses to write `(0) waiting · ccdeck` for the same reason: a badge that reports
     // nothing is wrong is a badge that gets ignored, and a badge that gets
     // ignored is ignored when it finally has something to say.
     expect(statusPill({ connected: true, paused: false, held: 0 }).resting).toBe(true);
@@ -114,7 +119,7 @@ describe("the slot it is worth (#719)", () => {
     // the negative reads both.
     const strip = src("components/TopbarReadouts.tsx");
     const app = src("App.tsx") + "\n" + strip;
-    expect(strip, "the strip no longer skips the pill at rest").toMatch(/if\s*\(\s*pill\.resting\s*\)\s*return null;/);
+    expect(strip, "the strip no longer skips the pill at rest").toMatch(/show=\{!pill\.resting\}/);
     expect(app, "the topbar decides the pill's fate from the tone instead of the field")
       .not.toMatch(/pill\.tone\s*===\s*"live"/);
   });
@@ -219,6 +224,7 @@ describe("the pause control, which is a glyph on the canvas now", () => {
     // pressed" is two halves contradicting each other. The name is a constant
     // for exactly that reason, and it is the title that flips.
     expect(PAUSE_LABEL).toBe("Pause the canvas");
+    expect(pauseLabel()).toBe(PAUSE_LABEL);
     expect(PAUSE_LABEL).not.toMatch(/resume/i);
     expect(pauseTitle({ paused: true, held: 0 })).not.toBe(pauseTitle({ paused: false, held: 0 }));
   });

@@ -35,7 +35,9 @@
   text-align: left;
   cursor: pointer;
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-nav:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+}
 /* Keep the two summary lines, with less empty space around the footer. */
 .ap-foot:has(> .ap-nav) { padding-top: 6px; padding-bottom: 8px; }
 .ap-foot > .ap-nav { margin-top: 0; }
@@ -56,8 +58,10 @@
   font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-nav:hover :is(.ap-nav-glyph, .ap-nav-state:is([data-tone="ok"], [data-tone="idle"])) {
   color: color-mix(in srgb, var(--muted) 65%, var(--text));
+}
 }
 /* ON, IN THE COLOUR THE MACHINES THEMSELVES ARE ALREADY DRAWN IN. `--ok`, not
    the accent: one press away, `.ap-lan-who .ap-pulse` paints every deck that is
@@ -80,23 +84,42 @@
   height: 5px;
   margin-right: 6px;
   vertical-align: 1px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: var(--ok);
 }
+/* LOCAL NETWORK'S WAY IN, as V4's Figma draws it: 44 high on two lines, the name
+   in 13/20 regular over the state in 12/16, and a 14px glyph. `.ap-nav` is
+   shared with the other accounts' fold, so every size here is written under
+   `.ap-lan-nav` and the fold keeps its own. The row keeps the shared 6px bleed, so it lines up with
+   the other accounts' row and the map button keeps its gap to the chevron. */
+.ap-nav.ap-lan-nav {
+  width: calc(100% + 12px);
+  min-height: 44px;
+  margin: 0 -6px;
+  padding: 4px 6px;
+  box-sizing: border-box;
+}
+.ap-lan-nav .ap-nav-text { gap: 0; }
+.ap-lan-nav .ap-nav-name { font-size: calc(13px + var(--ui-text-increase, 0px)); font-weight: 400; line-height: 20px; }
+.ap-lan-nav .ap-nav-state { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; }
 .ap-nav-state[data-tone="bad"] { color: var(--warn); }
 .ap-nav-state[data-tone="wait"] { color: var(--accent); }
 .ap-nav-chev {
   flex: none;
   color: var(--muted);
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-nav:hover .ap-nav-chev { color: var(--text); transform: translateX(1px); }
+}
 /* Settings and the network graph share the navigation row's centerline.
    They remain separate buttons, with room reserved before the chevron. */
 .ap-foot:has(> .ap-lan-map) { display: grid; }
 .ap-foot:has(> .ap-lan-map) > :is(.ap-nav, .ap-lan-map) { grid-area: 1 / 1; }
 .ap-foot:has(> .ap-lan-map) .ap-nav-text { padding-right: 32px; }
+@media (hover: hover) and (pointer: fine) {
 .ap-foot:has(> .ap-lan-map:hover) > .ap-nav { background: color-mix(in srgb, var(--text) 4%, transparent); }
+}
 .ap-lan-map {
   appearance: none;
   justify-self: end;
@@ -113,15 +136,16 @@
   background: none;
   color: var(--muted);
   cursor: pointer;
-  transition: border-color 120ms, color 120ms, background 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
 }
 .ap-foot:has(> .ap-lan-set) .ap-nav-text { margin-right: 32px; }
 .ap-lan-map.ap-lan-set { margin-right: 53px; }
-.ap-lan-map:hover,
 .ap-lan-map:focus-visible { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
-.ap-lan-map:active { transform: scale(0.97); }
-.ap-lan-map:focus-visible { outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) {
+.ap-lan-map:hover { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
+}
+.ap-lan-map:active { transform: scale(var(--press)); }
 @media (prefers-reduced-motion: reduce) {
   .ap-lan-map:active { transform: none; }
 }
@@ -130,8 +154,10 @@
    pressed: Local network goes somewhere, the fold opens here. The turn wins
    over the hover nudge — a chevron pointing down does not lean right, and
    `translateX` on a rotated box would send it there anyway. */
-.ap-nav[aria-expanded="true"] .ap-nav-chev,
+.ap-nav[aria-expanded="true"] .ap-nav-chev { transform: rotate(90deg); }
+@media (hover: hover) and (pointer: fine) {
 .ap-nav[aria-expanded="true"]:hover .ap-nav-chev { transform: rotate(90deg); }
+}
 
 /* THE FOLD, between the live account and the rest of the roster. `.ap-nav` is
    written for the foot, where the inset comes from `.ap-foot`; this row stands
@@ -141,71 +167,13 @@
    why the icon went, and .ap-nav-text for the gap that goes with it.
    The 4px over it, against 2px under, is the whole of the rhythm in this block:
    the account above is a different thing, the policy below is the same one. */
-.ap-rest { padding: 4px var(--panel-inset) 0; }
-/* No glyph, no gap to leave for one. The chevron keeps its own, from the
-   `auto` margin the text column already claims. */
-.ap-rest .ap-nav { gap: 0; }
-/* THE LIST'S TWO CONTROLS, beside the chevron while the list is open (#1579) —
-   see RestTools in OtherAccounts.tsx. Laid over the row's right side rather
-   than put in it, because the row is one button and a control cannot sit
-   inside a button. Their box runs the row's full height and a little either
-   side, so a press that misses them lands on nothing rather than folding the
-   list shut. The row's words stop short of them by their MEASURED width —
-   `--rest-tools-w`, set by the component — plus the 18px they stand off the
-   edge and a gap, and the chevron takes the auto margin the words gave up. */
+.ap-rest { padding: 0 4px; }
+/* V4's summary row leads with its chevron, a 6 from the name. */
+.ap-rest .ap-nav { gap: 6px; }
+/* THE LIST'S TWO CONTROLS (#1579) — every row open or shut, and the order —
+   stand in the group's head beside the toggle, not inside it (a control cannot
+   sit inside a button); see accounts-panel.css for the head's two lines. */
 .ap-rest { position: relative; }
-.ap-rest:has(.ap-rest-tools) .ap-nav-text { max-width: calc(100% - var(--rest-tools-w, 170px) - 26px); }
-.ap-rest:has(.ap-rest-tools) .ap-nav-chev { margin-left: auto; }
-/* And the one line in the row that is an alarm wraps rather than being cut:
-   "Auto-switch has nowhere to go" is the sentence that must be read whole. */
-.ap-rest:has(.ap-rest-tools) .ap-nav-state[data-tone="bad"] { white-space: normal; }
-.ap-rest-tools {
-  position: absolute;
-  top: 4px;
-  bottom: 0;
-  right: calc(var(--panel-inset) + 18px);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 4px;
-}
-.ap-rest-sort { position: relative; display: inline-flex; align-items: center; }
-/* `field-sizing: content` so the closed select is as wide as the order it
-   shows, not the longest one it offers; where a browser does not have it, the
-   cap keeps the widest in bounds, and the words beside it are measured
-   against whatever width it lands on. */
-.ap-rest-sort select {
-  appearance: none;
-  field-sizing: content;
-  max-width: 124px;
-  min-height: 24px;
-  padding: 0 18px 0 6px;
-  border: 1px solid transparent;
-  border-radius: var(--r-ctl);
-  background: none;
-  color: var(--muted);
-  font: inherit;
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: border-color 120ms, color 120ms, background 120ms;
-}
-.ap-rest-sort select[data-sorted] { color: var(--text); }
-.ap-rest-sort select:hover,
-.ap-rest-sort select:focus-visible { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
-.ap-rest-sort select:focus-visible { outline-offset: -2px; }
-/* Held: the order the reader found, not the latest — dashed, as the deck
-   draws everything it is showing as the last thing rather than the current
-   one (the incident chip's stale edge, a stale card's). */
-.ap-rest-sort select[data-held] { border-style: dashed; border-color: var(--ctl-edge); }
-.ap-rest-sort svg {
-  position: absolute;
-  right: 6px;
-  color: var(--muted);
-  pointer-events: none;
-}
-.ap-rest-sort:hover svg { color: var(--text); }
 .ap-rest-all {
   appearance: none;
   display: inline-flex;
@@ -219,23 +187,17 @@
   background: none;
   color: var(--muted);
   cursor: pointer;
-  transition: border-color 120ms, color 120ms, background 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
 }
-.ap-rest-all:hover,
 .ap-rest-all:focus-visible { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
-.ap-rest-all:active { transform: scale(0.97); }
-.ap-rest-all:focus-visible { outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) {
+.ap-rest-all:hover { border-color: var(--ctl-edge); color: var(--text); background: var(--ctl-fill); }
+}
+.ap-rest-all:active { transform: scale(var(--press)); }
 @media (prefers-reduced-motion: reduce) {
   .ap-rest-all:active { transform: none; }
 }
-/* The number the list is ordered by, in each row it orders (#1579): heavier,
-   in the shut line and on the bars, so a sorted list says what it is sorted
-   by at the numbers themselves. Weight only — the colour is the reading's. */
-.ap-q[data-sort-key] .ap-q-pct,
-.ap-q[data-sort-key] .ap-q-label { font-weight: 700; }
-.ap-lane[data-sort-key] .ap-lane-label,
-.ap-lane[data-sort-key] .ap-lane-pct { font-weight: 700; }
 /* The list it opens hangs directly off it — the top padding belongs to the
    fold's own bottom, and two of them would read as a gap the reader has to
    cross to believe the rows are what the row was about.
@@ -269,28 +231,40 @@
    and the foot. Proximity does that grouping; there is no container and no
    rule, which is why the block can hold a list of any length without becoming
    a card. */
-.ap-policy-block { padding: 2px var(--panel-inset) 14px; }
-/* WHAT THE FOLD OPENS: the accounts, and the policy over them. It is the flex
-   line that gives, so the list inside it can take the room that is left and
-   scroll; the policy under the list never does. */
+.ap-policy-block { padding: 0 4px 8px; }
+/* ONE HAIRLINE, AND ONLY WHILE THE LIST IS OPEN: the policy row stands right
+   after the open fold, so the rule is on the row that follows it. */
+.ap-rest-panel + .ap-policy-block {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+/* WHAT THE FOLD OPENS: the accounts. It is the flex line that gives, so the
+   list inside it can take the room that is left and scroll; the policy row
+   under it never does (`.ap-scroll > *` keeps every other child at its size). */
 .ap-rest-panel {
   display: flex;
   flex-direction: column;
   flex: 0 1 auto;
   min-height: 0;
 }
-.ap-rest-panel > .ap-policy-block { flex: none; }
+/* THE FOLD OPENS (V4's motion spec, Row expand): the list grows in height and
+   fades in, on Base, and reduced motion jumps. Backwards only, so the open
+   list is the layout's own once it has arrived. */
+.ap-rest-panel { animation: ap-fold-in var(--dur-base) var(--ease) backwards; }
+@keyframes ap-fold-in {
+  from { opacity: 0; max-height: 0; overflow: hidden; }
+  to { opacity: 1; max-height: 640px; overflow: hidden; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ap-rest-panel { animation: none; }
+}
 /* ONE HAIRLINE, AND ONLY WHILE THE LIST IS OPEN. A region that scrolls inside
    itself ends on a row cut in half, and at this width that reads as a glitch
    rather than as a boundary — there is no container edge, no change of ground,
    nothing to say the list stopped and a control began. The rule says it, and
    it exists for exactly as long as there is a list to close: shut, the policy
    sits 2px under the fold row with nothing between them. */
-.ap-others + .ap-policy-block {
-  margin-top: 8px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line-soft);
-}
 
 /* THE PEEK — who is on, beside the row, for a pointer that has not pressed
    anything.
@@ -331,8 +305,11 @@
      looking; travel would make it a thing that happened rather than a thing
      that is there — which is also why there is no reduced-motion rule to write:
      a fade is what that rule leaves behind everywhere else in this sheet. */
-  animation: fadeIn 110ms ease-out;
+  animation: fadeIn var(--dur-fast) var(--ease);
 }
+/* V4 motion: a card opened by a key (P, a Tab onto a card) arrives at once; the
+   last input decides (input-modality.ts), a pointer press brings the fade back. */
+:root[data-motion="instant"] .ap-peek { animation: none; }
 /* The label over the names sits UNDER them in weight, not over. A card this
    small cannot have two loud lines, and the names are what was asked for — the
    label only says what list this is. */
@@ -400,7 +377,7 @@
 }
 .node-peek-time {
   flex: none;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: calc(11px + var(--ui-text-increase, 0px));
   font-variant-numeric: tabular-nums;
   color: var(--muted);
@@ -421,7 +398,11 @@
 }
 .node-peek-state[data-kind="live"] { color: var(--inflight); }
 .node-peek-state[data-kind="done"] { color: var(--ok); }
+/* "3 failed" beside the partial mark, in the warning's ink the mark wears too
+   (V4 top-10 #9: one mark, one colour). */
+.node-peek-state[data-kind="partial"] { color: var(--warn); }
 .node-peek-state[data-kind="err"] { color: var(--err); }
+.node-peek-state[data-kind="alert"] { color: var(--warn); }
 /* Two lines, then an ellipsis. The max-height is the same two lines for an
    engine with no line clamp, which cuts there without the ellipsis rather than
    letting a pasted paragraph grow the card. */
@@ -503,11 +484,13 @@
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.node-peek-failed { color: var(--err); }
-/* A recap note's peek: the note's own mark in its session's hue, and the
-   recap whole — prose, at the note's size and ink, with room for it. */
+/* Failed calls are worth a look, not a failure: the warning's ink, as the
+   partial mark's count beside the state says it. */
+.node-peek-failed { color: var(--warn); }
+/* A recap note's peek: the note's own mark, in the peek's ink like the
+   card's title (it wore the session's hue until V4 top-10 #1), and the recap
+   whole — prose, at the note's size and ink, with room for it. */
 .recap-peek {
-  --accent: hsl(var(--session-hue, 200) 70% var(--session-accent-l));
   width: 320px;
 }
 .recap-peek-mark {
@@ -516,7 +499,7 @@
   gap: 5px;
   font-size: calc(13px + var(--ui-text-increase, 0px));
   font-weight: 600;
-  color: var(--accent);
+  color: var(--text);
 }
 .recap-peek-text {
   font-size: calc(12px + var(--ui-text-increase, 0px));
@@ -558,12 +541,12 @@
   margin-top: 8px;
 }
 /* Fixed, so `appear as` and `passphrase` put their fields on one left edge.
-   Measured off the longer of the two at 10px, rounded up to the panel's step. */
+   Measured off the longer of the two at 11px, rounded up to the panel's step. */
 .ap-lan-label {
   flex: none;
   width: 66px;
   color: var(--muted);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
 }
 .ap-lan-input { flex: 1 1 auto; min-width: 0; }
 
@@ -582,14 +565,16 @@
   gap: 8px;
   padding: 3px 4px;
   margin: 0 -4px;
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   cursor: pointer;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--text);
-  transition: background 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-lan-pick:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
-.ap-lan-pick:active { transform: scale(0.97); }
+}
+.ap-lan-pick:active { transform: scale(var(--press)); }
 .ap-lan-pick input { accent-color: var(--accent); margin: 0; }
 .ap-lan-pick-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Said on the row rather than left to be inferred from a missing tick: an
@@ -606,7 +591,9 @@
    away — `outline: none` is the one thing this sheet may not say, and two
    nested rings for one focus is worse than a small one in the right place. The
    row already answers the press it receives: `.ap-lan-pick:active` scales. */
+@media (hover: hover) and (pointer: fine) {
 .ap-lan-pick:hover .ap-lan-dead { color: color-mix(in srgb, var(--muted) 65%, var(--text)); }
+}
 
 /* CLAUDE AND CODEX, each under its own name, only on a deck that has both: one
    address can be an account of each, and two ticks beside one email have to
@@ -615,7 +602,7 @@
 .ap-lan-group {
   margin: 6px 0 1px;
   color: var(--muted);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   font-weight: 600;
 }
 .ap-lan-group:first-child { margin-top: 0; }
@@ -625,18 +612,18 @@
 .lan-kind {
   margin-left: 6px;
   color: var(--muted);
-  font-size: calc(9px + max(0px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(0px, var(--ui-text-increase, 0px)));
   font-weight: 600;
   letter-spacing: 0.02em;
 }
-.ap-lan-dead { flex: none; margin-left: auto; color: var(--muted); font-size: calc(9px + max(0px, var(--ui-text-increase, 0px))); }
+.ap-lan-dead { flex: none; margin-left: auto; color: var(--muted); font-size: calc(11px + max(0px, var(--ui-text-increase, 0px))); }
 
 /* The machine a request is about, named in the sentence that asks about it. */
 .ap-lan-peer-name { color: var(--text); }
 
 /* Both empty states — no accounts yet, and no other deck yet. The second one
    carries the two things worth checking, so it wraps rather than truncating. */
-.ap-lan-empty { color: var(--muted); font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.45; }
+.ap-lan-empty { color: var(--muted); font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); line-height: 1.45; }
 
 /* Takes a typed address off the list. `margin-left: auto` puts it at the far
    edge of its row, away from the name it removes — the same distance the panel
@@ -704,7 +691,7 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
 }
 /* TWO LINES, BY STRUCTURE. One row used to be one line of three flex items —
    a dot, the machine's name, and the sentence about it — and the sentence was
@@ -727,24 +714,31 @@
      says so. */
   cursor: pointer;
   display: grid;
-  grid-template-columns: 5px minmax(0, 1fr) auto;
+  /* V4's row: a 14px glyph, then two lines — the name over what is happening
+     to it — and the verb on the end. 44 high at rest (4 + 20 + 16 + 4), and
+     taller only when the second line has more to say than one line holds. */
+  grid-template-columns: 14px minmax(0, 1fr) auto;
   grid-template-areas:
-    "dot  name  verb"
-    ".    state verb";
-  column-gap: 8px;
-  row-gap: 1px;
+    "glyph name  verb"
+    "glyph state verb";
+  column-gap: 10px;
+  row-gap: 0;
   align-items: center;
   min-width: 0;
+  min-height: 44px;
+  padding: 4px 0;
+  box-sizing: border-box;
 }
-/* A ROW WITH NOTHING TO REPORT IS ONE LINE, AND NOW ITS BOX IS ONE LINE. Its
-   sentence is out of flow (`.vis-hidden`), but the grid kept a second track,
-   and the 24px verb spanning both left an empty 9px under every healthy row:
-   a 27.4px box round a 14px name, the name at the top of it and `unpair`
-   five pixels below the name. One track puts the dot, the name and the verb
-   on one centre line, in the 24px the spacing rule below was written for —
-   its own comment has their centres 29px apart. */
-.ap-lan-who:has(> .vis-hidden) { grid-template-areas: "dot name verb"; }
-.ap-lan-who > .ap-pulse, .ap-lan-who > .ap-dot { grid-area: dot; }
+/* THE GLYPH IS THE MACHINE; THE MARK IS ITS STATE. Both sit in the one narrow
+   column, the mark on the glyph's lower corner, ringed in the panel's ground so
+   the two read as one thing. The verb is centred on the whole row. */
+.ap-lan-glyph { grid-area: glyph; color: var(--muted); }
+.ap-lan-who > .ap-pulse, .ap-lan-who > .ap-dot {
+  grid-area: glyph;
+  justify-self: end;
+  translate: 3px 6px;
+  box-shadow: 0 0 0 2px var(--panel);
+}
 .ap-lan-who > .ap-manage-btn { grid-area: verb; align-self: center; }
 /* The name is the row. It takes --text at 12px against the panel's 10px
    labels, because a machine somebody is talking to is a thing and the words
@@ -758,7 +752,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: 20px;
   color: var(--text);
 }
 /* THE ROW IS THE DOOR. A row opens that machine's dialog, and a row is two
@@ -781,7 +776,7 @@
   margin: 0;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--r-ctl);
   background: none;
   font: inherit;
   color: inherit;
@@ -793,7 +788,7 @@
    row's top and bottom and 5px round — on a healthy row a 33px rounded block
    round a 14px name, which reads as a card arriving rather than a row
    answering. It is the row's own box now and no more: 4px past the column on
-   each side so the name is not flush to its edge, 4px corners, and 4% — the
+   each side so the name is not flush to its edge, the control's corners, and 4% — the
    same step as --panel to --bg-soft, there when you look at the row and gone
    from across the room.
 
@@ -807,11 +802,13 @@
   position: absolute;
   inset: 0 -4px;
   z-index: -1;
-  border-radius: 4px;
+  border-radius: var(--r-ctl);
   background: transparent;
   pointer-events: none;
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-lan-who:hover::before { background: color-mix(in srgb, var(--text) 4%, transparent); }
+}
 /* THE PRESS IS THE SAME TONE A STEP DEEPER, AND NOTHING MOVES. The row used to
    scale to 0.98 and ease back under the dialog it had just opened — a name
    sliding two pixels in a list whose job is to stand still. Not while the
@@ -824,8 +821,13 @@
    keyboard-focused row it is mixed toward the foreground, the rule
    `.ap-lan-pick` writes down for the same reason: 6.2:1 there, and still a
    step under the name. */
-.ap-lan-who:is([data-tone="idle"], [data-tone="ok"]):is(:hover, :has(:focus-visible)) .ap-lan-who-when {
+.ap-lan-who:is([data-tone="idle"], [data-tone="ok"]):has(:focus-visible) .ap-lan-who-when {
   color: color-mix(in srgb, var(--muted) 65%, var(--text));
+}
+@media (hover: hover) and (pointer: fine) {
+.ap-lan-who:is([data-tone="idle"], [data-tone="ok"]):hover .ap-lan-who-when {
+  color: color-mix(in srgb, var(--muted) 65%, var(--text));
+}
 }
 /* What it last did, under the name, in the panel's own freshness idiom.
    THE TONE IS THE ROW'S, and until now it painted nothing: `.ap-lan-bad` and
@@ -837,8 +839,8 @@
 .ap-lan-who-when {
   grid-area: state;
   min-width: 0;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
-  line-height: 1.45;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
   color: var(--muted);
   overflow-wrap: anywhere;
 }
@@ -875,7 +877,7 @@
   margin-top: 10px;
   padding: 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-panel);
   background: var(--bg-soft);
 }
 .ap-lan-invite-head {
@@ -892,7 +894,7 @@
 /* The countdown is a number that changes while somebody reads the token out
    loud, so it is set as one: tabular, so it does not shuffle its own width. */
 .ap-lan-invite-left {
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -903,10 +905,10 @@
   display: block;
   margin-top: 8px;
   padding: 8px 8px;
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   background: color-mix(in srgb, var(--text) 6%, transparent);
   font-family: var(--font-mono);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   line-height: 1.5;
   color: var(--text);
   word-break: break-all;
@@ -916,10 +918,16 @@
    this token actually lets somebody do. */
 .ap-lan-fine {
   margin: 8px 0 0;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   line-height: 1.5;
   color: var(--text-dim);
 }
+
+/* NOTHING YET, as V4's Figma draws it: the sentence in the kit's 12/16 body
+   text, then the outlined button that opens the guide. The button is the kit's
+   own, so it is 28 high and as wide as its words. */
+.ap-lan-nothing { margin: 8px 0 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--text-secondary); }
+.btn.ap-lan-how { margin-top: 12px; }
 
 /* Which addresses were tried and what each one said. An invite carries several
    because nobody knows which routes; when none did, this list is the only thing
@@ -934,7 +942,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + var(--ui-text-increase, 0px));
 }
 
 
@@ -952,19 +960,19 @@
   margin-top: 10px;
   padding: 8px;
   border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
-  border-radius: 6px;
+  border-radius: var(--r-panel);
   background: color-mix(in srgb, var(--accent) 7%, transparent);
 }
 .ap-lan-ask { display: flex; flex-direction: column; gap: 6px; }
 .ap-lan-ask-what { font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--text); line-height: 1.45; }
 /* The value to compare against the other person's screen, at the size of a
    reading rather than of the sentence above it. */
-.ap-lan-ask-fp { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); color: var(--text-dim); }
+.ap-lan-ask-fp { font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); color: var(--text-dim); }
 .ap-lan-ask-acts { display: flex; gap: 6px; }
 
 .ap-lan-code {
   font-family: var(--font-mono);
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + var(--ui-text-increase, 0px));
   color: var(--text);
   user-select: all;
   /* An IPv6 literal is 39 characters with no space and no hyphen in it, which
@@ -984,7 +992,7 @@
   position: relative;
   width: 5px;
   height: 5px;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: currentColor;
   flex-shrink: 0;
 }
@@ -992,13 +1000,13 @@
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   border: 1px solid currentColor;
   /* Ease-out cubic, not expo. An exponential curve puts the whole expansion
      in the first fifth of the cycle, so the ring hits full scale at zero
      opacity almost immediately and the ping reads as a flicker. This keeps
      the travel legible for about a second, then rests. */
-  animation: ap-ping 2.6s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+  animation: ap-ping 2.6s ease-in-out infinite;
 }
 @keyframes ap-ping {
   0%        { transform: scale(1);   opacity: 0.7; }
@@ -1014,7 +1022,7 @@
    item, which split the inline <code> onto its own line mid-sentence. */
 .ap-auto-note {
   margin: 9px 0 0;
-  font-size: calc(9px + max(0px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(0px, var(--ui-text-increase, 0px)));
   line-height: 1.6;
   color: var(--muted);
 }
@@ -1026,7 +1034,7 @@
 }
 .ap-auto-note code {
   font-family: var(--font-mono);
-  font-size: calc(9px + max(0px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(0px, var(--ui-text-increase, 0px)));
   color: var(--text);
   white-space: nowrap;   /* "cswap auto" is one name; never break it in half */
 }
@@ -1062,7 +1070,7 @@
   background: var(--ctl-fill);
   color: var(--text);
   border: 1px solid var(--ctl-edge);
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   padding: 2px 20px 2px 8px;
   /* The 24px target floor (#884): it measured 53x23. */
   min-height: 24px;
@@ -1071,23 +1079,26 @@
   line-height: 1.5;
   text-align: right;
   cursor: pointer;
-  transition: border-color 120ms, color 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
 }
 /* --accent, not --accent-dim: #325 already had to override the dim edge inside
    the manage block, where it dropped the slot select from 3.98:1 to 1.58:1 on
    hover. The auto-switch select rests on the same edge now, so the override is
    the rule and the local copy is gone. */
-.ap-field select:hover:not(:disabled) { border-color: var(--text); color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+.ap-field select:hover:not(:disabled):not(:focus-visible) { border-color: var(--text); color: var(--text); }
+}
 /* The only native control in the convention. It is styled like everything else
    here — appearance:none, the sheet's own fill, edge and chevron — so a press
    that did nothing read as the one dead control in the panel. 0.97 rather than
    0.94 because the popup that opens on the same press is anchored to this box
    and the smaller step keeps the offset under a pixel. */
-.ap-field select:active:not(:disabled) { transform: scale(0.97); }
-.ap-field select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ap-field select:active:not(:disabled) { transform: scale(var(--press)); }
 .ap-field select:disabled { cursor: default; opacity: var(--dim-off); }
+@media (hover: hover) and (pointer: fine) {
 .ap-field:has(select:hover:not(:disabled))::after { color: var(--text); opacity: 1; }
+}
 
 /* The empty state's retry and a warning's words keep their look and get a 24px
    target drawn around them (#857, #884): a transparent pseudo-element, so the

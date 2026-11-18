@@ -97,7 +97,7 @@ export function recordRestartFailure({
   if (!file) return;
   const path = join(MARKER_DIR, file);
   try {
-    mkdirSync(dirname(path), { recursive: true });
+    mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     writeFileSync(path, JSON.stringify({
       command,
       error: error ? String(error).slice(0, 300) : null,

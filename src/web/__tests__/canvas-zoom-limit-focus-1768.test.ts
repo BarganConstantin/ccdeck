@@ -46,6 +46,10 @@ const props = {
   handleRelayout: () => {},
   requestClear: () => {},
   setKeyHelpOpen: () => {},
+  // The bar takes the camera's zoom step (use-camera.ts zoomBy), a factor: above 1 is
+  // Zoom in, below is Zoom out. The spies below stand for the two directions.
+  zoomBy: (factor: number) => (factor > 1 ? rf.zoomIn() : rf.zoomOut()),
+  zoomReset: () => {},
 };
 
 const at = (zoom: number) => { rf.state = { ...rf.state, transform: [0, 0, zoom] }; };

@@ -98,12 +98,42 @@ export const DEFAULTS = Object.freeze({
   // Its tour marker must outlive that origin; browser tabs still use their
   // own localStorage marker and never read this preference.
   tourSeen: false,
+  // Which tour that was, as a number (release-notes.ts TOUR_EDITION): 0 is
+  // none recorded. `tourSeen: true` alone is the 3.x tour, and 4.0 shows its
+  // own once, so this is what the page reads now. tourSeen stays, written
+  // beside it, because it is all a 3.x deck understands of this file — and a
+  // 3.x deck that rewrites the file drops this key (normalise), which costs
+  // the V4 tour one more showing after a downgrade, never a crash.
+  tourEdition: 0,
   // Whether the deck may update itself: restart into code already on disk once
   // it is idle, and — while nobody is looking — install a newer release and
   // restart into that (auto-update.mjs). ON, because this is the banner's
   // `auto when idle`, which defaulted on as a localStorage key; it moved here so
   // the server can read it with no page open.
   autoUpdate: true,
+  // THE COMMAND PANEL, ON unless somebody turns it off: the engine that runs
+  // it ships on Linux, macOS and Windows, so the panel is part of the deck the
+  // way the board is. A terminal you can type into is still the first thing in
+  // the deck that reaches into an agent rather than watching one, so it stays
+  // behind the switch in Settings › General › Experimental, in PAGE_FIELDS,
+  // behind the gates every other switch is behind. Those turn away every other
+  // site, a rebound name and the network; they cannot turn away a process on
+  // this machine that writes a loopback Origin itself (request-gates.mjs says
+  // so), and such a process can switch on a way to type into the user's
+  // sessions — where it would otherwise have to write prefs.json. Accepted for
+  // the experiment, knowingly: that process can already read the ring and the
+  // accounts through the same gates. The switch is the only way off; no launch
+  // variable turns it on or off. See terminal-routes.mjs.
+  //
+  // No release stored this key before it defaulted to on, so a stored false is
+  // somebody's switch, or a pre-release build's.
+  terminal: true,
+  // THE CCDECK ACCOUNT, OFF and hidden (account-flag.mjs): Settings › Account,
+  // the status frames and the settings sync. Deck-owned and hand-edited — not
+  // in PAGE_FIELDS while the feature is hidden, so no page can switch on a
+  // connection to the API. CCDECK_ACCOUNT=1 turns it on for one run, and
+  // AGENTS_DECK_NO_ACCOUNT / AGENTS_DECK_NO_INSTALL veto both.
+  account: false,
   // USAGE REPORTS (#1853), ON unless somebody turns them off — the owner's
   // decision, 2026-09-30: nobody is asked and the README says what is sent; the
   // page has no switch since 2026-10-01. See reports.mjs for what is sent, and
@@ -357,7 +387,12 @@ export function normalise(raw) {
     notifyStopped: flagOr(src.notifyStopped, DEFAULTS.notifyStopped),
     continueStopped: flagOr(src.continueStopped, DEFAULTS.continueStopped),
     tourSeen: flagOr(src.tourSeen, DEFAULTS.tourSeen),
+    // A whole number, or none: a string, a fraction or a negative from a
+    // hand-edited file is not an edition anybody was shown.
+    tourEdition: Number.isInteger(src.tourEdition) && src.tourEdition > 0 && src.tourEdition < 10_000 ? src.tourEdition : DEFAULTS.tourEdition,
     autoUpdate: flagOr(src.autoUpdate, DEFAULTS.autoUpdate),
+    terminal: flagOr(src.terminal, DEFAULTS.terminal),
+    account: flagOr(src.account, DEFAULTS.account),
     reports: flagOr(src.reports, DEFAULTS.reports),
     report: normaliseReport(src.report),
     accounts: normaliseOrigins(src.accounts),
@@ -743,7 +778,7 @@ export function publicPrefs(prefs) {
 export const PAGE_FIELDS = Object.freeze({
   top: Object.freeze([
     "notifications", "notifySwap", "notifyQuota", "notifyReset", "notifyStopped", "continueStopped",
-    "tourSeen", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions",
+    "tourSeen", "tourEdition", "autoUpdate", "recoverCodexSessions", "recoverClaudeSessions", "terminal",
   ]),
   lan: Object.freeze([
     "enabled", "name", "shared", "manual", "shareActive", "sendInUse", "pairingMode",
@@ -806,6 +841,23 @@ export function accountNotifySettings(prefs, env = process.env) {
 export function lanEnabled(prefs, env = process.env) {
   if (env.AGENTS_DECK_NO_LAN === "1") return false;
   return normalise(prefs).lan.enabled;
+}
+
+/**
+ * Is the Command Panel switched on? The `terminal` switch as normalise()
+ * reads it: on unless a real false was stored, and nothing else: no
+ * environment variable or launch flag turns it on or off.
+ *
+ * Not lanEnabled's veto, on purpose: the panel is the feature the person
+ * switches, in Settings or in the settings file, and no launch can overrule
+ * that either way.
+ *
+ * Asked on every request and every upgrade rather than once at boot, so the
+ * routes and the socket answer from the same settings at every moment and can
+ * never disagree about whether the panel exists.
+ */
+export function terminalOn(prefs) {
+  return flagOr(prefs?.terminal, DEFAULTS.terminal);
 }
 
 /**

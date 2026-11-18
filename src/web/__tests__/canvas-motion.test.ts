@@ -49,9 +49,9 @@
 //
 // Deliberately outside the canvas sweep: the topbar, banners and sidebar, whose
 // single status dots pulse opacity in a fixed strip rather than across the
-// surface the deck is watched on, and .cat-filter-bar, chrome that floats over
-// the canvas rather than living in it. Its button's press is checked below with
-// the other controls.
+// surface the deck is watched on. (.cat-filter-bar, chrome that floated over
+// the canvas, was the other; it is a group of the canvas bar's ⋯ menu since
+// V4 top-10 #5, and nothing floats there now.)
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -174,21 +174,27 @@ describe("reduced motion reaches the canvas, not just the panels", () => {
 
   it("sees the motion it is sweeping for, so a passing run means something", () => {
     // If a rename ever slips the canvas out of CANVAS, this collapses first.
-    expect(moving.length).toBeGreaterThan(20);
-    for (const sel of [".tool-burst", ".tool-burst.sub.status-err",
-                       ".react-flow__node", ".tool-conn.status-inflight", ".cluster-card"]) {
+    // The floor is 15, not 20: V4's motion spec took the done flash, the error
+    // shake, the emoji wobble, the nodeExit and the bubble exit keyframes, and
+    // their per-status rules, off the canvas.
+    expect(moving.length).toBeGreaterThan(15);
+    for (const sel of [".tool-burst", ".tool-burst.sub",
+                       ".react-flow__node", ".tool-conn.status-inflight", ".cluster-card", ".agent-node"]) {
       expect(moving.some(m => m.sel === sel), sel).toBe(true);
     }
   });
 
   it("keeps the canvas legible instead of switching it off wholesale", () => {
-    // A tool bubble still has to announce itself, and the exits still have to
-    // outlast the 600ms wall-clock timer that removes the element.
+    // A tool bubble still has to announce itself: its rise becomes the fade
+    // (the same keyframes name, the 4px of travel is what goes). Its exit is
+    // opacity only already, in Exit, so it needs no answer of its own.
     const rm = all.filter(r => r.reduced);
     const entering = rm.find(r => selectors(r).includes(".tool-burst"))!;
-    expect(decl(entering.body, "animation")).toMatch(/fadeIn 140ms/);
-    const leaving = rm.find(r => selectors(r).includes(".tool-burst.fading"))!;
-    expect(decl(leaving.body, "animation")).toMatch(/600ms/);
+    expect(decl(entering.body, "animation")).toMatch(/^burst-fade-in /);
+    expect(/@keyframes burst-fade-in\s*\{[^]*?\n\}/.exec(css)![0]).not.toMatch(/transform|translate|scale/);
+    const leaving = all.find(r => r.selector === ".tool-burst.fading")!;
+    expect(decl(leaving.body, "opacity")).toBe("0");
+    expect(transitioned(leaving.body).filter(p => MOVES.has(p))).toEqual([]);
     // The status colours are what "in flight" and "done" fall back to, so no
     // reduced-motion rule may take the classes that carry them away.
     for (const rule of rm) expect(rule.body).not.toMatch(/(^|;)\s*(background|border-color|color)\s*:/);
@@ -230,10 +236,16 @@ describe("the hover lift on a clickable bubble", () => {
   const hover = all.find(r => r.selector === ".tool-burst.clickable:hover")!;
   const base = all.find(r => r.selector === ".tool-burst.clickable")!;
 
-  it("still has a spawn animation filling a transform, which is why it must", () => {
-    // Remove the fill and the whole reason for `translate` goes with it.
-    expect(decl(all.find(r => r.selector === ".tool-burst")!.body, "animation")).toMatch(/\bboth\b/);
-    expect(/@keyframes bubble-spawn\s*\{[^]*?\n\}/.exec(css)![0]).toMatch(/transform\s*:/);
+  it("rises with a transform it no longer holds, and lifts with the property that composes anyway", () => {
+    // V4's motion spec: the rise is opacity and 4px of y, Base, and it does not
+    // fill after it ends (`backwards`, not `both`), so nothing pins the bubble's
+    // opacity or transform for its life. The lift stays on `translate`, which
+    // composes with any transform and cannot lose to one.
+    const rise = decl(all.find(r => r.selector === ".tool-burst")!.body, "animation")!;
+    expect(rise).toMatch(/burst-rise/);
+    expect(rise).toMatch(/\bbackwards\b/);
+    expect(rise).not.toMatch(/\b(both|forwards)\b/);
+    expect(/@keyframes burst-rise\s*\{[^]*?\n\}/.exec(css)![0]).toMatch(/transform\s*:/);
   });
 
   it("lifts with a property the keyframes do not own", () => {
@@ -241,10 +253,10 @@ describe("the hover lift on a clickable bubble", () => {
     expect(decl(hover.body, "translate")).toBe("0 -1px");
   });
 
-  it("eases the lift and the shadow, so neither of them snaps", () => {
+  it("eases the lift; the shadow lands at once, since only transform and opacity animate", () => {
     const eased = transitioned(base.body);
     expect(eased).toContain("translate");
-    expect(eased).toContain("box-shadow");
+    expect(eased).not.toContain("box-shadow");
   });
 });
 
@@ -262,7 +274,6 @@ type Press = [selector: string, scale: string, prop: "transform" | "scale"];
  *  it is the spec for what a pressable control does rather than a record of
  *  which ones had been got to. */
 const PRESSES: Press[] = [
-  [".reading-choice:active", "0.97", "transform"],
   [".up-session-open:active", "0.97", "transform"],
   [".su-id summary:active", "0.97", "transform"],
   [".empty-hero .empty-help summary:active", "0.97", "transform"],
@@ -275,7 +286,9 @@ const PRESSES: Press[] = [
   [".tr-inline-copy:active", "0.97", "transform"],
   [".tr-json-tree summary:active", "0.97", "transform"],
   [".tr-file-picker:active", "0.97", "transform"],
-  ["button.btn:active:not(:disabled)", "0.97", "transform"],
+  // V4's button: the press reads --press and holds back under keyboard focus.
+  ["button.btn:active:not(:disabled):not(:focus-visible)", "var(--press)", "transform"],
+  ['.ui-button:active:not(:disabled):not(:focus-visible):not([aria-disabled="true"])', "var(--press)", "transform"],
   // Every panel and dialog header close, in one entry. This used to be five —
   // `.sd-close` at 0.97 and `.detail-close`, `.ctx-modal-close` and `.uh-close`
   // at 0.94, with the rest pressing as `button.btn` because they were wearing
@@ -283,7 +296,7 @@ const PRESSES: Press[] = [
   // sheet's own rule asks for at this size, and it is what three of the four
   // already used; `.sd-close`'s 0.97 was three percent of a 16px box, which is
   // half a pixel and was never visible.
-  [".glyph-btn:active:not(:disabled)", "0.94", "transform"],
+  [".glyph-btn:active:not(:disabled):not(:focus-visible)", "0.94", "transform"],
   // The machine panel's process-table column headers, which stopped being inert
   // cells in #739. 0.97 like every other labelled control: the ink is a
   // three-letter word, and 0.94 of a 40px cell would read as a jump rather than
@@ -315,19 +328,18 @@ const PRESSES: Press[] = [
   // and it drew eight rows with a small `more` beside the heading, each of
   // which had its own entry here. The rows are gone and the section is the
   // button above, so the two entries went with them.
-  [".topbar .waiting-stat:active", "0.97", "transform"],
-  // The names the queue beside it gives each waiting session, and its "+N
-  // more" — labelled controls, so 0.97 like the count they continue.
-  [".topbar .wait-entry:active", "0.97", "transform"],
-  [".topbar .wait-more:active", "0.97", "transform"],
+  [".topbar .count-pill.waiting-stat:active", "0.97", "transform"],
+  // (The queue's names and its "+N more" are the count's popover now, V4's
+  // V4's top bar; its rows answer a press with a fill, like the menus' — EXEMPT.)
   // The chrome's eight panel and dialog controls, wherever they stand: the
   // edge stripes, the phone's dock, the topbar's corner (EdgeRails.tsx). One
   // rule for all three placements, because they are one control; 0.97 because
-  // each carries its word.
+  // the dock's and the corner's carry their word. A stripe's door is a glyph
+  // alone, V4's Icon button, and presses at 0.94 (v4-bars.test.ts pins it).
   [".rail-btn:active", "0.97", "transform"],
   // The permission ask beside it, at the same scale for the same reason: it is
   // a labelled control, and 0.94 of a two-word pill reads as a jump.
-  [".topbar .brand button.v:active", "0.97", "transform"],
+  [".topbar button.v:active", "0.97", "transform"],
   [".ap-manage-btn:active:not(:disabled)", "0.97", "transform"],
   [".ap-more:active", "0.94", "transform"],
   // The account rows in the LAN section, which are labels wrapping their own
@@ -348,11 +360,9 @@ const PRESSES: Press[] = [
   // takes the press the way the Projects report's Copy does rather than an edge.
   [".ap-issue-report:active", "0.97", "transform"],
   [".ap-failure-x:active", "0.94", "transform"],
-  // Every switch in the deck — one control since #886, where this list named
-  // four: the accounts panel's, Browser Watch's, the sound menu's and the
-  // version banner's. 0.97 rather than 0.94: the knob travels 12px inside a
-  // 30px track, and six percent of that reads as the knob slipping.
-  [".switch:active:not(:disabled)", "0.97", "transform"],
+  // The switch is not here any more: V4's press is the knob stretching to 18px
+  // (menus.css, V4's motion rules for the Switch), not the whole track scaling, so there is
+  // no `transform: scale` on `.switch:active` to list.
   [".ap-field select:active:not(:disabled)", "0.97", "transform"],
   // Browser Watch's two range selects, in the same language as the panel's:
   // the popup opens anchored to this box, so 0.97 rather than 0.94.
@@ -368,6 +378,12 @@ const PRESSES: Press[] = [
   // An inactive account's one verb, a word on the control fill: a labelled
   // control, 0.97 like every other one.
   [".ap-switch:active:not(:disabled)", "0.97", "transform"],
+  // CHANGED ON PURPOSE (V4's Figma): the Auto-switch row's opener, its chips and
+  // options, and the Move list's rows are labelled controls too, 0.97 like the rest.
+  [".ap-auto-open:active:not(:disabled)", "0.97", "transform"],
+  [".ap-chip:active:not(:disabled)", "0.97", "transform"],
+  [".ap-auto-option:active:not(:disabled)", "0.97", "transform"],
+  [".ap-slot-row:active:not(:disabled)", "0.97", "transform"],
   [".ap-sign-in:active:not(:disabled)", "0.97", "transform"],
   // #856's two disclosures: a warning that opens its reason, a pace note that
   // opens its number. Text-weight, and still a thing being pressed — the
@@ -382,13 +398,22 @@ const PRESSES: Press[] = [
   // The sign-in's "Paste a code, if the page shows one" disclosure: a
   // sentence that opens the code field. A labelled control, so 0.97.
   [".aa-code > summary:active", "0.97", "transform"],
-  [".cat-filter:active", "0.97", "transform"],
+  // CHANGED ON PURPOSE: the tool legend's items and its "Show all" are gone;
+  // the one "Tools" button stands at every width. A labelled control, so 0.97.
+  // CHANGED ON PURPOSE (V4 top-10 #5): .cat-filter-tools:active at 0.97 → gone, because
+  // the floating Tools button is gone: its rows are a group of the canvas bar's ⋯ menu,
+  // and ⋯ presses as the bar's other buttons do (.react-flow__controls-button, above).
   [".ctx-donut:active", "0.94", "transform"],
   [".uh-range-btn:active", "0.97", "transform"],
+  [".ta-period-btn:active", "0.97", "transform"],
   [".uh-bar-col:active", "0.97", "transform"],
   [".session-list .sl-row:active", "0.97", "transform"],
-  // Quick open's esc chip, a 22px key: the icon tier.
-  [".qo-esc:active", "0.94", "transform"],
+  // A card of the phone's Board (critique 3, point 7): a session's row, at the row's tier.
+  [".phone-board .pb-card:active", "0.97", "transform"],
+  // The rail's header icon buttons (Plus, and the phone's close), 24px icons: the icon tier.
+  // Renamed from .sl-close for V4's header, which has two such buttons.
+  [".session-list .sl-icon-btn:active", "0.94", "transform"],
+  // The rail's usage meter, a labelled row that opens Usage: the rows' tier.
   // Browser Watch's episode disclosure. Same tier and same number as the row
   // above it: a full-width row that opens to show what it is summarising.
   [".bw-ep-head:active", "0.97", "transform"],
@@ -403,27 +428,28 @@ const PRESSES: Press[] = [
   ["button.tt-part:active", "0.97", "transform"],
   [".sa-session:active", "0.97", "transform"],
   ["button.tool.clickable:active", "0.97", "transform"],
-  [".selected-ribbon .selected-close:active", "0.94", "transform"],
-  // The × is a span inside the ribbon's own button, and `:active` is set on
-  // every ancestor of what was pressed — without the guard, clearing the
-  // selection would shrink the whole ribbon as if the view were being fitted.
-  [".selected-ribbon:active:not(:has(.selected-close:active))", "0.97", "transform"],
-  [".ver-banner .ver-cmd:active", "0.97", "transform"],
+  // The Inspector's kind chips over that list, each a filter for it.
+  [".call-kind:active", "0.97", "transform"],
+  // (The selected ribbon and its × are gone, V4's top bar.)
+  // CHANGED ON PURPOSE (V4's Figma): the command is a box with an icon-only Copy at its end, so the press is the Copy button's (a 24px glyph button, the 0.94 the round glyphs take), not a pill's.
+  [".ver-banner .ver-copy:active", "0.94", "transform"],
   [".ver-banner .ver-act:active:not(:disabled)", "0.97", "transform"],
   [".ver-banner .ver-close:active", "0.94", "transform"],
   // A number on the one question's scale: a 24px square with a digit in it,
   // so the 0.94 the round glyphs take.
   [".rating-banner .rating-pick:active", "0.94", "transform"],
+  // "Not now": an outlined 28px button with a word in it, so 0.97 like every other labelled control.
+  [".rating-banner .rating-later:active", "0.97", "transform"],
   [".tool-burst.clickable:active", "0.97", "scale"],
   // "update anyway" on an import result row. A 10px word in a pill, so
   // 0.97 like every other labelled control rather than the 0.94 the round
   // glyphs take.
   [".aa-result-fix:active", "0.97", "transform"],
-  // #820's Resume, the one pressable part of the auto-fit strip. A labelled
-  // control, so 0.97 like every other one.
-  [".autofit-resume:active", "0.97", "transform"],
-  // Re-arrange's Undo, the one pressable part of its strip, and Resume's twin
-  // beside it. A labelled control, so 0.97.
+  // CHANGED ON PURPOSE (V4 top-10 #3): #820's "Fit all" chip pressed at 0.97
+  // with `scale` → it is gone, because the control bar's recenter, which
+  // presses like the bar's other buttons, did the very same thing.
+  // Re-arrange's Undo, the one pressable part of its strip. A labelled
+  // control, so 0.97.
   [".rearrange-undo-act:active", "0.97", "transform"],
   // The spoken-voice disclosure under the custom-sound cards: a full-width
   // row, like `.up-disclose`. A labelled control, so 0.97.
@@ -445,6 +471,11 @@ const PRESSES: Press[] = [
   // The feedback dialog's three kinds (#1853): a word in a segmented track,
   // a <label> round its radio — a labelled control, so 0.97.
   [".fb-kind:active", "0.97", "transform"],
+  // With a ccdeck account: the dialog's two tabs, Send without my account,
+  // and a row of Your conversations, which opens its thread.
+  [".fc-tab:active", "0.97", "transform"],
+  [".fc-anon:active", "0.97", "transform"],
+  [".fc-row:active", "0.97", "transform"],
   // And the two quiet buttons under its message, Add screenshot and Add
   // details: a glyph or a chevron and their words, labelled controls, so 0.97.
   [".fb-tool:active", "0.97", "transform"],
@@ -457,6 +488,11 @@ const PRESSES: Press[] = [
   [".film-link:active", "0.97", "transform"],
   // Settings › About's Source, the same kind of link out of the deck (#2176).
   [".settings-link:active", "0.97", "transform"],
+  // The line a refused settings write leaves under the page head: its give-back
+  // press is the banner's word link, 0.97 like .ver-act, and its close is the
+  // banner's 24px icon button, 0.94 like .ver-close.
+  [".settings-failure-act:active", "0.97", "transform"],
+  [".settings-failure-x:active", "0.94", "transform"],
   // Continue on a stopped background session's card (#2193): a word in a
   // 20px pill, a labelled control, so 0.97. And the detail panel's
   // disclosure of the commands it runs, a sentence that opens them.
@@ -473,6 +509,8 @@ const PRESSES: Press[] = [
   [".jr-board-item:active", "0.97", "transform"],
   [".jr-crumb:active", "0.97", "transform"],
   [".jr-link-btn:active", "0.97", "transform"],
+  // Show more under a sprint: a worded control, 0.97.
+  ['.jr-more:active:not([aria-disabled="true"])', "0.97", "transform"],
   // An issue's actions button on a touch screen (⋯, the only way to Move
   // there): a 28px glyph, so 0.94.
   [".jr-move-button:active:not(:disabled)", "0.94", "transform"],
@@ -487,10 +525,19 @@ const PRESSES: Press[] = [
   // A history chart's peak figure, which keeps that minute's reading under the
   // chart: a number and its word, a labelled control, so 0.97.
   [".hist-peak:active", "0.97", "transform"],
+  // CHANGED ON PURPOSE (internal #102): the strip over a filled or too narrow
+  // split Workspace — a pane's tab and Show all — labelled controls, 0.97.
+  [".wsp-tab:active", "0.97", "transform"],
+  [".wsp-all:active", "0.97", "transform"],
 ];
 
 /** What the press declaration has to read, given the property carrying it. */
-const pressed = ([, scale, prop]: Press) => (prop === "transform" ? `scale(${scale})` : scale);
+const pressed = ([, scale, prop]: Press) => {
+  // V4's motion rules: the two press scales are tokens now (--press .97 for a
+  // labelled control, --press-small .94 for a glyph), so the sweep reads them.
+  const token = scale === "0.97" ? "var(--press)" : scale === "0.94" ? "var(--press-small)" : scale;
+  return prop === "transform" ? `scale(${token})` : token;
+};
 
 /** The control a press belongs to — the selector without its `:active…` tail. */
 const owner = (sel: string) => sel.replace(/:active.*$/, "");
@@ -511,14 +558,41 @@ const owner = (sel: string) => sel.replace(/:active.*$/, "");
  *  What this control gives back on press instead is the hover brightness it
  *  keeps through the whole gesture, and a fit-view that moves the canvas. */
 const EXEMPT: string[] = [
+  // The queue popover's rows (V4's top bar) are menu rows: they answer the
+  // pointer and a press with the --selected fill, not a scale, like .ap-menu-item.
+  ".queue-row",
+  // CHANGED ON PURPOSE (V4's Figma): the update banner's command box is pressable as a whole (the pill it replaced was), but a 1400px-wide box does not scale; its Copy button is the control that answers the press (`.ver-copy:active`, listed above).
+  ".ver-banner .ver-cmd",
+  // V4's switch answers a pointer press with its KNOB (it stretches to 18px,
+  // menus.css) and not with a scale of the whole track.
+  ".switch",
+  // Quick open has no motion (V4's motion rules): its esc chip neither eases nor presses.
+  ".qo-esc",
+  // A panel's header folded by the Inspector is one button the panel's width:
+  // it answers with the hover fill and opens the panel; a 320px row scaled on
+  // press would shift its title and figures under the pointer.
+  ".fold-head",
   // Native Settings disclosures answer through expanded state, without moving labels.
   ".ig-access summary", ".ig-token-help summary", ".settings-row-details summary",
   // What's new's disclosures are full-width reading rows: they answer through
   // the underlined label, the turning chevron and the expanded state, and a
-  // row scaled on press would shift the words under the pointer. Take the tour
-  // is a link-shaped word in the footer beside Release history, and answers the
-  // way that link does, with a heavier underline.
-  ".release-notes .rn-history > summary", ".release-notes .rn-more > summary", ".release-notes .rn-text-button",
+  // row scaled on press would shift the words under the pointer. The Keyboard
+  // sheet's Take the tour is the link-shaped word in its footer; it answers the
+  // way a link does, with an underline under the pointer.
+  // CHANGED ON PURPOSE (V4's Figma): .kh-tour joins the link-shaped words, and
+  // What's new's text button (.rn-text-button) is gone: its Take the tour is a
+  // bordered .btn now, which the button rule presses.
+  ".release-notes .rn-history > summary", ".release-notes .rn-more > summary", ".kh-tour",
+  // The Inspector's Details row (V4 top-10 #6) is the same kind of full-width
+  // reading row: it answers by opening, its chevron turning and its words
+  // lifting to --text under the pointer; a row scaled on press would slide
+  // "Details" and its count out from under the pointer.
+  ".detail-more > summary",
+  // CHANGED ON PURPOSE (#2591): New session's "Session options" row is the
+  // same kind of full-width disclosure row: it answers by opening and its
+  // chevron turning, and a row scaled on press would slide its summary out
+  // from under the pointer.
+  ".ns-options-summary",
   // Radio uses pointer-only feedback on the control or its child glyph.
   // Range thumbs and map markers must retain fixed interaction geometry.
   ".radio-cluster-preview > div > .radio-cluster-station",
@@ -532,6 +606,14 @@ const EXEMPT: string[] = [
   ".radio-panel .icon-btn", ".radio-pin", ".radio-play",
   ".radio-regions .radio-region", ".radio-reset", ".radio-station-pick",
 
+  // The version at the status bar's end (opens the release notes). The status
+  // bar moves nothing (v4-status-bar.test.ts: no transition, animation or
+  // transform in its sheet), so the version answers with the hover fill only.
+  ".statusbar-version",
+  // The status bar's "? Keys", drawn once every key of a layer is learned (V4
+  // top-10 #5): the keyboard sheet's door. Exempt for the version's reason: the
+  // bar moves nothing, so it answers with the hover fill and the sheet opening.
+  ".statusbar-keys",
   // Companion selection answers through its radio check and chosen preview.
   ".character-choice",
   // A day column in the Projects report's chart, clickable to reveal that day's
@@ -594,6 +676,10 @@ const EXEMPT: string[] = [
   ".ap-reset-next-account > summary",
   // Coverage links open and focus native disclosures without moving text.
   ".ap-reset-coverage-link",
+  // The version at the status bar's end (opens the release notes). The status
+  // bar moves nothing (v4-status-bar.test.ts: no transition, animation or
+  // transform in its sheet), so the version answers with the hover fill only.
+  ".statusbar-version",
   // Companion selection answers through its radio check and chosen preview.
   ".character-choice",
   // The file input is an invisible hit target stretched over its visible label.
@@ -620,10 +706,9 @@ const EXEMPT: string[] = [
   // their own 0.97.
   ".ap-row-open",
   ".ap-nav",
-  // The Other accounts list's order (#1579), a native select. Its press is
-  // answered by the platform's own list opening over it; scaling the control
-  // in the same instant would shift the words the list is drawn against.
-  ".ap-rest-sort select",
+  // (The Other accounts list's order was a native select here, exempt because
+  // the platform's own list answered its press. It is a menu button now
+  // (V4's Figma), pressed like the controls listed above.)
   // A theme choice. Its press is answered by the whole deck changing theme and
   // the frame moving to it; a 118px preview scaled by 3% lurches rather than
   // clicks, and the hover plate under it already deepens.
@@ -653,6 +738,18 @@ const EXEMPT: string[] = [
   // release, so it answers as the deck's other list rows do: its fill
   // deepens a step and nothing moves.
   ".qo-row",
+  // CHANGED ON PURPOSE (internal #106): a project row in New session's picker
+  // is quick open's row in a listbox (its height, radius and --selected fill).
+  // It answers the same way: the fill under the pointer and the tick on the
+  // chosen row, and nothing moves, so its name and path stay under the pointer.
+  ".ns-option",
+  // The rail's group headers that fold and its "N more" line (V4's Attention
+  // rail): rows of a list that open the rest of it, answered as the deck's
+  // other list rows are, by the fill under the pointer and the chevron turning.
+  // A header that scaled would slide its label and count out from under the
+  // pointer in the instant the group opens beneath it.
+  ".session-list .sl-fold-btn",
+  ".session-list .sl-more",
 ];
 
 describe("press feedback is one convention, applied everywhere", () => {
@@ -753,40 +850,42 @@ const paints = (rule: Rule): string =>
 const live = pulsing.filter(r => /--inflight/.test(paints(r)));
 const otherPulses = pulsing.filter(r => !live.includes(r));
 
-/** The five rules that say a tool or a session is in flight. `.state-pill` and
- *  `.sl-dot` are the same `agent.state` rendered on the node and in the sidebar;
- *  the other three are the same tool `inflight` rendered on the bubble, in the
- *  detail panel and in the modal title. For one active session most of them are
- *  on screen at once, which is why they share a beat. */
+/** The four pulsing rules that say a tool or a session is in flight share a
+ *  beat. The rail's Working glyph deliberately spins on the owner's request;
+ *  under reduced motion it returns to the same --pulse-live opacity cue. */
+// CHANGED ON PURPOSE (V4's Figma): the state pill (the recap's last use) and the dialog title's pulsing
+// status dot are gone from the sheet, so they leave this family.
 const LIVE_PULSE = [
-  ".state-pill.state-active::before",
+  // V4's card: the Working glyph breathes where the pill's dot did.
+  '.agent-node .state-line[data-tone="active"] .state-mark',
   ".sl-dot.state-active::before",
   ".tool-burst .tb-spin",
   ".detail .tool .name .status-dot.inflight::before",
-  ".modal-title .status-dot.inflight",
 ];
+const RAIL_WORKING = '.session-list .sl-glyph[data-glyph="working"] .state-mark';
 
 /** The pulses that are NOT that signal, each with the question it answers. They
  *  keep their own rates on purpose: collapsing them would say the version you
  *  are running, the health of the event stream and a tool in flight are one
  *  fact. A new pulse fails this suite until it is either in the family above or
  *  written down here with a reason. */
+// CHANGED ON PURPOSE (V4's Figma): the version chip leads with the kit's
+// Update icon (Restart while the app holds an update ready), not a dot.
+const NEWER_VERSION_ICON = ".topbar button.v .v-icon";
 const OTHER_PULSES: [selector: string, meaning: string][] = [
-  [".topbar .brand button.v .v-dot", "--warn: a newer ccdeck is published"],
   // `.armed`, not the dot itself: it is still at rest for as long as the
   // notice is only a notice, and pulses only once a restart is actually
   // counting down — which is the one thing in this banner that IS happening
   // right now, and so the one thing the live grammar is for.
-  [".ver-banner .ver-dot.armed", "--warn: the deck is about to restart itself"],
-  [".topbar .status .pill.live::before", "--ok: the event stream is connected"],
-  [".conn-banner .conn-dot", "--err: the event stream is down"],
+  // CHANGED ON PURPOSE (V4's Figma): a banner starts with a 14px kit icon, not a dot. The lost-connection icon is drawn still (the stream's state is also in the words and the top bar), so the --err pulse is gone; only the armed restart's mark moves.
+  [":is(.ver-banner, .conn-banner) .banner-mark.armed", "--warn: the deck is about to restart itself"],
 ];
 
 /** The two live pulses that live on the canvas, and so are switched off by the
- *  canvas block like everything else there. The other three are single dots in
+ *  canvas block like everything else there. The other two are single dots in
  *  panels and keep pulsing — see the note at the foot of the sheet, and
  *  state-channels.test.ts, which forbids a state mark from depending on it. */
-const LIVE_ON_CANVAS = [".state-pill.state-active::before", ".tool-burst .tb-spin"];
+const LIVE_ON_CANVAS = ['.agent-node .state-line[data-tone="active"] .state-mark', ".tool-burst .tb-spin"];
 
 describe("one tempo for one meaning: the live pulse", () => {
   it("sweeps the pulses the sheet actually has, so a pass means something", () => {
@@ -802,10 +901,14 @@ describe("one tempo for one meaning: the live pulse", () => {
     expect(otherPulses.map(r => r.selector).sort()).toEqual(OTHER_PULSES.map(([sel]) => sel).sort());
   });
 
-  it("beats all five of them on one token, with no duration written twice", () => {
+  it("keeps live pulses on one token and the rail's deliberate spin on the loader token", () => {
     for (const rule of live) {
       expect(decl(rule.body, "animation"), rule.selector).toBe("pulse var(--pulse-live) infinite");
     }
+    const rail = all.find(r => !r.reduced && r.selector === RAIL_WORKING)!;
+    expect(rail, "the rail still signals Working").toBeDefined();
+    expect(decl(rail.body, "color")).toBe("var(--inflight)");
+    expect(decl(rail.body, "animation")).toBe("spin var(--loop-loader) linear infinite");
   });
 
   it("declares that token once, at :root, outside any theme", () => {
@@ -816,15 +919,28 @@ describe("one tempo for one meaning: the live pulse", () => {
     expect(decl(declared[0].body, "--pulse-live")).toBe("1.2s ease-in-out");
   });
 
-  it("leaves the four that answer a different question alone", () => {
-    // Two --warn, one --ok, one --err. None of them may quietly adopt the live
-    // token: that would say a stale version and a running tool are one fact.
+  it("leaves the two that answer a different question alone", () => {
+    // One --warn, one --err. Neither may quietly adopt the live token: that
+    // would say an armed restart and a running tool are one fact.
     for (const [sel, meaning] of OTHER_PULSES) {
       const rule = pulsing.find(r => r.selector === sel)!;
       const value = decl(rule.body, "animation")!;
       expect(value, `${sel} — ${meaning}`).not.toContain("--pulse-live");
       expect(value, `${sel} — ${meaning}`).toMatch(/^pulse \d/);
     }
+  });
+
+  it("holds the top bar still: the version chip's icon and the stream chip", () => {
+    // Since 2026-11-01 Live has no chip, and Paused, Lost and Version
+    // hold still — nothing on the top bar pulses at rest. The version mark
+    // used to breathe on --pulse-live; a newer version waiting is a fact at
+    // rest, not something happening now. It is the kit's icon now, and it
+    // holds still as the dot did. And nothing in the stream chip pulses,
+    // whichever state it is in.
+    expect(pulsing.map(r => r.selector).filter(s => s.startsWith(".topbar button.v") || s.startsWith(".topbar .status .pill"))).toEqual([]);
+    const icon = all.find(r => !r.reduced && r.selector === NEWER_VERSION_ICON)!;
+    expect(icon, "the version icon is still drawn").toBeDefined();
+    expect(decl(icon.body, "animation")).toBeNull();
   });
 
   it("earns its reduced-motion exemption on the keyframes, not on a promise", () => {
@@ -837,7 +953,7 @@ describe("one tempo for one meaning: the live pulse", () => {
     expect(all.filter(r => r.reduced && decl(r.body, "--pulse-live") != null)).toEqual([]);
   });
 
-  it("keeps the canvas half switched off and the panel half pulsing", () => {
+  it("keeps the canvas switched off, panel pulses intact and the rail falling back to pulse", () => {
     // The split is deliberate and predates this: a dozen bubbles pulsing across
     // the surface the deck is watched on is not one dot in a fixed strip.
     for (const sel of LIVE_ON_CANVAS) {
@@ -846,6 +962,11 @@ describe("one tempo for one meaning: the live pulse", () => {
     for (const sel of LIVE_PULSE.filter(s => !LIVE_ON_CANVAS.includes(s))) {
       expect(answers.get(sel) ?? [], sel).toEqual([]);
     }
+    const rail = all.find(r => !r.reduced && r.selector === RAIL_WORKING)!;
+    const fallback = (answers.get(RAIL_WORKING) ?? []).at(-1)!;
+    expect(fallback, "reduced motion replaces the rail's spin").toBeDefined();
+    expect(fallback.at).toBeGreaterThan(rail.at);
+    expect(decl(fallback.body, "animation")).toBe("pulse var(--pulse-live) infinite");
   });
 });
 
@@ -876,7 +997,10 @@ describe("one entrance for one interaction: the modal", () => {
   it("dims behind all three of them the same way", () => {
     for (const [backdrop] of DIALOGS) {
       const rule = all.find(r => !r.reduced && r.selector === backdrop)!;
-      expect(decl(rule.body, "animation"), backdrop).toBe("fadeIn 140ms ease-out");
+      // A transition with @starting-style, not a keyframe, so a dialog
+      // reopened inside its own exit turns around from where it is.
+      expect(decl(rule.body, "animation"), backdrop).toBeNull();
+      expect(decl(rule.body, "transition"), backdrop).toBe("opacity var(--dur-base) var(--ease)"); // V4's dialog motion: Base, the one ease
     }
   });
 
@@ -885,9 +1009,14 @@ describe("one entrance for one interaction: the modal", () => {
     // to origin-awareness, and nothing in this UI is anchored to its trigger.
     for (const [, panel] of DIALOGS) {
       const rule = all.find(r => !r.reduced && r.selector === panel)!;
-      expect(decl(rule.body, "animation"), panel).toBe("popIn 180ms cubic-bezier(0.22,1,0.36,1)");
+      // On V4's one curve, --ease, which the literal here was within a few
+      // hundredths of.
+      expect(decl(rule.body, "animation"), panel).toBeNull();
+      expect(decl(rule.body, "transition"), panel).toBe("opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease)"); // V4's dialog motion: Base, not 180ms
+      // ... from the enter scale, which is where the transform comes from.
+      const start = all.find(r => !r.reduced && r.selector === panel && decl(r.body, "transform")?.includes("--enter-scale"));
+      expect(start, panel).toBeDefined();
     }
-    expect(/@keyframes popIn\b[^}]*\}/.exec(css)![0]).toMatch(/transform\s*:/);
   });
 
   it("collapses all three to the backdrop's own fade under reduced motion", () => {
@@ -895,9 +1024,10 @@ describe("one entrance for one interaction: the modal", () => {
     // each panel is answered — by its own selector, since a media query adds no
     // specificity and one dialog's rule does not reach another's.
     for (const [, panel] of DIALOGS) {
-      const answer = (answers.get(panel) ?? []).at(-1);
+      const answer = (answers.get(panel) ?? []).find(r => decl(r.body, "transition-property") != null);
       expect(answer, panel).toBeDefined();
-      expect(decl(answer!.body, "animation"), panel).toBe("fadeIn 140ms ease-out");
+      // Opacity only, on the same durations (the transition itself is kept).
+      expect(decl(answer!.body, "transition-property"), panel).toBe("opacity");
       expect(answer!.at, panel).toBeGreaterThan(all.find(r => !r.reduced && r.selector === panel)!.at);
     }
   });

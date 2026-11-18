@@ -9,6 +9,7 @@
 // comes in as children, so none of it is relayed through here.
 import type { MutableRefObject, ReactNode } from "react";
 
+import { useBoardEmpty } from "../board-empty";
 import { isCanvasNodeElement } from "../canvas-node-element";
 import { releasePointerFocus } from "../canvas-pointer-focus";
 import { isMounted } from "../panel-exit";
@@ -20,7 +21,7 @@ import type { useZoomLod } from "../use-zoom-lod";
 import DragTrashZone from "./DragTrashZone";
 import SessionPeek, { hidePeek, showPeek } from "./SessionPeek";
 
-export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom, viewport, stateRef, peek, children }: {
+export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom, viewport, stateRef, peek, stagePhase, joins, closing, children }: {
   canvasRef: MutableRefObject<HTMLElement | null>;
   /** A session's bubbles are animating out, which the sheet softens the canvas for. */
   bubbling: boolean;
@@ -33,12 +34,23 @@ export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom,
   stateRef: MutableRefObject<GraphState>;
   /** What the peek reads — use-peek-readers.ts. */
   peek: ReturnType<typeof usePeekReaders>;
+  /** Where the terminal stage is between closed and open (stage-shell.ts),
+   *  while it is anywhere but closed: the sheet hides the board under it
+   *  (stage-shell.css). Absent with the flag off, so the attribute never is. */
+  stagePhase?: string;
+  /** The log has replayed and the cards have settled: a card that mounts from now on is a session joining and arrives with a fade (agent-node.css). Absent while the board is opening, when nothing arrives. */
+  joins?: boolean;
+  /** A card has just left: its neighbours close the gap after a hold (canvas-motion.css). */
+  closing?: boolean;
   children: ReactNode;
 }) {
   const { trashDragging, trashState, trashPhase, trashZoneRef, trashLabel } = trash;
   const { lod, lodRef } = zoom;
   const { markCanvasInput } = viewport;
-  const { peekAgent, peekLabel, peekRecap, peekBounds } = peek;
+  const { peekAgent, peekLabel, peekPeers, peekRecap, peekBounds } = peek;
+  // No session yet: the minimap is not drawn, and the character stands in the
+  // corner instead of on the bar (claude-fm.css reads this).
+  const empty = useBoardEmpty();
   return (
     /* <main>, because the canvas is what this page is: everything else on
        screen — the toolbar above it, the panels beside it — exists to
@@ -60,8 +72,11 @@ export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom,
     <main
       id="canvas"
       tabIndex={-1}
-      className={`canvas-wrap${bubbling ? " bubbling" : ""}${dragging ? " dragging-any" : ""}${trashDragging && trashState === "over" ? " trash-hover" : ""}`}
+      className={`canvas-wrap${bubbling ? " bubbling" : ""}${closing ? " closing" : ""}${dragging ? " dragging-any" : ""}${trashDragging && trashState === "over" ? " trash-hover" : ""}`}
       data-lod={lod}
+      data-live={joins ? "" : undefined}
+      data-stage={stagePhase}
+      data-empty={empty ? "" : undefined}
       ref={canvasRef}
       onMouseDownCapture={releasePointerFocus}
       /* The three that say a human is working this canvas right now. They
@@ -107,6 +122,7 @@ export default function CanvasMain({ canvasRef, bubbling, dragging, trash, zoom,
         agentFor={peekAgent}
         recapFor={peekRecap}
         labelFor={peekLabel}
+        peers={peekPeers}
         bounds={peekBounds}
       />
     </main>

@@ -4,7 +4,7 @@
 import type { AgentNodeData } from "./types";
 import type { GraphState } from "./reducer";
 
-export const EXIT_ANIM_MS = 600;
+export const EXIT_ANIM_MS = 150; // = --dur-exit: a leaving card is removed when its fade ends
 
 /** Single source of truth for "is this agent allowed on the canvas right
  *  now". Used by snapshotToFlow (drives ReactFlow nodes) and ToolBursts
@@ -14,10 +14,13 @@ export function isAgentVisible(a: AgentNodeData, now: number): boolean {
   // A ghost: a session that ended within three seconds having done nothing.
   // Not one whose turn stopped on an error, which is what a session dispatched
   // on a login that has already expired does at once (#2185) — that card is
-  // the one place it says so.
+  // the one place it says so. Nor one the reader started from the Command
+  // Panel, until it ends: its first turn can be over in a second with no tool,
+  // and its card is where the reader looks for it (panel-launch.ts).
   if (
     a.kind === "root" && a.state === "done" && a.tools.length === 0 &&
-    a.endedAt != null && (a.endedAt - a.startedAt) < 3000 && !a.stopFailure
+    a.endedAt != null && (a.endedAt - a.startedAt) < 3000 && !a.stopFailure &&
+    !(a.panelLaunch != null && a.closedAt == null)
   ) return false;
   return true;
 }

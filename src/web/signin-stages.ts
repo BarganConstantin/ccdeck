@@ -213,7 +213,7 @@ export function loginPollMs(state: string | null | undefined): number {
 
 /** How long the finished list stays up while the ring closes, before the
  *  success card takes its place — the ring's sweep plus the list's fade. */
-export const HANDOFF_MS = 460;
+export const HANDOFF_MS = 550; // = --dur-slow (the ring's draw, add-account.css aa-lift-out's delay) + --dur-exit (its fade)
 
 /**
  * How long to hold the finished list before the success card replaces it.

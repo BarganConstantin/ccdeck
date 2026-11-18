@@ -19,10 +19,10 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { accountsSurface } from "./accounts-surface";
-import { sheetText } from "./sheet-source";
+import { lazySheetText, sheetText } from "./sheet-source";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const css = sheetText();
+const css = sheetText() + lazySheetText();
 
 /** Every .tsx that ends up in the bundle. The suite's own files are not markup. */
 function components(dir: string): string[] {
@@ -121,8 +121,10 @@ describe("every class the markup hard-codes", () => {
     const policy = readFileSync(join(web, "components/AutoSwitchPolicy.tsx"), "utf8");
     expect(policy).toContain('className="switch ap-auto-state"');
     expect(accountsSurface()).not.toMatch(/ap-auto-state\$\{/);
-    // The version banner, out of App.tsx, carries the auto-restart switch.
-    expect(readFileSync(join(web, "components/VersionBanner.tsx"), "utf8")).toMatch(/<label className="ver-auto">\s*<button type="button" className="switch"/);
+    // CHANGED ON PURPOSE (V4's Figma): the version banner draws no auto-restart
+    // switch any more; it says its countdown in a sentence, and the preference
+    // is the shared switch in Settings › Updates.
+    expect(readFileSync(join(web, "components/VersionBanner.tsx"), "utf8")).not.toMatch(/ver-auto|className="switch"/);
   });
 
   it("is read from enough files, and enough of them, for the sweep to mean something", () => {

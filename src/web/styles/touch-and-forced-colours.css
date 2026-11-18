@@ -10,7 +10,13 @@
   .ap-switch,
   .ap-side,
   .ap-field select,
+  .v4-select > .sm-select,
+  .settings-tab,
   .ap-policy .ap-threshold-input { min-height: 32px; }
+  /* The Inspector's Details row: full width already, 28 high under a mouse. */
+  .detail-more > summary { min-height: 32px; }
+  /* And its next step (Answer or Open) with Show recap, under the title block. */
+  .detail .hero-actions .btn { min-height: 32px; }
   /* The popover's rows sit flush against each other, so a fingertip gets the
      height a touch list needs rather than the 32px floor; its form controls
      stand at the same height as each other, a step over it. */
@@ -32,18 +38,77 @@
   .fb-kind,
   .fb-tool,
   .fb-foot .btn { min-height: 32px; }
+  /* With an account, its two tabs and Send without my account take the same
+     floor; a conversation's rows are already taller than it. */
+  .fc-tab,
+  .fc-anon { min-height: 32px; }
   .fb-shot > .fb-shot-remove::after { inset: -6px; }
-  /* The canvas strips' one word each, Resume and Re-arrange's Undo, take the
-     floor too, and Undo drops the chord it names: a fingertip has no key to
-     press. The chip is 38px tall here, so the strip stacks 8px over that. */
-  .autofit-resume,
+  /* Re-arrange's Undo takes the floor too, and drops the chord it names: a
+     fingertip has no key to press. */
   .rearrange-undo-act { min-height: 32px; }
   .rearrange-undo-key { display: none; }
+  /* The terminal stage's keys bar (terminal-stage.css) names keys the same
+     way: j k, n, Esc, the release chord. They go; "type here" stays, as the
+     button it is. */
+  .ts-keys .ts-hint:not(:has(button)) { display: none; }
+  .ts-keys .kbd { display: none; }
+  /* Its first-run line then reads whole without them: the clause that names
+     Esc goes with the key, and ✕, the header's own control, which a
+     fingertip presses too, stays (KeysBar). */
+  .ts-keys .ts-first-keys { display: none; }
+  /* The empty Workspace pane's quiet line is keys and a drag, neither of them
+     a fingertip's: the title, the line and New session say it whole. */
+  .ts-ws-more { display: none; }
+  /* And every control the Command Panel draws takes the floor: the keys bar's
+     buttons (Got it, type here, Reopen here, Attach again, Next ask, Answer),
+     32px, and the bar with them: 36px here, 32px beside a mouse, so the
+     bar keeps the one height its buttons fit in, the first-run line
+     included (the stage measures the bar and stage-geometry.ts
+     fits the rows above it); the cards' (New
+     session, Reopen here, Check again, Try again, Not now); New session's
+     strips, projects, field and buttons; and the navigator's New session. */
+  .ts-keys .btn,
+  .ts-asks .ts-next,
+  .ts-hosts .btn,
+  .ts-acts .btn,
+  .ns-pop .uh-range-btn,
+  .ns-pop .ns-option,
+  .ns-pop .ns-field,
+  .ns-pop .ns-acts .btn,
+  .ns-pop button.btn.ns-choose,
+  .board-nav button.btn.nav-new { min-height: 32px; }
+  /* A fingertip has no Shift+Delete and no hover: a project's × is always
+     drawn, a 32px square at the row's end. */
+  .ns-pop .ns-forget { opacity: 1; width: 32px; min-height: 32px; margin-right: -8px; }
+  .ts-bar { height: 36px; }
+  .ts-bar:has(.ts-first),
+  .ts-bar:has(.ts-asks) { min-height: 36px; }
+  .ts-bar:has(.ts-hosts) { height: auto; padding-block: 1px; flex-wrap: wrap; row-gap: 0; }
+  /* The hosts line, said whole: a fingertip has no hover to read the rest of a
+     line the bar cut, so it wraps and the bar grows with it. */
+  .ts-asks > .ts-hosts-said { overflow: visible; text-overflow: clip; white-space: normal; line-height: 15px; }
+  .board-nav[data-density="rail"] button.btn.nav-new { width: 32px; }
+  /* The header's glyphs (✕, ⤢, ⌨, ‹, and the install line's copy) are 32px
+     squares: their reach above and below stays, the 2px aside goes, so two
+     neighbours 2px apart never share a pixel of target. */
+  .ts-stage .glyph-btn { min-width: 32px; min-height: 32px; }
+  .ts-stage .glyph-btn::after { inset: -4px 0; }
+  /* The divider is 32px wide: 8px over the navigator and 24px over the
+     stage's inset before its first column, so it covers no cell. Its line
+     and grip stay on the stage's edge. */
+  .ts-divider { left: -8px; width: 32px; }
+  .ts-divider::before { left: 7px; }
+  .ts-grip { left: 4px; }
   /* What's new's update line: its one button takes the floor, and the line
      keeps that height whether the button is there or not, so an answer that
      brings one still moves nothing. */
   .release-notes .rn-line-act,
   .release-notes .rn-update-line { min-height: 32px; }
+  /* V4's shell dialogs: the sheet's Take the tour (What's new's Release history link takes 44 in dialogs.css),
+     Usage history's provider switch and the tour's step dots take the floor. */
+  .kh-tour,
+  .qh-provider,
+  .guide-dot { min-height: 32px; }
 }
 
 /* ---------------- forced colours (#871) ----------------
@@ -60,17 +125,56 @@
    length. No !important: each selector is spelled as the rule it
    answers, and this block comes last. */
 @media (forced-colors: active) {
+  .ui-button-primary { border-color: Highlight; }
+  .ui-input[aria-invalid="true"] { border-color: Mark; }
+  .ns-worktree-toggle[aria-pressed="true"] { forced-color-adjust: none; color: HighlightText; background: Highlight; }
+  .provider-avatar::before { forced-color-adjust: none; background-color: CanvasText; }
+  .pane-badge { border: 1px solid CanvasText; }
+  .pane-badge[data-active] { forced-color-adjust: none; color: HighlightText; background: Highlight; border-color: Highlight; }
+
+  /* The text-field family draws focus with its border colour alone (tokens.css),
+     and a Contrast theme replaces border colours: give it the ring back, in
+     Highlight, inside the box like every other ring. */
+  .settings-filter-field:focus-visible, .sm-select:focus-visible, .ap-manage-input:focus-visible,
+  .aa-field input:focus-visible, .radio-filter-search input:focus-visible,
+  .tr-input:focus-visible, .tr-select:focus-visible,
+  .qh-window select:focus-visible, .jr-move-pop select:focus-visible, .jr-transition select:focus-visible,
+  .jr-comment-compose textarea:focus-visible, .su-pricing select:focus-visible,
+  .ap-field select:focus-visible, .ap-pop .ap-field select:focus-visible,
+  .bw-settings select:focus-visible {
+    outline: var(--focus-w) solid Highlight;
+    outline-offset: calc(-1 * var(--focus-w));
+  }
+  .radio-search:focus-within { outline: var(--focus-w) solid Highlight; outline-offset: calc(-1 * var(--focus-w)); }
+
+  /* The hint's edge is an inset shadow (hint.css), and a Contrast theme drops
+     shadows: draw it back as a line inside the box. */
+  .hint { outline: 1px solid CanvasText; outline-offset: -1px; }
+
+  /* The command menu's chosen row is a fill (quick-open.css), and a Contrast
+     theme drops fills: draw it as a ring inside the row. */
+  .qo-row[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
+  /* New session's projects wear quick open's fill on the row the keys are on
+     (terminal-stage.css): the same ring here (internal #106). */
+  .ns-option[data-highlighted] { outline: 2px solid Highlight; outline-offset: -2px; }
 
   .modal.settings-modal,
   .settings-nav { background: Canvas; color: CanvasText; }
-  .reading-segmented::before { border-color: Highlight; background: Canvas; }
-  .reading-density-sample i { forced-color-adjust: none; background: CanvasText; }
-  .reading-selected-mark { color: Highlight; }
-  .reading-choice:has(input:checked) { border-color: Highlight; }
   .ap-side[aria-checked="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
   .ap-side-dot { forced-color-adjust: none; background: CanvasText; }
 
   .tr-tab[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; border-bottom-color: Highlight; }
+  /* The Inspector's chosen tab is a --panel chip on a --bg-soft track, a
+     difference of fill that forced colours remove: it takes the outline. The
+     card the tree is about wears no ring in any theme, so it takes none here
+     either; aria-current says which one it is. */
+  .insp-tab[aria-selected="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
+  /* The tree's lines are drawn as a fill, which forced colours turn into the
+     canvas's own colour, so who started whom would vanish: paint them in the
+     text colour, as the meters above are. */
+  .insp-gut[data-line]::before,
+  .insp-gut[data-line="elbow"]::after,
+  .insp-gut[data-line="tee"]::after { forced-color-adjust: none; background: CanvasText; }
   .tr-message[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
   .tr-detail-tabs .btn[aria-pressed="true"],
   .ap-reset-coverage-link[aria-pressed="true"],
@@ -83,17 +187,22 @@
   .plan-mark { forced-color-adjust: none; border-color: CanvasText; }
   .plan-item[data-status="in_progress"] .plan-mark { background: Highlight; border-color: Highlight; }
   .plan-item[data-status="completed"] .plan-mark::after { forced-color-adjust: none; border-color: CanvasText; }
-  .topbar .status .pill.live::before,
+  /* The Inspector's plan marks are kit glyphs in currentColor: no ring to repaint. */
+  .detail .plan-mark, .detail .plan-item[data-status="in_progress"] .plan-mark { forced-color-adjust: auto; border-color: transparent; background: none; }
   .topbar .status .pill.paused::before,
   .topbar .status .pill.dead::before,
-  .conn-banner .conn-dot,
   .waiting-dot,
   .ap-dot,
   .pi-dot { forced-color-adjust: none; background: CanvasText; }
   /* The incident mark keeps its shape: a ring for degraded, a grey square for
      maintenance (#1311). */
-  [data-state="degraded"] > .pi-dot { background: Canvas; box-shadow: inset 0 0 0 1.5px CanvasText; }
-  [data-state="maintenance"] > .pi-dot { background: GrayText; }
+  [data-state="degraded"] .pi-dot { background: Canvas; box-shadow: inset 0 0 0 1.5px CanvasText; }
+  [data-state="maintenance"] .pi-dot { background: GrayText; }
+  /* The tool filter's dot is its category's own swatch and keeps its colour;
+     a hidden category's is a ring, kept as one in the text colour, so the
+     shape still says which categories the canvas is not showing. */
+  .cat-tools-item .cat-dot { forced-color-adjust: none; }
+  .cat-tools-item.off .cat-dot { background: Canvas; border-color: CanvasText; }
 
   /* The network map's marks keep their shapes — filled for on, hollow for
      away, dashed for not paired — in the theme's own inks, and its wires keep
@@ -126,29 +235,42 @@
   .bw-mode-dot,
   .bw-prof-dot { forced-color-adjust: none; background: GrayText; }
   .sl-dot.state-active::before,
-  .state-pill.state-active::before,
-  .bw-mode-dot.on,
-  .ap-live::before,
-  .topbar .brand button.v .v-dot,
-  .topbar .brand button.v.ready .v-dot { forced-color-adjust: none; background: Highlight; }
-  /* An open panel's line on its stripe, or on the dock's top edge, is a
-     fill, which the theme paints Canvas like the stripe under it: it opts out
-     and draws in the highlight, so open and closed still differ once the
-     control fill has gone too. */
+  .bw-mode-dot.on { forced-color-adjust: none; background: Highlight; }
+  /* The live account's mark is the kit's done glyph, a stroke in the text colour,
+     so it takes the highlight as its colour rather than as a fill. */
+  .ap-live { forced-color-adjust: none; color: Highlight; }
+  /* An open panel's line on its stripe is a fill, which the theme paints
+     Canvas like the stripe under it: it opts out and draws in the highlight,
+     so open and closed still differ once the --selected fill has gone too. The
+     phone dock's open door has the same line, laid on its top border, and the
+     same need. */
   .rail-btn-stripe::before,
-  .rail-btn-dock::before { forced-color-adjust: none; background: Highlight; }
+  .rail-btn-dock[aria-expanded="true"]::before { forced-color-adjust: none; background: Highlight; }
   /* What's new's Check for updates while a check is out: the accent every
      busy button takes is gone here, so the edge takes the highlight. */
   .release-notes .rn-act[aria-busy="true"] { border-color: Highlight; }
-  /* A pressed chip, a paused canvas and the open tab are drawn as a fill, and
-     the theme paints every fill Canvas, so each looked like its neighbours:
-     they fill with the highlight, the way an on switch does, and keep it
-     under the pointer, where their own hover would outrank this. */
+  /* A pressed chip and the open tab are drawn as a fill, and the theme paints
+     every fill Canvas, so each looked like its neighbours: they fill with the
+     highlight, the way an on switch does, and keep it under the pointer, where
+     their own hover would outrank this. */
   .uh-range-btn[aria-pressed="true"],
-  .uh-range-btn[aria-pressed="true"]:hover,
-  .react-flow__controls-button[aria-pressed="true"],
-  .react-flow__controls-button[aria-pressed="true"]:hover,
-  .aa-tab.on { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  .aa-tab.on,
+  .qh-provider[aria-pressed="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  /* The Inspector's kind chip that filters the calls: its pill takes the fill. */
+  .call-kind[aria-pressed="true"] .cat-chip { forced-color-adjust: none; background: Highlight; color: HighlightText; }
+  /* The picked threshold chip, the picked next-account option and the picked
+     Move slot are a tinted background alone, which a Contrast theme repaints
+     as Canvas: the pick keeps a ring. */
+  .ap-chip[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -2px; border-color: Highlight; }
+  .ap-auto-option[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
+  .ap-slot-row[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
+  @media (hover: hover) and (pointer: fine) {
+  .uh-range-btn[aria-pressed="true"]:hover { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  }
+  /* The rule between the control bar's groups is a fill too, and the theme
+     paints every fill Canvas, so it would vanish. It takes the text colour,
+     the way the hairline it replaced did. */
+  .react-flow__controls-divider { forced-color-adjust: none; background: CanvasText; }
   /* The GitHub and GitLab panel's tabs and a change's sections are the same
      chip, chosen by aria-selected because they are tabs (#2179). */
   .fg-tabs .uh-range-btn[aria-selected="true"],
@@ -169,18 +291,24 @@
      own because its selector carries `:has()`, and one selector a browser
      cannot parse voids the whole list it sits in. */
   .fb-kind:has(input:checked) { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
-  /* The usage panel's period strip is the same chip with no fill of its own:
-     it hands the adjustment back, so its word is the theme's text like its
-     neighbours', and the mark under the word takes the highlight. */
-  .up-period .uh-range-btn[aria-pressed="true"],
-  .up-period .uh-range-btn[aria-pressed="true"]:hover { forced-color-adjust: auto; background: transparent; }
-  .up-period .uh-range-btn[aria-pressed="true"]::after { forced-color-adjust: none; background: Highlight; }
-  /* Every session row's edge is repainted in the text colour, the chosen
-     one's accent with them: it takes the highlight, twice as heavy. The edge
-     is a term in the row's side padding, so the words stay put, and what it
-     grows by above and below comes out of the row's 10px, so the row keeps
-     its height. */
-  .session-list .sl-row.selected { --sl-card-edge: 2px; padding-block: calc(10px - (var(--sl-card-edge) - 1px)); border-color: Highlight; }
+  /* The usage panel's chosen period is a pill whose wash the theme drops: it
+     takes the highlight as a fill, word included, like the feedback kind above. */
+  .up-period .uh-range-btn[aria-pressed="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  @media (hover: hover) and (pointer: fine) {
+  .up-period .uh-range-btn[aria-pressed="true"]:hover { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  }
+  /* The history dialog's chosen range is the same pill: the highlight as a fill, word included. */
+  .uh-toolbar .uh-range-btn[aria-pressed="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  @media (hover: hover) and (pointer: fine) {
+  .uh-toolbar .uh-range-btn[aria-pressed="true"]:hover { forced-color-adjust: none; border-color: Highlight; background: Highlight; color: HighlightText; }
+  }
+  /* Tool activity's chosen period sits on a thumb the theme drops: an inside ring in the highlight. */
+  .ta-period-btn[aria-pressed=true] { outline: 2px solid Highlight; outline-offset: -2px; }
+  /* The rail's selected row is a fill (--selected), which the theme drops: it
+     takes a highlight ring drawn inside the row instead, so the words stay put
+     and the row keeps its height. The status glyphs draw in currentColor and
+     follow the text. */
+  .session-list .sl-row.selected { outline: 2px solid Highlight; outline-offset: -2px; }
   /* The selected card's ring, in the same highlight as its row. The theme
      drops the lift that sets selection apart from the keyboard's ring, and
      repaints the session's own colour in the text colour that ring is drawn
@@ -194,44 +322,67 @@
      outline carries it instead. A hairline in the text colour, so it is not
      the selected card's Highlight ring, and a note is never selected or
      focused itself, so it meets neither. */
+  @media (hover: hover) and (pointer: fine) {
   .canvas-wrap[data-lod="detail"] .recap-note:hover,
   .canvas-wrap[data-lod] .recap-note:hover > .lod-face.recap-face { outline: 1px solid CanvasText; outline-offset: 2px; }
-  /* The order's caret takes the select's own system colour rather than the
-     --muted it rests in, which a contrast theme does not repaint (#1579). */
-  .ap-rest-sort svg { color: ButtonText; }
+  }
   /* The count keeps its bubble, so the digits stay a badge on the corner
      rather than a stray number over the button's edge. */
   .rail-badge { forced-color-adjust: none; background: CanvasText; color: Canvas; }
+  /* The dot for an unread conversation, the grey count beside it on the tab,
+     the chosen tab's underline and an unread row's dot: fills the theme would
+     paint over, redrawn as something live (the dots, the underline) and as a
+     count the text colour carries. */
+  .rail-dot, .fc-dot, .fc-tab[aria-selected="true"]::after { forced-color-adjust: none; background: Highlight; }
+  /* A Sessions row's finished turn not yet looked at: the same unread dot. */
+  .session-list .sl-unread { forced-color-adjust: none; background: Highlight; }
+  .fc-tab-count { forced-color-adjust: none; background: CanvasText; color: Canvas; }
+  /* The canvas bar's ⋯ dot, which says tool calls are hidden: a fill the theme
+     would paint over, so redrawn in the highlight like the rail's. */
+  .canvas-more-dot { forced-color-adjust: none; background: Highlight; }
 
   .sysdetail .sd-fill,
   .sysdetail .sd-core-fill,
+  .sysdetail .sd-fill[data-level="err"],
   .ctx-window-fill,
-  .session-summary .ss-tt-bar-fill { forced-color-adjust: none; background: Highlight; }
+  .ctx-modal .ctx-window-fill,
+  .ctx-modal .ctx-window-fill[data-level="high"],
+  .ctx-modal .ctx-window-fill[data-level="full"] { forced-color-adjust: none; background: Highlight; }
+  /* The Inspector's Time tab: its bars are fills, so they keep a colour of their own. */
+  .insp-time-bar i[data-lane="you"],
+  .insp-time-span[data-group] { forced-color-adjust: none; background: Highlight; }
+  .insp-time-bar i[data-lane="claude"],
+  .insp-time-bar i[data-lane="machine"],
+  .insp-time-span { forced-color-adjust: none; background: CanvasText; }
+  .insp-time-bar { outline: 1px solid CanvasText; }
   .qb-fill,
-  .ap-lane-fill,
+  .ap-meter-fill,
   .ap-report-meter i,
   .uh-bar-seg,
   .uh-agent-seg,
-  .uh-model-bar-fill,
   .uh-legend-dot,
   .cost-bar .cb-seg,
   .session-summary .ssl::before,
+  .tokens-grid .tk-key::before,
   .ap-proj-seg,
   .ap-proj-fill,
   .ap-proj-colseg,
   .ap-proj-dot { forced-color-adjust: none; }
   .qb-track,
-  .ap-lane-track,
+  .ap-meter,
   .sd-track,
+  .up-bone,
+  .up-quota-sub.up-quota-note,
   .sd-core,
-  .session-summary .ss-tt-bar,
-  .uh-model-bar,
   .uh-agent-bar,
   .cost-bar,
   .ap-report-meter,
   .ap-reset-meter,
   .ap-proj-bar,
   .ap-proj-track { outline: 1px solid CanvasText; outline-offset: -1px; }
+  /* The capacity table's bar is 2px tall: the edge sits outside it, or it would
+     cover the whole bar. */
+  .ap-report-fig .ap-report-meter { outline-offset: 1px; }
   /* A day of the Projects report's chart is a button with no edge, and a quiet
      day's column is a pixel tall: each gets the edge a button has, so the
      targets can be found. The chosen day's accent ring is a shadow, which the
@@ -240,21 +391,22 @@
      theme's colours to keep its ring. */
   .ap-proj-day { outline: 1px solid ButtonBorder; outline-offset: -1px; }
   .ap-proj-day.selected .ap-proj-col { outline: 2px solid Highlight; }
-  /* The notch in a thermal track is the panel's ground showing through, and a
-     Contrast theme repaints that ground: it takes Canvas so the gap stays a
-     gap, against a fill that is now Highlight and a track that is outlined. */
-  .sd-mark { forced-color-adjust: none; background: Canvas; }
 
   /* The track keeps its forced border either way; the knob is what moves, so
      it is what has to survive, and the track fills when the switch is on. */
-  .switch-knob,
+  .switch-knob { forced-color-adjust: none; background: CanvasText; }
+  @media (hover: hover) and (pointer: fine) {
   .switch:hover:not(:disabled) .switch-knob { forced-color-adjust: none; background: CanvasText; }
+  }
   .switch[aria-checked="true"],
-  .switch[aria-checked="true"]:hover:not(:disabled),
-  .switch[data-tone="warn"][aria-checked="true"],
-  .ver-banner .switch[aria-checked="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; }
-  .switch[aria-checked="true"] .switch-knob,
+  .switch[data-tone="warn"][aria-checked="true"] { forced-color-adjust: none; border-color: Highlight; background: Highlight; }
+  @media (hover: hover) and (pointer: fine) {
+  .switch[aria-checked="true"]:hover:not(:disabled) { forced-color-adjust: none; border-color: Highlight; background: Highlight; }
+  }
+  .switch[aria-checked="true"] .switch-knob { background: HighlightText; }
+  @media (hover: hover) and (pointer: fine) {
   .switch[aria-checked="true"]:hover:not(:disabled) .switch-knob { background: HighlightText; }
+  }
 
   /* A preview is a picture of a palette, and a palette repainted in system
      colours is two identical grey boxes: it keeps its own. The chosen frame
@@ -282,23 +434,50 @@
   .sm-row input[type="range"]::-moz-range-progress { background: Highlight; }
   .sm-row input[type="range"]::-moz-range-thumb { background: Highlight; }
 
-  /* The canvas strips' words — Resume, and Re-arrange's Undo — are set apart
-     from the status beside them by weight and by a fill under the pointer,
-     and the theme paints that fill Canvas. An edge in the button colour
-     carries each instead, Highlight under the pointer, so the one control in
-     each strip still reads as one. A border and not an outline, which would
-     replace the keyboard's ring. */
-  .autofit-resume,
+  /* The board navigator beside the terminal stage (board-navigator.css). The
+     theme repaints the session's hue and drops the socket's washes and inset
+     ring, so the tile on the stage keeps its rim and its face's edge in the
+     highlight, the chevron with them, the way a chosen row does. The trunk's
+     branches are strokes the theme leaves in the session's hue, and are drawn
+     in the text colour; live and settled stay apart by the dash. */
+  .nav-tile[data-attached] .nav-face,
+  .nav-tile[data-attached] .nav-rim { border-color: Highlight; }
+  .nav-socket { color: Highlight; }
+  .nav-trunk .sess-edge.sess-live,
+  .nav-trunk .sess-edge.sess-idle { stroke: CanvasText; }
+
+  /* The terminal stage (terminal-stage.css). Its marks are fills the theme
+     would paint over: the state marks beside a sentence are the rail's
+     glyphs (StateMark, AlertMark), drawn in currentColor, so they take the
+     text colour on their own and keep their shapes — filled for working,
+     hollow for idle, a tick for ended, the triangle for waiting — which is
+     what tells them apart here. The header's context ring is the card's
+     (ContextModal.tsx ContextRing), drawn in strokes, not the backgrounds
+     the theme repaints, and answered here no more than the card's is: the
+     figure beside it is text, which the theme recolours, so the reading
+     survives whatever the theme makes of the ring. The
+     divider's line is drawn in the text colour, and the terminal itself is
+     drawn by xterm's DOM renderer here, whose glyphs the theme recolours
+     like any text (use-terminal-session.ts). */
+  .ts-divider::before { background: CanvasText; }
+
+  /* Re-arrange's Undo is set apart from the status beside it by weight and
+     by a fill under the pointer, and the theme paints that fill Canvas. An
+     edge in the button colour carries it instead, so the one control in the
+     strip still reads as one, and it turns Highlight under the pointer. A
+     border and not an outline, which would replace the keyboard's ring. */
   .rearrange-undo-act { border: 1px solid ButtonText; }
-  .autofit-resume:hover,
+  @media (hover: hover) and (pointer: fine) {
   .rearrange-undo-act:hover { border-color: Highlight; }
+  }
 
   .tr-live-dot { forced-color-adjust: none; background: GrayText; }
   .tr-dot-ok { background: Highlight; }
   .tr-dot-error, .tr-dot-attention { background: CanvasText; }
   .tr-message[aria-pressed="true"] { border-color: Highlight; }
 
-  .tr-select-wrap > svg { color: ButtonText; }
+  .tr-select-wrap > svg,
+  .v4-select-chevron { color: ButtonText; }
   .tr-message[aria-pressed="true"] { border-color: Highlight; }
 
   /* Radio geography retains marker and cluster distinctions. */
@@ -308,15 +487,33 @@
      a failures sort take Highlight, and an open row or finding is outlined. */
   .ta-bar, .ta-history-bars i { forced-color-adjust: none; background: CanvasText; }
   .ta-history-bars > span[data-shown] i, .ta-list[data-sort=failed] .ta-bar { background: Highlight; }
+  /* A tool's bar in the list sits on its own track, which gets a rim so the empty part is still a length. */
+  .ta-track > .ta-bar { forced-color-adjust: none; background: CanvasText; }
+  .ta-list[data-sort=failed] .ta-track > .ta-bar { forced-color-adjust: none; background: Highlight; }
+  .ta-track { outline: 1px solid CanvasText; outline-offset: -1px; }
   .ta-row[data-selected], .ta-highlight[aria-expanded=true] { outline: 1px solid Highlight; }
   .ta-splitter::before { forced-color-adjust: none; background: CanvasText; }
-  .ta-splitter:hover::before, .ta-splitter:focus-visible::before { background: Highlight; }
+  .ta-splitter:focus-visible::before { background: Highlight; }
+  @media (hover: hover) and (pointer: fine) {
+  .ta-splitter:hover::before { background: Highlight; }
+  }
 
   /* A tracker's panel (#2178): the line between the list and an issue in
      system ink like Tool activity's, and the open issue and a pressed filter
      outlined, since their fills are gone. */
-  .ig-splitter::before { forced-color-adjust: none; background: CanvasText; }
-  .ig-splitter:hover::before, .ig-splitter:focus-visible::before { background: Highlight; }
+  .ig-splitter { forced-color-adjust: none; background: CanvasText; }
+  .ig-splitter::before { forced-color-adjust: none; background: transparent; }
+  /* A row chosen with others: its square keeps a border and its tick is system ink, so it is not a fill alone. */
+  .jr-board[data-multi] .jr-row[data-picked] :is(.jr-toggle-space, .jr-toggle)::before { forced-color-adjust: none; border: 1px solid CanvasText; background: Canvas; }
+  .jr-board[data-multi] .jr-row[data-picked] :is(.jr-toggle-space, .jr-toggle)::after { forced-color-adjust: none; border-color: CanvasText; }
+  .ig-splitter:focus-visible::before { background: Highlight; }
+  @media (hover: hover) and (pointer: fine) {
+  .ig-splitter:hover::before { background: Highlight; }
+  }
+  /* The divider's grip and the dialog's resize lines in system ink: their fills would be gone. */
+  .ig-splitter-grip { forced-color-adjust: none; background: Canvas; border-color: CanvasText; }
+  .ig-splitter-grip::before { forced-color-adjust: none; background: CanvasText; box-shadow: 0 5px 0 CanvasText, 0 10px 0 CanvasText; }
+  .ig-rs::before { forced-color-adjust: none; background: Highlight; }
   /* The chosen row of any integration panel: its fill is gone, its outline stays. */
   .ig-row[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
   /* The reader's own face keeps its ring, in the highlight, apart from every other face's edge. */
@@ -325,6 +522,5 @@
   .fgl-repo-option[data-active="true"] { outline: 1px solid Highlight; outline-offset: -1px; }
   button.btn.jr-chip[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -3px; border-color: Highlight; }
   /* Integration discovery follows the same final forced-colors layer. */
-  .explore-connection[data-connected] { color: CanvasText; }
   .explore-text-action { color: LinkText; text-decoration-color: LinkText; }
 }

@@ -1,0 +1,35 @@
+{
+  "thread": {
+    "id": "0199f3b1-2c4d-7e5f-8a6b-1c2d3e4f5a6b",
+    "kind": "bug",
+    "title": "Usage panel shows 0 after the laptop sleeps",
+    "status": { "code": "wont_do", "label": "Won't do", "fixedIn": null, "reason": "The system stops the network while it sleeps, and ccdeck cannot keep it awake.", "released": false },
+    "createdAt": "2026-10-28T08:01:00Z",
+    "lastActivityAt": "2026-10-28T16:20:00Z",
+    "lastSeq": 9,
+    "readSeq": 6,
+    "hasUnread": true,
+    "preview": { "side": "team", "text": "Won't do: The system stops the network while it sleeps, and ccdeck cannot keep it awake." },
+    "trackedIssue": { "number": 123, "url": "https://github.com/BarganConstantin/ccdeck/issues/123" },
+    "images": 1,
+    "webUrl": "https://app.ccdeck.dev/conversations/0199f3b1-2c4d-7e5f-8a6b-1c2d3e4f5a6b"
+  },
+  "items": [
+    { "seq": 0, "at": "2026-10-28T08:01:00Z", "type": "message", "side": "user", "text": "Usage panel shows 0 after the laptop sleeps.\nIt comes back after a minute.", "via": "deck",
+      "images": [{ "id": "0199f3b1-2c4e-7a10-8b20-3c4d5e6f7a8b", "type": "image/png", "width": 1440, "height": 900, "bytes": 182344 }] },
+    { "seq": 1, "at": "2026-10-28T09:12:00Z", "type": "message", "side": "team", "text": "Thanks! We can reproduce it after a sleep of more than an hour.", "signature": "Constantin · ccdeck team" },
+    { "seq": 2, "at": "2026-10-28T09:13:00Z", "type": "status", "side": "team", "text": "Status changed to Looking into it.",
+      "status": { "code": "looking", "label": "Looking into it", "fixedIn": null, "reason": null, "released": false } },
+    { "seq": 3, "at": "2026-10-28T10:00:00Z", "type": "issue", "side": "team", "text": "Tracked publicly as #123.",
+      "issue": { "number": 123, "url": "https://github.com/BarganConstantin/ccdeck/issues/123" } },
+    { "seq": 4, "at": "2026-10-28T10:05:00Z", "type": "duplicate", "side": "team", "text": "Grouped with similar reports. You'll hear here when it's fixed." },
+    { "seq": 5, "at": "2026-10-28T11:30:00Z", "type": "status", "side": "team", "text": "Fixed in 3.49.0. You'll hear here when it's out.",
+      "status": { "code": "fixed", "label": "Fixed in 3.49.0", "fixedIn": "3.49.0", "reason": null, "released": false } },
+    { "seq": 6, "at": "2026-10-28T14:00:00Z", "type": "released", "side": "team", "text": "What you asked for is in ccdeck 3.49.0.", "version": "3.49.0" },
+    { "seq": 7, "at": "2026-10-28T15:40:00Z", "type": "message", "side": "user", "text": "Still happens on 3.49.0 after a long sleep, see https://github.com/BarganConstantin/ccdeck/issues/123", "via": "web" },
+    { "seq": 8, "at": "2026-10-28T15:40:00Z", "type": "reopened", "side": "user", "text": "Reopened by your reply." },
+    { "seq": 9, "at": "2026-10-28T16:20:00Z", "type": "status", "side": "team", "text": "Won't do: The system stops the network while it sleeps, and ccdeck cannot keep it awake.",
+      "status": { "code": "wont_do", "label": "Won't do", "fixedIn": null, "reason": "The system stops the network while it sleeps, and ccdeck cannot keep it awake.", "released": false } }
+  ],
+  "earlier": null
+}

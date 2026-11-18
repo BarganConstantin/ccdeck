@@ -12,10 +12,9 @@
 // the range buttons. That is not a missing flourish, it is a layout jump with a
 // four-second fuse.
 //
-// The wait reserves the chart room and keeps its baseline. Its decorative
-// file-to-report illustration shows activity, never sample values or measured
-// progress. When data arrives, the actual columns rise from that baseline in
-// chronological order.
+// The wait reserves the chart's room. It shows the words and two rows of quiet
+// bones, never sample values or measured progress. When data arrives, the
+// actual columns rise from the chart's floor in chronological order.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -44,49 +43,49 @@ const frames = (name: string) => {
   return css.slice(at, css.indexOf("\n}", at));
 };
 
-describe("the wait stands in the room the answer needs", () => {
+describe("the wait is V4's reading state, and the chart keeps its own height", () => {
+  // CHANGED ON PURPOSE (V4's Figma): the wait shows the words and two rows of quiet bones where
+  // the figures will be, instead of a file-to-report illustration. The room it stands in is
+  // still the chart's, read off the chart's own rule, so the dialog does not lurch when the
+  // answer lands: same width in every phase, same chart height under the toolbar.
   it("reserves the chart's own height, read off the chart's own rule", () => {
-    // 184 = .uh-chart's 168px plus the 16px it reserves for date labels. Both
-    // numbers are asserted against that rule rather than trusted here, so the
-    // placeholder and the thing it stands in for cannot drift apart.
-    const chart = block(".uh-chart");
-    expect(chart).toMatch(/height: 168px/);
-    expect(chart).toMatch(/padding-bottom: 16px/);
-    expect(block(".uh-status-wait")).toMatch(/min-height: 184px/);
+    expect(block(".uh-chart")).toMatch(/height: var\(--uh-chart-h\)/);
+    expect(block(".uh-status-wait")).toMatch(/min-height: var\(--uh-chart-h\)/);
+    expect(block(".modal.uh-modal")).toMatch(/--uh-chart-h: 180px/);
+    expect(block(".modal.uh-modal")).toMatch(/width: var\(--dialog-m\)/);
+    expect(css).not.toMatch(/\.modal\.uh-modal\[data-phase/);
+    expect(modal).not.toContain("data-phase");
   });
 
-  it("reserves the chart and stops there, rather than faking the numbers", () => {
-    // The totals, the provider bar and the legend are CONTENT — four cards with
-    // figures in them, and a legend whose height depends on how many models ran.
-    // Reserving those would mean drawing plausible empty cards for a reading
-    // that has not come back, which is the shape of lie this panel refuses
-    // everywhere else. The largest single fixed piece is taken; the rest
-    // arrives.
+  it("draws two rows of bones, 28 high, on the control fill, and no illustration", () => {
+    const row = block(".uh-skel-row");
+    expect(row).toMatch(/height: var\(--row-table, 28px\)/);
+    expect(row).toMatch(/padding: 0 8px/);
+    expect(row).toMatch(/gap: 8px/);
+    expect(block(".uh-skel-row i")).toMatch(/background: var\(--ctl-fill\)/);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): a dot is the pill token.
+    expect(block(".uh-skel-dot")).toMatch(/width: 14px; height: 14px; border-radius: var\(--r-pill\)/);
+    expect(block(".uh-skel-bar")).toMatch(/width: 120px; height: 8px; border-radius: var\(--r-tag\)/);
+    expect(block(".uh-skel-end")).toMatch(/width: 48px/);
+    expect(modal).toMatch(/\[0, 1\]\.map\(row => <span key=\{row\} className="uh-skel-row">/);
+    expect(code).not.toMatch(/uh-reading-art|uh-reading-packets|uh-wait-/);
+    expect(css).not.toMatch(/@keyframes uh-reading-transfer/);
+  });
+
+  it("claims no progress: the bones are still, and the figures are not drawn before they exist", () => {
+    // The totals, the provider bar and the legend are CONTENT, so the bones stand
+    // for rows, not for plausible empty cards.
     expect(css).not.toMatch(/\.uh-(totals|legend|agents)-skeleton/);
-    // Asked of the modal and every file lifted out of it.
-    expect(withoutComments(usageHistorySurface())).not.toMatch(/skeleton|shimmer|placeholder-bar/i);
-    // The wait keeps a word group and a baseline; its SVG is decorative.
-    const wait = modal.slice(modal.indexOf('className="uh-status uh-status-wait"'), modal.indexOf('view.phase === "error"'));
-    expect([...wait.matchAll(/className="uh-wait-/g)]).toHaveLength(2);
+    expect(block(".uh-skeleton")).not.toMatch(/animation/);
+    expect(block(".uh-skel-row")).not.toMatch(/animation/);
   });
 
-  it("draws the axis where the chart will draw it", () => {
-    // Same hairline token, so nothing about the line moves when the columns
-    // land on it.
-    expect(block(".uh-chart")).toMatch(/border-bottom: 1px solid var\(--line-soft\)/);
-    expect(block(".uh-wait-axis")).toMatch(/var\(--line-soft\)/);
-  });
-
-  it("travels rather than fills, because no progress was measured", () => {
-    // The deck knows a subprocess is running and does not know how far through
-    // the logs it is. A bar that filled would be claiming a number nobody has.
-    const packets = block(".uh-reading-packets rect");
-    expect(packets).toMatch(/animation: uh-reading-transfer 1800ms/);
-    expect(packets).toMatch(/infinite/);
-    // Packets travel along the connection without changing layout.
-    const sweep = frames("uh-reading-transfer");
-    expect(sweep).toMatch(/translateX/);
-    expect(sweep).not.toMatch(/width|height|margin/);
+  it("puts the day's name under its column and the value over its bar, in the one column", () => {
+    expect(block(".uh-bar-plot")).toMatch(/justify-content: flex-end/);
+    // CHANGED ON PURPOSE (V4 top-10 #8): mono → sans + tabular-nums, because a bar's value is a figure, not code.
+    expect(block(".uh-bar-value")).toMatch(/font-family: var\(--font-sans\)/);
+    expect(block(".uh-bar-label")).toMatch(/width: 0/);
+    expect(modal).toMatch(/className="uh-bar-label" aria-hidden="true"/);
   });
 });
 
@@ -94,36 +93,42 @@ describe("the days land on it, oldest first", () => {
   it("rises with a transform, so a 2px item cannot reflow the label above it", () => {
     const bar = block(".uh-bar");
     expect(bar).toMatch(/transform-origin: bottom/);
-    expect(bar).toMatch(/animation: uh-bar-rise 340ms/);
-    const rise = frames("uh-bar-rise");
-    expect(rise).toMatch(/scaleY\(0\)/);
-    expect(rise).toMatch(/scaleY\(1\)/);
-    // The height transition beside it belongs to a range that CHANGES while the
-    // chart is up; this belongs to a chart that was not there a moment ago. The
-    // entrance must not be the one animating layout.
-    expect(rise).not.toMatch(/\bwidth\b|\bheight\b|\bmargin\b|\bpadding\b|\btop\b|\bleft\b/);
+    // V4's motion rules (rule 6): a transition from @starting-style, not a
+    // keyframe, so a range that changes mid-rise turns round from where it is.
+    expect(bar).toMatch(/transition:[^;]*\btransform var\(--dur-slow\) var\(--ease\)/);
+    // At rest the bar has its real height and no transform; the squash is the rise only.
+    // CHANGED ON PURPOSE (V4's Figma): the 100% is the plot less the 17px the value label takes.
+    expect(bar).toMatch(/height: calc\(var\(--uh-h, 1\) \* \(100% - 17px\)\)/);
+    expect(bar).toMatch(/transform: none/);
+    expect(bar).not.toMatch(/transform:\s*scaleY/);
+    expect(css).not.toMatch(/@keyframes uh-bar-rise/);
+    expect(css).toMatch(/@starting-style \{ \.uh-bar \{ transform: scaleY\(0\); opacity: 0\.4; \} \}/);
+    // The only layout property that eases is the height, for a range that
+    // changes under an open chart (#863); nothing else.
+    expect(bar).not.toMatch(/transition:[^;]*\b(width|margin|padding|top|left)\b/);
   });
 
   it("starts flat, so no frame paints the chart at full height first", () => {
-    // Without a backwards fill the whole chart paints full-size for one frame
-    // and then drops — which is the jump this replaces, arriving 16ms later.
-    expect(block(".uh-bar")).toMatch(/animation: uh-bar-rise 340ms [^;]*\bboth\b/);
+    // The @starting-style value is what the first frame paints, so the whole
+    // chart never paints full-size for one frame and then drops.
+    expect(css).toMatch(/@starting-style \{ \.uh-bar \{ transform: scaleY\(0\)/);
   });
 
   it("divides the stagger rather than fixing it, so 90 days is not 90 delays", () => {
     // A per-column delay makes the longest range the slowest to appear, which
     // is backwards: the longer the range, the more the reader is waiting on.
-    // The span is 200ms whatever the count, and the per-step cap keeps a short
+    // The span is 160ms whatever the count, and the per-step cap keeps a short
     // range reading as a sequence rather than as one block.
-    expect(modal).toMatch(/"--uh-step": `\$\{Math\.min\(10, 200 \/ Math\.max\(days\.length, 1\)\)\}ms`/);
+    expect(modal).toMatch(/"--uh-step": `\$\{Math\.min\(10, 160 \/ Math\.max\(days\.length, 1\)\)\}ms`/);
     expect(modal).toMatch(/"--uh-i": i/);
-    expect(block(".uh-bar")).toMatch(/animation-delay: calc\(var\(--uh-i, 0\) \* var\(--uh-step, 10ms\)\)/);
+    // The rise staggers (transform, opacity); the height of a changing range does not.
+    expect(block(".uh-bar")).toMatch(/transition-delay: 0s, calc\(var\(--uh-i, 0\) \* var\(--uh-step, 10ms\)\), calc\(var\(--uh-i, 0\) \* var\(--uh-step, 10ms\)\)/);
     // The arithmetic the sentence above depends on, so the cap cannot be
-    // loosened without this saying so: at 200ms of span plus a 340ms column,
+    // loosened without this saying so: at 160ms of span plus a 400ms column (--dur-slow),
     // every range arrives inside the band an authored entrance is allowed.
     for (const n of [7, 14, 30, 90]) {
-      const step = Math.min(10, 200 / n);
-      expect(step * (n - 1) + 340, `${n} days`).toBeLessThanOrEqual(560);
+      const step = Math.min(10, 160 / n);
+      expect(step * (n - 1) + 400, `${n} days`).toBeLessThanOrEqual(560);
     }
   });
 
@@ -162,8 +167,9 @@ function reducedMotion(): string {
 describe("reduced motion keeps the meaning and drops the movement", () => {
   it("stops both loops and both entrances", () => {
     const rm = reducedMotion();
-    expect(rm).toContain(".uh-reading-packets rect { animation: none;");
-    expect(rm).toContain(".uh-bar { animation: none; }");
+    // CHANGED ON PURPOSE (V4's Figma): the reading state has no moving packets any more.
+    expect(rm).not.toContain(".uh-reading-packets");
+    expect(rm).toContain(".uh-bar { transition: none; }");
   });
 
   it("keeps the part that was never motion", () => {

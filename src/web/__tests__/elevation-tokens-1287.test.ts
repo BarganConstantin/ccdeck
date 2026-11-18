@@ -8,6 +8,8 @@
 // same for the gradients two rules shared or a theme retuned, further down.
 // --shadow-3 went with the last menu that read it, the topbar speaker's sound
 // popover (2026-10-07): a token nobody reads is dead-css.test.ts's to refuse.
+// --shadow-overlay is V4's one shadow (2026-10-31), the dialogs' and ⌘K's,
+// declared ahead of them on that file's list until they read it.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -42,12 +44,14 @@ const DECLS = [...rules.matchAll(/([^{}]+)\{([^{}]*)\}/g)].flatMap(m =>
 describe("the deck's elevations are tokens, in both themes (#1287)", () => {
   const SHADOWS = { dark: tokens(blocks.dark, "--shadow-"), light: tokens(blocks.light, "--shadow-") };
 
-  it("names the contact line in both theme blocks, beside the two elevations", () => {
+  it("names the contact line in both theme blocks, beside the two elevations and V4's overlay", () => {
     for (const theme of ["dark", "light"] as const) {
       expect(Object.keys(SHADOWS[theme]).sort(), theme)
-        .toEqual(["--shadow-1", "--shadow-2", "--shadow-contact"]);
+        .toEqual(["--shadow-1", "--shadow-2", "--shadow-contact", "--shadow-overlay"]);
       // A line, not a lift: one tight layer.
       expect(layers(SHADOWS[theme]["--shadow-contact"]), theme).toHaveLength(1);
+      // V4's one shadow, the dialogs' and ⌘K's: one layer too, as Figma draws it.
+      expect(layers(SHADOWS[theme]["--shadow-overlay"]), theme).toHaveLength(1);
     }
   });
 
@@ -120,7 +124,8 @@ describe("a gradient two rules share, or a theme retunes, is a token (#1287)", (
   it("declares every themed gradient in both theme blocks, and the shared ones once for both", () => {
     // The node and topbar gradients are themed too; ./gradient-stops and the
     // sweeps that read it hold those two, so this names only the three #1287 made.
-    const themed = ["--conn-wash", "--burst-live-wash", "--hero-core"];
+    // V4's banner: --conn-wash is gone (the banners are flat --panel), so two.
+    const themed = ["--burst-live-wash", "--hero-core"];
     for (const t of themed) {
       expect(tokens(blocks.dark, t)[t], `dark ${t}`).toMatch(/gradient\(/);
       expect(tokens(blocks.light, t)[t], `light ${t}`).toMatch(/gradient\(/);

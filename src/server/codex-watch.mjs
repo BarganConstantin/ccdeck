@@ -29,6 +29,7 @@ import { readLiveDecks } from "./live-decks.mjs";
 // The bounded chunk reads the Claude transcripts use — see jsonl-chunks.mjs.
 import { readAppendedLines, readByteRange } from "./jsonl-chunks.mjs";
 import { maybeResolveCodexMemory } from "./session-enrichment.mjs";
+import { readCodexNames } from "./codex-names.mjs";
 // event-pipeline.mjs's pushEvent, reached without importing it — see
 // event-sink.mjs.
 import { pushEvent } from "./event-sink.mjs";
@@ -519,6 +520,16 @@ function codexScanOnce(firstRun) {
   return codexScan;
 }
 
+/** The newest tracked rollout for a session in this deck's workspace. */
+export function codexTranscriptPath(sid) {
+  let newest = null;
+  for (const [path, state] of codexFileState) {
+    if (state.skip || state.sid !== sid || rolloutNameId(basename(path)) !== sid) continue;
+    if (!newest || state.mtimeMs > newest.mtimeMs) newest = { path, mtimeMs: state.mtimeMs };
+  }
+  return newest?.path ?? null;
+}
+
 /**
  * One scan that begins after this call, awaited — what the poll does every
  * 1500ms, on demand.
@@ -675,6 +686,20 @@ async function scanRollouts(firstRun) {
       // readAppendedLines cannot advance a cursor past `size`. It is resynced
       // FORWARD rather than back to zero because re-reading a rollout from the
       // beginning is precisely the full replay #981 is about.
+      // A title can change while a rollout is idle: check before its early
+      // return too. The same persisted event updates list, header and board.
+      if (state.rootOpened) {
+        const name = (await readCodexNames(rolloutHome(path), now)).get(state.sid);
+        if (name && name !== state.providerName) {
+          const persistName = !eventLogPath() || writesCodexLog({
+            decks: await liveDecks(), pid: process.pid, cwd: state.cwd,
+            codexHome: canonicalLogPath(rolloutHome(path)),
+          });
+          pushEvent({ hook_event_name: "SessionNamed", provider: "codex",
+            session_id: state.sid, cwd: state.cwd, sessionName: name }, "codex", { persist: persistName });
+          state.providerName = name;
+        }
+      }
       if (st.size < state.offset) state.offset = st.size;
       if (st.size <= state.offset) continue;
 

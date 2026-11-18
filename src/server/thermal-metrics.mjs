@@ -8,6 +8,7 @@
 // calls — the one reading that needs the call before it, Linux throttling, is
 // handed that call's answer back by the sampler. WARN_C and CRIT_C are exported
 // because the history's thermal series fall back to them.
+import { readIntelCpuTemp } from "./intel-cpu-temperature.mjs";
 import { readdir, readFile } from "node:fs/promises";
 import { run } from "./metrics-run.mjs";
 
@@ -43,12 +44,13 @@ import { run } from "./metrics-run.mjs";
 //            counters come from Intel's thermal-interrupt driver, and no row
 //            on a machine without them.
 //
-//   macOS    No CPU degrees without root, verified: `powermetrics --samplers
+//   macOS    Built-in CPU degree commands require root: `powermetrics --samplers
 //            smc` answers "powermetrics must be invoked as the superuser", and
 //            `ioreg -c AppleSMC -r -d 1` publishes no temperature key at all to
 //            an unprivileged process. Asking a dashboard for a password every
 //            ten seconds is not an option, and this deck does not ship a
-//            kernel driver.
+//            kernel driver. On Intel, an installed osx-cpu-temp can read the
+//            CPU proximity sensor through SMC without root; see intel-cpu-temperature.mjs.
 //
 //            But the GPU driver does publish one, and nothing said so: the
 //            accelerator's PerformanceStatistics carries "Temperature(C)"
@@ -553,15 +555,16 @@ export function zoneLabel(raw) {
  * The ordering rule is the whole content. ioreg's GPU degrees and pmset's
  * throttle are what macOS itself gives up, and they win — they cost one cheap
  * subprocess each and they are the same numbers this deck has always shown.
- * macmon is consulted only when both were silent, and then its CPU row comes
- * first, because on the machine that reaches here the CPU is the reading
- * somebody opened the panel for.
+ * An installed Intel SMC reader adds CPU degrees independently of those two.
+ * macmon is consulted only when the built-in readings were silent. CPU comes
+ * first whenever available; GPU and throttling retain their own readings.
  */
-export function darwinThermal({ gpuC = null, throttle = null, macmon = {} } = {}) {
+export function darwinThermal({ cpuC = null, gpuC = null, throttle = null, macmon = {} } = {}) {
   const celsius = [];
+  if (plausible(cpuC)) celsius.push({ label: "CPU", celsius: cpuC, warnAt: WARN_C, critAt: CRIT_C });
   if (gpuC != null) celsius.push({ label: "GPU", celsius: gpuC, warnAt: WARN_C, critAt: CRIT_C });
   else {
-    if (macmon.cpu != null) celsius.push({ label: "CPU", celsius: macmon.cpu, warnAt: WARN_C, critAt: CRIT_C });
+    if (!celsius.length && macmon.cpu != null) celsius.push({ label: "CPU", celsius: macmon.cpu, warnAt: WARN_C, critAt: CRIT_C });
     if (macmon.gpu != null) celsius.push({ label: "GPU", celsius: macmon.gpu, warnAt: WARN_C, critAt: CRIT_C });
   }
   return celsius.length || throttle ? { celsius, throttle } : null;
@@ -599,9 +602,10 @@ export async function readThermal(platform = process.platform, since = null) {
     // Scoped by key rather than dumped whole: `ioreg -l` is 217KB and just
     // under two seconds on this machine, `-r -k PerformanceStatistics` is 83KB
     // and 51ms for the same number.
-    const [gpu, therm] = await Promise.all([
+    const [gpu, therm, cpuC] = await Promise.all([
       run("ioreg", ["-r", "-k", "PerformanceStatistics", "-w", "0"], 3_000),
       run("pmset", ["-g", "therm"]),
+      readIntelCpuTemp(),
     ]);
     const gpuC = gpu ? gpuFromIoreg(gpu) : null;
     const throttle = therm ? throttleFromPmset(therm) : null;
@@ -615,7 +619,7 @@ export async function readThermal(platform = process.platform, since = null) {
       ? await (await import("./macmon.mjs")).readMacmonTemps()
       : {};
 
-    return darwinThermal({ gpuC, throttle, macmon });
+    return darwinThermal({ cpuC, gpuC, throttle, macmon });
   }
 
   if (platform === "win32") return readWindowsThermal(since);

@@ -14,7 +14,7 @@
 //
 // WHEN IT READS: when it opens on a board read more than five minutes ago, and
 // when Refresh is pressed. Never on a timer (use-jira-board.ts).
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useT } from "../i18n";
 import { connectionHost, IntegrationFailure } from "../integrations/client";
 import type { IntegrationPanelProps } from "../integrations/types";
@@ -28,6 +28,7 @@ import { definiteJiraWriteFailure, useJiraWriteState } from "../jira-write-state
 import { moveKeys } from "../jira-move";
 import { ExternalLinkGlyph } from "./action-glyphs";
 import AnchoredPopover from "./AnchoredPopover";
+import { WaitingLoader } from "./Loader";
 import IntegrationFreshness from "./IntegrationFreshness";
 import IntegrationSearch from "./IntegrationSearch";
 import IntegrationSkeleton from "./IntegrationSkeleton";
@@ -113,7 +114,7 @@ function BoardPicker({ api, current, layerId, onPick, onClose }: {
             </li>
           ))}
         </ul>
-        {page.loading && <p className="jr-board-pop-note" role="status">{t("integrations.panel.readingBoards")}</p>}
+        {page.loading && <p className="jr-board-pop-note loader-line" role="status"><WaitingLoader busy />{t("integrations.panel.readingBoards")}</p>}
         {!page.loading && page.error && <p className="jr-board-pop-note" role="alert">{page.error.message}</p>}
         {!page.loading && !page.error && page.boards.length === 0 && <p className="jr-board-pop-note">{query ? t("integrations.panel.noBoardNamed") : t("integrations.panel.noBoardsSeen")}</p>}
         {!page.loading && !page.isLast && page.boards.length > 0 && (
@@ -123,6 +124,32 @@ function BoardPicker({ api, current, layerId, onPick, onClose }: {
         )}
       </div>
     </AnchoredPopover>
+  );
+}
+
+// ── the filters, folded ─────────────────────────────────────────────────────
+
+/** One "Filters" button, with how many are on, whose popover holds the same
+ *  chips: what the toolbar shows when the dialog is under 900 wide. */
+function FilterFold({ count, children }: { count: number; children: ReactNode }) {
+  const t = useT();
+  const id = useId();
+  const [open, setOpen] = useState(false);
+  const trigger = `${id}-filters`;
+  return (
+    <span className="jr-filter-fold" id={`${id}-layer`}>
+      <button type="button" id={trigger} className="btn jr-chip jr-filter-fold-btn" data-on={count > 0 || undefined} aria-haspopup="dialog" aria-expanded={open}
+        aria-controls={open ? `${id}-pop` : undefined} onClick={() => setOpen(o => !o)}>
+        {count > 0 ? t("integrations.panel.filtersCount", { n: count }) : t("integrations.panel.filters")}
+        <Chevron open={open} />
+      </button>
+      {open && (
+        <AnchoredPopover anchorId={trigger} portalRootId={`${id}-layer`} id={`${id}-pop`} className="jr-filter-pop" role="dialog" labelledBy={trigger}
+          align="start" onClose={() => setOpen(false)}>
+          <div className="jr-filter-pop-chips">{children}</div>
+        </AnchoredPopover>
+      )}
+    </span>
   );
 }
 
@@ -227,7 +254,10 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
 
   const toggleGroup = (group: GroupDef, open: boolean) => setExpanded(state => ({ ...state, [group.id]: open }));
   const filtered = mine || hideDone || attention || quick.length > 0 || search.trim() !== "";
-  const clearFilters = () => { setMine(false); setHideDone(false); setAttention(false); setQuick([]); setSearch(""); searchRef.current?.focus(); };
+  // Hide done is a standing view the reader keeps (it is remembered), not a
+  // filter to clear: V4 draws it on with no Clear filters beside it.
+  const clearable = mine || attention || quick.length > 0 || search.trim() !== "";
+  const clearFilters = () => { setMine(false); setAttention(false); setQuick([]); setSearch(""); searchRef.current?.focus(); };
   const rowFilter = useMemo(() => ({ search, hideDone, attention }), [search, hideDone, attention]);
 
   // The board's own quick filters, less its "Only My Issues" (the panel's
@@ -292,6 +322,24 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
     });
   }, [trail, choose]);
 
+  // The filter chips, drawn in the toolbar's row, or in the Filters button's
+  // popover when the dialog is under 900 wide.
+  const chips = (
+    <>
+      <button type="button" className="btn jr-chip" aria-pressed={mine} onClick={() => setMine(m => !m)}>{t("integrations.panel.onlyMine")}</button>
+      <button type="button" className="btn jr-chip" aria-pressed={hideDone} onClick={() => setHideDone(h => !h)}>{t("integrations.panel.hideDone")}</button>
+      <button type="button" className="btn jr-chip" aria-pressed={attention} title={t("integrations.panel.attentionTip")}
+        onClick={() => setAttention(a => !a)}>{t("integrations.panel.attention")}</button>
+      {quickFilters.map(q => (
+        <button key={q.id} type="button" className="btn jr-chip" aria-pressed={quick.includes(q.id)} title={q.description || undefined}
+          onClick={() => setQuick(list => (list.includes(q.id) ? list.filter(x => x !== q.id) : [...list, q.id]))}>
+          {q.name}
+        </button>
+      ))}
+    </>
+  );
+  const chipsOn = Number(mine) + Number(hideDone) + Number(attention) + quick.filter(id => quickFilters.some(q => q.id === id)).length;
+
   const host = connectionHost(conn);
   const boardLabel = overview?.board.name || boardName || (board ? t("integrations.board.numbered", { id: board }) : t("integrations.panel.chooseBoard"));
   const blocking = !overview ? (error ?? boardsError) : null;
@@ -317,7 +365,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
       );
     }
     if (!overview) {
-      return <IntegrationSkeleton label={t("integrations.panel.readingBoard")} rows={6} />;
+      return <IntegrationSkeleton label={t("integrations.panel.readingBoard")} rows={5} />;
     }
     return (
       <>
@@ -387,30 +435,25 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
         <span id="jira-board-layer" className="jr-board-layer">
           <button type="button" id="jira-board-button" className="btn jr-board-btn" aria-label={t("integrations.panel.boardAria", { name: boardLabel })} title={[...new Set([overview?.board.name || boardName, overview?.board.projectName].filter(Boolean))].join(" · ")} aria-haspopup="dialog" aria-expanded={picker}
             aria-controls={picker ? "jira-board-picker" : undefined} onClick={() => setPicker(p => !p)}>
-            <span className="jr-board-btn-label">{t("integrations.panel.board")}</span>
+            <span className="jr-board-btn-label">{t("integrations.panel.boardPrefix")}</span>
             <span className="jr-board-btn-name">{boardLabel}</span>
             <Chevron open={picker} />
           </button>
         </span>
         <div className="jr-filters" role="group" aria-label={t("integrations.panel.filters")}>
+          {/* Under 900 wide the chips fold into this one button; it is not
+              drawn otherwise (jira.css). */}
+          <FilterFold count={chipsOn}>
+            {chips}
+            {clearable && <button type="button" className="jr-link-btn jr-clear" onClick={clearFilters}>{t("integrations.panel.clearFilters")}</button>}
+          </FilterFold>
           {/* Escape empties it first (the shared field's own entry on the
               dismiss stack), then leaves the issue, then closes the panel. */}
           <IntegrationSearch inputRef={searchRef} value={search} onChange={setSearch} label={t("integrations.panel.searchLabel")} placeholder={t("integrations.panel.searchPlaceholder")} />
           {/* One row that scrolls sideways on a phone, rather than three rows
               of chips over the board. */}
-          <div className="jr-filter-chips">
-            <button type="button" className="btn jr-chip" aria-pressed={mine} onClick={() => setMine(m => !m)}>{t("integrations.panel.onlyMine")}</button>
-            <button type="button" className="btn jr-chip" aria-pressed={hideDone} onClick={() => setHideDone(h => !h)}>{t("integrations.panel.hideDone")}</button>
-            <button type="button" className="btn jr-chip" aria-pressed={attention} title={t("integrations.panel.attentionTip")}
-              onClick={() => setAttention(a => !a)}>{t("integrations.panel.attention")}</button>
-            {quickFilters.map(q => (
-              <button key={q.id} type="button" className="btn jr-chip" aria-pressed={quick.includes(q.id)} title={q.description || undefined}
-                onClick={() => setQuick(list => (list.includes(q.id) ? list.filter(x => x !== q.id) : [...list, q.id]))}>
-                {q.name}
-              </button>
-            ))}
-          </div>
-          {filtered && <button type="button" className="jr-link-btn jr-clear" onClick={clearFilters}>{t("integrations.panel.clearFilters")}</button>}
+          <div className="jr-filter-chips">{chips}</div>
+          {clearable && <button type="button" className="jr-link-btn jr-clear" onClick={clearFilters}>{t("integrations.panel.clearFilters")}</button>}
         </div>
         {/* After a refresh that failed the rows on screen are the last
             answer, and the line says "Not updated", never "Updated". */}
@@ -420,7 +463,7 @@ export default function JiraPanel({ connection: conn, api, assetUrl, prefs, narr
 
       <IntegrationSplit
         storageKey="jira"
-        automaticDetailShare={0.4}
+        automaticDetailShare={0.4277}
         list={<div className="jr-list-scroll" id={scrollerId}>{list}</div>}
         detail={detail}
         onBack={back}

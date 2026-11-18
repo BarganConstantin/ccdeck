@@ -125,7 +125,10 @@ describe("one way in, at the foot of the accounts (#844)", () => {
   it("is the section itself, drawn as one row while the accounts have the column", () => {
     // The section's foot holds the row, and the row is the button first.
     expect(lan).toMatch(/<div className="ap-foot">\s*<LanEntryRow /);
-    expect(entryRow).toMatch(/return \(\s*<>\s*<button type="button" id="ap-lan-entry" className="ap-nav"/);
+    // CHANGED ON PURPOSE (V4's Figma): the row wears `ap-lan-nav` as well, so
+    // its 44px two-line sizes apply to this row and not to the other accounts'
+    // fold that shares `ap-nav`. It is still the button first.
+    expect(entryRow).toMatch(/return \(\s*<>\s*<button type="button" id="ap-lan-entry" className="ap-nav ap-lan-nav"/);
     // No grace on the way into the view: a card that outlived the view it
     // belongs to would be a card about a list the reader is already looking at.
     expect(entryRow).toMatch(/onClick=\{\(\) => \{ dropPeek\(\); onOpen\(\); \}\}/);
@@ -264,9 +267,11 @@ describe("the view (#844)", () => {
 describe("the tour no longer has to say where it is (#844)", () => {
   it("points at the row instead of describing the panel's layout", () => {
     expect(guide).not.toMatch(/last section of the Claude accounts panel/);
-    expect(guide).toContain('"shell.guide.welcome.7.tip"');
+    // CHANGED ON PURPOSE (V4's tour): the network folded into the accounts
+    // step, whose tip names the row by the name it shows.
+    expect(guide).toContain('"shell.guide.welcome.accounts.tip"');
     // The row is at the foot of both tabs since #2473, so the tip names the
     // panel, not Claude's tab.
-    expect(shellEn["shell.guide.welcome.7.tip"]).toBe("Open it from the row at the foot of the Accounts panel.");
+    expect(shellEn["shell.guide.welcome.accounts.tip"]).toBe("Pair them from the Local network row at the foot of the Accounts panel.");
   });
 });

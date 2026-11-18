@@ -6,15 +6,19 @@
 // teaches the deck's shortcuts as it is used.
 import { liveKey, type RailItem } from "./components/EdgeRails";
 import type { RailItems } from "./rail-items";
-import { elapsedShort, type Row } from "./components/SessionList";
-import { isAlarming } from "./ambient-counts";
+import { rank, type Row } from "./components/SessionList";
+import { namesLine, railGlyph, type RailGlyphKind } from "./rail-row-copy";
+import { homeRelativePath } from "./account-project-paths";
+import type { TerminalProvider } from "./terminal-api";
+import type { AgentNodeData } from "./types";
 import { SETTINGS_SECTIONS, type SettingsSection } from "./settings";
 import { isSectionEntry, resultPlace, type SettingsEntry } from "./settings-search";
 import { THEME_DEFINITIONS, THEMES, type Theme } from "./theme";
 import type { QuickItem } from "./quick-open";
 import { t } from "./i18n";
 import SettingsSectionGlyph from "./components/SettingsSectionGlyph";
-import { ArrangeGlyph, ClearGlyph, FitGlyph, PauseGlyph, TourGlyph } from "./components/rail-glyphs";
+import { ArrangeGlyph, ClearGlyph, ClockGlyph, FitGlyph, TourGlyph } from "./components/rail-glyphs";
+import { KitIcon } from "./components/kit-icons";
 
 /** Words that find a door without being in its name. */
 const DOOR_WORDS: Record<string, readonly string[]> = {
@@ -68,27 +72,55 @@ function doorItem(door: RailItem, singleKeys: boolean): QuickItem {
     subtitle: door.detail?.split("\n")[0],
     keywords: [door.label, door.short, ...(DOOR_WORDS[door.id] ?? []), ...(door.detail ? [door.detail] : [])],
     tag: panel ? (door.open ? t("board.quick.tag.shown") : t("board.quick.tag.panel")) : t("board.quick.tag.dialog"),
+    tagIsState: panel && door.open ? true : undefined,
     verb: panel ? (door.open ? t("board.quick.verb.hidePanel") : t("board.quick.verb.showPanel")) : t("board.quick.verb.open"),
     keyCap: liveKey(door.key, singleKeys)?.cap,
     glyph: door.glyph,
+    // Settings is listed on its own in an empty field, after the sessions,
+    // with its chord beside it: V4 keeps it as a cog at the foot of the left
+    // stripe, and this is where it is found by name without a word added to
+    // the top bar.
+    ...(door.id === "settings" ? { pinned: true as const } : {}),
     run: door.onPress,
   };
 }
 
-/** A session's state in the words its row and card use. */
-export function sessionLine(row: Pick<Row, "state" | "waiting" | "label" | "cwdBasename">, now: number): { line: string; tone: QuickItem["tone"] } {
-  const where = row.cwdBasename && row.cwdBasename !== row.label ? ` · ${row.cwdBasename}` : "";
-  if (row.waiting && isAlarming(row.waiting)) return { line: `${t("board.quick.needsYou")} · ${elapsedShort(row.waiting.since, undefined, now)}${where}`, tone: "waiting" };
-  if (row.state === "active") return { line: `${t("board.quick.working")}${where}`, tone: "active" };
-  if (row.state === "err") return { line: `${t("board.quick.failed")}${where}`, tone: "err" };
-  return { line: `${t("board.quick.done")}${where}`, tone: "done" };
+/** A session's state as its rail row draws it (the same 14px glyph, from the
+ *  same rule), and its row's second line under the name: "folder · task", the
+ *  task alone under a folder's name, nothing before anything was asked
+ *  (rail-row-copy.ts namesLine). The state is the glyph's to say. */
+export function sessionLine(row: Row): { line: string; tone: RailGlyphKind } {
+  return { line: namesLine({ title: row.label, folder: row.folder, task: row.task }), tone: railGlyph(row, rank(row)) };
+}
+
+/** Where the Start rows put a new session: the folder of the session in focus,
+ *  else the one heard from last (the New session popover's first choice). */
+export interface StartFolder {
+  cwd: string;
+  name: string;
+}
+
+/** The folder for the Start rows, picked as the New session popover orders its
+ *  projects (projectChoices): the focused session's first, then the latest
+ *  heard from. The rule is written out here rather than imported because the
+ *  stage's model loads only with the terminal, and the menu loads on every
+ *  visit. Only an absolute folder counts, as the deck starts agents in no
+ *  other; null when no session on the board ran in one. */
+export function startFolder(agents: Iterable<AgentNodeData>, focusSessionId: string | null): StartFolder | null {
+  let pick: AgentNodeData | null = null;
+  for (const a of agents) {
+    if (a.kind !== "root" || !a.cwd || !/^(\/|[A-Za-z]:[\\/])/.test(a.cwd)) continue;
+    if (a.sessionId === focusSessionId) { pick = a; break; }
+    if (!pick || (a.lastEventAt ?? a.startedAt) > (pick.lastEventAt ?? pick.startedAt)) pick = a;
+  }
+  if (!pick?.cwd) return null;
+  return { cwd: pick.cwd, name: pick.cwdBasename || pick.cwd.split(/[\\/]+/).filter(Boolean).pop() || pick.cwd };
 }
 
 export interface QuickOpenSources {
   rails: RailItems;
   /** In the session list's order: who needs you first. */
   sessions: readonly Row[];
-  now: number;
   openSession: (sessionId: string) => void;
   /** Settings' search index as this deck draws it (indexFor): its sections,
    *  and every row a search can land on. */
@@ -97,10 +129,20 @@ export interface QuickOpenSources {
   singleKeys: boolean;
   fit: () => void;
   rearrange: () => void;
+  /** The phone layout: its Board is a stack of cards, where nothing moves a
+   *  camera, so Fit all and Re-arrange are not offered. */
+  phone?: boolean;
   paused: boolean;
   togglePause: () => void;
   /** Absent while the canvas has nothing to clear. */
   clear?: () => void;
+  /** N's move, to the session that has waited longest (then the next one).
+   *  Absent while nobody waits, when N does nothing either. */
+  nextWaiting?: () => void;
+  /** Starting Claude or Codex in a folder, as the New session popover's Start
+   *  does. Absent where the deck has no way to start one (the Command Panel is
+   *  off) or no folder to start it in. */
+  start?: { folder: StartFolder; launch: (agent: TerminalProvider, cwd: string) => void };
   keyHelp: () => void;
   tour: () => void;
   theme: Theme;
@@ -116,18 +158,33 @@ export function quickOpenItems(src: QuickOpenSources): QuickItem[] {
   const items: QuickItem[] = [];
 
   for (const row of src.sessions) {
-    const { line, tone } = sessionLine(row, src.now);
+    const { line, tone } = sessionLine(row);
     items.push({
       id: `session:${row.sessionId}`,
       section: "sessions",
       title: row.label,
-      subtitle: line,
-      keywords: [row.cwdBasename ?? "", row.modelId ?? ""].filter(Boolean),
+      ...(line ? { subtitle: line } : null),
+      ...(row.hover ? { hint: row.hover } : null),
+      keywords: [row.cwdBasename ?? "", row.task ?? "", row.modelId ?? ""].filter(Boolean),
       tag: t("board.quick.tag.session"),
       verb: t("board.quick.verb.goSession"),
       tone,
       run: () => src.openSession(row.sessionId),
     });
+  }
+
+  if (src.start) {
+    const { folder, launch } = src.start;
+    const where = t("board.quick.start.where", { name: folder.name, path: homeRelativePath(folder.cwd) });
+    for (const [agent, title] of [["claude", t("board.quick.start.claude")], ["codex", t("board.quick.start.codex")]] as const) {
+      items.push({
+        id: `start:${agent}`, section: "start", title, subtitle: where,
+        keywords: ["new", "start", "launch", agent, folder.name],
+        tag: t("board.quick.tag.action"), verb: t("board.quick.verb.start"),
+        glyph: <KitIcon name="plus" className="glyph" />,
+        run: () => launch(agent, folder.cwd),
+      });
+    }
   }
 
   for (const door of doors) items.push(doorItem(door, src.singleKeys));
@@ -137,13 +194,21 @@ export function quickOpenItems(src: QuickOpenSources): QuickItem[] {
     items.push(settingItem(entry, src.openSettings));
   }
 
+  // Do's first row, while someone waits: the deck's N, named.
+  if (src.nextWaiting) {
+    items.push({ id: "action:next-waiting", section: "actions", title: t("board.quick.action.nextWaiting"), subtitle: t("board.quick.action.nextWaitingHint"),
+      keywords: ["waiting", "needs you", "next", "blocked", "queue"], tag: t("board.quick.tag.action"), verb: t("board.quick.verb.goSession"),
+      keyCap: key("n"), glyph: <ClockGlyph />, run: src.nextWaiting });
+  }
+  if (!src.phone) {
+    items.push(
+      { id: "action:fit", section: "actions", title: t("board.quick.action.fit"), keywords: ["zoom", "view", "recenter"],
+        tag: t("board.quick.tag.action"), verb: t("board.quick.verb.run"), keyCap: key("F"), glyph: <FitGlyph />, run: src.fit },
+      { id: "action:rearrange", section: "actions", title: t("board.controls.arrangeLabel"), keywords: ["layout", "tidy", "pins"],
+        tag: t("board.quick.tag.action"), verb: t("board.quick.verb.run"), keyCap: key("R"), glyph: <ArrangeGlyph />, run: src.rearrange },
+    );
+  }
   items.push(
-    { id: "action:fit", section: "actions", title: t("board.quick.action.fit"), keywords: ["zoom", "view", "recenter"],
-      tag: t("board.quick.tag.action"), verb: t("board.quick.verb.run"), keyCap: key("F"), glyph: <FitGlyph />, run: src.fit },
-    { id: "action:rearrange", section: "actions", title: t("board.controls.arrangeLabel"), keywords: ["layout", "tidy", "pins"],
-      tag: t("board.quick.tag.action"), verb: t("board.quick.verb.run"), keyCap: key("R"), glyph: <ArrangeGlyph />, run: src.rearrange },
-    { id: "action:pause", section: "actions", title: src.paused ? t("board.quick.action.resume") : t("board.quick.action.pause"), keywords: ["pause", "resume", "freeze", "live"],
-      tag: t("board.quick.tag.action"), verb: t("board.quick.verb.run"), keyCap: key("Space"), glyph: <PauseGlyph />, run: src.togglePause },
     { id: "action:keys", section: "actions", title: t("board.controls.keys"), keywords: ["keys", "help", "?"],
       tag: t("board.quick.tag.action"), verb: t("board.quick.verb.open"), keyCap: key("?"), glyph: <SettingsSectionGlyph section="keyboard" />, run: src.keyHelp },
     { id: "action:tour", section: "actions", title: t("board.hero.tour"), keywords: ["help", "guide", "intro", "start"],
@@ -162,6 +227,7 @@ export function quickOpenItems(src: QuickOpenSources): QuickItem[] {
       title: def.name,
       keywords: ["theme", def.colorScheme],
       tag: theme === src.theme ? t("board.quick.tag.current") : t("board.quick.tag.theme"),
+      tagIsState: theme === src.theme ? true : undefined,
       verb: t("board.quick.verb.useTheme"),
       queryOnly: true,
       glyph: <span className="appearance-preview qo-swatch" data-swatch={theme} />,

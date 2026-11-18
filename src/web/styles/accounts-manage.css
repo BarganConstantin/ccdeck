@@ -11,7 +11,7 @@
    the hover rule. It is also the one of the seven that should stay dead on its
    own merits: 16px would make "+" the loudest glyph in a 288px panel, which is
    the argument `.ap-failure-x` makes against sizing a control like a control
-   when it lives inside 10px text.
+   when it lives inside 11px text.
    It was the one control in an `ap-`, `up-`, `uh-` or `modal-` header kept as a
    `.btn` box when the rest went bare, on the argument that it is the panel's one
    affirmative action and that the sheet already spent a colour saying so. Both
@@ -55,8 +55,15 @@
   line-height: 1;
   cursor: pointer;
 }
-.ap-account:hover .ap-more, .ap-more:hover, .ap-more:focus-visible, .ap-more[aria-expanded="true"] {
+.ap-more:focus-visible,
+.ap-more[aria-expanded="true"] {
   color: var(--text);
+}
+@media (hover: hover) and (pointer: fine) {
+.ap-account:hover .ap-more,
+.ap-more:hover {
+  color: var(--text);
+}
 }
 /* SECONDARY TO `switch`, AND IT LOOKS IT. It drew a --ctl-edge outline under
    the pointer and while open, which is the exact boundary the `switch` pill
@@ -65,7 +72,9 @@
    fill now, the neutral --ctl-fill every control here sits in, a step
    stronger while its menu is open so the popover has something visible to
    hang from. The glyph is the identification; the fill is only the answer. */
+@media (hover: hover) and (pointer: fine) {
 .ap-more:hover { background: var(--ctl-fill); }
+}
 .ap-more[aria-expanded="true"] { background: color-mix(in srgb, var(--text) 12%, transparent); }
 
 /* ── the ⋯ popover ──────────────────────────────────────────────────────────
@@ -93,9 +102,9 @@
   overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: var(--r-panel);
+  border-radius: var(--r-overlay);
   box-shadow: var(--shadow-contact), var(--shadow-2);
-  animation: pop-from-anchor 120ms cubic-bezier(0.23, 1, 0.32, 1);
+  animation: pop-from-anchor var(--dur-fast) var(--ease);
   text-align: left;
 }
 /* Out of the anchor, not up from nowhere: 3px away from the button over
@@ -112,7 +121,7 @@
    under the ⋯ of a row with `switch` beside it that puts the popover's left
    edge on the row's own 14px inset — measured — so the menu's words start on
    the line the account's number and address start on. */
-.ap-pop { width: 200px; }
+.ap-pop { width: 220px; }
 /* A column, so each row stretches to the menu's width without being told a
    percentage. */
 .ap-pop[role="menu"] {
@@ -123,43 +132,53 @@
 
 /* ROWS, NOT PILLS. The block's verbs were three outlined pills and a fourth
    in red; in a menu the list is the container, so an item draws nothing at
-   rest and answers the pointer and the keyboard with the neutral fill every
-   control here sits in — the way a native menu highlights a row without
-   restyling its word. --ctl-h is the one height a control stands at in this
-   deck, and a menu row is one. */
+   rest and answers the pointer and the keyboard with the --selected fill — the
+   way a native menu highlights a row without restyling its word. V4's menu: a
+   row stands at the kit's table-row height (--row-table: 28 at Compact, 36 at
+   Default and Comfortable), 0 8px of padding and an 8px gap, 13px on the body
+   line at weight 400. */
 .ap-menu-item {
   display: flex;
   align-items: center;
-  min-height: var(--ctl-h);
-  padding: 0 10px;
+  gap: 8px;
+  min-height: var(--row-table);
+  padding: 0 8px;
   border: 0;
-  /* Concentric with the surface: its --r-panel less the 4px it is inset by. */
+  /* V4's menu: the kit's --r-tag, inset 4px inside the overlay's corner. */
   border-radius: var(--r-tag);
   background: none;
   color: var(--text);
   font: inherit;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: var(--lh-body);
+  font-weight: 400;
   text-align: left;
   cursor: pointer;
 }
-.ap-menu-item:hover:not(:disabled),
-.ap-menu-item:focus-visible { background: var(--ctl-fill); }
+.ap-menu-item:focus-visible { background: var(--selected); }
+@media (hover: hover) and (pointer: fine) {
+.ap-menu-item:hover:not(:disabled) { background: var(--selected); }
+}
 /* Inset, because the global ring's 1px offset would draw over the rows on
    either side of this one. */
-.ap-menu-item:focus-visible { outline-offset: -2px; }
 .ap-menu-item:active:not(:disabled) { background: color-mix(in srgb, var(--text) 12%, transparent); }
+/* The kit draws a disabled row's label in --muted-dim, but that tier is under
+   4.5:1 on --panel and the text floor (contrast-floors.test.ts) allows no rule
+   to set it as a colour, so the row keeps the shared --dim-off dimming. */
 .ap-menu-item:disabled { opacity: var(--dim-off); cursor: default; }
 /* The rule is what separates the one act that cannot be undone. It used to be
    distance — `remove` pushed 102px along its own row — and in a list the
    equivalent is a hairline, inset so it reads as a pause in the list rather
    than an edge of the surface. */
-.ap-menu-sep { height: 1px; margin: 4px 6px; background: var(--line); }
+.ap-menu-sep { height: 1px; margin: 4px 0; background: var(--line-soft); }
 /* The only item that carries the error colour, and at rest it carries it in
    the word alone. Pointed at, it takes the same 12% --err wash `.btn.danger`
    takes under the pointer. */
 .ap-menu-item.danger { color: var(--err); }
-.ap-menu-item.danger:hover:not(:disabled),
 .ap-menu-item.danger:focus-visible { background: color-mix(in srgb, var(--err) 12%, transparent); color: var(--err); }
+@media (hover: hover) and (pointer: fine) {
+.ap-menu-item.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--err) 12%, transparent); color: var(--err); }
+}
 /* Armed is a different item, not a hover state: the next press deletes stored
    credentials, and it disarms itself after four seconds. The fill-and-invert
    `.ap-manage-btn.danger.armed` uses for the same moment, and the same bar
@@ -167,13 +186,21 @@
    nothing about a countdown should ease. Spelled out for the pointed-at states
    too, which would otherwise outrank it and paint the wash over the fill. */
 .ap-menu-item.danger.armed,
-.ap-menu-item.danger.armed:hover:not(:disabled),
 .ap-menu-item.danger.armed:focus-visible {
   position: relative;
   overflow: hidden;
   background: var(--err);
   color: var(--bg);
   font-weight: 600;
+}
+@media (hover: hover) and (pointer: fine) {
+.ap-menu-item.danger.armed:hover:not(:disabled) {
+  position: relative;
+  overflow: hidden;
+  background: var(--err);
+  color: var(--bg);
+  font-weight: 600;
+}
 }
 .ap-menu-item.danger.armed::after {
   content: "";
@@ -193,15 +220,43 @@
 .ap-pop-form {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   padding: 12px;
 }
+/* V4's Rename and Move: 280 wide, a 13 semibold title, 12 in, 8 between. */
+.ap-pop:has(.ap-pop-form) { width: 280px; }
 .ap-pop-title {
   margin: 0;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  font-weight: 500;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
+  font-weight: 600;
   color: var(--text);
 }
+/* The slot list: rows 28 high with no gap, the name and then what picking it
+   does, the picked one on the selected fill. */
+.ap-slot-list { display: flex; flex-direction: column; }
+.ap-slot-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  font: inherit;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+.ap-slot-row[data-selected] { background: var(--selected); }
+@media (hover: hover) and (pointer: fine) {
+.ap-slot-row:hover:not([data-selected]):not(:disabled) { background: var(--ctl-fill); }
+}
+.ap-slot-name { flex: none; }
+.ap-slot-cap { color: var(--muted); }
 .ap-pop-actions {
   display: flex;
   justify-content: flex-end;
@@ -261,12 +316,14 @@
   font: inherit;
   font-size: calc(11px + var(--ui-text-increase, 0px));
   cursor: pointer;
-  transition: color 120ms, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-issue-report:hover { color: var(--text); text-decoration: underline; }
+}
 /* The press convention every clickable control here keeps — the same 0.97 and
    easing the Projects report's Copy takes (canvas-motion.test.ts). */
-.ap-issue-report:active { transform: scale(0.97); }
+.ap-issue-report:active { transform: scale(var(--press)); }
 @media (prefers-reduced-motion: reduce) {
   .ap-issue-report:active { transform: none; }
 }
@@ -284,26 +341,35 @@
   /* The height of the two buttons under it in the rename form, rather than the
      24px it shared with the pills on the row it used to sit in. */
   min-height: var(--ctl-h);
-  padding: 0 8px;
+  padding: 0 12px;
+  /* V4's field: the kit draws --line, but --line is 1.14 to 2.25:1, under the
+     3:1 a field's boundary needs (1.4.11), so the edge stays --ctl-edge. */
   border: 1px solid var(--ctl-edge);
   border-radius: var(--r-ctl);
-  background: var(--ctl-fill);
+  background: var(--bg-soft);
   color: var(--text);
   font: inherit;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  transition: border-color 120ms, background 120ms;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  font-weight: 400;
+  line-height: var(--lh-body);
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
-.ap-manage-input:hover { border-color: var(--text); }
-.ap-manage-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-/* The six placeholders these fields carry had no colour of their own, so they
-   got the browser's: Chromium's fixed #757575, 3.38:1 on this fill in dark and
-   3.98:1 in light (#1789), and Firefox fades whatever it gets by 0.54 more.
-   --muted and --text-dim are 4.05:1 on a fill mixed from the foreground in
-   dark, so dark takes the tier above them. On white that tier is 10.21:1 and
-   would read as a typed value, so light takes --text-dim, the grey .aa-field's
-   placeholder already wears there. */
-.ap-manage-input::placeholder { color: var(--text-secondary); opacity: 1; }
-:root[data-color-scheme="light"] .ap-manage-input::placeholder { color: var(--text-dim); }
+@media (hover: hover) and (pointer: fine) {
+.ap-manage-input:hover:not(:focus-visible) { border-color: var(--text); }
+}
+/* V4's field: the six placeholders these fields carry take --muted in both
+   schemes. On --bg-soft it is at least 4.91:1 in every theme (it was 4.05:1 on
+   the old fill mixed from the foreground, which is why dark used the tier
+   above); the browser's own fixed grey was under the floor. */
+.ap-manage-input::placeholder { color: var(--muted); opacity: 1; }
+/* V4's field, disabled: the --line edge and --muted-dim ink, no pointer, and no
+   hover answer (the second selector out-ranks the hover rule above). A key
+   focus turns the edge at once; a pointer focus eases it over Fast. */
+.ap-manage-input:disabled, .sm-select:disabled { border-color: var(--line); color: var(--muted-dim); cursor: default; }
+@media (hover: hover) and (pointer: fine) {
+.ap-manage-input:disabled:hover:not(:focus-visible), .sm-select:disabled:hover:not(:focus-visible) { border-color: var(--line); color: var(--muted-dim); cursor: default; }
+}
+:root[data-motion="instant"] :is(.ap-manage-input, .sm-select, .settings-filter-field, .tr-input, .tr-select) { transition: none; }
 /* --muted here was the labels' own colour — identical to --text-dim in dark, to
    a rounding error — so nothing in the block told a clickable pill from a
    decorative word. The buttons rise to --text rather than the labels sinking
@@ -320,16 +386,18 @@
   background: var(--ctl-fill);
   color: var(--text);
   font: inherit;
-  font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px)));
   cursor: pointer;
-  transition: border-color 120ms, color 120ms, background 120ms,
-              transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-manage-btn:hover:not(:disabled) {
   border-color: var(--text);
   background: color-mix(in srgb, var(--text) 12%, transparent);
 }
-.ap-manage-btn:active:not(:disabled) { transform: scale(0.97); }
+}
+.ap-manage-btn:active:not(:disabled) { transform: scale(var(--press)); }
 /* The same dimming the ↻ and the two selects use for the moment a request is
    out. At 0.45 this was the panel's only long-lived disabled control and it sat
    at 1.98:1; nothing here is disabled at rest any more, so the value can match
@@ -343,7 +411,9 @@
    did not: only its LABEL did, at 9.54:1, which is exactly why it out-drew
    everything around it. */
 .ap-manage-btn.danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 65%, transparent); }
+@media (hover: hover) and (pointer: fine) {
 .ap-manage-btn.danger:hover:not(:disabled) { border-color: var(--err); }
+}
 /* Armed is a different button, not a hover state: it is one click from
    deleting stored credentials, and it disarms itself after four seconds. */
 .ap-manage-btn.danger.armed {
@@ -360,11 +430,11 @@
   overflow-wrap: anywhere;
   padding: 6px 8px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   background: var(--bg-soft);
   color: var(--muted);
   font-family: var(--font-mono);
-  font-size: calc(9px + max(0px, var(--ui-text-increase, 0px)));
+  font-size: calc(11px + max(0px, var(--ui-text-increase, 0px)));
   line-height: 1.4;
   user-select: all;
 }
@@ -372,7 +442,7 @@
    The row's own share used to wear these too, before it moved into the ⋯
    popover and took the popover's buttons. */
 .ap-share-foot { display: flex; align-items: center; gap: 8px; }
-.ap-manage-hint { color: var(--text-dim); font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); min-width: 0; }
+.ap-manage-hint { color: var(--text-dim); font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); min-width: 0; }
 /* Copy is the point of that foot, so it looks like it. The border is the
    accent itself rather than --accent-dim: at 1.91:1 dark / 1.39:1 light the dim
    edge was an invisible boundary. */
@@ -381,7 +451,9 @@
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
+@media (hover: hover) and (pointer: fine) {
 .ap-share-foot .ap-manage-btn:hover:not(:disabled) {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
 }
 

@@ -9,9 +9,27 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { isCharacterKey, setSingleKeyShortcuts, singleKeyShortcutsOn, SINGLE_KEY_SHORTCUTS_KEY } from "../single-key-shortcuts";
-import { KEY_HELP, KEY_HELP_NOTE, KEY_HELP_OFF_TITLE, KEY_HELP_SWITCH_NOTE, keyHelpFor } from "../key-help";
+import { KEY_HELP, KEY_HELP_NOTE_MSG, KEY_HELP_OFF_TITLE_MSG, KEY_HELP_SWITCH_NOTE_MSG, SINGLE_KEYS_PLACE_MSG, keyHelpFor } from "../key-help";
 import { pauseTitle, statusPill } from "../status-pill";
-import { boardScopeTitle, BOARD_SCOPE_TITLE } from "../board-usage";
+import { boardScopeTitle } from "../board-usage";
+import { en } from "../i18n/en";
+import { fill } from "../i18n/translate";
+
+// CHANGED ON PURPOSE (the UI in every language): these sentences are keys now;
+// the words are read through the English catalog.
+const KEY_HELP_NOTE = en[KEY_HELP_NOTE_MSG];
+const KEY_HELP_OFF_TITLE = en[KEY_HELP_OFF_TITLE_MSG];
+const KEY_HELP_SWITCH_NOTE = fill(en[KEY_HELP_SWITCH_NOTE_MSG], { place: en[SINGLE_KEYS_PLACE_MSG] });
+// The board's scope sentence with the single-key shortcuts on: what it said as
+// one constant, from its two keys.
+const BOARD_SCOPE_TITLE =
+  "Everything on the board right now, and only that.\n"
+  + "Finished sessions are evicted from the canvas a couple of minutes after they end, "
+  + "and their tokens and dollars leave with them — so this figure falls on its own.\n"
+  + "Press H for the totals ccusage reads off the logs on disk, which do not forget.";
+const BOARD_SCOPE_TITLE_NO_KEYS =
+  BOARD_SCOPE_TITLE.slice(0, BOARD_SCOPE_TITLE.indexOf("Press H"))
+  + "Usage history has the totals ccusage reads off the logs on disk, which do not forget.";
 import { WaitingStat } from "../components/TopbarReadouts";
 import { EdgeRail, UtilityRun, liveKey, railHint } from "../components/EdgeRails";
 import { attr, buttons, draw, items } from "./edge-keys-rails";
@@ -119,10 +137,14 @@ describe("the Settings row", () => {
     expect(off).not.toContain(">J</kbd>");
   });
 
-  it("names keys the sheet lists and the switch silences, Space and ? among them", () => {
-    expect(SINGLE_KEYS_NOTE).toMatch(/\bL, U, M, \? and Space\b/);
+  // CHANGED ON PURPOSE (#2591): Board pause is withdrawn (the owner's call), so
+  // Space has no Board action and the note no longer names it, in any language.
+  it("names keys the sheet lists and the switch silences, ? among them and Space not", () => {
+    expect(SINGLE_KEYS_NOTE).toMatch(/\bL, U, M and \?/);
+    expect(SINGLE_KEYS_NOTE).not.toMatch(/Space/);
     const caps = KEY_HELP.flatMap(g => g.rows).filter(r => !r.chord && r.binds.some(isCharacterKey)).map(r => r.cap);
-    for (const cap of ["L", "U", "M", "?", "Space"]) expect(caps, cap).toContain(cap);
+    for (const cap of ["L", "U", "M", "?"]) expect(caps, cap).toContain(cap);
+    expect(caps).not.toContain("Space");
     expect(SINGLE_KEYS_NOTE).toMatch(/voice control/);
   });
 
@@ -223,6 +245,7 @@ describe("titles drop the letter when the switch is off", () => {
 
   it("points the usage scope at Usage history by name instead of by H", () => {
     expect(boardScopeTitle(true)).toBe(BOARD_SCOPE_TITLE);
+    expect(boardScopeTitle(false)).toBe(BOARD_SCOPE_TITLE_NO_KEYS);
     expect(boardScopeTitle(false)).not.toMatch(/\bH\b/);
     expect(boardScopeTitle(false)).toMatch(/Usage history has the totals ccusage reads/);
     expect(boardScopeTitle(false).startsWith(BOARD_SCOPE_TITLE.slice(0, BOARD_SCOPE_TITLE.indexOf("Press H")))).toBe(true);
@@ -254,14 +277,18 @@ describe("titles drop the letter when the switch is off", () => {
   });
 
   it("builds every other title that names a key through the same rule", () => {
+    // CHANGED ON PURPOSE (V4 top-10 #5): the canvas bar's Re-arrange, keyboard and
+    // Pause titles → the ⋯ menu's rows, which drop their key cap and
+    // aria-keyshortcuts through one rule (MenuRow), and the keyboard title on the
+    // status bar's "? Keys" and Pause's on the top bar's pill, which kept them,
+    // because those three buttons left the bar for the menu.
     for (const [rel, call] of [
-      ["components/CanvasControls.tsx", 'withKey(t("board.controls.arrange"), "R", singleKeys)'],
-      ["components/CanvasControls.tsx", 'singleKeys ? withKey(t("board.controls.keys"), "?", true) : t("board.controls.keysOff")'],
-      ["components/CanvasControls.tsx", "dropped: pauseGate.dropped, singleKeys }, t)"],
+      ["components/CanvasControls.tsx", "const key = singleKeys ? keyCap : undefined;"],
+      ["components/StatusBar.tsx", 'singleKeys ? withKey(t("board.controls.keys"), "?", true) : t("board.controls.keysOff")'],
+      ["components/TopbarReadouts.tsx", "dropped: pauseGate.dropped, singleKeys,"],
       ["components/SessionList.tsx", 'withKey(t("board.list.hideSidebar"), "L", singleKeys)'],
       ["components/UsagePanel.tsx", 'withKey(t("usage.close"), "U", singleKeys)'],
       ["components/AccountsPanel.tsx", 'withKey(t("accounts.close"), "A", singleKeys)'],
-      ["components/SelectedRibbon.tsx", '"Z", singleKeys)'],
       ["components/Detail.tsx", 'withKey(t("board.detail.listUpper"), "L", singleKeys)'],
     ] as const) {
       expect(sourceOf(rel), rel).toContain(call);
@@ -278,11 +305,17 @@ describe("the shortcuts sheet with the switch off", () => {
     // re-arranges with the letters off, and the chord still takes it back.
     // Ctrl + K since quick open: with the letters off it is the one key that
     // still reaches the panels, so their group keeps that row alone.
+    // CHANGED ON PURPOSE (V4's Figma): the same rows, in V4's five groups (Deck,
+    // Canvas, Panels), so the order follows the groups.
+    // CHANGED ON PURPOSE (first use of Workspace): F2, the list's rename, is a
+    // named key, so it stays with the letters off, after Ctrl + K.
     expect(rows.map(r => r.cap)).toEqual([
-      "Delete", "Ctrl + Z", "Ctrl + K", "Ctrl + ,", "Tab", "Enter", "Shift + Enter", "Esc",
+      "Ctrl + ,", "Ctrl + Z", "Esc",
+      "Delete", "Tab", "Enter", "Shift + Enter",
       "drag", "shift-click", "click", "double-click", "hover",
+      "Ctrl + K", "F2",
     ]);
-    expect(keyHelpFor(false).find(g => g.title === "Panels and dialogs")?.rows.map(r => r.cap)).toEqual(["Ctrl + K"]);
+    expect(keyHelpFor(false).find(g => g.title === "Panels")?.rows.map(r => r.cap)).toEqual(["Ctrl + K", "F2"]);
     expect(rows.find(r => r.cap === "Delete")?.action).toBe("take the selected card off the board — the session list brings it back");
     expect(keyHelpFor(true)).toBe(KEY_HELP);
   });
@@ -291,9 +324,13 @@ describe("the shortcuts sheet with the switch off", () => {
     setSingleKeyShortcuts(false);
     const html = renderToStaticMarkup(createElement(KeyboardHelp, { onClose: noop, onSettings: noop }));
     expect(html).toContain(KEY_HELP_OFF_TITLE);
+    // CHANGED ON PURPOSE (the UI in every language): the English the key carries.
+    expect(en[KEY_HELP_OFF_TITLE_MSG]).toBe("Single-key shortcuts are off.");
     expect(html).toContain('<span class="kh-place">Settings › Keyboard</span>');
     expect(html).toMatch(/<button type="button" class="btn">Open Settings<\/button>/);
-    expect(html).not.toMatch(/<kbd>[A-Z?]<\/kbd>/);
+    // CHANGED ON PURPOSE (V4's Figma): a chord is one chip per key now, so the
+    // check is for a row whose only chip is a lone letter.
+    expect(html).not.toMatch(/<span class="kh-keys"><kbd>[A-Z?]<\/kbd><\/span>/);
     expect(html).not.toContain("kh-foot");
     // Said with the dialog's title, not only found by reading on.
     expect(html).toContain('aria-describedby="key-help-off"');
@@ -310,11 +347,18 @@ describe("the shortcuts sheet with the switch off", () => {
   });
 
   it("says on the ? button, with the keys off, why ? does nothing", () => {
-    expect(sourceOf("components/CanvasControls.tsx")).toContain('t("board.controls.keysOff")');
+    // CHANGED ON PURPOSE (V4 top-10 #5): the bar's ? button → the ⋯ menu's row says
+    // it in its words, and the status bar's "? Keys" in its tooltip, because the
+    // button moved into the menu.
+    expect(sourceOf("components/CanvasControls.tsx")).toContain('singleKeys ? t("board.controls.keys") : t("board.controls.keysOff")');
+    expect(sourceOf("components/StatusBar.tsx")).toContain('t("board.controls.keysOff")');
   });
 
   it("is still reachable with the keys off: the canvas stack's button opens it, and its door opens Settings at General", () => {
-    expect(sourceOf("components/CanvasControls.tsx")).toContain("onClick={() => setKeyHelpOpen(o => !o)}");
+    // CHANGED ON PURPOSE (V4 top-10 #5): the canvas stack's button → the ⋯ menu's
+    // Keyboard shortcuts row and the status bar's "? Keys", both a press with no key.
+    expect(sourceOf("components/CanvasControls.tsx")).toContain("onPick={pick(() => setKeyHelpOpen(o => !o))}");
+    expect(sourceOf("components/StatusBar.tsx")).toContain("onClick={() => setKeyHelpOpen(o => !o)}");
     expect(sourceOf("components/DeckDialogs.tsx")).toContain('onSettings={() => { setKeyHelpOpen(false); openSettings("keyboard"); }}');
     expect(singleKeyShortcutsOn()).toBe(true);
   });

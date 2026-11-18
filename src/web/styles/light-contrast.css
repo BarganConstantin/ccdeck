@@ -2,67 +2,14 @@
    Hardcoded rgba() tints elsewhere in this file were picked for dark
    surfaces; on white they vanish. Re-tint with deeper, more saturated
    versions only when the light theme is active. */
-/* Opaque tints, for the reason the node rings below are opaque: a 10% wash is
-   whatever it is painted over, and these three sit on the topbar GRADIENT,
-   which runs from #ffffff to #eef1f6 across the 52px they are centred in. The
-   pill's own word therefore had a different ratio at the top of the bar than
-   at the bottom — 4.39:1 and 3.90:1 for `live`, so the state of the connection
-   was under AA at the darker end. Composited against white once, here, the
-   number is the same wherever the pill lands. */
-:root[data-color-scheme="light"] .topbar .status .pill.live {
-  border-color: rgba(21,128,61,0.45);
-  background: #e8f2eb;
-}
-:root[data-color-scheme="light"] .topbar .status .pill.paused {
-  border-color: rgba(180,83,9,0.50);
-  background: #f8eee6;
-}
-:root[data-color-scheme="light"] .topbar .status .pill.dead {
-  border-color: rgba(185,28,28,0.50);
-  background: #f8e8e8;
-}
-:root[data-color-scheme="light"] .agent-node.state-active {
-  border-color: rgba(126,34,206,0.65);
-  /* The dark rule's reasoning, in the other theme — including its silence
-     about box-shadow. This twin is (0,4,0), so it outranked the hover whatever
-     the order, and light was broken the same way: hovered, the running card
-     measured `rgba(15,23,42,0.1) 0 4px 14px` (--shadow-1) against a finished
-     card's `rgba(15,23,42,0.16) 0 10px 28px` (--shadow-2). */
-}
-/* Opaque, not a wash. The alphas these two carried were transplanted from the
-   dark rules, where 0.5 over #14161b still reads; over a white node they landed
-   at 2.26:1 and 3.12:1 against the node interior — under the 3:1 that 1.4.11
-   asks of a boundary. The tokens themselves are 5.02:1 and 6.47:1. */
-:root[data-color-scheme="light"] .agent-node.state-done { border-color: var(--ok); }
-:root[data-color-scheme="light"] .agent-node.state-err  { border-color: var(--err); }
+/* The stream pill's three light tints were here, opaque so the pill's word had
+   one ratio wherever it landed on the topbar's gradient. V4's pill has no fill
+   and the bar no gradient, so the word is --text on --panel in every theme and
+   the state is the edge and the dot (topbar-controls.css); the tints went with
+   the fill they coloured. */
+/* A card's edge is --line in every state but Waiting (agent-node.css), in
+   light as in dark: no state border is re-tinted here. */
 
-:root[data-color-scheme="light"] .state-pill.state-active {
-  border-color: rgba(126,34,206,0.45);
-  background: rgba(126,34,206,0.10);
-}
-:root[data-color-scheme="light"] .state-pill.state-active::before { box-shadow: 0 0 5px rgba(126,34,206,0.55); }
-/* --ok on its own 10% wash is 4.39:1 — the one pill that misses AA, because
-   green is the lightest of the three state hues. Deepened on the pill itself
-   rather than by moving --ok, which would drag every cost figure and status
-   dot in the light theme with it. */
-:root[data-color-scheme="light"] .state-pill.state-done {
-  border-color: rgba(21,128,61,0.45);
-  background: rgba(21,128,61,0.10);
-  color: #166534;
-}
-:root[data-color-scheme="light"] .state-pill.state-err {
-  border-color: rgba(185,28,28,0.50);
-  background: rgba(185,28,28,0.10);
-}
-
-:root[data-color-scheme="light"] .modal-section .err-tag {
-  background: rgba(185,28,28,0.10);
-  border-color: rgba(185,28,28,0.45);
-}
-
-:root[data-color-scheme="light"] .conn-banner {
-  border-bottom-color: rgba(185,28,28,0.45);
-}
 
 
 /* react-flow edge dashflow uses --inflight which is now deep purple → fine */
@@ -70,4 +17,10 @@
 
 /* mini-map node strokes more visible */
 :root[data-color-scheme="light"] .react-flow__minimap-node { stroke: rgba(15,23,42,0.25); }
+
+/* Usage's and This machine's frame on the light canvas. Their --line-soft edge
+   is 1.09:1 there, so the panel's outline was its shadow alone; the strong
+   line, --ctl-edge, holds 3:1 against the canvas (contrast-floors.test.ts). A
+   docked panel draws no frame and a phone sheet keeps its own top edge. */
+:root[data-color-scheme="light"] :is(.usage-panel, .sysdetail) { border-color: var(--ctl-edge); }
 

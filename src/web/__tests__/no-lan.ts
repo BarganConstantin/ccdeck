@@ -34,6 +34,12 @@ process.env.AGENTS_DECK_SKILL_HOOK = "0";
 // service directly with fakes and never need a real deck for it.
 process.env.AGENTS_DECK_NO_RADAR = "1";
 
+// The ccdeck account is hidden and off by default. A developer whose shell
+// exports CCDECK_ACCOUNT=1 must not switch it on in every deck the suite boots,
+// nor point them at an API: a suite that tests the account turns it on itself,
+// against the fake API in account-fake-api.ts.
+delete process.env.CCDECK_ACCOUNT;
+delete process.env.CCDECK_ACCOUNT_API;
 // A test deck must never change authentication in the developer's existing
 // Codex daemon. Live-account suites construct controllers with fake peers.
 process.env.AGENTS_DECK_NO_CODEX_LIVE = "1";

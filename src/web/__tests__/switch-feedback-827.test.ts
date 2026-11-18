@@ -101,7 +101,8 @@ describe("what a switch that took says (#827)", () => {
   it("draws both on the row's own inset, in the row's quiet type", () => {
     expect(css).toMatch(/\.ap-row-failure \{ margin: 6px 0 0; \}/);
     const note = /\.ap-switched \{([^}]*)\}/.exec(css)?.[1] ?? "";
-    expect(note).toMatch(/font-size: 10px/);
+    // CHANGED ON PURPOSE (owner 2026-11-10 critique: type scale 11/12/13/16/22, radii 4/8/pill): 11 is the floor.
+    expect(note).toMatch(/font-size: 11px/);
     expect(note).toMatch(/color: var\(--text-dim\)/);
   });
 });

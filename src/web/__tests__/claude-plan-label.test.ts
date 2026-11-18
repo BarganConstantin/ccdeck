@@ -179,7 +179,10 @@ describe("the Claude card", () => {
   const claude = sections.slice(sections.indexOf("export function ClaudeQuotaSection"), sections.indexOf("export function CodexQuotaSection"));
 
   it("prints the plan in its title, in the Codex card's badge, only beside numbers", () => {
-    const title = claude.slice(claude.indexOf('<h3 className="up-section-title">'), claude.indexOf("</h3>"));
+    // CHANGED ON PURPOSE (V4's Figma): the title carries a `data-down` hook for
+    // the quota-down state's spacing, so the opening tag is matched up to the
+    // class; the badge it must hold is unchanged.
+    const title = claude.slice(claude.indexOf('<h3 className="up-section-title"'), claude.indexOf("</h3>"));
     expect(title).toContain('{quota?.ok && quota.planLabel && (\n          <span className="up-plan-badge">{quota.planLabel}</span>');
   });
 });

@@ -46,6 +46,8 @@ import { join } from "node:path";
 import { restoreLayout, type StoredLayout } from "../stored-layout";
 import { CANVAS_TOKENS, paletteReader, readPalette, samePalette, type Palette } from "../palette";
 import { minimapNodeColor, SESSION_GROUP_TYPE } from "../minimap";
+import { TERMINAL_TOKENS } from "../terminal-palette";
+import { TERMINAL_FONT_TOKEN } from "../use-terminal-session";
 import { clientSources } from "./client-source";
 
 // ---------------------------------------------------------------------------
@@ -130,17 +132,35 @@ function reader(table: Record<string, string>): { cssVar: (n: string) => string;
   return { cssVar: (name: string) => { asked.push(name); return table[name] ?? ""; }, asked };
 }
 
+/** The terminal stage's half of the snapshot (terminal-palette.ts): the inks
+ *  and the usage hues xterm paints with, and the mono stack it draws in. The
+ *  font is the same in both themes, which is why it is the one token below
+ *  that a theme flip leaves alone. */
+const MONO = "ui-monospace, SFMono-Regular, Menlo, \"Cascadia Mono\", Consolas, \"DejaVu Sans Mono\", \"Liberation Mono\", monospace";
 const DARK: Record<string, string> = {
   "--err": "#f87171", "--inflight": "#f0abfc", "--ok": "#86efac", "--warn": "#fcd34d", "--muted": "#7e828c",
   "--grid-line": "#1a1d24", "--minimap-mask": "rgba(11,12,16,.85)",
   "--panel": "#14161b", "--line": "#1f2229",
   "--accent": "#7dd3fc", "--text-dim": "#7e828c", "--bg": "#0b0c10",
+  "--text": "#d8dae0", "--text-secondary": "#9aa0ab", "--muted": "#7e828c", "--accent-dim": "#38bdf850",
+  // As a browser hands a custom property back: var() filled in, the mix left unworked.
+  "--sunken": "color-mix(in srgb, #0b0c10 90%, #000000)",
+  "--cat-shell": "#fcd34d", "--cat-agent": "#f9a8d4", "--cat-web": "#67e8f9",
+  "--usage-indigo": "#a5b4fc", "--usage-pink": "#f9a8d4", "--usage-cyan": "#67e8f9",
+  "--usage-lime": "#bef264", "--usage-orange": "#fdba74", "--usage-purple": "#c4b5fd",
+  "--font-mono": MONO,
 };
 const LIGHT: Record<string, string> = {
   "--err": "#b91c1c", "--inflight": "#7e22ce", "--ok": "#157a3a", "--warn": "#ad4e08", "--muted": "#4a5260",
   "--grid-line": "#d0d5dd", "--minimap-mask": "rgba(238,241,246,.85)",
   "--panel": "#ffffff", "--line": "#c8cdd6",
   "--accent": "#0369a1", "--text-dim": "#5b5f68", "--bg": "#eef1f6",
+  "--text": "#0d1117", "--text-secondary": "#303845", "--muted": "#4a5260", "--accent-dim": "rgba(3,105,161,0.22)",
+  "--sunken": "color-mix(in srgb, #ffffff 98.5%, #0d1117)",
+  "--cat-shell": "#b45309", "--cat-agent": "#a21caf", "--cat-web": "#0e7490",
+  "--usage-indigo": "#3730a3", "--usage-pink": "#be185d", "--usage-cyan": "#0e7490",
+  "--usage-lime": "#4d7c0f", "--usage-orange": "#7c2d12", "--usage-purple": "#4c1d95",
+  "--font-mono": MONO,
 };
 
 describe("the canvas palette is read once per theme", () => {
@@ -167,6 +187,18 @@ describe("the canvas palette is read once per theme", () => {
                          // nothing over white.
                          "--accent", "--text-dim", "--bg"]) {
       expect(CANVAS_TOKENS as readonly string[]).toContain(token);
+    }
+  });
+
+  it("carries every token the terminal stage reads, so xterm is never handed an empty colour", () => {
+    // The stage builds xterm's theme from this snapshot (paletteReader over
+    // the palette), and a token missing here answers "" — which terminalTheme
+    // reads as "no colour", leaving xterm on its own black default: the black
+    // box over a light deck the palette work exists to prevent.
+    for (const token of [...TERMINAL_TOKENS, TERMINAL_FONT_TOKEN]) {
+      expect(CANVAS_TOKENS as readonly string[], token).toContain(token);
+      expect(DARK[token], `the dark table has no ${token}`).toBeTruthy();
+      expect(LIGHT[token], `the light table has no ${token}`).toBeTruthy();
     }
   });
 
@@ -366,7 +398,18 @@ describe("nothing on the render path reads a CSS custom property", () => {
     // touches it at all, which is the confinement this case exists for.
     // Desktop caption colours are resolved in an effect on mount/theme changes,
     // never during a canvas render or animation frame.
-    expect(callers).toEqual(["components/DesktopTitlebar.tsx", "components/use-modal-dismiss.ts", "use-appearance.ts"]);
+    // V4's Attention rail adds two, neither near the canvas: use-left-column.ts
+    // reads --rail-w when the density attribute changes (a mutation observer,
+    // not a render), and rail-motion.ts reads the motion tokens when the rail's
+    // order changes, and a row's transform only while that row is mid-move,
+    // inside a layout effect, for its FLIP.
+    // CHANGED ON PURPOSE: a tracker dialog's resize (DialogResize.tsx) reads
+    // the desktop title bar's band (--ig-top) once when a drag or keyboard
+    // mode starts, in the pointer or menu handler, never while rendering and
+    // nowhere near the canvas.
+    expect(callers).toEqual([
+      "components/DesktopTitlebar.tsx", "components/DialogResize.tsx", "components/use-modal-dismiss.ts", "rail-motion.ts", "use-appearance.ts", "use-left-column.ts",
+    ]);
   });
 
   it("never calls cssVar — it only ever hands it to readPalette", () => {

@@ -59,19 +59,23 @@ describe("a step is a picture with one line under it", () => {
       expect.stringMatching(/Tick/),
       expect.stringMatching(/copied/),
     ]);
-    // And the welcome is the product: who is waiting, the tree, the cost,
-    // how to get a first node on the canvas — then the accounts panel's three
-    // verbs, and the network that keeps its logins working.
+    // And the welcome is the product: who is waiting, and where you answer
+    // them, then the rest of the layout a reader meets — the Workspace, the
+    // Inspector, the two edges — and the accounts with the network that keeps
+    // their logins working.
+    // CHANGED ON PURPOSE (V4's tour): seven steps for V4's layout. The tree,
+    // the cost and the machine stopped being steps of their own: the Inspector
+    // step carries agents, tool calls, cost and time, the edges step names
+    // Usage and This machine, and the network folded into the accounts step.
     // Starting the first session is LAST: it is the one step a reader acts on
     // when they press Done, so it is the step Done is under.
     expect(WELCOME_STEPS.map(s => s.line)).toEqual([
       expect.stringMatching(/waiting/),
-      expect.stringMatching(/node/),
-      expect.stringMatching(/Double-click any node/),
-      expect.stringMatching(/cost/),
-      expect.stringMatching(/Cores, memory/),
-      expect.stringMatching(/switch.*add.*share/),
-      expect.stringMatching(/local network/),
+      expect.stringMatching(/Click a card: its terminal opens beside the board/),
+      expect.stringMatching(/^Workspace .*four/),
+      expect.stringMatching(/Inspector.*agent.*tool call.*cost/),
+      expect.stringMatching(/^Left edge: .*Right: /),
+      expect.stringMatching(/Claude and Codex accounts.*repair each other's expired logins/),
       expect.stringMatching(/^Run claude/),
     ]);
   });
@@ -79,7 +83,7 @@ describe("a step is a picture with one line under it", () => {
   it("draws every step on one board, so the dialog never changes height between steps", () => {
     const boards = [...art.matchAll(/viewBox="([^"]+)"/g)].map(m => m[1]);
     const stage = boards.filter(b => b === "0 0 440 200");
-    // Twelve steps, twelve boards; the thirteenth is the panel-sized intro.
+    // Eleven steps, eleven boards; the twelfth is the panel-sized intro.
     expect(stage).toHaveLength(1);
     expect(art).toMatch(/function Board\(/);
     expect((art.match(/<Board>/g) ?? []).length).toBe(WELCOME_STEPS.length + LAN_STEPS.length);
@@ -130,7 +134,9 @@ describe("where the guides open from", () => {
     }
     // The card while it is off, and the word under an empty list.
     expect(lan).toMatch(/className="ap-lan-intro" onClick=\{\(\) => setGuideOpen\(true\)\}/);
-    expect(lan).toMatch(/className="ap-lan-word ap-lan-how" onClick=\{\(\) => setGuideOpen\(true\)\}/);
+    // CHANGED ON PURPOSE (V4's Figma): the word under an empty list is the
+    // kit's outlined button now; it still opens the guide on a press.
+    expect(lan).toMatch(/className="btn ap-lan-how" onClick=\{\(\) => setGuideOpen\(true\)\}/);
     expect([...lan.matchAll(/setGuideOpen\(true\)/g)]).toHaveLength(2);
   });
 
@@ -147,16 +153,18 @@ describe("where the guides open from", () => {
     // closes itself as it opens the tour, so no two dialogs stand at once.
     const notes = bare(read("components/ReleaseNotesModal.tsx"));
     const keys = bare(read("components/KeyboardHelp.tsx"));
-    // The `?` sheet's door is a sentence and a button, inside the body, after
-    // the header — the × stays the first stop.
-    expect(keys).toMatch(/\{onTour && \(\s*<div className="guide-door">[\s\S]*?<button type="button" className="btn" onClick=\{onTour\}>\{t\("settings\.key\.tour"\)\}<\/button>/);
-    expect(keys.indexOf("guide-door")).toBeGreaterThan(keys.indexOf('aria-label={t("settings.key.close")}'));
+    // CHANGED ON PURPOSE (V4's Figma): the `?` sheet's door is its intro line
+    // in the body and the link in its footer, after the header: the × stays the
+    // first stop.
+    expect(keys).toMatch(/\{onTour && <p className="kh-intro">\{t\("settings\.key\.tourText"\)\}<\/p>\}/);
+    expect(keys).toMatch(/\{onTour && <button type="button" className="kh-tour" onClick=\{onTour\}>\{t\("settings\.key\.tour"\)\}<\/button>\}/);
+    expect(keys.indexOf("kh-tour")).toBeGreaterThan(keys.indexOf('aria-label={t("settings.key.close")}'));
     // What's new's is a word in its footer, beside Release history (the
     // editorial digest). Held back while the app's update is ready: the chip
     // opens that dialog for the update then, and a second door competes with
     // the one it came for (#1187). Every other time it is there, and after the
     // header too.
-    expect(notes).toMatch(/\{onTour && !updateVersion && <button className="rn-text-button" type="button" onClick=\{onTour\}>\{t\("shell\.notes\.tour"\)\}<\/button>\}/);
+    expect(notes).toMatch(/\{onTour && !updateVersion && <button className="btn rn-tour" type="button" onClick=\{onTour\}>\{t\("shell\.notes\.tour"\)\}<\/button>\}/);
     expect(notes.indexOf('t("shell.notes.tour")')).toBeGreaterThan(notes.indexOf('aria-label={t("shell.closeEsc")}'));
     // The notes close and the tour opens through named operations now. Both
     // doors are in components/DeckDialogs.tsx, which App.tsx hands the welcome
@@ -195,7 +203,7 @@ describe("the README shows the same pictures", () => {
     }
   });
 
-  it("embeds all twelve, each captioned with its line", () => {
+  it("embeds all eleven, each captioned with its line", () => {
     for (const [name, steps] of [["welcome", WELCOME_STEPS], ["lan", LAN_STEPS]] as const) {
       steps.forEach((step, i) => {
         expect(readme).toContain(`<img src="assets/guide/${name}-${i + 1}.svg" width="440" alt="${step.line}">`);

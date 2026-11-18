@@ -69,8 +69,9 @@ export function branchShort(b: BranchSummary, tr: TFunction = t): string {
 }
 
 /** The tone a face's second line is drawn in. `warn` is how this sheet says
- *  "this one is on you", `err` is a failure, `idle` is the quiet accent the
- *  waiting row gives a finished turn, `muted` is information. */
+ *  "this one is on you", and a count of failed calls, worth a look and not a
+ *  failure (markBesideFailures); `err` is a failure, `idle` is the quiet accent
+ *  the waiting row gives a finished turn, `muted` is information. */
 export type FaceTone = "warn" | "err" | "idle" | "muted";
 
 export interface FaceSignal {
@@ -126,8 +127,10 @@ export function faceSignal(
   }
   const failed = data.toolErrorCount ?? 0;
   if (failed > 0) {
+    // The warning's ink, as the count beside the partial mark: a call that
+    // exited non-zero is not the turn failing.
     return {
-      tone: "err",
+      tone: "warn",
       long: tr("board.face.toolsFailed", { count: failed }),
       short: tr("board.failedCount", { n: failed }),
     };
@@ -179,7 +182,7 @@ export function faceTitle(text: string, tooltip?: string): string {
   return tooltip.includes(text) ? tooltip : `${text}\n${tooltip}`;
 }
 
-export type StateMarkKind = "live" | "done" | "err";
+export type StateMarkKind = "live" | "done" | "partial" | "err" | "idle";
 
 /**
  * The state a card DRAWS, in its pill and its mark. A root whose last turn
@@ -188,10 +191,103 @@ export type StateMarkKind = "live" | "done" | "err";
  * "done", because the turn did end, and everything that counts live and done
  * sessions reads that.
  */
-export function drawnState(data: Pick<AgentNodeData, "kind" | "state" | "stopFailure">): AgentNodeData["state"] {
+export function drawnState(data: Pick<AgentNodeData, "state"> & Partial<Pick<AgentNodeData, "kind" | "stopFailure">>): AgentNodeData["state"] {
   return data.kind === "root" && data.stopFailure && data.state === "done" ? "err" : data.state;
 }
 
 export function stateMarkKind(state: AgentNodeData["state"]): StateMarkKind {
   return state === "active" ? "live" : state === "done" ? "done" : "err";
+}
+
+/**
+ * The mark a face draws when its line can say "1 failed" beside it. The cross
+ * is only for a turn that failed (owner's decision, 2026-11-12): Claude Code
+ * counts every Bash command that exits non-zero as a failed call, so a finished
+ * turn with failed calls is the common case, not a failure. It draws the
+ * partial mark, done's tick with an amber dot, beside the count. A live card
+ * keeps its ring: it is still at work, and the count says what has gone wrong
+ * so far. CHANGED ON PURPOSE: from 2026-11-10 it drew the cross.
+ */
+export function markBesideFailures(mark: StateMarkKind, failed: number): StateMarkKind {
+  return mark === "done" && failed > 0 ? "partial" : mark;
+}
+
+/**
+ * THE MARK A SESSION OR AN AGENT WEARS, ON EVERY SURFACE THAT DRAWS ONE (owner's
+ * critique, 2026-11-12): the card and its faces, the peek, the navigator, the
+ * Sessions list and the command menu's rows, the Inspector's head. One session
+ * that ended with a failed call drew one mark on the board and done's tick in
+ * the list. The drawn state comes first, so a turn that stopped on an error is
+ * the cross whatever its count; a finished one whose calls failed is the
+ * partial mark (markBesideFailures). A list row passes its own drawn state and
+ * its count, with no kind.
+ */
+export function sessionMark(data: Pick<AgentNodeData, "state"> & Partial<Pick<AgentNodeData, "kind" | "stopFailure" | "toolErrorCount">>): StateMarkKind {
+  return markBesideFailures(stateMarkKind(drawnState(data)), data.toolErrorCount ?? 0);
+}
+
+/** What the detail card says about its state, beside the mark (V4's Agent /
+ *  Card): a sentence-case word and the glyph. One function so the card's head
+ *  and the faces at a distance agree on which state a card is in: `mark` is the
+ *  face's own stateMarkKind for the three states, and the hollow idle ring for
+ *  a session that is Ready for its first prompt.
+ *
+ *  A session blocked on you is the one case the two differ, on purpose. On the
+ *  detail card the word "Waiting" names the state, so Figma's single Waiting
+ *  glyph (the alert triangle) REPLACES the state mark. On the zoomed-out face
+ *  there is no word, so the alert triangle stands BESIDE the state mark (a
+ *  permission prompt lands on a session that is still live and the reader needs
+ *  both). The colour is the CSS's, from `data-tone`. */
+export type CardStateTone = "active" | "done" | "partial" | "err" | "waiting" | "ready";
+export interface CardState {
+  tone: CardStateTone;
+  word: string;
+  /** The mark beside the word; the waiting tone draws the alert triangle. */
+  mark: StateMarkKind | "alert";
+}
+
+/**
+ * A session that has started and not been given a prompt: no prompt, no call,
+ * nothing asked of you and no job going. Its reducer state is `active`, but
+ * nothing is at work, so the card says Ready, its row says "Ready for a first
+ * prompt" and the list holds it in a Ready group of its own, all from this one
+ * rule (SessionList.tsx buildRows). A root only: a subagent always has a task.
+ */
+export function neverPrompted(data: Pick<AgentNodeData, "kind" | "state" | "prompts" | "toolCount" | "waiting" | "job">): boolean {
+  return data.kind === "root" && data.state === "active" && !data.waiting && !data.job
+    && data.toolCount === 0 && data.prompts.length === 0;
+}
+
+export function cardState(data: Pick<AgentNodeData, "kind" | "state" | "stopFailure" | "waiting" | "prompts" | "toolCount" | "job">): CardState {
+  if (data.kind === "root" && isAlarming(data.waiting)) {
+    return { tone: "waiting", word: t("board.card.stateWaiting"), mark: "alert" };
+  }
+  // Ready, not Working: the turn the reducer calls active has not begun. The
+  // hollow ring the rail's row and the list's Ready group draw for it.
+  if (neverPrompted(data)) return { tone: "ready", word: t("board.card.stateReady"), mark: "idle" };
+  const shown = drawnState(data);
+  const mark = stateMarkKind(shown);
+  return shown === "active" ? { tone: "active", word: t("board.card.stateWorking"), mark }
+    : shown === "done" ? { tone: "done", word: t("board.card.stateDone"), mark }
+    : { tone: "err", word: t("board.card.stateFailed"), mark };
+}
+
+/**
+ * The status a card wears at a distance, and its hover says (owner's critique,
+ * 2026-11-11): the card's mark and word, Working, Done, Waiting, Ready or
+ * Failed. A finished card whose calls failed is the partial tone: the partial
+ * mark and how many failed, in the warning's ink, never the cross
+ * (markBesideFailures). The detail card's head puts Done before the count; a
+ * face has room for the count alone. The mark tells the state by its shape as
+ * well as its colour, so a face too narrow for the word still says it.
+ */
+export function faceStatus(
+  data: Pick<AgentNodeData, "kind" | "state" | "stopFailure" | "waiting" | "prompts" | "toolCount" | "job" | "toolErrorCount">,
+  tr: TFunction = t,
+): CardState {
+  const state = cardState(data);
+  if (state.mark === "alert" || state.mark === "idle") return state;
+  return sessionMark(data) === "partial"
+    ? { tone: "partial", word: tr("board.failedCount", { n: data.toolErrorCount ?? 0 }), mark: "partial" }
+    : state;
 }

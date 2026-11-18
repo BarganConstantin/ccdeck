@@ -80,26 +80,31 @@ function PipelineRow({ kind, pipeline: p, acrossRepos }: { kind: ForgeKind; pipe
         onClick={() => select(target)}
       >
         <span className="fgl-status"><StateMark mark={ciMark(p.state)} /></span>
-        <span className="fgl-duration">
-          {duration
-            ? <><span className="fg-sr">{t("forge.pipe.ranFor")}</span>{duration}</>
-            : running && <AgoIn at={p.startedAt} text={t("forge.when.started")} verb="fgl-when-verb" />}
-        </span>
         <span className="fg-row-title fgl-title">
           <span className="fgl-title-text">{title ?? `${forgeNouns(kind, t).pipeline} ${p.id}`}</span>
-        </span>
-        <span className="fg-meta fgl-meta">
-          {acrossRepos && <><span className="fgl-repo-ref">{p.repo}</span> · </>}
-          <BranchGlyph />
-          <code>{p.ref}</code>
-          {p.shortSha && <> · <code>{p.shortSha}</code></>}
-          {workflow && <> · {workflow}</>}
-          {source && <> · {source}</>}
         </span>
         <span className="fgl-side">
           {p.triggeredBy && <span title={who ?? undefined}><Face user={p.triggeredBy} /><span className="fg-sr">{who}</span></span>}
         </span>
-        <span className="fgl-when">{at != null && <AgoIn at={at} text={t(p.finishedAt != null ? "forge.when.finished" : "forge.when.created")} verb="fgl-when-verb" />}</span>
+        {/* The ref line, the time and how long it ran: cells of their own in
+            GitLab's table, one line under the title beside an open item
+            (forge-lists.css). */}
+        <span className="fgl-line">
+          <span className="fg-meta fgl-meta">
+            {acrossRepos && <><span className="fgl-repo-ref">{p.repo}</span> · </>}
+            <BranchGlyph />
+            <code>{p.ref}</code>
+            {p.shortSha && <> · <code>{p.shortSha}</code></>}
+            {workflow && <> · {workflow}</>}
+            {source && <> · {source}</>}
+          </span>
+          <span className="fgl-when">{at != null && <AgoIn at={at} text={t(p.finishedAt != null ? "forge.when.finished" : "forge.when.created")} verb="fgl-when-verb" />}</span>
+          <span className="fgl-duration">
+            {duration
+              ? <><span className="fg-sr">{t("forge.pipe.ranFor")}</span>{duration}</>
+              : running && <AgoIn at={p.startedAt} text={t("forge.when.started")} verb="fgl-when-verb" />}
+          </span>
+        </span>
       </button>
     </li>
   );

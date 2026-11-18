@@ -28,10 +28,10 @@
 //
 // Deliberately NOT folded in, and why:
 //
-//   * `elapsedShort` (SessionList.tsx) — "<1s" / "42s" / "3m" / "1h 15m". It
-//     drops the seconds above a minute and adds an hour tier, because it is a
-//     compact table cell rather than a card. Folding it in would print
-//     "75m 12s" where "1h 15m" is today.
+//   * `elapsedShort` (elapsed-short.ts) — "<1s" / "42s" / "6m 07s" / "1h 15m".
+//     It reads hours from the hour on, because it is a compact table cell
+//     rather than a card. Folding it in would print "75m 12s" where "1h 15m"
+//     is today.
 //   * `durationLabel` (SessionSummary.tsx) — "42s" / "3m 07s" / "1h 15m". Same
 //     hour tier, no sub-second tier, on a summary of a finished session.
 //
@@ -103,4 +103,15 @@ export function toolDuration(t: ToolCall, pending: string): string {
   if (t.endedAt == null) return pending;
   const ms = t.endedAt - t.startedAt;
   return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(2)}s`;
+}
+
+/**
+ * The same span the way V4's tool-call dialog writes it, in its header: the
+ * very value `toolDuration` rounds to (two decimals above a second), with a
+ * space before the unit ("842 ms", "1.24 s"). Built from `toolDuration` so the
+ * row and the dialog it opens can never round the same call two ways.
+ */
+export function dialogDuration(t: ToolCall, pending: string): string {
+  if (t.endedAt == null) return pending;
+  return toolDuration(t, pending).replace(/(\d)(ms|s)$/, "$1 $2");
 }

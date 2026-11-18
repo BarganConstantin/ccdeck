@@ -188,7 +188,11 @@ describe("the rail inset is measured when something can have moved it", () => {
     //   canvasSize.w               the canvas box the cover is measured against,
     //                              and the only way the accounts panel and a
     //                              window resize reach this.
-    expect(deps).toEqual(["machinePhase", "usagePhase", "usagePanelOpen", "detailShown", "canvasSize.w"]);
+    //   folds.usage / folds.machine  CHANGED ON PURPOSE (owner, 2026-11-11 critique):
+    //                              a panel the Inspector folded to its header
+    //                              is not counted, and the fold lands a render
+    //                              after detailShown moves.
+    expect(deps).toEqual(["machinePhase", "usagePhase", "usagePanelOpen", "detailShown", "canvasSize.w", "folds.usage", "folds.machine"]);
   });
 
   it("derives detailShown from the same condition that mounts the panel", () => {
@@ -197,8 +201,27 @@ describe("the rail inset is measured when something can have moved it", () => {
     // with the panel enabled and nothing selected has no `.detail` and a rail
     // 360px further right. Both halves are pinned, so changing the mount
     // condition without changing the derivation goes red here.
-    expect(app).toMatch(/const detailShown = detailOpen && selected != null;/);
-    expect(app).toMatch(/\{detailOpen && selected \? \(/);
+    // CHANGED ON PURPOSE (one side column between 641 and 839): nor while the
+    // right column is folded, which unmounts the panel the way a close does.
+    // CHANGED ON PURPOSE (owner, 2026-11-18): with nothing selected, the
+    // Inspector the door or D opened on nothing is the panel too, and it mounts
+    // `.detail` the same way (EmptyInspector, beside DetailAside).
+    expect(app).toMatch(/const detailWanted = detailOpen && \(selected != null \|\| inspectingNothing\);/);
+    expect(app).toMatch(/const detailShown = detailWanted && !sideFold\.right;/);
+    // CHANGED ON PURPOSE (the phone layout): the panel is drawn for
+    // `detailOnScreen`, which is `selected` while `detailShown` and, on a phone
+    // only, the last selection while the sheet slides down. Wider than a phone
+    // it is `detailShown ? selected : null`: the same condition.
+    // CHANGED ON PURPOSE (owner, 2026-11-18): and `nothingOnScreen` while it
+    // shows with nothing selected, or leaves having shown that: between the
+    // two, exactly `detailShown`, plus the slide down.
+    expect(app).toMatch(/const detailOnScreen = detailShown \? selected : detailLeaving && !lastNothing\.current \? lastSelected\.current : null;/);
+    expect(app).toMatch(/const nothingOnScreen = !\(inWorkspace && inspectorColumn\) && \(detailShown \? selected == null : detailLeaving && lastNothing\.current\);/);
+    expect(app).toMatch(/if \(detailShown\) lastNothing\.current = selected == null;/);
+    expect(app).toMatch(/\{detailOnScreen \? \(/);
+    // CHANGED ON PURPOSE (owner 2026-11-18): EmptyInspector has no `nothing` any more;
+    // it says its one line wherever it is drawn, Workspace's column included.
+    expect(app).toMatch(/\) : nothingOnScreen \? <EmptyInspector leaving=\{detailLeaving\} sheet=\{inspectorSheet\} \/> : null\}/);
   });
 
   it("keeps railCover to the two callers that are not on the render path", () => {

@@ -1,13 +1,14 @@
 // Settings › General › Updates: whether the deck updates itself when nothing
 // is running (#2176).
 //
-// THE BANNER'S SWITCH, NOT A SECOND ONE. `autoUpdate` in prefs.json had one
-// control, "auto when idle" inside the update banner (VersionBanner.tsx), and
-// the banner is up only while a restart is waiting — so the one switch that
-// decides whether a deck changes its own code could be reached only in the
-// moment it was about to matter, and never to look at beforehand. This row is
-// the same state and the same toggle (use-auto-restart.ts, toggleAutoRestart),
-// handed down from App, so pressing either is pressing both.
+// THE ONE SWITCH. `autoUpdate` in prefs.json had one control, "auto when idle"
+// inside the update banner (VersionBanner.tsx), and the banner is up only
+// while a restart is waiting — so the one switch that decides whether a deck
+// changes its own code could be reached only in the moment it was about to
+// matter, and never to look at beforehand. This row is that state and its
+// toggle (use-auto-restart.ts, toggleAutoRestart), handed down from App. The
+// banner draws no switch since V4's Figma: it says its countdown in a
+// sentence, and its × is the "not now".
 //
 // WHAT IT DOES, said whole, because the name cannot. There are two paths and
 // the switch governs both: a tab somebody is looking at restarts the deck into
@@ -22,9 +23,8 @@
 // update checks were switched off at launch, and the desktop app's own deck,
 // whose updates are the app's and which this switch does not reach.
 import { inDesktopApp } from "../in-app";
-import { CHECKS_OFF } from "../update-check";
 import type { VersionInfo } from "../use-version-check";
-import { SettingRow, SettingsGroup } from "./SettingsParts";
+import { SettingRow, SettingsGroup, SettingsInfo } from "./SettingsParts";
 import { useT, type TFunction } from "../i18n";
 
 export const AUTO_UPDATE_LABEL = "Update when idle";
@@ -35,7 +35,7 @@ export const AUTO_UPDATE_NOTE =
  *  has nothing to install; a version installed by hand is still restarted
  *  into. */
 export const AUTO_UPDATE_CHECKS_OFF_NOTE =
-  `${CHECKS_OFF} It hears of no new release from npm, and restarts only into a version installed some other way, once nothing has been running for 30 seconds.`;
+  "Update checks are off on this deck (AGENTS_DECK_NO_UPDATE_CHECK or AGENTS_DECK_NO_INSTALL). It hears of no new release from npm, and restarts only into a version installed some other way, once nothing has been running for 30 seconds.";
 /** `canRestart: false` — no supervisor, --no-persist, or an event log it
  *  cannot write (lifecycle.mjs). Neither path runs without a restart, so the
  *  switch records a choice and does nothing yet. */
@@ -86,8 +86,17 @@ interface Props {
 export default function UpdatesSection({ autoRestart, onToggleAutoRestart, version, inApp = inDesktopApp() }: Props) {
   const t = useT();
   const shape = updatesShape(version, inApp);
+  // What this deck cannot do with the switch is said UNDER the note, with the
+  // info icon (V4's Forms / Note), and the note keeps saying what the switch
+  // does wherever it can.
+  const info = shape === "no-restart" ? t("settings.updates.noRestartNote")
+    : shape === "checks-off" ? t("settings.updates.checksOffNote") : null;
+  // The plain shape keeps its Details (V4 top-10 #10): the 30 seconds, the two
+  // paths and what Off means are the rule itself, which the one-line note
+  // cannot hold. The app's row is named "Updates", so there it stands under no
+  // caption of the same name.
   return (
-    <SettingsGroup id="settings-updates-caption" title={t("settings.updates.title")}>
+    <SettingsGroup id={shape === "app" ? undefined : "settings-updates-caption"} title={shape === "app" ? undefined : t("settings.updates.title")}>
       {shape === "app" ? (
         <SettingRow as="div" settingId="auto-update" name={t("settings.updates.title")} note={t("settings.updates.appNote")} />
       ) : (
@@ -95,9 +104,7 @@ export default function UpdatesSection({ autoRestart, onToggleAutoRestart, versi
           settingId="auto-update"
           name={t("settings.updates.label")}
           nameId="settings-auto-update-label"
-          note={shape === "no-restart" ? t("settings.updates.noRestartNote")
-            : shape === "checks-off" ? t("settings.updates.checksOffNote")
-            : t("settings.updates.plainNote")}
+          note={t("settings.updates.plainNote")}
           details={t(NOTE_KEYS[shape])}
           noteId="settings-auto-update-note"
           control={
@@ -110,13 +117,15 @@ export default function UpdatesSection({ autoRestart, onToggleAutoRestart, versi
               role="switch"
               aria-checked={autoRestart}
               aria-labelledby="settings-auto-update-label"
-              aria-describedby="settings-auto-update-note"
+              aria-describedby={info ? "settings-auto-update-note settings-auto-update-info" : "settings-auto-update-note"}
               onClick={onToggleAutoRestart}
             >
               <span className="switch-knob" />
             </button>
           }
-        />
+        >
+          {info && <SettingsInfo id="settings-auto-update-info">{info}</SettingsInfo>}
+        </SettingRow>
       )}
     </SettingsGroup>
   );

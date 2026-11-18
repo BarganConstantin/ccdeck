@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mount, textOf, flush } from './fake-react';
+import { mount, textOf, flush, one } from './fake-react';
 import { openOthers, rowOf } from './codex-panel-helpers';
 
 vi.mock('react', async () => (await import('./fake-react')).react);
@@ -27,6 +27,32 @@ const pressSwitch = (view: { tree: unknown }) => (rowOf(view, 'Work')!.props.onS
 const isDefault = (view: { tree: unknown }) => (rowOf(view, 'Work')!.props.a as { active: boolean }).active;
 
 describe('Codex roster polling', () => {
+  it('keeps observing a switching native account and identifies the account still in use', async () => {
+    vi.useFakeTimers();
+    let applied = false;
+    const fetcher = vi.fn(async (url: string) => {
+      if (!isRoster(url)) return noQuota;
+      return { ok: true, json: async () => ({ revision: 1,
+        profiles: ['a', 'b'].map(id => ({ id, label: id === 'a' ? 'Personal' : 'Work',
+          active: id === 'b', identityVersion: id, signedInFilePresent: false })),
+        live: { state: applied ? 'applied' : 'switching', profileId: applied ? 'b' : 'a', requestedProfileId: 'b' },
+      }) };
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const view = mount(() => CodexProfilesSection()); cleanup = view.unmount;
+    await flush();
+    expect(rowOf(view, 'Work')!.props.switchedHere).toBe(true);
+    const pending = one(view.tree, el => el.props.role === 'status' && textOf(el).includes('Still using Personal'));
+    expect(pending).not.toBeNull();
+    expect(textOf(pending)).toContain('The account will switch');
+    expect((rowOf(view, 'Work')!.props.voice as { switched?: string }).switched).toBeUndefined();
+    applied = true;
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(rosterReads(fetcher)).toBe(2);
+    expect((rowOf(view, 'Work')!.props.voice as { switched?: string }).switched).toBeUndefined();
+    expect(one(view.tree, el => el.props.role === 'status' && textOf(el).includes('Still using Personal'))).toBeNull();
+  });
+
   it('lets a roster slower than several poll intervals finish and resumes polling afterward', async () => {
     vi.useFakeTimers();
     const pending = deferred<ReturnType<typeof roster>>();

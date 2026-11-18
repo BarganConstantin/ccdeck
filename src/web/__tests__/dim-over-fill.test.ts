@@ -197,20 +197,27 @@ describe("what a selection dims outranks the entrance that was filling over it",
     }
   });
 
-  it("still finds an entrance filling on both of them, which is the hazard itself", () => {
-    // If the fill ever goes, this collapses first — and #266's `translate` lift
-    // exists only because bubble-spawn keeps filling a transform.
+  it("has no entrance filling over either of them any more: the hazard is gone by construction", () => {
+    // V4's motion spec made the joins and the bubbles' rise transitions or
+    // `backwards` animations, so nothing holds a last keyframe over the cascade.
+    // What can still apply on these two is the node's arming counter
+    // (react-flow.css), which names a custom property and nothing visual.
     for (const base of BASES) {
-      const filling = stillApplying(base).filter(a => a.pins.has("transform") || a.name === "fadeIn");
-      expect(filling.length, base).toBeGreaterThan(0);
+      for (const a of stillApplying(base)) {
+        for (const p of ["opacity", "filter", "transform"]) expect(a.pins.has(p), `${base} — ${a.name} pins ${p}`).toBe(false);
+      }
     }
-    expect(decl(rules.find(r => r.selector === ".tool-burst")!.body, "animation")).toMatch(/\bboth\b/);
+    const rise = decl(rules.find(r => r.selector === ".tool-burst")!.body, "animation")!;
+    expect(rise).toMatch(/\bbackwards\b/);
+    expect(rise).not.toMatch(/\b(both|forwards)\b/);
   });
 
-  it("dims under reduced motion too, where the entrance collapses to a fade", () => {
+  it("dims under reduced motion too, where the entrance collapses to a fade that does not fill", () => {
     const reduced = BASES.flatMap(b => stillApplying(b)).filter(a => a.reduced);
-    expect(reduced.map(a => a.name)).toContain("fadeIn");
     for (const anim of reduced) expect([...anim.pins], `${anim.selector} — ${anim.name}`).not.toContain("opacity");
+    const fade = decl(rules.find(r => r.reduced && r.selector === ".tool-burst")!.body, "animation")!;
+    expect(fade).toMatch(/^burst-fade-in /);
+    expect(fade).toMatch(/\bbackwards\b/);
   });
 
   it("reads fill modes off the shorthand, which is the only spelling the sheet uses", () => {

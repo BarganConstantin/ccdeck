@@ -19,7 +19,8 @@ describe("pace is said as over or under, never ahead (#823)", () => {
     const p = half(56)!;
     expect(p.label).toBe("6% over pace");
     expect(p.isDeficit).toBe(true);
-    expect(p.color).toBe("var(--warn)");
+    // V4 draws no amber on usage: the warning is --err, the over-pace tick's colour.
+    expect(p.color).toBe("var(--err)");
   });
 
   it("calls under-spending under pace", () => {

@@ -18,7 +18,10 @@
 //   END-ALIGNED. The popover's right edge sits under the anchor's right edge,
 //   so it reads as coming out of the control rather than as something placed
 //   beside it — and a trigger near the right end of a row opens into the row
-//   it belongs to instead of out over the canvas.
+//   it belongs to instead of out over the canvas. START-ALIGNED when asked:
+//   a trigger at the LEFT end of the surface it belongs to — the empty
+//   terminal stage's New session, with the board's navigator just left of it
+//   — opens into that surface the same way, its left edge under the anchor's.
 //
 //   BELOW, unless it does not fit there and there is more room above. A
 //   popover that flips for no reason moves the thing the reader just aimed at;
@@ -28,6 +31,16 @@
 //   inside itself only when neither side can hold it whole — a zoomed-in
 //   window, a short one — which is the one case where showing part of it is
 //   better than showing it in the wrong place.
+//
+//   OVER ITS ANCHOR, for a form that asks. A menu scrolls on the roomier side
+//   rather than cover the control it belongs to. A form is read from its title
+//   down to its buttons, and New session's anchor can sit halfway down the
+//   window (the empty stage's own button): at 1440 × 860 neither side held its
+//   588px, and it scrolled inside a 445px cap with its title or its closing
+//   note out of view. Asked (`overAnchor`), it stays whole instead wherever
+//   the window holds it, moved over its anchor from the roomier side only as
+//   far as it must, and scrolls only in a window shorter than itself, then in
+//   all the window has.
 
 /** The four edges of a box, in window coordinates — a DOMRect is one. */
 export interface Edges {
@@ -98,6 +111,9 @@ export function placeBeside(anchor: Edges, size: Size, viewport: Size): BesidePl
   return { top, left: start, side, maxHeight: fits ? null : height };
 }
 
+/** Which edge of the popover lines up with the same edge of its anchor. */
+export type PopoverAlign = "end" | "start";
+
 /** A reading preview must leave the following row available to the pointer.
  * Use a side only when the whole width fits outside the anchor; otherwise
  * scroll above it. At the top edge, omit a preview with no readable space. */
@@ -116,17 +132,23 @@ export function placeReadingHint(anchor: Edges, size: Size, viewport: Size, mini
   };
 }
 
-export function placePopover(anchor: Edges, size: Size, viewport: Size, align: "start" | "end" = "end"): Placement {
+export function placePopover(anchor: Edges, size: Size, viewport: Size, align: PopoverAlign = "end", overAnchor = false): Placement {
   const below = viewport.height - POPOVER_MARGIN - (anchor.bottom + POPOVER_GAP);
   const above = anchor.top - POPOVER_GAP - POPOVER_MARGIN;
   const side = size.height <= below || below >= above ? "below" : "above";
-  const room = side === "below" ? below : above;
+  // Over its anchor: the window's whole height is the room, not one side's.
+  const room = overAnchor ? viewport.height - POPOVER_MARGIN * 2 : side === "below" ? below : above;
   const fits = size.height <= room;
   const height = fits ? size.height : Math.max(0, room);
-  const top = side === "below" ? anchor.bottom + POPOVER_GAP : anchor.top - POPOVER_GAP - height;
-  // Right edge under the anchor's, then pulled back inside the window. The left
-  // clamp is applied last so that a window narrower than the popover keeps its
-  // start edge — the words — on screen and lets the end run off instead.
-  const left = Math.max(POPOVER_MARGIN, Math.min(align === "start" ? anchor.left : anchor.right - size.width, viewport.width - POPOVER_MARGIN - size.width));
+  const beside = side === "below" ? anchor.bottom + POPOVER_GAP : anchor.top - POPOVER_GAP - height;
+  // Beside the anchor where that holds it, else pulled back inside the
+  // window's foot: over the anchor no further than it has to go.
+  const top = overAnchor ? Math.min(beside, viewport.height - POPOVER_MARGIN - height) : beside;
+  // Right edge under the anchor's (or left under left), then pulled back inside
+  // the window. The left clamp is applied last so that a window narrower than
+  // the popover keeps its start edge — the words — on screen and lets the end
+  // run off instead.
+  const x = align === "start" ? anchor.left : anchor.right - size.width;
+  const left = Math.max(POPOVER_MARGIN, Math.min(x, viewport.width - POPOVER_MARGIN - size.width));
   return { top: Math.max(POPOVER_MARGIN, top), left, side, maxHeight: fits ? null : height };
 }
