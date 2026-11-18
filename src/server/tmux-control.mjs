@@ -31,6 +31,14 @@
 //   is new. The spike attached mid-burst with that rule and stayed an exact
 //   suffix of the wire (628,114 of 752,988 bytes).
 //
+//   A capture can also land between two of tmux's reads of ONE write by the
+//   pane — a macOS pty hands tmux a large frame in pieces — and tmux's parser
+//   then holds what the cut left it in: the pen the rest of a row is drawn
+//   with, the start of an escape sequence or of a character. No capture shows
+//   it, so the client reads it from the stream as well, the output it drops
+//   included, and writes it after the seed (seed-boundary.mjs). The one seed
+//   is exact, and nothing is drawn twice.
+//
 //   Modes set before the attach never pass through `%output`. Claude Code runs
 //   on the alternate screen with any-event mouse on; an emulator that was not
 //   told so sends no mouse events. The seed restates every mode tmux has a
@@ -42,17 +50,14 @@
 //   gone from the stream, so the only honest recovery is to continue the pane
 //   and capture it again — the 'reseed' event.
 //
-//   That capture can land while tmux holds part of one write by the pane: it
-//   has read the start of an escape sequence or of a character and drawn
-//   nothing for it yet, and the rest arrives as the first output after the
-//   boundary. An emulator reset by the seed prints that rest as text ("26m"
-//   where a colour was cut) until the program draws over it. After a %pause
-//   nothing in the stream says where tmux's parser stands, because tmux
-//   skipped the start of that write. So once the pane has written past the
+//   That capture, too, can land while tmux holds part of one write by the
+//   pane, and after a %pause nothing in the stream says where tmux's parser
+//   stands, because tmux skipped the start of that write. An emulator reset
+//   by the seed then prints the rest as text ("26m" where a colour was cut)
+//   until the program draws over it. So once the pane has written past the
 //   seed that followed a %pause and then been quiet for PAUSE_QUIET_MS (between
 //   writes, where a program's output is whole), the client asks for one more
-//   seed: 'reseed' again, once per %pause. A pty that hands tmux a large
-//   frame in small reads, as macOS's does, makes such a cut common.
+//   seed: 'reseed' again, once per %pause.
 //
 // Nothing here spawns tmux SERVERS or shells: the one child is `tmux -C attach`
 // on a socket the caller names, registered with exec-children.mjs so the deck's
@@ -62,6 +67,7 @@ import { EventEmitter } from "node:events";
 import { execFile as nodeExecFile, spawn as nodeSpawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { killTree, watchChild } from "./exec-children.mjs";
+import { seedBoundary } from "./seed-boundary.mjs";
 // The one spelling of a tmux invocation (binary, -u, socket, then arguments),
 // of an argument tmux could split, and of the environment a tmux client gets.
 import { parseTmuxVersion, tmuxArg, tmuxCommand, tmuxEnv, tmuxTimedOut } from "./tmux.mjs";
@@ -607,6 +613,7 @@ class ControlClient extends EventEmitter {
   #size = null;
   #streaming = false;
   #folding = null;      // output past a seed's boundary, held until seed() resolves
+  #boundary = seedBoundary();   // what tmux's parser holds, read from the pane's output
   #seedSeq = 0;
   #pauseEpoch = 0;
   // 1 from a %pause until a seed opens the stream again, then 2 until the pane
@@ -802,6 +809,9 @@ class ControlClient extends EventEmitter {
         return;
       case "output":
         if (msg.pane !== this.#pane || !msg.data.length || this.#exitEmitted) return;
+        // All of it, dropped or not: the next seed hands on where it leaves
+        // tmux's parser.
+        this.#boundary.feed(msg.data);
         if (this.#streaming) {
           this.emit("output", msg.data);
           if (this.#afterPause === 2) this.#armQuiet();
@@ -911,6 +921,7 @@ class ControlClient extends EventEmitter {
     this.#streaming = false;
     this.#folding = null;
     this.#afterPause = 1;
+    this.#boundary.lose();
     this.#clearQuiet();
     this.#send([`refresh-client -A ${quoteTmuxArg(`${this.#pane}:continue`)}`]);
     this.emit("reseed");
@@ -926,6 +937,7 @@ class ControlClient extends EventEmitter {
       this.#quietTimer = null;
       if (this.#afterPause !== 2 || !this.#streaming || this.#exitEmitted) return;
       this.#afterPause = 0;
+      this.#boundary.presume();
       this.emit("reseed");
     }, PAUSE_QUIET_MS);
     this.#quietTimer.unref?.();
@@ -1136,7 +1148,9 @@ class ControlClient extends EventEmitter {
       `capture-pane -p -e -N -a -q -t ${p}`,
     ], (reply) => {
       if (reply.ok && id === this.#seedSeq && epoch === this.#pauseEpoch && !this.#exitEmitted) {
-        this.#folding = { id, chunks: [], stale: false };
+        // The capture's own boundary: what tmux's parser holds here goes
+        // between the seed and the output after it.
+        this.#folding = { id, chunks: [], stale: false, tail: this.#boundary.tail() };
       }
     });
     const [infoR, capR, savedR] = await Promise.all([infoP, capP, savedP]);
@@ -1146,7 +1160,7 @@ class ControlClient extends EventEmitter {
     const info = parseSeedInfo(infoR.lines[0]);
     let bytes = buildSeed({ info, lines: capR.lines, saved: savedR.ok ? savedR.lines : [] });
     if (fold && !fold.stale) {
-      if (fold.chunks.length) bytes = Buffer.concat([bytes, ...fold.chunks]);
+      if (fold.tail.length || fold.chunks.length) bytes = Buffer.concat([bytes, fold.tail, ...fold.chunks]);
       this.#size = { cols: info.cols, rows: info.rows };
       this.#streaming = !this.#exitEmitted;
       if (this.#afterPause && this.#streaming) {

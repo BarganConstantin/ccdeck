@@ -43,6 +43,10 @@
 //                  rest (6m), a word and a reset. Between h and g tmux has
 //                  read the start and holds it: a capture then cannot show
 //                  that its parser is inside a sequence.
+//   pen            Raw mode. h writes a new line, a colour, AB and only the
+//                  first two bytes of 世; g writes its last byte, CD and a
+//                  reset. Between h and g tmux draws in that colour and holds
+//                  half a character, and a capture shows neither.
 import { appendFileSync, writeFileSync } from "node:fs";
 
 const [mode, file, flag] = process.argv.slice(2);
@@ -74,6 +78,15 @@ if (mode === "record") {
     const k = d.toString("latin1");
     if (k.includes("h")) out("\r\n\x1b[38;5;2");
     if (k.includes("g")) out("6mCUT\x1b[0m");
+  });
+} else if (mode === "pen") {
+  process.stdin.setRawMode(true);
+  out("\x1b[2J\x1b[Hready");
+  process.stdin.on("data", (d) => {
+    const k = d.toString("latin1");
+    // Buffers, so the half character goes out as the two bytes it is.
+    if (k.includes("h")) out(Buffer.from([...Buffer.from("\r\n\x1b[38;5;126mAB", "latin1"), 0xe4, 0xb8]));
+    if (k.includes("g")) out(Buffer.from([0x96, ...Buffer.from("CD\x1b[0m", "latin1")]));
   });
 } else if (mode === "half") {
   // The title last: once tmux shows it, it has drawn every byte before it.

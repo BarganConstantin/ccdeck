@@ -32,6 +32,7 @@ const JS_BACKEND = [
   "src/server/terminal-js-routes.mjs",
   "src/server/terminal-bridge.mjs",
   "src/server/utf8-carry.mjs",
+  "src/server/seed-boundary.mjs",
   "src/server/tmux-control.mjs",
   "src/server/terminal-target.mjs",
   "src/server/terminal-sessions.mjs",
