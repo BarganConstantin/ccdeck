@@ -628,6 +628,8 @@ const catalog: Catalog = {
   "board.engine.checkBody": "파일이 ccdeck의 서명과 일치하지 않아 삭제되었고 한 번도 실행되지 않았습니다. 다운로드를 다시 쓰는 프록시나 백신 프로그램 때문일 수 있습니다.",
   "board.engine.wrongMachineBody": "패키지가 다른 플랫폼용으로 만들어져 삭제되었고 한 번도 실행되지 않았습니다.",
   "board.engine.downgradeBody": "패키지가 ccdeck이 이미 신뢰하는 엔진보다 오래되어 삭제되었고 한 번도 실행되지 않았습니다.",
+  "board.engine.folderTitle": "엔진을 사용하지 않았습니다",
+  "board.engine.folderBody": "이 컴퓨터의 다른 사용자가 엔진 위쪽의 폴더를 바꿀 수 있어 엔진을 바꿔치기할 수 있습니다. 그 폴더와 해결 방법은 ccdeck 로그에 있습니다.",
   "board.engine.noMatch": "일치하지 않음",
   "board.engine.checkNote": "“세부 정보 복사”에는 단계, 버전, 오류 코드가 담깁니다. 터미널 내용은 담기지 않습니다.",
   "board.engine.copyDetails": "세부 정보 복사",

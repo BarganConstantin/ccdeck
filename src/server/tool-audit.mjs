@@ -48,7 +48,7 @@ export function createToolAudit({ dir, now = Date.now, runReport = workerReport 
   const ready = () => {
     if (readyPromise) return readyPromise;
     const attempt = (async () => {
-      await mkdir(dir, { recursive: true });
+      await mkdir(dir, { recursive: true, mode: 0o700 });
       try { meta = JSON.parse(await readFile(join(dir, 'settings.json'), 'utf8')); }
       catch (e) { if (e.code !== 'ENOENT') throw e; }
       if (meta && !validMeta(meta)) throw new Error('Unreadable tool history settings');

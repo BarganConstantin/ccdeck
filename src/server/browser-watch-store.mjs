@@ -415,7 +415,7 @@ async function writeNow(state, home, deps) {
   // blank, while the episode archive — the file that exists BECAUSE an intruder
   // can clear the browser's own history — is not written at all.
   const mv = deps.rename ?? renameWithRetry;
-  await mk(storeDir(home), { recursive: true });
+  await mk(storeDir(home), { recursive: true, mode: 0o700 });
   const body = JSON.stringify({
     v: STORE_VERSION,
     settings: normalise(state.settings),

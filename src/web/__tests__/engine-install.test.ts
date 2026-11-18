@@ -322,7 +322,11 @@ describe("installing from a file", () => {
   // account files here give that group to a second account as well, so the
   // folder is still one somebody else can write: left as it is, the check
   // failed, and the deck's log names the folder and the fix.
-  it.skipIf(process.platform === "win32")("leaves a folder above the data folder as it is, and the install says the check failed", async () => {
+  //
+  // CHANGED ON PURPOSE again: the install said `check-failed`, which the page
+  // reads as a bad signature. It now says `unsafe-folder`, in the status route
+  // too, and that route's body still never holds the folder.
+  it.skipIf(process.platform === "win32")("leaves a folder above the data folder as it is, and the install says the folder failed the check", async () => {
     const w = await world();
     const above = join(w.home, ".local", "share");
     await chmod(above, 0o775);
@@ -336,10 +340,15 @@ describe("installing from a file", () => {
     const said = vi.spyOn(console, "error").mockImplementation(() => {});
     const i = installer(w, { env: { AGENTS_DECK_NO_DOWNLOAD: "1" } });
     await i.installFile(tgzOf(packageFiles(w)));
-    expect((await settled(i)).last).toMatchObject({ outcome: "failed", code: "check-failed" });
+    expect((await settled(i)).last).toMatchObject({ outcome: "failed", code: "unsafe-folder", step: "verify" });
     expect((await lstat(above)).mode & 0o777).toBe(0o775);
     const folder = await realpath(above);
     expect(said.mock.calls.map((call) => String(call[0])).filter((line) => line.includes(folder))).toEqual([expect.stringContaining(`chmod go-w '${folder}'`)]);
+    const res = fakeRes();
+    await handleEngineStatus(fakeReq(), res, { enabled: () => true, engine: { enabled: true, installer: i } });
+    expect(JSON.parse(res.body).engine.last).toMatchObject({ outcome: "failed", code: "unsafe-folder" });
+    expect(res.body).not.toContain(folder);
+    expect(res.body).not.toContain(w.base);
   });
 
   it.skipIf(!['darwin', 'linux'].includes(process.platform))("says wrong-machine for another platform's package", async () => {

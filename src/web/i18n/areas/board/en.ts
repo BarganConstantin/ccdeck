@@ -628,6 +628,8 @@ const catalog: Catalog = {
   "board.engine.checkBody": "The file doesn’t match ccdeck’s signature, so it was deleted and never ran. A proxy or antivirus that rewrites downloads can cause this.",
   "board.engine.wrongMachineBody": "The package is built for another platform, so it was deleted and never ran.",
   "board.engine.downgradeBody": "The package is older than the engine ccdeck already trusts, so it was deleted and never ran.",
+  "board.engine.folderTitle": "The engine wasn’t used",
+  "board.engine.folderBody": "A folder above it can be changed by other users on this machine, who could replace the engine. ccdeck’s log names the folder and the fix.",
   "board.engine.noMatch": "no match",
   "board.engine.checkNote": "Copy details holds the step, the versions and the error code. Nothing from your terminal.",
   "board.engine.copyDetails": "Copy details",

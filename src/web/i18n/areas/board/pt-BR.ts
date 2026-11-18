@@ -628,6 +628,8 @@ const catalog: Catalog = {
   "board.engine.checkBody": "O arquivo não corresponde à assinatura do ccdeck, então foi excluído e nunca rodou. Um proxy ou antivírus que reescreve downloads pode causar isso.",
   "board.engine.wrongMachineBody": "O pacote foi feito para outra plataforma, então foi excluído e nunca rodou.",
   "board.engine.downgradeBody": "O pacote é mais antigo que o motor em que o ccdeck já confia, então foi excluído e nunca rodou.",
+  "board.engine.folderTitle": "O motor não foi usado",
+  "board.engine.folderBody": "Outros usuários desta máquina podem alterar uma pasta acima do motor e poderiam substituí-lo. O log do ccdeck informa a pasta e a correção.",
   "board.engine.noMatch": "não corresponde",
   "board.engine.checkNote": "“Copiar detalhes” traz a etapa, as versões e o código de erro. Nada do seu terminal.",
   "board.engine.copyDetails": "Copiar detalhes",

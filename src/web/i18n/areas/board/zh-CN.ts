@@ -628,6 +628,8 @@ const catalog: Catalog = {
   "board.engine.checkBody": "该文件与 ccdeck 的签名不符，因此已被删除，从未运行。改写下载内容的代理或杀毒软件可能导致这种情况。",
   "board.engine.wrongMachineBody": "该包是为其他平台构建的，因此已被删除，从未运行。",
   "board.engine.downgradeBody": "该包比 ccdeck 已信任的引擎更旧，因此已被删除，从未运行。",
+  "board.engine.folderTitle": "未使用该引擎",
+  "board.engine.folderBody": "这台电脑上的其他用户可以修改引擎上层的一个文件夹，从而替换引擎。ccdeck 的日志中写明了该文件夹和修复方法。",
   "board.engine.noMatch": "不匹配",
   "board.engine.checkNote": "“复制详情”包含步骤、版本和错误代码，不含终端中的任何内容。",
   "board.engine.copyDetails": "复制详情",

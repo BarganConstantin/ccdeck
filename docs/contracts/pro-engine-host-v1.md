@@ -13,7 +13,8 @@ Linux or macOS, once a route asks. It looks in `<deck data folder>/engine` (the
 downloaded or installed. It trusts only the Ed25519 keys shipped with the deck,
 a frozen list holding the one release key the `@ccdeck/engine-*` packages are
 signed with, so a missing folder answers `not-installed` and a present one that
-key did not sign `not-verified`, and its executable is never read. Off Linux and macOS (on Windows) every route answers `unsupported`
+key did not sign `not-verified`, and its executable is never read; one under a
+folder another account can change answers `unsafe-folder`. Off Linux and macOS (on Windows) every route answers `unsupported`
 without looking; on both, a route reaches the engine only when its hello
 advertises a terminal backend, and answers `no-terminal` otherwise. The client
 it makes is the only one constructed with `terminal: true` (Terminal opt-in,
@@ -66,6 +67,10 @@ non-sticky ancestor directories are refused, except, on Linux only, one that
 only the user's own private group may write: the process's group, the user's
 primary group in `/etc/passwd`, nobody else's, and with no other member in
 `/etc/group` (either file unreadable, or the user or group not in it, refuses).
+An ancestor refused this way, or one another account owns, is the one refusal
+that names its check: the verifier's error carries `code: "unsafe-folder"`, and
+the routes answer `unsafe-folder` (Refusals, below). The folder goes to the
+deck's log once, with the fix, never to a route's body.
 No user-facing download is added.
 Windows installation ACL validation remains disabled pending native validation:
 the installer asks an injected ACL reader (owner, who may write, reparse point,
@@ -232,6 +237,7 @@ When the engine cannot take a question, the route answers
 |---|---|---|
 | `not-installed` | 409 | no engine, or one switched off; nothing is asked |
 | `not-verified` | 409 | the installation did not verify, so nothing was started |
+| `unsafe-folder` | 409 | another account can change a folder above the installation, so nothing was started; the deck's log names the folder |
 | `failed` | 409 | the engine would not start (it exited, or its hello did not match) |
 | `no-terminal` | 409 | its hello advertised `terminal.backend: "unavailable"` (nothing is asked), or it refused with `unavailable` |
 | `unsupported` | 409 | the platform has no Command Panel yet |

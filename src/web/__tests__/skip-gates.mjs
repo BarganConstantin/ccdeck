@@ -276,6 +276,12 @@ export const GATES = [
   // cancel, offline, wrong signer, the strict package reader, the routes'
   // refusals — runs on all three legs.
   { file: "engine-install.test.ts", gate: "it.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 8, cases: 8 },
+  // The folders the deck's writers make — the data folder, the log folder,
+  // agent-dag and any missing folder above them — read back as 0700, and one
+  // already there keeps its mode. POSIX mode bits on real folders under a
+  // 0002 umask; Windows has neither, and ignores the mode asked for. The
+  // same file's scan of the writers' sources is un-gated, on every leg.
+  { file: "deck-folders-private.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 4 },
   { file: "pro-engine-client.test.ts", gate: "describe.skipIf", condition: "!['darwin', 'linux'].includes(process.platform)", sites: 1, cases: 21 },
   // The panel's routes answered by the same signed double started as the
   // engine, on a real deck, on the same two platforms. What a deck with no

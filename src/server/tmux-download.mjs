@@ -140,7 +140,7 @@ export async function downloadTmux({
   const parent = join(dataDir, "tools", "tmux");
   let staging = null;
   try {
-    await mkdir(parent, { recursive: true });
+    await mkdir(parent, { recursive: true, mode: 0o700 });
     staging = await mkdtemp(join(parent, ".staging-"));
     const file = join(staging, "build.tar.gz");
     await writeFile(file, archive);
