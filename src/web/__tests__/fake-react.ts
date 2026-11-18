@@ -138,8 +138,9 @@ export interface Drawn {
  *  `modal-backdrop` with its handlers, the `modal` with its ref and role).
  *  V4's Checkbox is the same kind of thing — a real `input` with every prop it
  *  was given, plus the tick's picture — so a dialog's checkbox is pressed where
- *  the browser would press it. */
-const SHELL = new Set(["Dialog", "DialogScrim", "Checkbox"]);
+ *  the browser would press it. Button and Input are stateless ref-forwarding
+ *  shells too: expand them so form tests still press native controls. */
+const SHELL = new Set(["Dialog", "DialogScrim", "Checkbox", "Button", "Input"]);
 /** DialogPresence is transparent while its dialog is open: what it draws is
  *  what its callback returns (it stays mounted when closed only to let the
  *  dialog leave, which this React has no time for). */
@@ -148,7 +149,7 @@ function expandShell(n: unknown): unknown {
   if (Array.isArray(n)) return n.map(expandShell);
   if (!n || typeof n !== "object" || !("props" in n)) return n;
   const el = n as Drawn;
-  if (typeof el.type === "function" && SHELL.has((el.type as { name: string }).name)) {
+  if (typeof el.type === "function" && SHELL.has((el.type as { displayName?: string; name: string }).displayName ?? el.type.name)) {
     return expandShell((el.type as (p: unknown) => unknown)(el.props));
   }
   if (typeof el.type === "function" && (el.type as { name: string }).name === PRESENCE) {

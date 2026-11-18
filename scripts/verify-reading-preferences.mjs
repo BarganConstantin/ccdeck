@@ -23,9 +23,10 @@ const context = await browser.newContext({
   viewport: { width: 1280, height: 900 },
   reducedMotion: "reduce",
 });
-await context.addInitScript(() =>
-  localStorage.setItem("agent-dag.tourSeen", "1"),
-);
+await context.addInitScript(() => {
+  localStorage.setItem("agent-dag.tourSeen", "1");
+  localStorage.setItem("agent-dag.tourEdition", "2");
+});
 const page = await context.newPage();
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));

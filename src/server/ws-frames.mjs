@@ -548,6 +548,12 @@ export function wsConnection(socket, head, {
     if (socket.destroyed) return socketGone();
     if (head && head.length) receive(head);
     socket.on("data", receive);
+    // So may a client that only closed its half. An upgrade socket goes on
+    // reading after the upgrade, so its 'end' can fire while a handler is
+    // still deciding (the engine's attach waits for its answer), before the
+    // 'end' listener above existed. Its half is ended here, as that listener
+    // would have, or the socket stays half-open for good.
+    if (socket.readableEnded) endSocket();
   });
 
   function socketGone() {

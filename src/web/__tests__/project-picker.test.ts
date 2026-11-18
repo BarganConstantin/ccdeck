@@ -18,6 +18,12 @@ const none: KeptProjects = { recents: [], forgotten: [] };
 const p = (cwd: string, name: string, at?: number): ProjectChoice => ({ cwd, name, hue: 1, ...(at === undefined ? {} : { at }) });
 
 describe("the folders it keeps", () => {
+  it("offers discovered repositories after recents, once, and respects removal", () => {
+    const discovered = [p('/srv/a', 'a'), p('/srv/new', 'new'), p('/srv/hidden', 'hidden')];
+    const result = pickerProjects([], [{ cwd: '/srv/a', at: 100 }], ['/srv/hidden'], discovered);
+    expect(result.map(p => p.cwd)).toEqual(['/srv/a', '/srv/new']);
+    expect(pickerProjects([p('/srv/board', 'board')], [{ cwd: '/srv/a', at: 100 }], [], discovered)[0].cwd).toBe('/srv/board');
+  });
   it("puts a chosen folder first, once, and keeps no more than RECENT_MAX", () => {
     let kept = none;
     for (let i = 0; i < RECENT_MAX + 5; i += 1) kept = withRecent(kept, `/srv/p${i}`, i);

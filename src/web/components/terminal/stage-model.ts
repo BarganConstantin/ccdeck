@@ -18,7 +18,7 @@
 // decided there; the stage only prints the chord and
 // says who owns the keys.
 import type { SizeOwner } from "../../terminal-protocol";
-import type { PanelUnavailable, TerminalProvider, TerminalTarget, TmuxProgress } from "../../terminal-api";
+import type { PanelUnavailable, ProjectWorktree, TerminalProvider, TerminalTarget, TmuxProgress } from "../../terminal-api";
 import { shortAgo } from "../../relative-time";
 import { elapsed } from "../../duration";
 import { clockShort } from "../../elapsed-short";
@@ -422,15 +422,15 @@ export interface ProjectChoice {
   cwd: string;
   name: string;
   hue: number;
+  worktree?: ProjectWorktree;
   /** When it was last used: a session heard from there, or the reader chose
    *  it (project-picker.ts). Orders the board's folders among the picker's. */
   at?: number;
 }
 
-/** Whether `p` is a path the deck will start an agent in: absolute, POSIX or
- *  a Windows drive. "~" is not — the deck has no shell to expand it. */
+/** Paths the picker can offer: POSIX absolute paths, Windows drives and UNC shares. */
 export function isAbsolutePath(p: string): boolean {
-  return /^\//.test(p) || /^[A-Za-z]:[\\/]/.test(p);
+  return /^\//.test(p) || /^[A-Za-z]:[\\/]/.test(p) || /^\\\\[^\\/]+[\\/][^\\/]+/.test(p);
 }
 
 /** The last folder in a path, either separator, trailing ones ignored. */

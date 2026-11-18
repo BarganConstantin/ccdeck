@@ -33,6 +33,8 @@ const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), 
   + "\n" + readFileSync(fileURLToPath(new URL("../components/DetailAside.tsx", import.meta.url)), "utf8")
   // The close is the Inspector's Fold now, in the header it draws.
   + "\n" + readFileSync(fileURLToPath(new URL("../components/Inspector.tsx", import.meta.url)), "utf8");
+/** The doors on the window's edges, in their order. */
+const rails = readFileSync(fileURLToPath(new URL("../rail-items.tsx", import.meta.url)), "utf8");
 const appCode = app
   .replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").filter(line => !/^\s*\/\//.test(line)).join("\n");
@@ -101,6 +103,12 @@ describe("selecting an agent opens its details (#814)", () => {
   });
 
   it("makes the tour's inspect step true (#817)", () => {
-    expect(WELCOME_STEPS.some(s => /^Double-click any node: its prompt, every tool call/.test(s.line))).toBe(true);
+    // CHANGED ON PURPOSE (V4's tour): the step is the Inspector's now, and its
+    // tip names the two ways in — D, held true above, and the door at the top
+    // of the right edge, which is the right stripe's first.
+    const inspect = WELCOME_STEPS.find(s => /^The Inspector shows every agent, subagent and tool call/.test(s.line));
+    expect(inspect).toBeDefined();
+    expect(inspect?.tip).toMatch(/^Press D, or Inspector at the top of the right edge\.$/);
+    expect(rails).toMatch(/rightStripe: \[\s*\[inspector\],/);
   });
 });

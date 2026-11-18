@@ -54,18 +54,18 @@ describe("a tray checkbox", () => {
     expect(t.row("Start at login").checked).toBe(false);
   });
 
-  it("unticks itself again when the deck does not take Notifications while closed", () => {
+  it("unticks itself again when the deck does not take \"Notifications while the deck is closed\"", () => {
     const t = tray({ prefsAnswer: false });
-    t.click("Notifications while closed");
-    expect(t.row("Notifications while closed").checked).toBe(false);
+    t.click("Notifications while the deck is closed");
+    expect(t.row("Notifications while the deck is closed").checked).toBe(false);
   });
 
   it("stays ticked when the toggle takes", () => {
     const t = tray();
     t.click("Start at login");
     expect(t.row("Start at login").checked).toBe(true);
-    t.click("Notifications while closed");
-    expect(t.row("Notifications while closed").checked).toBe(true);
+    t.click("Notifications while the deck is closed");
+    expect(t.row("Notifications while the deck is closed").checked).toBe(true);
   });
 
   it("is put right once, and the redraws after that leave the menu alone", () => {

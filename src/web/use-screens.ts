@@ -8,13 +8,15 @@
 //
 // NOTHING IS FETCHED UNTIL A SCREEN IS DRAWN. The chunk is not preloaded: the
 // slot renders a lazy component only when a flag is on, the view is Workspace
-// and the caller handed it a source: the stage does that for a Claude session,
+// and the caller handed it a source: the stage does that for a supported session,
 // reading its conversation from the deck's transcript route
 // (use-session-transcript.ts, asked only while Chat is on screen). So a deck
 // with Chat on (the default) and Term showing makes no request, and logs no
 // error. A stale tab after an upgrade, asking for a chunk the new build no
 // longer has, draws nothing.
 import { createElement, lazy, Suspense, useMemo, useState, type ComponentType } from "react";
+import type { Provider } from "./types";
+import type { ChatViewProps } from "./components/chat/ChatView";
 import type { ChatSource } from "./components/chat/chat-model";
 import type { ChatComposerProps } from "./components/chat/ChatComposer";
 import type { DecisionCardProps } from "./components/decision/DecisionCard";
@@ -25,8 +27,8 @@ export const loadScreens = () => import("./components/screens");
 const Unavailable = () => null;
 
 const LazyChatView = lazy(() => loadScreens().then(
-  m => ({ default: m.ChatView as ComponentType<{ source: ChatSource; decision?: DecisionCardProps }> }),
-  () => ({ default: Unavailable as ComponentType<{ source: ChatSource; decision?: DecisionCardProps }> }),
+  m => ({ default: m.ChatView as ComponentType<ChatViewProps> }),
+  () => ({ default: Unavailable as ComponentType<ChatViewProps> }),
 ));
 const LazyDecisionCard = lazy(() => loadScreens().then(
   m => ({ default: m.DecisionCard as ComponentType<DecisionCardProps> }),
@@ -48,6 +50,7 @@ export interface ScreensProps {
   view: "chat" | "term";
   /** A transcript. With none there is nothing for Chat to show. */
   source?: ChatSource;
+  provider?: Provider;
   /** A question to dock under the chat, or alone under the terminal. */
   decision?: DecisionCardProps;
 }
@@ -69,7 +72,7 @@ export function ScreensSlot({ screens, flags }: { screens?: ScreensProps; flags:
   if (!screens) return null;
   const decision = flags.decision ? screens.decision : undefined;
   if (chatShown(flags, screens)) {
-    return createElement(Suspense, { fallback: null }, createElement(LazyChatView, { source: screens.source!, decision }));
+    return createElement(Suspense, { fallback: null }, createElement(LazyChatView, { source: screens.source!, provider: screens.provider, decision }));
   }
   if (decision) {
     return createElement(Suspense, { fallback: null }, createElement(LazyDecisionCard, decision));

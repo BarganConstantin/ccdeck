@@ -28,6 +28,7 @@ const catalog: Catalog = {
   "lan.fail.errorCode": " 错误码：{code}。",
   "lan.fail.prefsUnreadable": "本 ccdeck 无法读取它的设置文件，因此不会覆盖它。该文件可能属于其他用户，例如以 sudo 运行过 ccdeck 之后。ccdeck 的日志会写出文件位置。",
   "lan.fail.prefsNotWritable": "本 ccdeck 没有权限保存设置。设置文件夹可能属于其他用户（例如以 sudo 运行过 ccdeck 之后），也可能有其他程序正在占用该文件。ccdeck 的日志会写出文件夹位置。",
+  "lan.fail.prefsNoSpace": "本 ccdeck 保存设置的磁盘已满，因此设置没有保存。请释放一些空间，然后重试。",
   "lan.fail.badJson": "它的设置文件已损坏且无法移开，因此不会覆盖它。ccdeck 的日志会写出文件位置。",
   "lan.fail.folderOther": "本 ccdeck 无法打开它的设置文件夹，该文件夹属于其他用户，例如以 sudo 运行过 ccdeck 之后。ccdeck 的日志中有可以把文件夹还给您的命令。",
   "lan.fail.folderYou": "本 ccdeck 无法打开自己的设置文件夹，因此不会覆盖里面的内容。ccdeck 的日志会写出文件夹位置。",

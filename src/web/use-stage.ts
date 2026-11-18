@@ -55,7 +55,7 @@ import {
   type Cell, type StageGeometry,
 } from "./stage-geometry";
 import {
-  STAGE_FIRST_RUN_KEY, boardInert, initialShell, navigatorOrder, navigatorSessionAt, shellReducer,
+  EMPTY_NEW_SESSION_ID, STAGE_FIRST_RUN_KEY, boardInert, initialShell, navigatorOrder, navigatorSessionAt, shellReducer,
   stageClaimsKeys, stageSeen, targetSession, terminalButtonTarget, visibleOrigin,
   type ShellAction, type ShellRect, type StageTarget,
 } from "./stage-shell";
@@ -530,6 +530,25 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     openerRef.current = button && typeof (button as HTMLElement).focus === "function" ? button as HTMLElement : null;
   }, [primarySelectedIdRef, stateRef, shellRef, canvasRef, openOn]);
 
+  /**
+   * THE EMPTY BOARD'S NEW SESSION (components/EmptyHero.tsx). One press lands
+   * in the New session form, not on a second New session: the empty stage
+   * grows out of the hero's button, and once it has landed the form opens off
+   * the stage's own button. Not before: until the morph is over that button
+   * is still moving, and the form is placed against where it stands.
+   * Cancelled, the form takes the stage with it and the focus goes back to
+   * the hero's button, so a look at the form leaves the board as it was.
+   * Started, the stage goes on to show the session, as the stage's own New
+   * session does.
+   */
+  const heroAskRef = useRef<"asked" | "shown" | null>(null);
+  const newSessionFromBoard = useCallback((button: HTMLElement) => {
+    if (!enabledRef.current) return;
+    heroAskRef.current = "asked";
+    openOn(EMPTY_TARGET, { el: button, focusPane: true });
+    openerRef.current = button;
+  }, [enabledRef, openOn]);
+
   const focusPane = useCallback(() => {
     if (!stageClaimsKeys(shellRef.current.phase)) return;
     const token = ++tokenRef.current;
@@ -966,6 +985,24 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     if (enabled) loadStageShell().catch(() => {});
   }, [enabled]);
 
+  // The empty board's New session (newSessionFromBoard): the form once the
+  // empty stage has landed, and the stage gone again with a form closed
+  // unused. Anything else that moves the stage — a session put on it, the
+  // launch the form started, a close — ends the ask.
+  useEffect(() => {
+    const ask = heroAskRef.current;
+    if (!ask) return;
+    if (shell.phase === "closed" || shell.target?.kind !== "empty") {
+      heroAskRef.current = null;
+    } else if (ask === "asked" && shell.phase === "open") {
+      heroAskRef.current = "shown";
+      dispatch({ type: "popover", anchor: EMPTY_NEW_SESSION_ID });
+    } else if (ask === "shown" && shell.popover === null) {
+      heroAskRef.current = null;
+      dispatch({ type: "close" });
+    }
+  }, [shell.phase, shell.target, shell.popover, dispatch]);
+
   // Back on the same session after a reload (ux.md S3). The deck reloads the
   // page by itself after an upgrade, and tmux kept the session running through
   // it, so a stage that came back closed would undo the one thing tmux is
@@ -1250,7 +1287,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   return {
     enabled, supported, windows, toggleTerminal, loadTerminalPrefs, shell, geometry, cell, expanded, firstRun, said, navRef, keysRef,
     workspace, workspaceOffered: onOffer, chunkFailed, openInPane, emptyPane, leaveWorkspace,
-    onNodeClick, followSession, switchTo, openFromButton, openTile, launch, onLaunched,
+    onNodeClick, followSession, switchTo, openFromButton, newSessionFromBoard, openTile, launch, onLaunched,
     focusPane, release, takeTypeAhead, holdsTypeAhead, close, closed, failed, giveRightBack, reveal, revealed, announce,
     openPopover, newSessionFrom, closePopover, onCols, onColsReset, toggleExpand, unzoom, firstRunDone, onCell, onBarH, onHeadH,
     split, arrangement, paneMin, geometryFor, requestFor, focusPaneId, focusPaneAt, openBeside, dropHere, movePaneTo, closePane,

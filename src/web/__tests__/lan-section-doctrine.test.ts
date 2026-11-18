@@ -302,6 +302,16 @@ describe("a write that did not happen says so", () => {
       expect(said, reason).not.toContain(reason);
     }
   });
+
+  it("tells someone whose disk is full that it is, and sends nobody looking for an owner", () => {
+    const said = writeFailure("share that account", { ok: false, reason: "prefs_no_space" });
+    expect(said).toContain("share that account");
+    expect(said).toMatch(/settings/);
+    expect(said).toMatch(/full/);
+    expect(said).toMatch(/Free some space/);
+    expect(said).not.toMatch(/sudo|another user/);
+    expect(said).not.toContain("prefs_no_space");
+  });
 });
 
 describe("what we last sent, against what the server says", () => {

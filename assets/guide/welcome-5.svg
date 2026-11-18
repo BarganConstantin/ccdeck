@@ -1,13 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="440" height="200" role="img" aria-label="Cores, memory and heat while the agents run, and what is hogging them." class="guide-art" viewBox="0 0 440 200"><style>:root{--bg:#0b0c10;--bg-soft:#0f1116;--panel:#14161b;--line:#1f2229;--line-soft:#1a1c22;--text:#d8dae0;--pixel-metal-light:#cbd5e1;--pixel-metal-shadow:#64748b;--pixel-metal-edge:#475569;--pixel-character-body:#38bdf8;--text-secondary:#9aa0ab;--ctl-fill:color-mix(in srgb, var(--text) 7%, transparent);--ctl-edge:color-mix(in srgb, var(--text) 50%, transparent);--chrome-bg:color-mix(in srgb, var(--panel) 60%, var(--bg));--chrome-edge:color-mix(in srgb, var(--line) 60%, var(--bg));--sm-edge:color-mix(in srgb, var(--text) 36%, transparent);--sm-fill:color-mix(in srgb, var(--text) 5%, transparent);--muted:#7e828c;--muted-dim:#50535b;--text-dim:#7e828c;--accent:#7dd3fc;--accent-dim:#38bdf850;--ok:#86efac;--warn:#fcd34d;--err:#fca5a5;--inflight:#f0abfc;--shadow-1:0 6px 18px rgba(0,0,0,0.25);--shadow-2:0 10px 24px rgba(0,0,0,0.32);--shadow-contact:0 1px 2px rgba(0,0,0,0.30);--node-grad:linear-gradient(180deg, var(--panel), var(--bg-soft));--topbar-grad:linear-gradient(to bottom, var(--panel), var(--bg-soft));--conn-wash:linear-gradient(90deg, rgba(252,165,165,0.12), transparent);--burst-live-wash:linear-gradient(180deg, rgba(240,171,252,0.10), rgba(125,211,252,0.05));--hero-core:radial-gradient(circle at 30% 30%, #c4b5fd, #7dd3fc 55%, #14161b);--live-bloom:color-mix(in srgb, var(--ok) 24%, transparent);--glint:var(--text);--grid-line:#1a1d24;--minimap-mask:rgba(11,12,16,0.85);--mcp-dot-l:65%;--cat-file:#7dd3fc;--cat-shell:#fcd34d;--cat-web:#67e8f9;--cat-agent:#f9a8d4;--cat-task:#86efac;--cat-plan:#c4b5fd;--cat-mcp:#5eead4;--cat-other:#94a3b8}svg{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;background:var(--bg)}.guide-art { display: block; width: 100%; height: auto; overflow: visible; }
+<svg xmlns="http://www.w3.org/2000/svg" width="440" height="200" role="img" aria-label="Left edge: Sessions, Accounts, Settings at its foot. Right: Usage and This machine." class="guide-art" viewBox="0 0 440 200"><style>:root{--bg:#0b0c10;--bg-soft:#0f1116;--panel:#14161b;--line:#1f2229;--line-soft:#1a1c22;--text:#d8dae0;--pixel-metal-light:#cbd5e1;--pixel-metal-shadow:#64748b;--pixel-metal-edge:#475569;--pixel-character-body:#38bdf8;--text-secondary:#9aa0ab;--provider-claude:#e5a181;--provider-codex:#aab5ff;--ctl-fill:color-mix(in srgb, var(--text) 7%, transparent);--ctl-edge:color-mix(in srgb, var(--text) 50%, transparent);--chrome-bg:color-mix(in srgb, var(--panel) 60%, var(--bg));--chrome-edge:color-mix(in srgb, var(--line) 60%, var(--bg));--sm-edge:color-mix(in srgb, var(--text) 36%, transparent);--sm-fill:color-mix(in srgb, var(--text) 5%, transparent);--accent-16:color-mix(in srgb, var(--accent) 16%, transparent);--err-12:color-mix(in srgb, var(--err) 12%, transparent);--muted-30:color-mix(in srgb, var(--muted) 30%, transparent);--secondary-30:color-mix(in srgb, var(--text-secondary) 30%, transparent);--warn-35:color-mix(in srgb, var(--warn) 35%, transparent);--inflight-30:color-mix(in srgb, var(--inflight) 30%, transparent);--dock:color-mix(in srgb, var(--panel) 40%, var(--bg));--scrim:#00000052;--selected:color-mix(in srgb, var(--text) 8%, var(--panel));--sunken:color-mix(in srgb, var(--bg) 90%, #000000);--your-message:color-mix(in srgb, var(--accent) 14%, var(--panel));--muted:#7e828c;--muted-dim:#50535b;--text-dim:#7e828c;--accent:#7dd3fc;--accent-dim:#38bdf850;--ok:#86efac;--warn:#fcd34d;--err:#fca5a5;--inflight:#f0abfc;--shadow-1:0 6px 18px rgba(0,0,0,0.25);--shadow-2:0 10px 24px rgba(0,0,0,0.32);--shadow-contact:0 1px 2px rgba(0,0,0,0.30);--shadow-overlay:0 16px 40px rgba(0,0,0,0.45);--node-grad:linear-gradient(180deg, var(--panel), var(--bg-soft));--burst-live-wash:linear-gradient(180deg, rgba(240,171,252,0.10), rgba(125,211,252,0.05));--hero-core:radial-gradient(circle at 30% 30%, #c4b5fd, #7dd3fc 55%, #14161b);--live-bloom:color-mix(in srgb, var(--ok) 24%, transparent);--glint:var(--text);--grid-line:#1a1d24;--minimap-mask:rgba(11,12,16,0.85);--mcp-dot-l:65%;--cat-file:#7dd3fc;--cat-shell:#fcd34d;--cat-web:#67e8f9;--cat-agent:#f9a8d4;--cat-task:#86efac;--cat-plan:#c4b5fd;--cat-mcp:#5eead4;--cat-other:#94a3b8}svg{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;background:var(--bg)}.guide-art { display: block; width: 100%; height: auto; overflow: visible; }
+.guide-stage > .guide-art { height: 100%; }
 .ga-screen { fill: var(--panel); stroke: color-mix(in srgb, var(--text) 16%, transparent); }
 .ga-canvas { fill: none; stroke: color-mix(in srgb, var(--text) 16%, transparent); stroke-dasharray: 3 5; }
 .ga-line { stroke: color-mix(in srgb, var(--text) 12%, transparent); }
 .ga-track { fill: color-mix(in srgb, var(--text) 12%, transparent); }
 .ga-bed-warn { fill: color-mix(in srgb, var(--warn) 10%, transparent); }
 .ga-t { font-size: calc(11px + var(--ui-text-increase, 0px)); fill: var(--text); }
-.ga-s { font-size: calc(10px + max(-1px, var(--ui-text-increase, 0px))); fill: var(--muted); }
-.ga-cap { font-size: calc(9px + max(0px, var(--ui-text-increase, 0px))); font-weight: 600; letter-spacing: 0.06em; fill: var(--muted); }
-.ga-big { font-size: calc(26px + var(--ui-text-increase, 0px)); font-weight: 600; fill: var(--text); }
+.ga-s { font-size: calc(11px + max(-1px, var(--ui-text-increase, 0px))); fill: var(--muted); }
+.ga-cap { font-size: calc(11px + max(0px, var(--ui-text-increase, 0px))); font-weight: 600; letter-spacing: 0.06em; fill: var(--muted); }
 .ga-strong { font-weight: 600; }
 .ga-mono { font-family: var(--font-mono); }
 .ga-ok { fill: var(--ok); }
@@ -35,8 +35,20 @@
 .ga-key-bed { fill: var(--accent); }
 .ga-key { fill: none; stroke: var(--bg); stroke-width: 1.5; stroke-linecap: round; }
 .ga-caret { fill: var(--text); }
-.ga-on-accent { fill: var(--bg); }
 .ga-glyph { fill: none; stroke: var(--muted); stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+.ga-stripe { fill: var(--panel); stroke: var(--line); }
+.ga-sel { fill: var(--selected); }
+.ga-door { fill: none; stroke: var(--muted); stroke-width: 1.2; }
+.ga-door-on { fill: none; stroke: var(--text); stroke-width: 1.2; }
+.ga-card-warn { fill: var(--panel); stroke: var(--warn); }
+.ga-card-flight { fill: var(--panel); stroke: color-mix(in srgb, var(--inflight) 70%, transparent); }
+.ga-card-on { fill: var(--panel); stroke: var(--accent); stroke-width: 1.6; }
+.ga-pane-on { fill: var(--panel); stroke: var(--accent); stroke-width: 1.4; }
+.ga-term { fill: var(--bg); }
+.ga-btn { fill: var(--ctl-fill); stroke: var(--ctl-edge); }
+.ga-ghost { fill: color-mix(in srgb, var(--accent) 6%, transparent); stroke: var(--accent); stroke-dasharray: 3 4; }
+.ga-frame { fill: none; stroke: var(--line-soft); }
+.ga-quiet { opacity: 0.55; }
 .ga-ping { transform-box: fill-box; transform-origin: center; animation: ga-ping 2.4s ease-out infinite; }
 .ga-ping-2 { animation-delay: 1.2s; }
 @keyframes ga-ping {
@@ -47,7 +59,7 @@
 @keyframes ga-flow { to { stroke-dashoffset: -8; } }
 .ga-blink { animation: ga-blink 1.1s steps(1) infinite; }
 @keyframes ga-blink { 50% { opacity: 0; } }
-.ga-pop { transform-box: fill-box; transform-origin: center; animation: ga-pop 420ms cubic-bezier(0.22, 1, 0.36, 1) 500ms both; }
+.ga-pop { transform-box: fill-box; transform-origin: center; animation: ga-pop 420ms var(--ease) 500ms both; }
 @keyframes ga-pop { from { transform: scale(0.8); opacity: 0; } }
 .ga-travel { animation: ga-travel 5s ease-in-out infinite; }
 @keyframes ga-travel {
@@ -59,16 +71,6 @@
   61% { opacity: 1; }
   65%, 100% { transform: translate(194px, 96px); opacity: 0; }
 }
-.ga-travel-low { animation: ga-travel-low 5s ease-in-out infinite; }
-@keyframes ga-travel-low {
-  0%, 30% { transform: translate(246px, 120px); opacity: 0; }
-  34% { opacity: 1; }
-  39% { transform: translate(234.5px, 97.5px); }
-  47.5% { transform: translate(220px, 90px); }
-  56% { transform: translate(205.5px, 97.5px); }
-  61% { opacity: 1; }
-  65%, 100% { transform: translate(194px, 120px); opacity: 0; }
-}
 .ga-swap-out { animation: ga-swap-out 5s ease infinite; }
 .ga-swap-in { opacity: 0; animation: ga-swap-in 5s ease infinite; }
 @keyframes ga-swap-out { 0%, 64% { opacity: 1; } 70%, 94% { opacity: 0; } 100% { opacity: 1; } }
@@ -78,7 +80,7 @@
   .ga-flow { animation: none; }
   .ga-blink { animation: none; }
   .ga-pop { animation: none; }
-  .ga-travel, .ga-travel-low { animation: none; }
+  .ga-travel { animation: none; }
   .ga-swap-out { animation: none; opacity: 0; }
   .ga-swap-in { animation: none; opacity: 1; }
-}</style><rect x="14" y="20" width="412" height="160" rx="10" class="ga-screen"></rect><text x="28" y="44" class="ga-t ga-strong">This machine</text><text x="412" y="44" class="ga-s" text-anchor="end">12 cores · up 10d</text><line x1="14" y1="56" x2="426" y2="56" class="ga-line"></line><text x="28" y="76" class="ga-cap">CORES</text><g><rect x="28" y="82" width="10" height="30" rx="2" class="ga-track"></rect><rect x="28" y="94" width="10" height="18" rx="2" class="ga-accent"></rect></g><g><rect x="43" y="82" width="10" height="30" rx="2" class="ga-track"></rect><rect x="43" y="88" width="10" height="24" rx="2" class="ga-accent"></rect></g><g><rect x="58" y="82" width="10" height="30" rx="2" class="ga-track"></rect><rect x="58" y="84" width="10" height="28" rx="2" class="ga-accent"></rect></g><g><rect x="73" y="82" width="10" height="30" rx="2" class="ga-track"></rect><rect x="73" y="98" width="10" height="14" rx="2" class="ga-accent"></rect></g><g><rect x="88" y="82" width="10" height="30" rx="2" class="ga-track"></rect><rect x="88" y="90" width="10" height="22" rx="2" class="ga-accent"></rect></g><g><rect x="103" y="82" width="10" height="30" rx="2" class="ga-track"></rect><rect x="103" y="86" width="10" height="26" rx="2" class="ga-accent"></rect></g><g><rect x="118" y="82" width="10" height="30" rx="2" class="ga-track"></rect><rect x="118" y="82" width="10" height="30" rx="2" class="ga-accent"></rect></g><g><rect x="133" y="82" width="10" height="30" rx="2" class="ga-track"></rect><rect x="133" y="96" width="10" height="16" rx="2" class="ga-accent"></rect></g><g><rect x="148" y="82" width="10" height="30" rx="2" class="ga-track"></rect><rect x="148" y="88" width="10" height="24" rx="2" class="ga-accent"></rect></g><g><rect x="163" y="82" width="10" height="30" rx="2" class="ga-track"></rect><rect x="163" y="84" width="10" height="28" rx="2" class="ga-accent"></rect></g><g><rect x="178" y="82" width="10" height="30" rx="2" class="ga-track"></rect><rect x="178" y="92" width="10" height="20" rx="2" class="ga-accent"></rect></g><g><rect x="193" y="82" width="10" height="30" rx="2" class="ga-track"></rect><rect x="193" y="86" width="10" height="26" rx="2" class="ga-accent"></rect></g><text x="28" y="136" class="ga-cap">MEMORY</text><rect x="28" y="143" width="178" height="5" rx="2.5" class="ga-track"></rect><rect x="28" y="143" width="105" height="5" rx="2.5" class="ga-accent"></rect><text x="28" y="165" class="ga-s">18.9 GB of 32.0 GB</text><text x="240" y="76" class="ga-cap">THERMAL</text><text x="240" y="100" class="ga-big">66 °C</text><text x="240" y="118" class="ga-s ga-ok">running at full speed</text><text x="240" y="142" class="ga-cap">BUSIEST PROCESSES</text><text x="240" y="160" class="ga-s ga-mono">node · claude</text><text x="412" y="160" class="ga-s ga-mono" text-anchor="end">38%</text><text x="240" y="176" class="ga-s ga-mono">esbuild</text><text x="412" y="176" class="ga-s ga-mono" text-anchor="end">21%</text></svg>
+}</style><line x1="14" y1="22" x2="426" y2="22" class="ga-line"></line><rect x="14" y="8" width="34" height="8" rx="4" class="ga-track"></rect><rect x="176" y="8" width="88" height="8" rx="4" class="ga-track"></rect><rect x="14" y="30" width="106" height="162" rx="6" class="ga-stripe"></rect><rect x="23" y="44.5" width="8" height="8" rx="2" class="ga-door"></rect><text x="37" y="52" class="ga-s">Sessions</text><rect x="23" y="65.5" width="8" height="8" rx="2" class="ga-door"></rect><text x="37" y="73" class="ga-s">Accounts</text><rect x="23" y="151.5" width="8" height="8" rx="2" class="ga-door"></rect><text x="37" y="159" class="ga-s">More</text><rect x="23" y="172.5" width="8" height="8" rx="2" class="ga-door"></rect><text x="37" y="180" class="ga-s">Settings</text><rect x="320" y="30" width="106" height="162" rx="6" class="ga-stripe"></rect><rect x="329" y="44.5" width="8" height="8" rx="2" class="ga-door"></rect><text x="343" y="52" class="ga-s">Inspector</text><rect x="329" y="65.5" width="8" height="8" rx="2" class="ga-door"></rect><text x="343" y="73" class="ga-s">Usage</text><rect x="329" y="86.5" width="8" height="8" rx="2" class="ga-door"></rect><text x="343" y="94" class="ga-s">This machine</text><rect x="329" y="172.5" width="8" height="8" rx="2" class="ga-door"></rect><text x="343" y="180" class="ga-s">More</text><g class="ga-quiet"><rect x="130" y="42" width="180" height="62" rx="8" class="ga-frame"></rect><rect x="140" y="56" width="76" height="34" rx="6" class="ga-card-warn"></rect><rect x="224" y="56" width="76" height="34" rx="6" class="ga-card-flight"></rect><rect x="130" y="116" width="180" height="62" rx="8" class="ga-frame"></rect><rect x="140" y="130" width="76" height="34" rx="6" class="ga-screen"></rect></g></svg>

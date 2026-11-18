@@ -54,40 +54,38 @@ ccdeck draws the tree instead. It is local and needs no configuration: it regist
 
 One canvas. No tabs. No kanban.
 
-The deck opens on these eight pictures the first time it runs — they are the whole tour, and `Take the tour` on an empty canvas brings them back.
+The deck opens on these seven pictures the first time it runs — they are the whole tour, and `Take the tour` on an empty canvas brings them back.
 
 <table>
 <tr>
-<td><img src="assets/guide/welcome-1.svg" width="440" alt="Sessions waiting on you top the session list, longest wait first."></td>
-<td><img src="assets/guide/welcome-2.svg" width="440" alt="Every agent and subagent is a node. Tool calls light up as they run."></td>
+<td><img src="assets/guide/welcome-1.svg" width="440" alt="Sessions waiting on you lead the session list, under Needs you."></td>
+<td><img src="assets/guide/welcome-2.svg" width="440" alt="Click a card: its terminal opens beside the board, so you can answer there."></td>
 </tr>
 <tr>
-<td align="center"><sub>Sessions waiting on you top the session list, longest wait first.</sub></td>
-<td align="center"><sub>Every agent and subagent is a node. Tool calls light up as they run.</sub></td>
+<td align="center"><sub>Sessions waiting on you lead the session list, under Needs you.</sub></td>
+<td align="center"><sub>Click a card: its terminal opens beside the board, so you can answer there.</sub></td>
 </tr>
 <tr>
-<td><img src="assets/guide/welcome-3.svg" width="440" alt="Double-click any node: its prompt, every tool call, tokens and timing."></td>
-<td><img src="assets/guide/welcome-4.svg" width="440" alt="What each session costs, and how much quota is left."></td>
+<td><img src="assets/guide/welcome-3.svg" width="440" alt="Workspace puts up to four sessions side by side. Ctrl+` switches to it."></td>
+<td><img src="assets/guide/welcome-4.svg" width="440" alt="The Inspector shows every agent, subagent and tool call, with cost and time."></td>
 </tr>
 <tr>
-<td align="center"><sub>Double-click any node: its prompt, every tool call, tokens and timing.</sub></td>
-<td align="center"><sub>What each session costs, and how much quota is left.</sub></td>
+<td align="center"><sub>Workspace puts up to four sessions side by side. <kbd>Ctrl+`</kbd> switches to it.</sub></td>
+<td align="center"><sub>The Inspector shows every agent, subagent and tool call, with cost and time.</sub></td>
 </tr>
 <tr>
-<td><img src="assets/guide/welcome-5.svg" width="440" alt="Cores, memory and heat while the agents run, and what is hogging them."></td>
-<td><img src="assets/guide/welcome-6.svg" width="440" alt="Several Claude and Codex accounts: switch, add one, share one to another machine."></td>
+<td><img src="assets/guide/welcome-5.svg" width="440" alt="Left edge: Sessions, Accounts, Settings at its foot. Right: Usage and This machine."></td>
+<td><img src="assets/guide/welcome-6.svg" width="440" alt="Switch Claude and Codex accounts. Paired machines repair each other's expired logins."></td>
 </tr>
 <tr>
-<td align="center"><sub>Cores, memory and heat while the agents run, and what is hogging them.</sub></td>
-<td align="center"><sub>Several Claude and Codex accounts: switch, add one, share one to another machine.</sub></td>
+<td align="center"><sub>Left edge: Sessions, Accounts, Settings at its foot. Right: Usage and This machine.</sub></td>
+<td align="center"><sub>Switch Claude and Codex accounts. Paired machines repair each other's expired logins.</sub></td>
 </tr>
 <tr>
-<td><img src="assets/guide/welcome-7.svg" width="440" alt="Your machines repair each other's expired logins over the local network."></td>
-<td><img src="assets/guide/welcome-8.svg" width="440" alt="Run claude or codex in any folder. It shows up here on its own."></td>
+<td colspan="2" align="center"><img src="assets/guide/welcome-7.svg" width="440" alt="Run claude or codex in any folder, or use New session. It appears here."></td>
 </tr>
 <tr>
-<td align="center"><sub>Your machines repair each other's expired logins over the local network.</sub></td>
-<td align="center"><sub>Run <code>claude</code> or <code>codex</code> in any folder. It shows up here on its own.</sub></td>
+<td colspan="2" align="center"><sub>Run <code>claude</code> or <code>codex</code> in any folder, or use New session. It appears here.</sub></td>
 </tr>
 </table>
 
@@ -198,7 +196,7 @@ Step by step: [Install ccdeck with npx and see your first session](https://ccdec
 
 ### Desktop app
 
-The same deck as an app: it starts the deck itself and puts an icon in the menu bar (the tray on Windows and Linux) that counts the Claude Code sessions stopped on a permission prompt or a question — the number sits beside the icon on macOS, and in the icon's tooltip and menu on Windows and Linux. With **Notifications while closed** ticked in that menu, which starts off, it also sends a notification while the window is closed wherever an open page would have played a sound, with the deck's own tone on macOS. The app also shows the [account notifications](#accounts), silently and whether its window is open or closed. It needs no Node.js, and it carries the terminal engine for its system, so the [terminal](#terminal) needs nothing more than tmux 3.2 or newer on Linux and macOS. The deck it starts is given whichever of the variables in the environment table further down your login shell sets — `AGENTS_DECK_NO_REPORTS` and `CLAUDE_CONFIG_DIR` among them — however the app was opened, as a deck started from a terminal would be. If a deck from `npx ccdeck` is already running, the app uses that one rather than starting a second, and replaces it only when it is older than the one the app carries.
+The same deck as an app: it starts the deck itself and puts an icon in the menu bar (the tray on Windows and Linux) that counts the Claude Code sessions stopped on a permission prompt or a question — the number sits beside the icon on macOS, and in the icon's tooltip and menu on Windows and Linux. With **Notifications while the deck is closed** ticked in that menu, which starts off, it also sends a notification while the window is closed wherever an open page would have played a sound, with the deck's own tone on macOS. The app also shows the [account notifications](#accounts), silently and whether its window is open or closed. It needs no Node.js, and it carries the terminal engine for its system, so the [terminal](#terminal) needs nothing more than tmux 3.2 or newer on Linux and macOS. The deck it starts is given whichever of the variables in the environment table further down your login shell sets — `AGENTS_DECK_NO_REPORTS` and `CLAUDE_CONFIG_DIR` among them — however the app was opened, as a deck started from a terminal would be. If a deck from `npx ccdeck` is already running, the app uses that one rather than starting a second, and replaces it only when it is older than the one the app carries.
 
 | System | Download |
 | --- | --- |
@@ -218,6 +216,25 @@ The app keeps itself current from this repository's releases, and installs an up
 **Terminal commands are installed separately.** The desktop app updates its own copy of ccdeck, but a global npm `ccdeck` keeps its version until you update it, so a command such as `ccdeck tui` may meet an older copy that answers `unknown option tui`. From this version on, the deck updates that copy itself a few minutes after it starts, when it is a global npm install of `ccdeck` you can write to without `sudo` — see [Updating](#updating). Otherwise **Settings › About** names the older `ccdeck` on your PATH with the command that updates it — usually `npm install -g ccdeck@latest` — and a `ccdeck` from this version on says the same in the terminal when it meets a newer deck. Run it, then open a new terminal and retry. To check which copy a terminal starts, run `command -v ccdeck` (macOS, Linux) or `Get-Command ccdeck` (PowerShell), and `npm list -g ccdeck --depth=0`.
 
 Step by step: [Install the ccdeck app on Mac, Windows or Linux](https://ccdeck.dev/guides/desktop-app/)
+
+### Starting in a project
+
+**New session** offers folders from current sessions and recent choices, followed
+by nearby Git repositories. Open **Worktrees** to see linked checkouts grouped
+by repository. Search by project, worktree name, branch or path. You can also
+choose another folder or enter a full path. Enter selects a folder. Start
+(or ⌘/Ctrl+Enter) launches the chosen agent in that folder.
+
+Discovery looks in Desktop, Documents, Developer, Projects, repos, Code, src and
+workspace under your home folder, including lowercase Projects/Code variants.
+It checks directory entries and Git worktree metadata. Hidden folders, dependencies
+and nested symlinks are skipped during the folder scan. Linked worktrees registered
+with an indexed repository can appear even when they live outside the scanned folders.
+The scan goes at most three levels deep, with directory, entry and result caps
+and a short time budget; a partial-result message appears if a cap is reached
+or a directory cannot be read because of its permissions.
+Results are cached for 30 seconds. A folder outside these locations can always
+be chosen explicitly.
 
 ## Requirements
 

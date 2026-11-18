@@ -28,6 +28,7 @@ const catalog: Catalog = {
   "lan.fail.errorCode": " 錯誤碼：{code}。",
   "lan.fail.prefsUnreadable": "這個 ccdeck 無法讀取它的設定檔，因此不會覆寫它。該檔案可能屬於其他使用者，例如以 sudo 執行過 ccdeck 之後。ccdeck 的記錄檔會寫出檔案位置。",
   "lan.fail.prefsNotWritable": "這個 ccdeck 沒有權限儲存設定。設定資料夾可能屬於其他使用者（例如以 sudo 執行過 ccdeck 之後），也可能有其他程式正在佔用該檔案。ccdeck 的記錄檔會寫出資料夾位置。",
+  "lan.fail.prefsNoSpace": "這個 ccdeck 儲存設定的磁碟已滿，因此設定沒有儲存。請釋出一些空間，然後再試一次。",
   "lan.fail.badJson": "它的設定檔已損毀且無法移開，因此不會覆寫它。ccdeck 的記錄檔會寫出檔案位置。",
   "lan.fail.folderOther": "這個 ccdeck 無法開啟它的設定資料夾，該資料夾屬於其他使用者，例如以 sudo 執行過 ccdeck 之後。ccdeck 的記錄檔中有可以把資料夾還給您的指令。",
   "lan.fail.folderYou": "這個 ccdeck 無法開啟自己的設定資料夾，因此不會覆寫裡面的內容。ccdeck 的記錄檔會寫出資料夾位置。",

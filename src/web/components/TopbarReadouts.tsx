@@ -475,8 +475,8 @@ export function ReadoutGroup({
       {!empty && waitingSessions.length + counts.working + counts.done > 0 && (
         <div className="counts">
           <WaitingStat waitingSessions={waitingSessions} waitingCursorRef={waitingCursorRef} focusSession={focusSession} now={now} />
-          <CountPill kind="working" count={counts.working} glyph={<StateMark kind="live" size={14} />} word={t(WORKING_WORD_MSG)} />
-          <CountPill kind="done" count={counts.done} glyph={<StateMark kind="done" size={14} />} word={t(DONE_WORD_MSG)} />
+          <CountPill kind="working" count={counts.working} glyph={<StateMark kind="live" size={14} />} word={t(WORKING_WORD_MSG, { count: counts.working })} />
+          <CountPill kind="done" count={counts.done} glyph={<StateMark kind="done" size={14} />} word={t(DONE_WORD_MSG, { count: counts.done })} />
         </div>
       )}
       {/* NOT a live region, and #372 is the issue that took the
