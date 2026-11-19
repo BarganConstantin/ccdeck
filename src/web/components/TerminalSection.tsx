@@ -11,8 +11,8 @@
 // #10). The switch is the only way off; no launch variable turns it on or off.
 //
 // OFF CLOSES THE PANEL, NOT ITS SESSIONS. A session the panel started keeps
-// running with the switch off — in tmux on Linux and macOS, in the session
-// host in the Windows preview — and is there again once it is on, so the row's
+// running with the switch off — in tmux on Linux and macOS, in the Windows
+// session host on Windows — and is there again once it is on, so the row's
 // Details says that much in plain words: the reader deciding whether to turn it
 // off is deciding about a window, not about their agents. A consequence, so a
 // Details and not a second sentence in the note.
