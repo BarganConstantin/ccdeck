@@ -175,7 +175,10 @@ describe("the rail row", () => {
     expect(buildRows(s, NOW + MIN)[0].label).toBe("ccdeck v4");
   });
 
-  it("draws folder · task under its title, and neither the start time nor the id", () => {
+  // CHANGED ON PURPOSE (#2637): the Board draws Workspace's compact row. A
+  // named row is its name alone, folder · task kept for a screen reader and
+  // the hover; the provider is the avatar, not a meta line under the title.
+  it("draws a named row's folder · task for the hover and a screen reader, a title-is-folder row's task under it, and neither the start time nor the id", () => {
     let s = initialState();
     s = begin(s, "one-0000-aaaa", "/home/me/Desktop", 0, "Fix the phone rows");
     s = named(s, "one-0000-aaaa", 10, "loroloop");
@@ -185,16 +188,18 @@ describe("the rail row", () => {
     const html = draw(s, NOW + 10 * MIN);
     const one = button(html, "one-0000-aaaa");
     const two = button(html, "two-0000-bbbb");
+    expect(one).toContain('data-compact="true"');
     expect(one).toContain('<span class="sl-label">loroloop</span>');
-    expect(line2(one)).toBe("Desktop · Fix the phone rows");
-    // (#2591) The provider leads the meta line under them, the age at its end.
-    expect(one).toMatch(/<span class="sl-meta"><span class="sl-model"[^>]*>Claude<\/span><span class="sl-time /);
+    expect(line2(one)).toBeNull();
+    expect(one).toContain('<span class="vis-hidden">Desktop · Fix the phone rows</span>');
+    expect(one).toMatch(/title="Focus loroloop\nIn Desktop\nFix the phone rows\n/);
+    expect(one).toContain('<span class="provider-avatar" data-provider="claude"');
     // A title that is the folder: the task alone, and the running call is the tooltip's.
     expect(two).toContain('<span class="sl-label">api</span>');
     expect(line2(two)).toBe("Fix logout");
     for (const b of [one, two]) {
-      expect(b).not.toMatch(/sl-tell|sl-tool|sl-line2 mono/);
-      expect(line2(b)).not.toMatch(/Started|aaaa|bbbb/);
+      expect(b).not.toMatch(/sl-tell|sl-tool|sl-line2 mono|sl-meta|sl-model/);
+      expect(line2(b) ?? "").not.toMatch(/Started|aaaa|bbbb/);
     }
     expect(two).toMatch(/title="[^"]*Edit · [^"]*src\/a\.ts/);
   });
@@ -272,8 +277,12 @@ describe("a row with nothing under its name is shorter on a phone", () => {
     // Never asked anything: it says Ready, so it keeps its second line.
     expect(line2(button(html, "fresh"))).toBe("Ready for a first prompt");
     expect(button(html, "fresh")).not.toContain("data-one-line");
-    // A named session keeps its folder under the name: two lines.
-    expect(button(html, "named")).not.toContain("data-one-line");
+    // CHANGED ON PURPOSE (#2637): a finished named session is its name alone
+    // on the Board, as in Workspace; its folder · task is the hover's and a
+    // screen reader's, so the row is marked one line too.
+    expect(button(html, "named")).toContain('data-one-line="true"');
+    expect(button(html, "named")).not.toContain("sl-line2");
+    expect(button(html, "named")).toContain('<span class="vis-hidden">docs · go</span>');
   });
 
   it("sets words in the interface's own face, and only a blocked tool's line in mono", () => {

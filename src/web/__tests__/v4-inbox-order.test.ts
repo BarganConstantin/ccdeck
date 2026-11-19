@@ -147,17 +147,22 @@ describe("the unread dot", () => {
 
 // CHANGED ON PURPOSE (#2591): the row draws its model again, below the
 // full-width title (the owner's session-chrome change); it was the Inspector's.
+// CHANGED ON PURPOSE (#2637): the Board draws Workspace's compact row, whose
+// provider is the avatar before the title; the model is the card's and the
+// Inspector's again, and no meta line sits under the title.
 describe("model metadata below the title", () => {
-  it("leaves the title its own row and shows model and effort below", () => {
+  it("leaves the title its own row, names the provider by its avatar, and draws no model line", () => {
     const out = draw(board(), T0 + 2 * MIN);
     const rows = out.split('<li class="sl-row-item"').slice(1);
     expect(rows).toHaveLength(6);
     for (const row of rows) {
-      const title = row.split('class="sl-line1"')[1].split('class="sl-line2')[0].split('class="sl-meta"')[0];
+      const title = row.split('class="sl-line1"')[1].split('class="sl-line2')[0];
       expect(title).not.toContain('sl-model');
-      expect(row).toContain('class="sl-meta"');
-      expect(row).toContain('class="sl-model"');
-      expect(row).toMatch(/opus/i);
+      expect(row).toContain('<span class="provider-avatar" data-provider="claude"');
+      expect(row.indexOf("provider-avatar")).toBeLessThan(row.indexOf('class="sl-line1"'));
+      expect(row).not.toContain('class="sl-meta"');
+      expect(row).not.toContain('class="sl-model"');
+      expect(row).not.toMatch(/opus/i);
     }
   });
 });
@@ -239,10 +244,15 @@ describe("look-alike rows", () => {
     return s;
   }
 
+  // CHANGED ON PURPOSE (#2637): the Board draws Workspace's compact row, whose
+  // look-alike line says what the rows share before the start time; the task
+  // they share is a screen reader's and the hover's.
   it("end the second line with the start time, in tabular sans, and do not lead it with a clock", () => {
     const out = draw(twins(), T0 + 2 * MIN);
     const t1 = rowOf(out, "t1");
-    expect(t1).toContain(`<span class="sl-line2 sl-twin"><span class="sl-words">Write the release notes</span><span class="sl-start">· ${clockTime(T0, true)}</span></span>`);
+    expect(t1).toContain('data-compact="true"');
+    expect(t1).toMatch(new RegExp(`<span class="sl-line2 sl-twin"><span class="sl-words">[^<]+</span><span class="sl-start">· ${clockTime(T0, true)}</span></span>`));
+    expect(t1).toContain('<span class="vis-hidden">Write the release notes</span>');
     expect(rowOf(out, "t2")).toContain(`<span class="sl-start">· ${clockTime(T0 + 20 * SEC, true)}</span>`);
     expect(out).not.toMatch(/class="sl-line2[^"]*"><span class="sl-start">/);
   });

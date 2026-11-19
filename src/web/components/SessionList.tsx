@@ -467,7 +467,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
       selected={selectedIds.has(e.id)} removed={removedIds?.has(e.id) ?? false}
       landNonce={landing?.id === e.id ? landing.nonce : null} onSelect={press} onOpenKeys={e.ghost ? undefined : onOpenKeys}
       onOpenBeside={e.ghost ? undefined : onOpenBeside}
-      compact={!!onOpenKeys}
+      compact
       context={contexts.get(e.row.sessionId)}
       pane={openPanes?.get(e.row.sessionId)}
       // Named in place (internal #101), from the session as the board has it.
