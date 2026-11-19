@@ -131,6 +131,16 @@ export default function WatchRadar({
       const cx = w / 2;
       const cy = h / 2;
       const r = Math.min(w, h) / 2 - 6;
+      // NO ROOM, NO DISC. A canvas with no size yet, or one whose column has
+      // just collapsed, leaves no radius, and arc() throws on a negative one:
+      // 4.0.1 reported "The radius provided (-2.4) is negative", the inner
+      // ring of a canvas 0px across. The throw also ended this loop, so the
+      // disc stayed blank once the canvas had its size back. Skip the frame,
+      // keep the loop: the first frame with room draws it.
+      if (r <= 0) {
+        raf = requestAnimationFrame(draw);
+        return;
+      }
 
       // The rings. Three, because more is a texture and fewer is a circle.
       ctx.strokeStyle = line;
