@@ -407,7 +407,9 @@ pane); a launch or adopt refused 503 was not run, and is asked again only on
 the person's press, a launch by the same key. `internal` is the deck's 500, for a read too. A
 mutation (claim, open, adopt, launch, endHosts) that failed any other way, with no answer
 in time or the engine gone, is the deck's 500 and is never asked again: it may
-already have started an agent. One the engine did, answered after the switch
+already have started an agent. Its time is three times the client's deadline
+(30 s with the default 10 s), a read's the client's own: an engine that has
+just started may take longer than a read's deadline for its first answer. One the engine did, answered after the switch
 went off, is 409 `turned-off` in the same shape, with no ticket: the session
 runs, and the panel opens it once the switch is on again (a launch by the
 same key finds it).

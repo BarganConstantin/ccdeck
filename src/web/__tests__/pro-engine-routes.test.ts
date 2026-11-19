@@ -571,6 +571,26 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))("the Command Pa
     expect(refusal(await ask("GET", "/api/terminal/status"))).toEqual(refused(503, "restarting"));
   });
 
+  it("gives a mutation three times the client's deadline, as an engine that has just started may need for its first answer, and a read the client's own", async () => {
+    // 600 ms for the client, so 1.8 s for a mutation: an answer at 1.2 s is past
+    // a read's deadline and inside a mutation's, with 600 ms either side.
+    const client = await useEngine({ timeoutMs: 600 });
+    await answers(client, {
+      "terminal.launch": { data: launched, delayMs: 1_200 },
+      "terminal.open": { data: { status: 200, body: { ok: true, ticket: null }, handle: "mint" }, delayMs: 1_200 },
+      "terminal.target": { data: { status: 200, body: {} }, delayMs: 1_200 },
+    });
+    const got = await ask("POST", "/api/terminal/launch", { agent: "claude", cwd: PROJECT });
+    expect(got.status, "answered inside a mutation's deadline").toBe(200);
+    expect(got.body.ticket).toMatch(TICKET);
+    expect((await ask("POST", "/api/terminal/open", session())).status, "the same for an open").toBe(200);
+    expect(refusal(await ask("GET", `/api/terminal/target?session=${SID}&provider=claude&cwd=${encodeURIComponent(PROJECT)}`)), "a read still has the client's own").toEqual(refused(503, "no-answer"));
+    // Past a mutation's own deadline it is still the deck's 500, asked once.
+    await answers(client, { "terminal.launch": { data: launched, delayMs: 2_600 } });
+    expect((await ask("POST", "/api/terminal/launch", { agent: "claude", cwd: PROJECT })).status, "no answer in a mutation's time").toBe(500);
+    expect((await routeCalls(client)).map(c => c.route), "each asked once").toEqual(["terminal.launch", "terminal.open", "terminal.target", "terminal.launch"]);
+  });
+
   it("refuses an answer that is not a route answer with the deck's own 500", async () => {
     const client = await useEngine();
     const bad = [
