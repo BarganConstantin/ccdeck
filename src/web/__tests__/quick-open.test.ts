@@ -278,7 +278,7 @@ function door(id: string, extra: Partial<RailItem> = {}): RailItem {
 
 function sources(extra: Partial<Parameters<typeof quickOpenItems>[0]> = {}) {
   const rails = {
-    left: [door("session-list", { label: "Sessions", key: { cap: "L", aria: "L", single: true }, open: true })],
+    left: [door("session-list", { label: "Sessions", key: { cap: "S", aria: "S", single: true }, open: true })],
     leftStripe: [],
     capacity: [door("account-capacity", { label: "Capacity", kind: "dialog" })],
     right: [[door("usage", { label: "Usage", key: { cap: "U", aria: "U", single: true } })]],
@@ -309,7 +309,7 @@ const byId = (items: QuickItem[], id: string) => items.find(i => i.id === id);
 describe("the rows the deck offers", () => {
   it("are the stripes' own doors, each running the press its button runs, and not the field itself", () => {
     const { rails, items } = sources();
-    expect(byId(items, "door:session-list")).toMatchObject({ title: "Sessions", tag: "Shown", verb: "Hide panel", keyCap: "L" });
+    expect(byId(items, "door:session-list")).toMatchObject({ title: "Sessions", tag: "Shown", verb: "Hide panel", keyCap: "S" });
     expect(byId(items, "door:usage")).toMatchObject({ tag: "Panel", verb: "Show panel", keyCap: "U" });
     expect(byId(items, "door:feedback")).toMatchObject({ title: "Send feedback", tag: "Dialog", verb: "Open" });
     expect(byId(items, "door:usage")?.run).toBe(rails.right[0][0].onPress);

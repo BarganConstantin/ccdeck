@@ -709,7 +709,7 @@ export default function SessionList({ state, now, historyReady = true, selectedI
           {/* The way out at phone width, where the drawer covers the canvas; on
               a wider window L and the Sessions stripe door close the list, so
               the frame draws no × (hidden there, not removed). */}
-          <button type="button" className="sl-icon-btn sl-close" onClick={onClose} title={withKey(t("board.list.hideSidebar"), "L", singleKeys)} aria-label={t("board.list.hide")}><CloseGlyph /></button>
+          <button type="button" className="sl-icon-btn sl-close" onClick={onClose} title={withKey(t("board.list.hideSidebar"), "S", singleKeys)} aria-label={t("board.list.hide")}><CloseGlyph /></button>
         </div>
       </div>
       {offline}

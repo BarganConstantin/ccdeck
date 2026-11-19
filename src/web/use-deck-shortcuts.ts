@@ -591,7 +591,7 @@ export function useDeckShortcuts({
       // itself is still announced when it is open: it is a named complementary
       // landmark ("Sessions") that the rotor lists, and its close button is the
       // first control in it.
-      if (e.key === "l" || e.key === "L") toggleSessionList();
+      if (e.key === "s" || e.key === "S") toggleSessionList();
       // The detail panel's keyboard toggle, and no longer its only route. The
       // reopen tab that sat on the canvas edge stays gone, by the owner's
       // decision; what changed (#814, the owner's call on 2026-09-14) is that a
@@ -649,32 +649,13 @@ export function useDeckShortcuts({
         // not name P in its deck layer either.
         if (!stageRef?.current?.open) peekSelected();
       }
-      // The last topbar control to get a key, and the only one that reads
-      // Shift. Every other letter here treats "C" and "c" alike — a Caps-locked
-      // keyboard sends the upper case for the same press — and this one does
-      // too for the toggle; what Shift adds is the keyboard's version of the
-      // shift-click that puts the user's own parked hooks back, which was a
-      // recovery with no key, no control and no home outside a tooltip. Same
-      // control, same modifier, same outcome: activateSound is the one door
-      // both devices come through, so the two can never drift apart.
-      // Guarded by the state the switch waits for: before the stored flag has
-      // been read back there is nothing to invert. Not by Claude Code any
-      // more: the switch is in Settings › Sounds on every machine, and a Codex
-      // turn plays the finish tone too, so a Codex-only deck has a sound to
-      // silence and now a key to silence it with.
       if (e.key === "m" || e.key === "M") {
-        if (soundOnRef.current !== null) activateSoundRef.current(e.shiftKey);
+        if (e.shiftKey) {
+          if (soundOnRef.current !== null) activateSoundRef.current(e.shiftKey);
+        } else {
+          setMachinePanelOpen(o => !o);
+        }
       }
-      // #826: the three topbar panels that were pointer-only. S for this
-      // machine (the system's readings), B for Browser Watch, and V, which
-      // opened the speaker's quick popover until the speaker left the topbar
-      // (2026-10-07). V opens Settings at Sounds now — the switch, each
-      // tone's volume and sound, the custom sounds — through the gear's own
-      // door, and held to every gate above: not while typing, not behind a
-      // dialog, once per press. Not to Claude Code any more, for M's reason:
-      // the section is in Settings on every machine, and a Codex turn plays
-      // the finish tone too.
-      if (e.key === "s" || e.key === "S") setMachinePanelOpen(o => !o);
       if (e.key === "b" || e.key === "B") setBrowserWatchOpen(o => !o);
       if (e.key === "v" || e.key === "V") openSettings("sounds");
       // Jira's panel (#2178), once a Jira connection exists. J would have been

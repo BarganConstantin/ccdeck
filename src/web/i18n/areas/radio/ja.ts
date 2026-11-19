@@ -158,7 +158,7 @@ const catalog: Catalog = {
   "radio.fm.unavailable.builtin": "この放送局は現在ライブ配信されていません。別の放送局を選ぶか、後でもう一度選択して再試行してください。",
   "radio.sound.name": "サウンドを再生",
   "radio.sound.note": "Claude の応答が終わったときと、Claude が確認を求めているときに音を鳴らします。",
-  "radio.sound.keyTitle": "どこでも M キーでミュート／ミュート解除",
+  "radio.sound.keyTitle": "どこでも Shift+M キーでミュート／ミュート解除",
   "radio.tone.two": "2音",
   "radio.tone.descent": "下降",
   "radio.tone.ascent": "上昇",

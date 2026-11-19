@@ -1,6 +1,6 @@
 // Delete did nothing after a card was selected through a button.
 //
-// Click a session row in the list (L), a session's name on the canvas, or the
+// Click a session row in the list (S), a session's name on the canvas, or the
 // topbar ribbon: the card is selected and the detail panel opens, and the
 // clicked button keeps focus, because selecting a card moves no DOM focus.
 // Delete — which the panel's "Remove from board" and the shortcuts sheet both

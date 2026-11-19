@@ -71,7 +71,7 @@ describe("with the switch on", () => {
   it("names each control's key in aria-keyshortcuts, on a desktop and on a phone", () => {
     const { desktop, phone } = chrome();
     const want: Record<string, string> = {
-      "session-list": "L", accounts: "A", usage: "U", machine: "S", history: "H", "browser-watch": "B",
+      "session-list": "S", accounts: "A", usage: "U", machine: "M", history: "H", "browser-watch": "B",
       settings: "Control+, Meta+,",
     };
     for (const [id, keys] of Object.entries(want)) expect(attr(desktop.get(id)!, "aria-keyshortcuts"), id).toBe(keys);

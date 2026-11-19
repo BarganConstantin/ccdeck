@@ -42,7 +42,7 @@ export function useSoundSwitch(chimesRef: MutableRefObject<ChimePlayer | null>) 
       // it: otherwise the switch says "on" and the next event is still silent
       // because nothing has been pressed since the reload. Turning it OFF
       // silences what is sounding now, not only what would sound next: a
-      // custom voice could go on talking for half a minute after M.
+      // custom voice could go on talking for half a minute after Shift+M.
       if (next) chimesRef.current?.unlock();
       else chimesRef.current?.silence();
       return next;
@@ -54,7 +54,7 @@ export function useSoundSwitch(chimesRef: MutableRefObject<ChimePlayer | null>) 
    *
    *  Which devices those are changed in #711 and the door did not. The topbar
    *  button no longer toggles — it opens the menu — so the two ways to the
-   *  switch are now M and the menu's own control, and both arrive here. Shift
+   *  switch are now Shift+M and the menu's own control, and both arrive here. Shift
    *  used to mean "put my own parked hooks back"; #704 removed the mechanism
    *  that parked them, so there is nothing left for it to mean and a press is
    *  a press whatever is held down. */

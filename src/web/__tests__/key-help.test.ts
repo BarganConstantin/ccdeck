@@ -93,7 +93,7 @@ describe("every key the deck binds is written down where a user can find it", ()
       // already the canvas's next and previous agent). N and P since 4.0's
       // status bar: the next/previous waiting session (one queue with W) and
       // the card's peek.
-      .toEqual([",", "?", "a", "b", "c", "d", "delete", "escape", "f", "h", "i", "j", "k", "l", "m", "n", "p", "r", "s", "t", "u", "v", "w", "z"]);
+      .toEqual([",", "?", "a", "b", "c", "d", "delete", "escape", "f", "h", "i", "j", "k", "m", "n", "p", "r", "s", "t", "u", "v", "w", "z"]);
   });
 
   it("binds each of them exactly once, which is what makes M and ? free", () => {
@@ -161,7 +161,7 @@ describe("the short list that used to sit in the detail rail", () => {
     // names its key too, one the sheet already lists. A twice: the Accounts
     // door's, and the Codex accounts door's on a deck with Codex alone, where
     // that door stands in its place. Never both on one deck (rail-items.tsx).
-    expect(named.sort()).toEqual(["A", "A", "B", "D", "H", "L", "S", "U"]);
+    expect(named.sort()).toEqual(["A", "A", "B", "D", "H", "M", "S", "U"]);
     const documented = documentedKeys();
     for (const k of named) expect(documented, k).toContain(k.toLowerCase());
     expect(app).toMatch(/key: \{ cap: settingsCap, aria: "Control\+, Meta\+,", single: false \}/);
@@ -174,7 +174,7 @@ describe("the short list that used to sit in the detail rail", () => {
     // removing a duplicate is not the same as removing the thing duplicated.
     // Board pause and its Space shortcut have been withdrawn.
     const RAIL_CAPS = ["?", "drag", "tab", "enter", "J", "K",
-                       "R", "F", "L", "H", "U", "C", "T", "Esc"];
+                       "R", "F", "S", "H", "U", "C", "T", "Esc"];
     const caps = new Set(KEY_HELP.flatMap(g => g.rows.map(r => lower(r.cap))));
     expect(RAIL_CAPS.filter(c => !caps.has(lower(c)))).toEqual([]);
   });
@@ -245,8 +245,8 @@ describe("the sound switch, which had a control and no key", () => {
     // bar names its key. The speaker left the bar (2026-10-07), and the switch
     // is Settings › Sounds' — which draws the key beside it, as a key, and
     // declares it on the switch (#2176).
-    expect(read("components/SoundSwitch.tsx")).toMatch(/<kbd className="settings-key"[^>]*>M<\/kbd>/);
-    expect(read("components/SoundSwitch.tsx")).toContain('aria-keyshortcuts={singleKeys ? "M" : undefined}');
+    expect(read("components/SoundSwitch.tsx")).toMatch(/<kbd className="settings-key"[^>]*>Shift\+M<\/kbd>/);
+    expect(read("components/SoundSwitch.tsx")).toContain('aria-keyshortcuts={singleKeys ? "Shift+M" : undefined}');
   });
 
   it("sends both ways to the switch through one door", () => {
@@ -285,7 +285,7 @@ describe("the sound switch, which had a control and no key", () => {
     // CHANGED ON PURPOSE (V4's Figma): Settings' keys sit in the Deck group, and the
     // mouse rows in Canvas.
     const settings = KEY_HELP.find(g => g.title === "Deck")!.rows;
-    const row = settings.find(r => /^m$/i.test(r.cap));
+    const row = settings.find(r => /^shift \+ m$/i.test(r.cap));
     expect(row!.action).toMatch(/sound on or off/);
     // V, beside it, opens Settings at Sounds: the switch, and each tone's
     // volume and sound.
@@ -300,7 +300,7 @@ describe("the sound switch, which had a control and no key", () => {
     expect(mouse.rows.some(r => /speaker/i.test(r.action))).toBe(false);
   });
 
-  it("guards M by the state the switch waits for, and V by nothing but the shared gates", () => {
+  it("guards Shift+M by the state the switch waits for, and V by nothing but the shared gates", () => {
     // No sound state read back out of localStorage yet, no state to invert:
     // the key must not fire. M used to be guarded by Claude Code as well,
     // because without it no switch was drawn; Settings draws the switch on
@@ -309,7 +309,7 @@ describe("the sound switch, which had a control and no key", () => {
     // the popover under the speaker, drawn only where Claude Code was; it
     // opens Settings now, which is drawn everywhere, so it carries neither
     // guard (settings-chord.test.ts drives the gates it does answer to).
-    expect(app).toMatch(/if \(e\.key === "m" \|\| e\.key === "M"\) \{\s*if \(soundOnRef\.current !== null\) activateSoundRef\.current\(e\.shiftKey\);/);
+    expect(app).toMatch(/if \(e\.key === "m" \|\| e\.key === "M"\) \{\s*if \(e\.shiftKey\) \{\s*if \(soundOnRef\.current !== null\) activateSoundRef\.current\(e\.shiftKey\);/);
     expect(app).toMatch(/if \(e\.key === "v" \|\| e\.key === "V"\) openSettings\("sounds"\);/);
   });
 });
@@ -322,7 +322,6 @@ describe("the sound gestures that outlived their mechanism", () => {
     // a gesture that does nothing. A sheet that lists a key which does nothing
     // is worse than one that lists fewer keys.
     const rows = KEY_HELP.flatMap(g => g.rows);
-    expect(rows.find(r => /^shift \+ m$/i.test(r.cap)), "Shift+M outlived its mechanism").toBeUndefined();
     expect(
       rows.find(r => /shift-click/i.test(r.cap) && /sound/i.test(r.action)),
       "the sound shift-click row outlived its mechanism",
@@ -335,7 +334,7 @@ describe("the sound gestures that outlived their mechanism", () => {
 
   it("still lists the plain key, and stops calling the sound Claude-only", () => {
     // The tone follows the event now, and a Codex Stop is a Stop.
-    const row = KEY_HELP.flatMap(g => g.rows).find(r => /^m$/i.test(r.cap));
+    const row = KEY_HELP.flatMap(g => g.rows).find(r => /^shift \+ m$/i.test(r.cap));
     expect(row, "M is not in the sheet").toBeDefined();
     // "finish sound" became "sound" in #711: the key covers both tones and the
     // menu it sits beside names them separately, so the narrower word was the
