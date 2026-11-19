@@ -916,7 +916,7 @@ function Inner() {
       if (next === "workspace") {
         if (!workspaceRef.current) pinBoard(appRef.current, canvasRef.current);
         if (sessionId) {
-          openInPane(sessionId, { focusPane: true });
+          openInPane(sessionId);
           markLanded(sessionId);
         }
       } else {
