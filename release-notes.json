@@ -1,4 +1,30 @@
 {
+  "4.0.2": [
+    {
+      "title": "🖱️ A click on a Board card opens the session in Workspace",
+      "body": "With the terminal on, clicking a session's card on the Board switches to Workspace with that session in the pane and the keys in it, and Sessions shows the same rows in both views."
+    },
+    {
+      "title": "🔍 The Inspector opens beside your Workspace session",
+      "body": "On a window 1320 px or wider, opening a session in Workspace unfolds the Inspector next to its terminal, with Usage and This machine at the window's edge, and its context and recap are easier to scan."
+    },
+    {
+      "title": "🗂️ Sessions appears whole when the deck loads",
+      "body": "The Sessions list waits for the session history to load and then shows every row at once, in its final order, instead of filling in and reshuffling."
+    },
+    {
+      "title": "🧰 Panes draw correctly with tmux 3.2 to 3.5",
+      "body": "Where the system's tmux is 3.2 to 3.5, as on Ubuntu 24.04, the deck now runs its own newer tmux, so a pane that reconnects no longer shows a line shifted by one character; sessions already running keep their tmux until they end."
+    },
+    {
+      "title": "🎨 Codex keeps its colours in terminal panes",
+      "body": "A Codex session started from the deck now shows its prompt and status line in colour, even where the deck itself runs with NO_COLOR set."
+    },
+    {
+      "title": "📡 Browser Watch's radar keeps turning",
+      "body": "The radar no longer stops with an error when its dialog has no room for it, and draws again as soon as there is space."
+    }
+  ],
   "4.0.0": [
     {
       "title": "🖥️ Your sessions' terminals, inside the deck",
@@ -184,6 +210,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.0.2": "Board cards open in Workspace, the Inspector opens with the session, and panes draw right on tmux 3.2–3.5",
     "4.0.0": "A calmer deck, with your sessions' terminals inside it",
     "3.82.3": "Windows CPU limits and more reliable session and usage history",
     "3.82.2": "Arrow keys show the selected row on ccdeck tui's Network tab",

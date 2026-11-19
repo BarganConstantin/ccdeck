@@ -60,7 +60,7 @@ const catalog: Catalog = {
   "shell.guide.welcome.title": "ccdeck 使用指引",
   "shell.guide.welcome.waiting.line": "等待您處理的工作階段排在工作階段清單最前，位於「需要您」之下。",
   "shell.guide.welcome.waiting.tip": "想在工作階段提問時收到通知：設定 › 通知。",
-  "shell.guide.welcome.terminal.line": "點選卡片，它的終端機會在畫布旁開啟，您可以直接在那裡回答。",
+  "shell.guide.welcome.terminal.line": "點選卡片，它的終端機會在工作區中開啟，您可以直接在那裡回答。",
   "shell.guide.welcome.terminal.tip": "在其他終端機 App 中啟動的？在那裡結束後，ccdeck 會提供「在此重新開啟」。",
   "shell.guide.welcome.workspace.line": "工作區可並排顯示最多四個工作階段。按 Ctrl+` 切換過去。",
   "shell.guide.welcome.workspace.tip": "在工作階段上按 Shift+Enter 會在旁邊開啟，也可以把它拖到窗格上。",
