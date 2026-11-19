@@ -165,8 +165,23 @@ export function ContextView({ agent, meta = false }: {
   // answer at a Codex session (#399).
   const copy = contextCopy(agent.provider);
 
+  const files = ctx?.memoryFiles ?? [];
+  const memoryList = files.length > 0 ? (
+    <ul className="ctx-md-list">
+      {files.map(f => (
+        <li key={f.path}>
+          {/* Every file here has one name (CLAUDE.md, or AGENTS.md for Codex),
+              so the folder above it is kept whole too: that is what tells two
+              rows apart. */}
+          <PathText className="ctx-md-path" path={f.path} cwd={agent.cwd} keep={2} />
+          <span className="ctx-md-size">{fmtBytes(f.bytes)}</span>
+        </li>
+      ))}
+    </ul>
+  ) : <div className="ctx-empty">{copy.memoryEmpty}</div>;
+
   return (
-    <div className="ctx-view">
+    <div className="ctx-view" data-inspector={!meta || undefined}>
         {/* V4's first line: what kind of number the window figure is. The panel
             leaves it for its head. */}
         {meta && <p className="ctx-approx">{capitalFirst(copy.subtitle)}</p>}
@@ -195,7 +210,7 @@ export function ContextView({ agent, meta = false }: {
           )}
         </section>
 
-        <section>
+        <section className="ctx-usage">
         <h3 className="ctx-section-title">{t("insights.context.cumulative")}</h3>
         <div className="ctx-grid">
           <Row meta={meta} label={t("insights.context.inputTokens")}        n={usage.inputTokens} />
@@ -207,7 +222,7 @@ export function ContextView({ agent, meta = false }: {
         </div>
         </section>
 
-        <section>
+        <section className="ctx-composition">
         <h3 className="ctx-section-title">{t("insights.context.composition")}</h3>
         {/* Five counts, or the reason there are none. On Claude they come from a
             regex scan of a transcript the server has read from byte zero. Codex
@@ -238,24 +253,19 @@ export function ContextView({ agent, meta = false }: {
         )}
         </section>
 
-        <section>
-        <h3 className="ctx-section-title">{copy.memoryHeading}</h3>
-        {(ctx?.memoryFiles?.length ?? 0) === 0 ? (
-          <div className="ctx-empty">{copy.memoryEmpty}</div>
+        {meta || files.length === 0 ? (
+          <section className="ctx-files">
+            <h3 className="ctx-section-title">{copy.memoryHeading}</h3>
+            {memoryList}
+          </section>
         ) : (
-          <ul className="ctx-md-list">
-            {ctx!.memoryFiles.map(f => (
-              <li key={f.path}>
-                {/* Every file here has one name (CLAUDE.md, or AGENTS.md for Codex),
-                    so the folder above it is kept whole too: that is what tells two
-                    rows apart. */}
-                <PathText className="ctx-md-path" path={f.path} cwd={agent.cwd} keep={2} />
-                <span className="ctx-md-size">{fmtBytes(f.bytes)}</span>
-              </li>
-            ))}
-          </ul>
+          <details className="ctx-files">
+            <summary className="ctx-files-toggle">
+              <span>{copy.memoryHeading}</span><span className="ctx-files-count">{fmtN(files.length)}</span>
+            </summary>
+            {memoryList}
+          </details>
         )}
-        </section>
     </div>
   );
 }
