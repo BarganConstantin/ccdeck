@@ -626,20 +626,19 @@ button.tool.clickable:last-child { border-bottom: none; }
   border-bottom: 1px solid var(--line);
 }
 .insp-detail .detail-hero .hero-title {
-  font-size: calc(17px + var(--ui-text-increase, 0px));
   line-height: 1.3;
 }
 .insp-detail .detail-hero .hero-meta { row-gap: 2px; line-height: 1.4; }
 .insp-detail .detail-hero .hero-cost { margin-top: 3px; }
 .insp-detail .detail-hero .hero-cost-headline { gap: 5px; }
 .insp-detail .detail-hero .hero-cost-value {
-  font-size: calc(19px + var(--ui-text-increase, 0px));
+  font-size: calc(22px + var(--ui-text-increase, 0px));
   line-height: 1.2;
 }
 .insp-detail .detail-note,
 .insp-detail .detail-prompt-history { min-width: 0; gap: 0; }
 .insp-detail .detail-note {
-  padding: 10px 11px;
+  padding: 10px;
   background: var(--bg-soft);
   border: 1px solid var(--line);
   border-radius: var(--r-tag);
@@ -660,7 +659,7 @@ button.tool.clickable:last-child { border-bottom: none; }
 
 .insp-detail .detail-note .detail-recap { line-height: 1.55; }
 .insp-detail .prompts { gap: 0; }
-.insp-detail .prompt-entry { padding: 7px 0; }
+.insp-detail .prompt-entry { padding: 8px 0; }
 .insp-detail .prompt-entry:first-child { padding-top: 4px; }
 .insp-detail .prompt-entry:last-child { padding-bottom: 0; }
 .insp-detail .prompt-entry + .prompt-entry { border-top: 1px solid var(--line-soft); }

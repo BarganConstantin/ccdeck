@@ -326,7 +326,7 @@ export default function SessionList({ state, now, historyReady = true, selectedI
   const watchKey = watching ? [...watching].sort().join("\n") : "";
   // The replay fills the store in batches. Publish its rows in a single render.
   const rows = useMemo(() => historyReady ? buildRows(state, now, watching) : [],
-    [historyReady, state, state.revision, now, seenVersion, watchKey]);
+    [state, state.revision, now, seenVersion, watchKey, historyReady]);
   const byId = new Map(rows.map(r => [r.sessionId, r]));
   // New finished turns keep their priority in buildRows, but share Done's
   // header, count and fold with seen turns. Looking at one clears its row

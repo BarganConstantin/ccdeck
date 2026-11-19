@@ -342,7 +342,7 @@ describe("the heading outline starts at level 1 and skips nothing (#381)", () =>
     // Claude/Codex switch in the header the <h2> stays for the outline and is
     // visually hidden (the switch is the title).
     expect(code(accountsHeader)).toMatch(/<h2 className=\{switcher \? "vis-hidden" : undefined\}>\{t\("accounts\.header\.title"\)\}<\/h2>/);
-    expect(code(sessions)).toMatch(/<h2>\{t\("board\.list\.title"\)\} <span className="sl-count">/);
+    expect(code(sessions)).toMatch(/<h2>\{t\("board\.list\.title"\)\} \{historyReady && <span className="sl-count">/);
     // The detail panel has one state left. It used to draw a second one — a
     // "Detail" h2 over "Click an agent to see its tools" and a shortcut list —
     // and that whole empty state is gone: the panel is about an agent, and with
