@@ -18,10 +18,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import {
-  DECK_SOCKET, LEGACY_SCOPE_ARGS, MIN_TMUX_VERSION, SCOPE_ARGS, cgroupPath, findTmux, paneArgv, parseTmuxVersion, resetServerScope,
-  resetTmuxCache, runTmux, serverScope, tmuxArg, tmuxCandidates, tmuxCommand, tmuxEnv, tmuxFormatLiteral,
-  tmuxHasNoServer, tmuxInstallLine, tmuxSequence,
+  DECK_SOCKET, LEGACY_SCOPE_ARGS, MIN_TMUX_VERSION, SCOPE_ARGS, cgroupPath, deckServerHoldsOlder, findTmux, ownTmuxWanted, paneArgv,
+  parseTmuxVersion, resetServerScope, resetTmuxCache, runTmux, serverScope, tmuxArg, tmuxCandidates, tmuxCommand, tmuxEnv,
+  tmuxFormatLiteral, tmuxHasNoServer, tmuxInstallLine, tmuxSequence,
 } from "../../server/tmux.mjs";
+import { PREFERRED_TMUX_VERSION, managedTmuxPath } from "../../server/tmux-download.mjs";
 
 type Probe = { ok: boolean; path?: string; version?: number[] | null; raw?: string; reason?: string; install?: string; warning?: string };
 
@@ -139,6 +140,196 @@ describe("finding tmux", () => {
     const found: Probe = await findTmux({ env: { CCDECK_TMUX: "C:\\tmux.exe", PATH: "C:\\" }, platform: "win32", ...m });
     expect(found).toEqual({ ok: false, reason: "unsupported-platform" });
     expect(m.asked).toEqual([]);
+  });
+});
+
+// ccdeck's own build over a system tmux 3.2–3.5 (internal #108): tmux before
+// 3.6 mis-draws a row with a wide glyph, and a reconnecting pane copies it one
+// cell off. Ubuntu 24.04's tmux 3.4 against ccdeck's 3.8 is the case.
+describe("ccdeck's own tmux over one older than 3.6", () => {
+  const DECK = "/deck";
+  const OWN = managedTmuxPath(DECK);
+  type Listing = { code: number | string; stdout: string; stderr: string } | Error;
+  const NO_SOCKET = { code: 1, stdout: "", stderr: `error connecting to /tmp/tmux-1000/ccdeck (No such file or directory)\n` };
+  const STALE_SOCKET = { code: 1, stdout: "", stderr: `no server running on /tmp/tmux-1000/ccdeck\n` };
+  const listing = (stdout: string) => ({ code: 0, stdout, stderr: "" });
+
+  /** A Linux machine whose deck data folder is /deck: a system tmux at
+   *  /usr/bin/tmux answering `system`, ccdeck's own build answering `own`
+   *  (not fetched when false, there but failing when null), and the deck's
+   *  server answering `list-sessions` as `server()` says. Every ask is
+   *  recorded as its argv. Only the build may ask the server anything, and
+   *  only that listing, on `socket`. */
+  function deckMachine({ system = "tmux 3.4", own = "tmux 3.8", server = () => NO_SOCKET, socket = "ccdeck", env = {} }: {
+    system?: string | null; own?: string | null | false; server?: () => Listing; socket?: string; env?: Record<string, string>;
+  } = {}) {
+    const files: Record<string, string | null> = { "/usr/bin/tmux": system };
+    if (own !== false) files[OWN] = own;
+    const asked: string[][] = [];
+    return {
+      asked,
+      env: { PATH: "/usr/bin", CCDECK_HOME: DECK, ...env },
+      exists: (p: string) => Object.prototype.hasOwnProperty.call(files, p),
+      run: async (p: string, args: string[]) => {
+        asked.push([p, ...args]);
+        if (args.length === 1 && args[0] === "-V") {
+          const out = files[p];
+          return out == null ? { code: 1, stdout: "", stderr: "cannot execute" } : { code: 0, stdout: `${out}\n`, stderr: "" };
+        }
+        expect(p, "only ccdeck's own build asks the deck's server").toBe(OWN);
+        expect(args, "a listing of its sessions' tmux, and nothing else").toEqual(["-u", "-L", socket, "list-sessions", "-F", "#{version}"]);
+        const said = server();
+        if (said instanceof Error) throw said;
+        return said;
+      },
+      readFile: () => "ID=ubuntu\nID_LIKE=debian\n",
+    };
+  }
+  const V = (p: string) => [p, "-V"];
+  const LIST = (socket = "ccdeck") => [OWN, "-u", "-L", socket, "list-sessions", "-F", "#{version}"];
+
+  it("prefers ccdeck's own build from 3.6 on, the release that stopped mis-drawing wide glyphs", () => {
+    expect(PREFERRED_TMUX_VERSION).toEqual([3, 6]);
+  });
+
+  it("picks ccdeck's own 3.8 over a system 3.4 when the deck's server runs no session", async () => {
+    for (const server of [NO_SOCKET, STALE_SOCKET, listing(""), listing("3.8\n3.8\n"), listing("next-3.9\n3.6a\n")]) {
+      resetTmuxCache();
+      const m = deckMachine({ server: () => server });
+      const found: Probe = await findTmux({ platform: "linux", ...m });
+      expect(found, JSON.stringify(server)).toEqual({ ok: true, path: OWN, version: [3, 8], raw: "tmux 3.8" });
+      expect(m.asked, "the system tmux, then the build, then the deck's server, through the build").toEqual([V("/usr/bin/tmux"), V(OWN), LIST()]);
+    }
+  });
+
+  it("keeps the system 3.4 while the deck's server runs sessions under it, and moves to the build once they have ended", async () => {
+    let server: Listing = listing("3.4\n3.4\n");
+    const m = deckMachine({ server: () => server });
+    const at = (now: number) => findTmux({ platform: "linux", ...m, now: () => now });
+    const held = at(0);
+    expect(await held).toEqual({ ok: true, path: "/usr/bin/tmux", version: [3, 4], raw: "tmux 3.4" });
+    expect(at(9_000), "believed for ten seconds").toBe(held);
+    expect(await at(10_001), "asked again: still running, still the older tmux").toEqual(await held);
+    expect(m.asked.filter(a => a.includes("list-sessions")), "only ever a listing, never a kill or a move").toEqual([LIST(), LIST()]);
+    server = listing("3.8\n3.4\n");
+    expect(await at(20_002), "one session under the older tmux is enough").toMatchObject({ path: "/usr/bin/tmux" });
+    // The last of them ended, and the server with it.
+    server = NO_SOCKET;
+    const moved = at(30_003);
+    expect(await moved).toEqual({ ok: true, path: OWN, version: [3, 8], raw: "tmux 3.8" });
+    expect(at(86_400_000), "the build is kept, however long the deck runs").toBe(moved);
+  });
+
+  it("keeps the older tmux, and asks again soon, whenever the build or the deck's server does not say", async () => {
+    const cases: [string, Parameters<typeof deckMachine>[0]][] = [
+      ["a build that will not run", { own: null }],
+      ["a build older than 3.6", { own: "tmux 3.5a" }],
+      ["a build whose version is unreadable", { own: "tmux master" }],
+      ["a server that did not answer in time", { server: () => ({ code: "ETIMEDOUT", stdout: "", stderr: "tmux did not answer in time" }) }],
+      ["a server the build cannot speak to", { server: () => ({ code: 1, stdout: "", stderr: "server exited unexpectedly\n" }) }],
+      ["a failure nobody explained", { server: () => ({ code: 1, stdout: "", stderr: "lost server\n" }) }],
+      ["a session whose tmux is unreadable", { server: () => listing("openbsd-7.4\n") }],
+      ["a listing that threw", { server: () => new Error("spawn failed") }],
+    ];
+    for (const [why, setup] of cases) {
+      resetTmuxCache();
+      const m = deckMachine(setup);
+      const at = (now: number) => findTmux({ platform: "linux", ...m, now: () => now });
+      const first = at(0);
+      expect(await first, why).toEqual({ ok: true, path: "/usr/bin/tmux", version: [3, 4], raw: "tmux 3.4" });
+      expect(at(9_000), why).toBe(first);
+      expect(at(10_001), `${why}: asked again after ten seconds`).not.toBe(first);
+    }
+  });
+
+  it("uses the older tmux as before when the build is not there, and asks the deck's server nothing", async () => {
+    const m = deckMachine({ own: false });
+    const at = (now: number) => findTmux({ platform: "linux", ...m, now: () => now });
+    const found = at(0);
+    expect(await found).toEqual({ ok: true, path: "/usr/bin/tmux", version: [3, 4], raw: "tmux 3.4" });
+    expect(at(86_400_000), "kept until the cache is reset, as any tmux that works").toBe(found);
+    expect(m.asked).toEqual([V("/usr/bin/tmux")]);
+  });
+
+  it("never second-guesses CCDECK_TMUX", async () => {
+    const m = deckMachine({ env: { CCDECK_TMUX: "/usr/bin/tmux" }, server: () => { throw new Error("the server is never asked"); } });
+    const at = (now: number) => findTmux({ platform: "linux", ...m, now: () => now });
+    const found = at(0);
+    expect(await found).toEqual({ ok: true, path: "/usr/bin/tmux", version: [3, 4], raw: "tmux 3.4" });
+    expect(at(86_400_000)).toBe(found);
+    expect(m.asked).toEqual([V("/usr/bin/tmux")]);
+  });
+
+  it("leaves a tmux 3.6 or newer, or one whose version it cannot read, alone", async () => {
+    for (const system of ["tmux 3.6", "tmux 3.6a", "tmux next-3.7", "tmux 3.10", "tmux openbsd-7.4"]) {
+      resetTmuxCache();
+      const m = deckMachine({ system });
+      const found: Probe = await findTmux({ platform: "linux", ...m });
+      expect(found.path, system).toBe("/usr/bin/tmux");
+      expect(m.asked, system).toEqual([V("/usr/bin/tmux")]);
+    }
+  });
+
+  it("asks the deck's server on the socket it is given, DECK_SOCKET by default, and never answers one socket from another's memory", async () => {
+    const m = deckMachine();
+    const servers: string[] = [];
+    // ccdeck-test-a runs a session under 3.4; nothing answers on the others.
+    const run = async (p: string, args: string[]) => {
+      if (args[0] === "-V") return m.run(p, args);
+      expect([p, ...args.slice(0, 2), ...args.slice(3)]).toEqual([OWN, "-u", "-L", "list-sessions", "-F", "#{version}"]);
+      servers.push(args[2]);
+      return args[2] === "ccdeck-test-a" ? listing("3.4\n") : NO_SOCKET;
+    };
+    const on = (socket?: { name: string }) => findTmux({ platform: "linux", env: m.env, exists: m.exists, readFile: m.readFile, run, ...(socket ? { socket } : {}) });
+    expect(await on({ name: "ccdeck-test-a" })).toMatchObject({ path: "/usr/bin/tmux" });
+    expect(await on({ name: "ccdeck-test-b" })).toMatchObject({ path: OWN });
+    expect(await on()).toMatchObject({ path: OWN });
+    expect(servers).toEqual(["ccdeck-test-a", "ccdeck-test-b", DECK_SOCKET.name]);
+  });
+
+  it("reads the deck's server as holding an older tmux unless it knows otherwise", () => {
+    const cases: [unknown, boolean][] = [
+      [listing(""), false],
+      [listing("3.8\n"), false],
+      [listing(" 3.6 \r\n\n3.7\n"), false],
+      [listing("next-3.6\n"), false],
+      [listing("3.10\n"), false],
+      [listing("3.5\n"), true],
+      [listing("3.8\n3.2\n"), true],
+      [listing("openbsd-7.4\n"), true],
+      [listing("x\n"), true],
+      [{ code: 1, stdout: "", stderr: "no server running on /tmp/tmux-1000/ccdeck\n" }, false],
+      [{ code: 1, stdout: "", stderr: "error connecting to /tmp/tmux-1000/ccdeck (No such file or directory)\n" }, false],
+      [{ code: 1, stdout: "", stderr: "No Sessions\n" }, false],
+      [{ code: 1, stdout: "", stderr: "server exited unexpectedly\n" }, true],
+      [{ code: "ETIMEDOUT", stdout: "", stderr: "tmux did not answer in time" }, true],
+      [{ code: 1, stdout: "3.8\n", stderr: "" }, true],
+      [{ code: "0", stdout: "3.8\n", stderr: "" }, true],
+      [null, true],
+      [undefined, true],
+      ["3.8", true],
+    ];
+    for (const [l, want] of cases) expect(deckServerHoldsOlder(l), JSON.stringify(l)).toBe(want);
+  });
+
+  it("wants the build fetched only behind a tmux 3.2–3.5 the deck chose itself, while it is not there", () => {
+    const at = (p: string) => p === "/have/tools/tmux/tmux-3.8-1/tmux";
+    const linux = { env: { PATH: "/usr/bin" }, platform: "linux", exists: () => false, managed: "/d/tools/tmux/tmux-3.8-1/tmux" };
+    const ok = (version: number[] | null) => ({ ok: true, path: "/usr/bin/tmux", version, raw: "tmux" });
+    expect(ownTmuxWanted(ok([3, 4]), linux)).toBe(true);
+    expect(ownTmuxWanted(ok([3, 2]), { ...linux, platform: "darwin" })).toBe(true);
+    expect(ownTmuxWanted(ok([3, 5]), linux)).toBe(true);
+    expect(ownTmuxWanted(ok([3, 4]), { ...linux, exists: at, managed: "/have/tools/tmux/tmux-3.8-1/tmux" }), "already there").toBe(false);
+    expect(ownTmuxWanted(ok([3, 4]), { ...linux, env: { CCDECK_TMUX: "/usr/bin/tmux" } }), "CCDECK_TMUX").toBe(false);
+    expect(ownTmuxWanted(ok([3, 4]), { ...linux, env: { CCDECK_TMUX: "  " } }), "a blank CCDECK_TMUX is unset").toBe(true);
+    expect(ownTmuxWanted(ok([3, 6]), linux)).toBe(false);
+    expect(ownTmuxWanted(ok([4, 0]), linux)).toBe(false);
+    expect(ownTmuxWanted(ok(null), linux), "an unreadable version").toBe(false);
+    expect(ownTmuxWanted({ ok: false, reason: "missing" }, linux), "a machine with none fetches it as before").toBe(false);
+    expect(ownTmuxWanted(ok([3, 4]), { ...linux, platform: "win32" })).toBe(false);
+    expect(ownTmuxWanted(ok([3, 4]), { ...linux, managed: "" })).toBe(false);
+    expect(ownTmuxWanted(ok([3, 4]), { ...linux, exists: () => { throw new Error("EACCES"); } }), "never throws").toBe(false);
+    expect(ownTmuxWanted(null, linux)).toBe(false);
   });
 });
 

@@ -57,7 +57,10 @@
 // "installing" with how far it has got, and once the build has landed tells
 // the engine to look again (`terminal.forgetTmux`). That download is the one
 // piece of the JS backend's tmux handling on the product's path;
-// terminal-js-offpath.test.ts holds that nothing else of it is.
+// terminal-js-offpath.test.ts holds that nothing else of it is. A machine
+// whose tmux is 3.2–3.5 gets the same download, behind a status that keeps
+// saying that tmux works (fetchBehind): the engine says `fixable` there too,
+// and moves to the build once it has landed.
 //
 // THE PAGE NEVER NAMES A PANE. It names a session — an id, a provider, a
 // folder — and the engine works the rest out. Where its answer carries a
@@ -79,7 +82,8 @@ import { checkFolder } from "./terminal-folder.mjs";
 import { discoverProjects } from "./project-discovery.mjs";
 import { createTicketStore } from "./terminal-socket.mjs";
 import {
-  TMUX_BUILD, ensureManagedTmux, managedTmuxPath, recentTmuxFailure, tmuxDownloadBlocked, tmuxDownloadProgress,
+  PREFERRED_TMUX_VERSION, TMUX_BUILD, ensureManagedTmux, managedTmuxPath, recentTmuxFailure, tmuxDownloadBlocked,
+  tmuxDownloadProgress,
 } from "./tmux-download.mjs";
 
 /** The bodies here are an id, a provider and a folder. A few kilobytes is far
@@ -451,7 +455,8 @@ async function jsonBody(req, res) {
  * use, bound to `{ handle, origin }` — the page's origin, as for any ticket —
  * and the upgrade relays it to the engine. The `log` line goes to the deck's
  * log, never to the page. A status it calls `fixable` runs the deck's own tmux
- * download first (withOwnTmux). An engine that could not take the question answers
+ * download first (withOwnTmux), or behind the answer where that status's tmux
+ * works (fetchBehind). An engine that could not take the question answers
  * its refusal in the same shape (routeThroughEngine); one that failed in a way
  * that must not be asked again throws, which is `guard`'s 500.
  */
@@ -485,6 +490,8 @@ async function answer(d, req, res, method, question) {
     said = await withOwnTmux(d, said);
     // It may have asked the engine again on the way: the switch once more.
     if (!d.enabled()) return answeredAfterOff(res, method, said);
+  } else if (method === "status" && fixableBehind(said)) {
+    fetchBehind(d);
   }
   let out = withProvenance(d.provenance, question, said.body);
   if (said.handle) {
@@ -550,4 +557,39 @@ async function withOwnTmux(d, said) {
   }
   const progress = own.progress();
   return withTmux(said, { ok: false, reason: "installing", ...(progress ? { progress } : {}) });
+}
+
+/** Whether the engine's answer is a status it calls `fixable` beside a tmux
+ *  that works and is older than PREFERRED_TMUX_VERSION: one the engine runs
+ *  only until ccdeck's own build is in place. Asked of the body too, so
+ *  fixable beside a tmux that new, or one whose version it does not say,
+ *  fetches nothing. */
+function fixableBehind(said) {
+  const tmux = said?.body?.tmux;
+  if (said?.fixable !== true || said.status !== 200 || said.body?.ok !== true) return false;
+  if (!tmux || typeof tmux !== "object" || tmux.ok !== true || typeof tmux.version !== "string") return false;
+  const m = /^(\d+)\.(\d+)$/.exec(tmux.version);
+  if (!m) return false;
+  const [major, minor] = [Number(m[1]), Number(m[2])];
+  const [pMajor, pMinor] = PREFERRED_TMUX_VERSION;
+  return major < pMajor || (major === pMajor && minor < pMinor);
+}
+
+/**
+ * A status the engine called `fixable` beside a tmux 3.2–3.5 that works:
+ * ccdeck's own build is fetched behind it — the same download as for a
+ * machine with none — and the answer is sent as it is. Nothing tells the page:
+ * the tmux it has keeps working meanwhile, so there is no "installing", and a
+ * download that fails is no news either (offline, the older tmux simply
+ * stays). Once the build lands the engine is told to look again
+ * (`terminal.forgetTmux`), and moves to it unless the deck's server still runs
+ * sessions under the older tmux. Nothing starts where no download may, while
+ * one is out, for a build already in place — the engine knows it is there,
+ * and keeps the older tmux for its sessions — or for RETRY_AFTER_MS after one
+ * failed. Never awaited, never rejects.
+ */
+function fetchBehind(d) {
+  const own = d.ownTmux;
+  if (!own || own.blocked() || own.out || own.landed() || own.recentFailure()) return;
+  own.start(() => d.engine.forgetTmux?.());
 }

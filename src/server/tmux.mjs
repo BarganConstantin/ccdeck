@@ -24,6 +24,14 @@
 // building C on somebody's machine is not something a tool that "installs
 // nothing" gets to do. A machine without tmux is told the one line that
 // installs it for that platform — a fact about the machine, not an error.
+//
+// CCDECK'S OWN BUILD OVER A TMUX OLDER THAN 3.6. The user's tmux is the one
+// they chose, and wins whenever it is 3.6 or newer. One that is 3.2–3.5 works
+// but mis-draws a row with a wide glyph in it, which a reconnecting pane then
+// copies (tmux-download.mjs PREFERRED_TMUX_VERSION), so once ccdeck's own
+// build is in place the deck runs that instead — but never while the deck's
+// own server still runs sessions under the older tmux: they keep it until
+// they end (ownOverOlder). CCDECK_TMUX is never second-guessed.
 import { execFile } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { pathLookup } from "./exec-spec.mjs";
@@ -32,7 +40,7 @@ import { pathLookup } from "./exec-spec.mjs";
 // anything here — it daemonises — which is the whole point of using it.
 import { watchChild } from "./exec-children.mjs";
 import { deckDataDir } from "./deck-home.mjs";
-import { managedTmuxPath } from "./tmux-download.mjs";
+import { PREFERRED_TMUX_VERSION, managedTmuxPath } from "./tmux-download.mjs";
 
 /** The deck's own tmux server. Every deck-launched session lives here. */
 export const DECK_SOCKET = Object.freeze({ name: "ccdeck" });
@@ -55,7 +63,10 @@ const KNOWN_PLACES = ["/opt/homebrew/bin/tmux", "/usr/local/bin/tmux", "/usr/bin
 /** How long "no usable tmux" is believed. An answer that tmux is present is
  *  kept until resetTmuxCache; an answer that it is missing is not, because the
  *  panel's own advice is to go and install it — and the click after that
- *  install has to see it without a deck restart. */
+ *  install has to see it without a deck restart. A tmux older than 3.6 kept
+ *  beside ccdeck's own build (ownOverOlder) is believed as long and no
+ *  longer, so the deck moves to the build soon after the last session that
+ *  held it back has ended. */
 const MISS_TTL_MS = 10_000;
 
 /** The line shown when no install command is known for this machine. */
@@ -231,51 +242,157 @@ export function resetTmuxCache() {
  * works, and saying otherwise would send its owner off to install something
  * they already have.
  *
+ * The first usable tmux is the answer, unless it is 3.2–3.5 and ccdeck's own
+ * build may take its place (ownOverOlder), which asks the deck's server on
+ * `socket` (DECK_SOCKET unless a caller names another) what it runs.
+ *
  * A candidate that exists but will not run `-V` is skipped as if absent. Never
  * rejects.
  *
- * Remembered: a usable answer until resetTmuxCache, a missing one for ten
- * seconds (see MISS_TTL_MS), and concurrent callers share one probe. The
- * memory is keyed on the inputs that decide the answer — platform, CCDECK_TMUX,
- * PATH — and on the very `run`, `exists` and `readFile` it was found with, so
- * a case in the suite that injects fakes is never answered from another
- * case's.
+ * Remembered: a usable answer until resetTmuxCache, a missing one — or an
+ * older tmux kept beside the own build — for ten seconds (see MISS_TTL_MS),
+ * and concurrent callers share one probe. The memory is keyed on the inputs
+ * that decide the answer — platform, CCDECK_TMUX, PATH, where the own build
+ * lives and the socket — and on the very `run`, `exists` and `readFile` it was
+ * found with, so a case in the suite that injects fakes is never answered from
+ * another case's.
  *
- * `run(file, args, { env })` resolves `{ code, stdout }`; the real one is
- * execFile with a three-second deadline.
+ * `run(file, args, { env })` resolves `{ code, stdout, stderr }`; the real one
+ * is execFile with a three-second deadline.
  */
 export function findTmux({
-  env = process.env, platform = process.platform,
+  env = process.env, platform = process.platform, socket = DECK_SOCKET,
   run = runVersion, exists = existsSync, readFile = readText, now = Date.now,
 } = {}) {
-  const key = [platform, env[TMUX_ENV] ?? "", env.PATH ?? env.Path ?? ""].join("\0");
+  const key = [
+    platform, env[TMUX_ENV] ?? "", env.PATH ?? env.Path ?? "", managedTmuxPath(deckDataDir(platform, env)),
+    socket?.name ?? "", socket?.path ?? "",
+  ].join("\0");
   const same = cached && cached.key === key && cached.run === run && cached.exists === exists && cached.readFile === readFile;
-  if (same && (cached.ok || now() - cached.at < MISS_TTL_MS)) return cached.promise;
-  const promise = probeTmux({ env, platform, run, exists, readFile });
-  const entry = { key, run, exists, readFile, at: now(), ok: false, promise };
+  if (same && (cached.lasting || now() - cached.at < MISS_TTL_MS)) return cached.promise;
+  const probe = probeTmux({ env, platform, run, exists, readFile, socket });
+  const promise = probe.then(p => p.found);
+  const entry = { key, run, exists, readFile, at: now(), lasting: false, promise };
   cached = entry;
-  promise.then(r => { entry.ok = r.ok; });
+  probe.then(p => { entry.lasting = p.found.ok && p.lasting; });
   return promise;
 }
 
 const runVersion = (file, args, { env } = {}) => execTmux(file, args, { timeoutMs: 3000, env: tmuxEnv(env) });
 const readText = (p) => readFileSync(p, "utf8");
 
-async function probeTmux({ env, platform, run, exists, readFile }) {
-  if (platform === "win32") return Object.freeze({ ok: false, reason: "unsupported-platform" });
+/** findTmux's answer as `{ found, lasting }`: `lasting` false for an older
+ *  tmux kept beside ccdeck's own build, which is asked again soon. */
+async function probeTmux({ env, platform, run, exists, readFile, socket }) {
+  if (platform === "win32") return { found: Object.freeze({ ok: false, reason: "unsupported-platform" }), lasting: true };
+  const managed = managedTmuxPath(deckDataDir(platform, env));
+  const candidates = tmuxCandidates({ env, platform, exists, managed });
   let tooOld = null;
-  for (const path of tmuxCandidates({ env, platform, exists })) {
-    let r;
-    try { r = await run(path, ["-V"], { env }); } catch { continue; }
-    if (!r || r.code !== 0) continue;
-    const raw = String(r.stdout ?? "").trim();
-    const version = parseTmuxVersion(raw);
-    if (!version) return Object.freeze({ ok: true, path, version: null, raw, warning: "unknown-version" });
-    if (atLeast(version, MIN_TMUX_VERSION)) return Object.freeze({ ok: true, path, version: Object.freeze(version), raw });
+  for (const path of candidates) {
+    const said = await askVersion(run, path, env);
+    if (!said) continue;
+    const { raw, version } = said;
+    if (!version) return { found: Object.freeze({ ok: true, path, version: null, raw, warning: "unknown-version" }), lasting: true };
+    if (atLeast(version, MIN_TMUX_VERSION)) {
+      const found = Object.freeze({ ok: true, path, version: Object.freeze(version), raw });
+      if (atLeast(version, PREFERRED_TMUX_VERSION)) return { found, lasting: true };
+      return ownOverOlder(found, { candidates, managed, env, run, socket });
+    }
     tooOld ??= { ok: false, reason: "too-old", path, version: Object.freeze(version), raw };
   }
   const install = tmuxInstallLine(platform, platform === "linux" ? osReleaseText(readFile) : "");
-  return Object.freeze(tooOld ? { ...tooOld, install } : { ok: false, reason: "missing", install });
+  return { found: Object.freeze(tooOld ? { ...tooOld, install } : { ok: false, reason: "missing", install }), lasting: true };
+}
+
+/** What `path -V` says, as `{ raw, version }` (version null when unreadable),
+ *  or null for a tmux that would not run it. */
+async function askVersion(run, path, env) {
+  let r;
+  try { r = await run(path, ["-V"], { env }); } catch { return null; }
+  if (!r || r.code !== 0) return null;
+  const raw = String(r.stdout ?? "").trim();
+  return { raw, version: parseTmuxVersion(raw) };
+}
+
+/**
+ * `older`, the first usable tmux and one 3.2–3.5, or ccdeck's own build in its
+ * place — as `{ found, lasting }`.
+ *
+ * The build takes it over only when all of this holds:
+ *   - it is one of the candidates: fetched, and CCDECK_TMUX not set (that
+ *     names the only candidate, and is never second-guessed);
+ *   - it says it is PREFERRED_TMUX_VERSION or newer;
+ *   - the deck's server runs no session under an older tmux. Asked of the
+ *     build itself, `list-sessions -F '#{version}'` on `socket`, because only
+ *     that direction works: measured with Ubuntu 24.04's tmux 3.4 and
+ *     ccdeck's 3.8, a 3.8 client lists, reads and starts sessions on a 3.4
+ *     server, while a 3.4 client gets "server exited unexpectedly" from a 3.8
+ *     one. `#{version}` is the server's own, in every tmux since 2.4.
+ *
+ * Otherwise the older tmux stays, and nothing is moved, restarted or killed:
+ * sessions started under it keep the server they are in. Without the build
+ * that is the whole answer, kept until resetTmuxCache — the status route
+ * fetches the build behind it (ownTmuxWanted), and forgets this answer once it
+ * lands. Beside the build it is believed for MISS_TTL_MS only: the server
+ * empties when its last session ends, and the next ask after that moves to
+ * the build. An answer the build or the server would not give (a timeout, a
+ * failure it does not explain) keeps the older tmux too, and is asked again
+ * as soon.
+ */
+async function ownOverOlder(older, { candidates, managed, env, run, socket }) {
+  if (!managed || older.path === managed || !candidates.includes(managed)) return { found: older, lasting: true };
+  const own = await askVersion(run, managed, env);
+  if (!own?.version || !atLeast(own.version, PREFERRED_TMUX_VERSION)) return { found: older, lasting: false };
+  let listing = null;
+  try {
+    listing = await run(managed, tmuxCommand(managed, socket, ["list-sessions", "-F", "#{version}"]).slice(1), { env });
+  } catch { /* unanswered: the older tmux stays */ }
+  if (deckServerHoldsOlder(listing)) return { found: older, lasting: false };
+  return { found: Object.freeze({ ok: true, path: managed, version: Object.freeze(own.version), raw: own.raw }), lasting: true };
+}
+
+/** A failed listing that only says there is no server to answer it: a
+ *  socket nobody answers on, none at all, or a server with no session. Not
+ *  "server exited unexpectedly", which a tmux client also says of a server it
+ *  cannot speak to. */
+const NO_DECK_SERVER = /no server running|error connecting to|^no sessions/im;
+
+/**
+ * Whether the deck's server, as ccdeck's own build answered `list-sessions -F
+ * '#{version}'` on it (`{ code, stdout, stderr }`, or null for no answer), may
+ * run a session under a tmux older than PREFERRED_TMUX_VERSION.
+ *
+ * No only when that is known: an answer each of whose lines is a version that
+ * new or newer (an empty one is a server with no session), or a failure that
+ * says there is no server at all. Everything else — an older version, one it
+ * cannot read, a timeout, an error it does not explain — is yes, which keeps
+ * the older tmux. Pure.
+ */
+export function deckServerHoldsOlder(listing) {
+  if (!listing || typeof listing !== "object") return true;
+  if (listing.code !== 0) return !NO_DECK_SERVER.test(String(listing.stderr ?? ""));
+  return String(listing.stdout ?? "").split("\n").map(l => l.trim()).filter(Boolean).some((l) => {
+    const v = parseTmuxVersion(`tmux ${l}`);
+    return !v || !atLeast(v, PREFERRED_TMUX_VERSION);
+  });
+}
+
+/**
+ * Whether ccdeck's own build is worth fetching although `found` (findTmux's
+ * answer) works: a tmux 3.2–3.5 the deck chose by itself — CCDECK_TMUX unset
+ * — on Linux or macOS, while the build is not at `managed`. Once it is there,
+ * findTmux runs it instead (ownOverOlder). The status route starts the same
+ * download a machine with no tmux gets, behind its answer. `env`, `platform`,
+ * `exists` and `managed` as for tmuxCandidates. Never throws.
+ */
+export function ownTmuxWanted(found, {
+  env = process.env, platform = process.platform, exists = existsSync,
+  managed = managedTmuxPath(deckDataDir(platform, env)),
+} = {}) {
+  if (platform === "win32" || found?.ok !== true || !Array.isArray(found.version)) return false;
+  if (!atLeast(found.version, MIN_TMUX_VERSION) || atLeast(found.version, PREFERRED_TMUX_VERSION)) return false;
+  if (String(env?.[TMUX_ENV] ?? "").trim() || !managed) return false;
+  try { return !exists(managed); } catch { return false; }
 }
 
 /** /etc/os-release, or the copy systemd keeps when /etc has none. */
