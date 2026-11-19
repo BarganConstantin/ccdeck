@@ -304,9 +304,15 @@ describe("compact SessionList title collisions", () => {
       expect(button).toContain(`<span class="vis-hidden">${r.folder} · ${prompt}</span>`);
       expect(button.match(/\btitle="([^"]*)"/)?.[1]).toContain(r.exactHover);
       expect(button).toMatch(/title="[^"]*Keep this complete second line accessible/);
+      // CHANGED ON PURPOSE (#2637): the Board draws the same compact row as
+      // Workspace; it was the legacy two-line row with its start time.
       const board = rowButton(draw(false), r.sessionId);
-      expect(visibleText(board)).toContain(`${r.folder} · Synthesize the rate limiter`);
-      expect(board).toContain("sl-start"); // Legacy grouping stays unchanged.
+      expect(visibleText(board)).toBe(visibleText(button));
+      expect(board).toContain('data-compact="true"');
+      expect(board).toContain('data-one-line="true"');
+      expect(board).not.toContain("sl-start");
+      expect(board).toContain(`<span class="vis-hidden">${r.folder} · ${prompt}</span>`);
+      expect(board.match(/\btitle="([^"]*)"/)?.[1]).toBe(button.match(/\btitle="([^"]*)"/)?.[1]);
     }
   });
 
