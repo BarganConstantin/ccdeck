@@ -618,3 +618,33 @@ button.tool.clickable:last-child { border-bottom: none; }
   margin-top: 6px;
 }
 
+
+/* Agents inspector: summary first, followed by the user's prompt history. */
+.insp-detail .detail-note,
+.insp-detail .detail-prompt-history {
+  min-width: 0;
+  padding: 9px 10px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--r-tag);
+}
+
+.insp-detail .detail-section:is(.detail-note, .detail-prompt-history) > h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 8px;
+  min-height: 0;
+  margin-bottom: 8px;
+}
+
+.insp-detail .detail-note .detail-recap { line-height: 1.55; }
+.insp-detail .prompts { gap: 0; }
+.insp-detail .prompt-entry { padding: 7px 0; }
+.insp-detail .prompt-entry:first-child { padding-top: 0; }
+.insp-detail .prompt-entry:last-child { padding-bottom: 0; }
+.insp-detail .prompt-entry + .prompt-entry { border-top: 1px solid var(--line-soft); }
+.insp-detail .prompt-time { line-height: 1.35; }
+.insp-detail .prompt-text { line-height: 1.45; }
+.insp-detail .prompt-entry:first-child .prompt-text { color: var(--text); }
