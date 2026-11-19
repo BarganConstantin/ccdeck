@@ -1036,7 +1036,7 @@
   font-weight: 600;
   line-height: 1.45;
 }
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
   .ctx-files-toggle:hover { color: var(--text); }
 }
 .ctx-files-toggle::marker { color: var(--muted); }
