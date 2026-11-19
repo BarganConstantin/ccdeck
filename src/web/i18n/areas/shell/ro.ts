@@ -61,7 +61,7 @@ const catalog: Catalog = {
   "shell.guide.welcome.title": "Cum te orientezi în ccdeck",
   "shell.guide.welcome.waiting.line": "Sesiunile care te așteaptă sunt primele în lista de sesiuni, sub Te așteaptă.",
   "shell.guide.welcome.waiting.tip": "Primește o notificare când una întreabă: Setări › Notificări.",
-  "shell.guide.welcome.terminal.line": "Dă clic pe un card: terminalul lui se deschide lângă tablă, și răspunzi acolo.",
+  "shell.guide.welcome.terminal.line": "Dă clic pe un card: terminalul lui se deschide în Workspace, și răspunzi acolo.",
   "shell.guide.welcome.terminal.tip": "Ai pornit-o în altă aplicație de terminal? Închide-o acolo, iar ccdeck îți oferă Redeschide aici.",
   "shell.guide.welcome.workspace.line": "Workspace pune până la patru sesiuni una lângă alta. Ctrl+` te duce acolo.",
   "shell.guide.welcome.workspace.tip": "Shift+Enter pe o sesiune o deschide alături, sau trage-o pe o zonă.",

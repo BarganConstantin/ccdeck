@@ -278,18 +278,25 @@ describe("the Sessions list draws the start time on look-alike rows only", () =>
   // CHANGED ON PURPOSE (V4 top-10, inbox): the start time led the second line
   // ("11:58:15 PM · ccdeck · Write the…") → it ends it, after the words, never
   // cut, because the line leads with what the session is, not a clock.
+  // CHANGED ON PURPOSE (#2637): the Board draws Workspace's compact row, which
+  // tells apart the look-alikes drawn together: n1 and n2 under Working. n3,
+  // alone under Done, reads like no other row there; the task they share is a
+  // screen reader's and the hover's.
   it("ends the second line with it, so the name keeps the first line whole and the line leads with its words", () => {
     const s = board();
     const html = renderToStaticMarkup(createElement(SessionList, {
       state: s, now: T0 + 100_000, selectedIds: new Set<string>(), onSelect: () => {}, onClose: () => {},
     }));
-    expect(html.match(/class="sl-start"/g)).toHaveLength(3);
-    const n1 = html.slice(html.indexOf('data-rail-id="n1"'));
-    const row = n1.slice(0, n1.indexOf("</li>"));
+    const rowOf = (id: string) => { const at = html.slice(html.indexOf(`data-rail-id="${id}"`)); return at.slice(0, at.indexOf("</li>")); };
+    expect(html.match(/class="sl-start"/g)).toHaveLength(2);
+    expect(rowOf("n2")).toContain(`<span class="sl-start">· ${clockTime(T0 + 20_000, true)}</span>`);
+    expect(rowOf("n3")).not.toContain("sl-start");
+    const row = rowOf("n1");
     const line1 = row.slice(row.indexOf('class="sl-line1"'), row.indexOf('class="sl-line2'));
     expect(line1).toContain('<span class="sl-label">ccdeck</span>');
     expect(line1).not.toContain("sl-start");
-    expect(row).toMatch(new RegExp(`class="sl-line2 sl-twin"><span class="sl-words">[^<]*${NOTES}</span><span class="sl-start">· ${clockTime(T0, true)}</span></span>`));
+    expect(row).toMatch(new RegExp(`class="sl-line2 sl-twin"><span class="sl-words">[^<]+</span><span class="sl-start">· ${clockTime(T0, true)}</span></span>`));
+    expect(row).toContain(`<span class="vis-hidden">${NOTES}</span>`);
     expect(row).not.toMatch(/class="sl-line2[^"]*"><span class="sl-start">/);
     const site = html.slice(html.indexOf('data-rail-id="site"'));
     expect(site.slice(0, site.indexOf("</li>"))).not.toContain("sl-start");

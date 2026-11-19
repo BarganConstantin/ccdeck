@@ -180,9 +180,10 @@ export function useRailFlip(listRef: RefObject<HTMLElement | null>, signature: s
  *  arrival again on top of the FLIP. `ids` are the rows the model holds now,
  *  folded ones included; a leaving row is still drawn, inert, and the sheet
  *  holds its end state (.leaving: clear and closed). */
-export function useRailMembership(listRef: RefObject<HTMLElement | null>, ids: readonly string[]): void {
+export function useRailMembership(listRef: RefObject<HTMLElement | null>, ids: readonly string[], ready = true): void {
   const before = useRef<ReadonlySet<string> | null>(null);
   useBeforePaint(() => {
+    if (!ready) return;
     const list = listRef.current;
     const next = new Set(ids);
     const { joined, left } = membershipChange(before.current, next);

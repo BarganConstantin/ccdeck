@@ -61,7 +61,7 @@ const catalog: Catalog = {
   "shell.guide.welcome.title": "So findest du dich zurecht",
   "shell.guide.welcome.waiting.line": "Sitzungen, die auf dich warten, führen die Sitzungsliste an, unter Braucht dich.",
   "shell.guide.welcome.waiting.tip": "Benachrichtigt werden, wenn eine nachfragt: Einstellungen › Benachrichtigungen.",
-  "shell.guide.welcome.terminal.line": "Klick auf eine Karte, und ihr Terminal öffnet sich neben dem Canvas – dort antwortest du.",
+  "shell.guide.welcome.terminal.line": "Klick auf eine Karte, und ihr Terminal öffnet sich in Workspace – dort antwortest du.",
   "shell.guide.welcome.terminal.tip": "In einer anderen Terminal-App gestartet? Beende sie dort, dann bietet ccdeck „Hier erneut öffnen“ an.",
   "shell.guide.welcome.workspace.line": "Workspace zeigt bis zu vier Sitzungen nebeneinander. Ctrl+` wechselt dorthin.",
   "shell.guide.welcome.workspace.tip": "Shift+Enter auf einer Sitzung öffnet sie daneben – oder zieh sie auf einen Bereich.",

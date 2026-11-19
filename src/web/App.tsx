@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ReactFlowProvider, useReactFlow } from "reactflow";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
 // for why `{open && <Panel/>}` cannot do that on its own.
@@ -40,6 +40,7 @@ import { useTabAmbient } from "./use-tab-ambient";
 import { useCanvasViewport } from "./use-canvas-viewport";
 import { useRepackAnchor, type ZoomFocus } from "./use-repack-anchor";
 import { useCanvasClicks } from "./use-canvas-clicks";
+import { terminalSessionId } from "./canvas-session";
 import { useCanvasSize } from "./use-canvas-size";
 import { useNodeMeasurements, useSettled } from "./use-node-measurements";
 import { useLayoutFrame } from "./use-layout-frame";
@@ -802,6 +803,11 @@ function Inner() {
     active: inWorkspace, detailOpen,
     fold: () => setInspectorFolded(true), hold: holdRight.detail, restore: setDetailStored,
   });
+  const inspectedWorkspaceSession = inWorkspace && inspectorColumn && stage.shell.phase !== "closed"
+    ? targetSession(stage.shell.target) : null;
+  useLayoutEffect(() => {
+    if (inspectedWorkspaceSession) setInspectorFolded(false);
+  }, [inspectedWorkspaceSession]);
   // The stripes are icons while Workspace is up (stripe-words.ts), in the
   // commit that draws it.
   useLayoutEffect(() => { setStripeWorkspace(inWorkspace); }, [inWorkspace]);
@@ -909,11 +915,18 @@ function Inner() {
   // Workspace ended some way other than the switch (a phone-sized window, the
   // Command Panel turned off): the canvas goes back to the grid.
   useEffect(() => { if (!inWorkspace) unpinBoard(appRef.current); }, [inWorkspace]);
-  const { leaveWorkspace } = stage;
-  const switchView = useCallback((next: View, how: "pointer" | "key") => {
+  const { leaveWorkspace, openInPane } = stage;
+  const switchView = useCallback((next: View, how: "pointer" | "key", sessionId?: string) => {
     runSwitch(how, () => {
       if (next === "workspace") {
         if (!workspaceRef.current) pinBoard(appRef.current, canvasRef.current);
+        // A card clicked on the Board: its pane takes the keys, as the stage's
+        // click did (use-stage.ts onNodeClick). Left on the deck, the first
+        // letters meant for the agent fired the deck's shortcuts instead.
+        if (sessionId) {
+          openInPane(sessionId, { focusPane: true });
+          markLanded(sessionId);
+        }
       } else {
         // Leaving takes the stage down in this same update, with no morph.
         unpinBoard(appRef.current);
@@ -921,7 +934,7 @@ function Inner() {
       }
       viewState.set(next);
     });
-  }, [leaveWorkspace, viewState.set]);
+  }, [leaveWorkspace, openInPane, markLanded, viewState.set]);
   const switchViewRef = useMirroredRef(switchView);
   const workspaceRef = useMirroredRef(inWorkspace);
   // Ctrl + backtick: read through a ref by the one key listener (use-deck-shortcuts.ts).
@@ -975,9 +988,15 @@ function Inner() {
     board: !inWorkspace,
   });
 
+  const openBoardNode = (id: string, el: Element | null) => {
+    if (!stage.workspaceOffered) return stage.onNodeClick(id, el);
+    switchView("workspace", "pointer", terminalSessionId(stateRef.current.agents, id));
+    return true;
+  };
+
   // What a click, a double-click and a hover on the canvas do — use-canvas-clicks.ts.
   const clicks = useCanvasClicks({
-    clearSelection, selectAgent, detailOpen, setDetailOpen, detailShown, focusAgent, revealAgent, draggingRef, lodRef, stage,
+    clearSelection, selectAgent, detailOpen, setDetailOpen, detailShown, focusAgent, revealAgent, draggingRef, lodRef, stage: { onNodeClick: openBoardNode },
   });
 
   // What the peek reads, made once — use-peek-readers.ts.
@@ -995,7 +1014,7 @@ function Inner() {
   // With the terminal stage up, a row moves the stage to that session the way
   // picking a conversation does in the Claude app, rather than opening the
   // detail panel that would evict it.
-  const { followSession, openInPane } = stage;
+  const { followSession } = stage;
   // Every jump to a session — the list, ⌘K, a notification, the waiting names,
   // N and W — in Workspace puts it on the pane; the board's camera is behind it
   // and has nothing to move. Everywhere else it is the camera's, as it was.
@@ -1378,7 +1397,8 @@ function Inner() {
     // data-view exists only in Workspace, so with the Command Panel off the
     // root is the root it was; data-zoom folds the list and the Inspector
     // (workspace.css); the switch between the views is view-switch.ts.
-    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase} data-side={side.on ? "" : undefined} data-right-col={rightCol ? "" : undefined}>
+    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase} data-side={side.on ? "" : undefined} data-right-col={rightCol ? "" : undefined}
+      style={side.on ? { "--workspace-side-w": `${side.width}px` } as CSSProperties : undefined}>
       {/* Whether the deck has a session yet, for every part drawn below that
           stays out until it does (board-empty.ts). No element: the grid's
           children are the ones they were. */}
@@ -1499,6 +1519,7 @@ function Inner() {
           {!phone && accountsNodes}
           {sessionListDrawn && (
             <SessionList
+              historyReady={historyReplayed}
               leaving={isLeaving(listOnScreen, sessionListPhase)}
               state={stateRef.current}
               now={now}
@@ -1653,8 +1674,8 @@ function Inner() {
           needed no layout change of its own. */}
       {/* WORKSPACE draws the Inspector as a column whether or not a session is in
           focus (an empty pane means none, and the column says so), down to 1320px,
-          once it is unfolded: each visit starts with it folded
-          (use-workspace-inspector.ts). Under that it is the detail sheet, opened
+          once it is unfolded. Opening a session unfolds the column.
+          Under that it is the detail sheet, opened
           as on the Board. */}
       {inWorkspace && inspectorColumn && !inspectorFolded && !(detailOpen && selected) ? (
         selected ? (

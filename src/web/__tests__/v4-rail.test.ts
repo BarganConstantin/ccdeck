@@ -704,7 +704,10 @@ describe("Nobody’s waiting", () => {
     expect(draw(notify(calm, "a", "permission_prompt", "ok?", 500))).not.toContain("Nobody’s waiting");
   });
 
-  it("draws the model below the title, preserving the title row", () => {
+  // CHANGED ON PURPOSE (#2637): the Board draws Workspace's compact row; the
+  // provider is the avatar before the title, and the model is the card's and
+  // the Inspector's, not a line under the title.
+  it("names the provider by its avatar, preserving the title row, and draws no model line", () => {
     let s = initialState();
     s = begin(s, "m", 0);
     s.agents.get("m")!.model = "claude-opus-4-5-20251101";
@@ -712,10 +715,11 @@ describe("Nobody’s waiting", () => {
       state: s, now: T0 + 60_000, selectedIds: new Set<string>(), onSelect: () => {}, onClose: () => {},
     }));
     expect(html).toContain('class="sl-label"');
-    expect(html).toContain('class="sl-meta"');
-    expect(html).toContain('class="sl-model"');
-    expect(html).toMatch(/opus/i);
-    expect(html.split('class="sl-line1"')[1].split('class="sl-meta"')[0]).not.toContain('sl-model');
+    expect(html).toContain('<span class="provider-avatar" data-provider="claude"');
+    expect(html).not.toContain('class="sl-meta"');
+    expect(html).not.toContain('class="sl-model"');
+    expect(html).not.toMatch(/opus/i);
+    expect(html.split('class="sl-line1"')[1]).not.toContain('sl-model');
   });
 });
 

@@ -587,7 +587,7 @@ const EXEMPT: string[] = [
   // reading row: it answers by opening, its chevron turning and its words
   // lifting to --text under the pointer; a row scaled on press would slide
   // "Details" and its count out from under the pointer.
-  ".detail-more > summary",
+  ".detail-more > summary", ".ctx-files-toggle",
   // CHANGED ON PURPOSE (#2591): New session's "Session options" row is the
   // same kind of full-width disclosure row: it answers by opening and its
   // chevron turning, and a row scaled on press would slide its summary out

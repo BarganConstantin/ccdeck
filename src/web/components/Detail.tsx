@@ -274,7 +274,7 @@ export default function Detail({
         const written = promptTime(note.at, now);
         const heading = note.kind === "recap" ? t("board.detail.recapHeading") : noteTag(note.kind).replace(/^./, c => c.toUpperCase());
         return (
-          <section className="detail-section">
+          <section className="detail-section detail-note">
             <h3>{heading} <span className="section-count" title={written.title}>{written.label}</span></h3>
             <p className="detail-recap" title={noteSource(note)}>{note.text}</p>
             {note.reply && <p className="detail-recap detail-note-reply">{t("board.detail.suggestedReply", { reply: note.reply })}</p>}
@@ -316,7 +316,7 @@ export default function Detail({
       })()}
 
       {earlier.length > 0 && (
-        <section className="detail-section">
+        <section className="detail-section detail-prompt-history">
           {/* What a person typed, listed and counted (#834). A background
               task's notice arrives on the same hook and is neither: it is not
               a prompt (owner's critique, 2026-11-11). The keys come from the

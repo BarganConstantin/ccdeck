@@ -4,9 +4,9 @@
 // every width: the column folds (1320 and wider), the sheet stays folded as
 // it always started (1100 to 1319), and the detail sheet under 1100 is shut.
 // Its door on the right stripe, D, and every way a session is inspected open
-// it again, and then it stays open for the rest of that visit.
+// it again. App also unfolds the column when a session opens.
 //
-// Each visit starts closed. The reader's open is not carried to the next
+// Entering Workspace with an empty pane starts closed. The reader's open is not carried to the next
 // entry, so the rule is one sentence: Workspace opens on the pane. Leaving
 // gives the Board the Inspector it had on entry, open or closed, whatever was
 // done to it inside.
