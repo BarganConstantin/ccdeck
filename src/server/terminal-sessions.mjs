@@ -326,7 +326,8 @@ export function launchCommand({ name, cwd, cols, rows, argv, sessionId = "", age
       "-c", tmuxFormatLiteral(cwd), "-e", "COLORTERM=truecolor",
       ...(agent === "claude" ? ["-e", "CLAUDE_CODE_NONBLOCKING_STDOUT=1", "-e", "CLAUDE_CODE_TMUX_TRUECOLOR=1", "-e", `CLAUDE_CODE_SCROLL_SPEED=${CLAUDE_SCROLL_SPEED}`] : []),
       "-P", "-F", "#{pane_id}",
-      "--", ...paneArgv(argv)],
+      // Strip NO_COLOR at exec time, even if the tmux server inherited it.
+      "--", ...paneArgv(agent === "codex" ? ["env", "-u", "NO_COLOR", ...argv] : argv)],
     // The panel's colours, straight after the pane and in the same sequence,
     // so they are tmux's answer before the program can ask. A program asking
     // its terminal's colours (OSC 10/11: Codex at its first frame, Claude
