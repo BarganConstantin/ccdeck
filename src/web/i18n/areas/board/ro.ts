@@ -561,6 +561,7 @@ const catalog: Catalog = {
   "board.keys.reconnecting": "Se reconectează la {name}. {note}",
   "board.keys.typingInto": "Scrii în {name}",
   "board.keys.escGoes": "merge în sesiune",
+  "board.keys.focusPane": "schimbă panoul",
   "board.keys.backToBoard": "înapoi la tablă",
   "board.keys.onBoard": "Taste pe tablă",
   "board.keys.sessions": "sesiuni",

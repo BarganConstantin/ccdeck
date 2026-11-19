@@ -33,6 +33,7 @@
 import type { IntegrationKind } from "./integrations/types";
 import { isCharacterKey } from "./single-key-shortcuts";
 import { t } from "./i18n";
+import { paneFocusChordLabel } from "./terminal-keys";
 
 /** One line of the sheet: what you press, and what happens. */
 export interface KeyHelpRow {
@@ -215,6 +216,7 @@ export const WORKSPACE_GROUP: KeyHelpGroup = {
   get title() { return t("settings.key.group.workspace"); },
   rows: [
     WORKSPACE_KEY_ROW,
+    { get cap() { return paneFocusChordLabel(); }, get action() { return t("board.keys.focusPane"); }, binds: [], chord: true },
     { get cap() { return t("settings.key.cap.click"); }, get action() { return t("settings.key.wsClick"); }, binds: [] },
     { cap: "Enter", get action() { return t("settings.key.wsEnter"); }, binds: ["Enter"] },
     { cap: "Shift + Enter", get action() { return t("settings.key.wsBeside"); }, binds: ["Enter"] },

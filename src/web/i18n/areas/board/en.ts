@@ -541,6 +541,7 @@ const catalog: Catalog = {
   "board.keys.reconnecting": "Reconnecting to {name}. {note}",
   "board.keys.typingInto": "Typing into {name}",
   "board.keys.escGoes": "goes to the session",
+  "board.keys.focusPane": "switch pane",
   "board.keys.backToBoard": "back to the board",
   "board.keys.onBoard": "Keys on the board",
   "board.keys.sessions": "sessions",

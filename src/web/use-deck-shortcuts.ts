@@ -38,7 +38,7 @@ import type { LodMode } from "./semantic-zoom";
 import { isSettingsChord, type SettingsSection } from "./settings";
 import { characterKeyMuted, singleKeyShortcutsOn } from "./single-key-shortcuts";
 import { CAUGHT_KEYS_ATTR, canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, keepsThemeKey, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
-import { inTerminalPanel, isReleaseChord, isViewChord, STAGE_FLIP_REST_MS, stageKeyIntent, stepSession, type StageKeyIntent } from "./terminal-keys";
+import { inTerminalPanel, isReleaseChord, isViewChord, paneFocusDirection, STAGE_FLIP_REST_MS, stageKeyIntent, stepSession, type PaneDirection, type StageKeyIntent } from "./terminal-keys";
 import { nextTheme, type Theme } from "./theme";
 
 type Read<T> = { readonly current: T };
@@ -79,6 +79,7 @@ export interface StageShortcuts {
    *  that pane, left to right then top to bottom. False when there is no such
    *  pane, and the digit goes on as before. */
   focusPaneAt?: (n: number) => boolean;
+  focusPaneDirection?: (direction: PaneDirection) => boolean;
 }
 
 /** Board or Workspace, as the chord that switches them reaches it. Null, or
@@ -669,8 +670,20 @@ export function useDeckShortcuts({
       // test, so the sheet cannot fall behind the keys again.
       if (e.key === "?") setKeyHelpOpen(o => !o);
     };
+    // Handle pane focus before xterm can send the chord to the PTY.
+    const onPaneFocus = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing || e.keyCode === 229 || !inTerminalPanel(e.target as HTMLElement | null)) return;
+      const stage = stageRef?.current;
+      if (!stage?.open || canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() })) return;
+      const direction = paneFocusDirection(e);
+      if (!direction || !stage.focusPaneDirection?.(direction)) return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    window.addEventListener("keydown", onPaneFocus, true);
     window.addEventListener("keydown", onKey);
     return () => {
+      window.removeEventListener("keydown", onPaneFocus, true);
       window.removeEventListener("keydown", onKey);
       dropFlip();
     };

@@ -97,6 +97,7 @@
 // KeyX) under a non-Latin one, where the key types Ч. Alt must be up, because
 // on Windows AltGr arrives as Ctrl+Alt and AltGr+Shift+X types a character on
 // some layouts.
+import { inDesktopApp } from "./in-app";
 import { isApplePlatform, platformName } from "./platform";
 import { ownsKeystroke, type FocusTarget } from "./shortcuts";
 import { textSizeChord } from "./terminal-text-size";
@@ -163,6 +164,24 @@ export const RELEASE_CHORD_SPOKEN_MSG = "board.keys.releaseChordSpoken";
  *  to the session. On the element that holds the terminal, not on the stage's
  *  header or keys bar — those are where focus goes when the keys go back to the
  *  board, and from there j, k and n must work. */
+export type PaneDirection = "left" | "right" | "up" | "down";
+
+const PANE_ARROWS: ReadonlyMap<string, PaneDirection> = new Map([
+  ["ArrowLeft", "left"], ["ArrowRight", "right"], ["ArrowUp", "up"], ["ArrowDown", "down"],
+]);
+
+export function paneFocusChordLabel(apple = isApplePlatform(platformName()), desktop = inDesktopApp()): string {
+  if (!apple) return "Ctrl+Shift+↑↓←→";
+  return desktop ? "⌘⌥ ↑↓←→" : "⌥⇧ ↑↓←→";
+}
+
+export function paneFocusDirection(e: ChordKey, apple = isApplePlatform(platformName()), desktop = inDesktopApp()): PaneDirection | null {
+  const matches = apple
+    ? e.altKey && !e.ctrlKey && (desktop ? e.metaKey && !e.shiftKey : e.shiftKey && !e.metaKey)
+    : e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey;
+  return matches ? PANE_ARROWS.get(e.key) ?? null : null;
+}
+
 export const TERMINAL_PANEL_SELECTOR = "[data-terminal-panel]";
 
 /** The attribute on the pane that carries the name the stage's header shows,

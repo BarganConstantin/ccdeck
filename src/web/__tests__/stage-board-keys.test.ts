@@ -303,11 +303,25 @@ describe("with the stage open, the board's keys move the stage", () => {
     expect(deck.props.stepAgent, "the canvas stepped behind the stage").not.toHaveBeenCalled();
   });
 
-  it("leaves every other key to the deck: T still turns the theme, L the session list", () => {
+  it("leaves every other key to the deck: T still turns the theme, S the session list", () => {
     const deck = mountDeckKeys({ stage: stageKeys() });
     deck.press("t");
-    deck.press("l");
+    deck.press("s");
     expect(deck.theme.value).toBe("rider-black");
     expect(deck.props.toggleSessionList).toHaveBeenCalledTimes(1);
   });
+});
+
+it("claims the directional chord before the terminal only when split focus is available", () => {
+  vi.stubGlobal("navigator", { platform: "Win32", userAgent: "Chrome" });
+  const focusPaneDirection = vi.fn(() => true);
+  const deck = mountDeckKeys({ stage: stageKeys({ open: true, focusPaneDirection }) });
+  const target = { tagName: "TEXTAREA", inPanel: true };
+  const options = { ctrlKey: true, shiftKey: true };
+  expect(deck.press("ArrowRight", { target, ...options }).stopPropagation).toHaveBeenCalledOnce();
+  expect(focusPaneDirection).toHaveBeenCalledWith("right");
+  expect(deck.press("ArrowRight", { target }).stopPropagation).not.toHaveBeenCalled();
+  expect(deck.press("ArrowRight", options).stopPropagation).not.toHaveBeenCalled();
+  focusPaneDirection.mockReturnValue(false);
+  expect(deck.press("ArrowLeft", { target, ...options }).stopPropagation).not.toHaveBeenCalled();
 });
