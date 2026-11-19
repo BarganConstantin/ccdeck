@@ -46,7 +46,7 @@ const socket = { name: `ccdeck-test-${process.pid}-${randomBytes(3).toString("he
 // directory that keeps this server out of /tmp/tmux-<uid> altogether.
 const env = {
   ...process.env, TMUX_TMPDIR: SANDBOX,
-  AGENTS_DECK_INTERNAL: "1", CLAUDECODE: "1", CLAUDE_CODE_CHILD_SESSION: "1",
+  NO_COLOR: "1", AGENTS_DECK_INTERNAL: "1", CLAUDECODE: "1", CLAUDE_CODE_CHILD_SESSION: "1",
 } as Record<string, string>;
 const opts = () => ({ tmux: found, socket, env });
 
@@ -136,6 +136,15 @@ describe("a deck session on a real tmux", () => {
   it("lists nothing, and no error, while its server is not running", async () => {
     if (!found.ok) return expectNoTmux();
     expect(await listDeckSessions(opts())).toEqual([]);
+  });
+
+  it("removes NO_COLOR from a Codex pane even when the tmux server inherited it", async () => {
+    if (!found.ok) return expectNoTmux();
+    const s = await launchSession({
+      ...opts(), agent: "codex", cwd: PROJECT, cols: 90, rows: 25,
+      argv: ["sh", "-c", 'printf "color env: [%s][%s]\\n" "${NO_COLOR-unset}" "$COLORTERM"; exec cat'],
+    });
+    expect(await screenWith(s.name, "color env:")).toContain("color env: [unset][truecolor]");
   });
 
   it("starts in the project folder, labelled, without the deck's or a parent agent's variables", async () => {

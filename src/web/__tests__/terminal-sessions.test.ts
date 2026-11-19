@@ -282,10 +282,13 @@ describe("the tmux command that makes a deck session", () => {
     for (const bad of ["", "a b", "a;kill-server", "#{pane_id}", "x".repeat(97), 7, null]) expect(isLaunchKey(bad), String(bad)).toBe(false);
   });
 
-  it("hands a one-word command to /bin/sh's exec, never to the user's shell", () => {
-    const args = launchCommand({ name: "ccdeck-codex-0123abcd", cwd: "/w", cols: 80, rows: 24, argv: ["/x/codex"], sessionId: "", agent: "codex", kind: "launch" });
+  it.each([
+    ["claude", ["/bin/sh", "-c", 'exec "$0"', "/x/claude"]],
+    ["codex", ["env", "-u", "NO_COLOR", "/x/codex"]],
+  ])("executes a one-word %s command without the user's shell", (agent, expected) => {
+    const args = launchCommand({ name: "ccdeck-test", cwd: "/w", cols: 80, rows: 24, argv: [`/x/${agent}`], sessionId: "", agent, kind: "launch" });
     const cmd = args.slice(args.indexOf("--") + 1, args.indexOf(";", args.indexOf("--")));
-    expect(cmd).toEqual(["/bin/sh", "-c", 'exec "$0"', "/x/codex"]);
+    expect(cmd).toEqual(expected);
   });
 });
 
