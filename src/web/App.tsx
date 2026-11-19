@@ -803,6 +803,11 @@ function Inner() {
     active: inWorkspace, detailOpen,
     fold: () => setInspectorFolded(true), hold: holdRight.detail, restore: setDetailStored,
   });
+  const inspectedWorkspaceSession = inWorkspace && inspectorColumn && stage.shell.phase !== "closed"
+    ? targetSession(stage.shell.target) : null;
+  useLayoutEffect(() => {
+    if (inspectedWorkspaceSession) setInspectorFolded(false);
+  }, [inspectedWorkspaceSession]);
   // The stripes are icons while Workspace is up (stripe-words.ts), in the
   // commit that draws it.
   useLayoutEffect(() => { setStripeWorkspace(inWorkspace); }, [inWorkspace]);
@@ -1668,8 +1673,8 @@ function Inner() {
           needed no layout change of its own. */}
       {/* WORKSPACE draws the Inspector as a column whether or not a session is in
           focus (an empty pane means none, and the column says so), down to 1320px,
-          once it is unfolded: each visit starts with it folded
-          (use-workspace-inspector.ts). Under that it is the detail sheet, opened
+          once it is unfolded. Opening a session unfolds the column.
+          Under that it is the detail sheet, opened
           as on the Board. */}
       {inWorkspace && inspectorColumn && !inspectorFolded && !(detailOpen && selected) ? (
         selected ? (
