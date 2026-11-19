@@ -915,8 +915,11 @@ function Inner() {
     runSwitch(how, () => {
       if (next === "workspace") {
         if (!workspaceRef.current) pinBoard(appRef.current, canvasRef.current);
+        // A card clicked on the Board: its pane takes the keys, as the stage's
+        // click did (use-stage.ts onNodeClick). Left on the deck, the first
+        // letters meant for the agent fired the deck's shortcuts instead.
         if (sessionId) {
-          openInPane(sessionId);
+          openInPane(sessionId, { focusPane: true });
           markLanded(sessionId);
         }
       } else {
