@@ -4,8 +4,8 @@
 //
 // NOTHING HAPPENS UNTIL A ROUTE ASKS. Importing this does no I/O. The routes
 // (terminal-routes.mjs) ask only while the panel's switch is on — with it off
-// they are a 404 and never get here — so a deck with the switch off, the
-// default, never looks at the install folder, never builds a client, never
+// they are a 404 and never get here — so a deck with the switch off (it is
+// on by default) never looks at the install folder, never builds a client, never
 // starts anything and never touches the network. On a platform without the
 // panel, a route is answered `unsupported` without looking either.
 //

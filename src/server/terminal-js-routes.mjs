@@ -48,7 +48,7 @@ import {
 import { terminalBridge } from "./terminal-bridge.mjs";
 import { TICKET_TTL_MS } from "./terminal-socket.mjs";
 import { checkTargetQuery, describeTarget, resolveTarget } from "./terminal-target.mjs";
-import { DECK_SOCKET, findTmux, resetTmuxCache } from "./tmux.mjs";
+import { DECK_SOCKET, findTmux, ownTmuxWanted, resetTmuxCache } from "./tmux.mjs";
 import { ensureManagedTmux, recentTmuxFailure, tmuxDownloadBlocked, tmuxDownloadProgress } from "./tmux-download.mjs";
 import { deckDataDir } from "./deck-home.mjs";
 
@@ -132,9 +132,11 @@ export function jsTerminalDeps(routes = {}) {
     home: homedir,
     ttySize: null,
     openControl: null,
-    // ccdeck's own tmux, for a machine with none (tmux-download.mjs).
+    // ccdeck's own tmux, for a machine with none or one older than 3.6
+    // (tmux-download.mjs).
     downloadBlocked: null,
     downloadTmux: null,
+    ownTmuxWanted: null,
     downloadProgress: tmuxDownloadProgress,
     recentDownloadFailure: recentTmuxFailure,
     forgetTmux: resetTmuxCache,
@@ -143,7 +145,8 @@ export function jsTerminalDeps(routes = {}) {
   d.downloadBlocked ??= () => tmuxDownloadBlocked({ env: d.env, platform: d.platform });
   // Into the folder tmuxCandidates looks in, which is decided by the same env.
   d.downloadTmux ??= () => ensureManagedTmux({ env: d.env, platform: d.platform, dataDir: deckDataDir(d.platform, d.env) });
-  d.findTmux ??= () => findTmux({ env: d.env, platform: d.platform });
+  d.ownTmuxWanted ??= (found) => ownTmuxWanted(found, { env: d.env, platform: d.platform });
+  d.findTmux ??= () => findTmux({ env: d.env, platform: d.platform, socket: d.deckSocket });
   d.claudeBin ??= () => resolveAgentBin("claude", { env: d.env, platform: d.platform });
   d.ttySize ??= (tty) => ttySize(tty, d.platform);
   return d;
@@ -334,6 +337,13 @@ export function tmuxStatus(found) {
  * the download has said how far it is; the panel asks again until it is `ok`. A download that failed is answered for RETRY_AFTER_MS as
  * the plain missing or too-old state with `download: <why>`, so the panel can
  * offer the install line instead, and is tried again after that.
+ *
+ * With a tmux 3.2–3.5 and no own build yet (tmux.mjs ownTmuxWanted), the
+ * same download starts behind an answer that says only that tmux works: the
+ * panel keeps that tmux meanwhile and is told nothing of the download — no
+ * "installing", and no failure, since offline the older tmux simply stays.
+ * Once the build lands the remembered answer is forgotten, and findTmux moves
+ * to it unless the deck's server still runs sessions under the older one.
  */
 async function status(req, res, _input, routes) {
   const d = jsTerminalDeps(routes);
@@ -348,6 +358,9 @@ async function status(req, res, _input, routes) {
     void d.downloadTmux().then((r) => { if (r?.ok) d.forgetTmux(); });
     const progress = d.downloadProgress();
     return send(res, 200, { ok: true, platform: d.platform, tmux: { ok: false, reason: "installing", ...(progress ? { progress } : {}) } });
+  }
+  if (found?.ok === true && d.ownTmuxWanted(found) && !d.downloadBlocked() && !d.recentDownloadFailure()) {
+    void d.downloadTmux().then((r) => { if (r?.ok) d.forgetTmux(); });
   }
   maybePrune(d, found);
   return send(res, 200, { ok: true, platform: d.platform, tmux: tmuxStatus(found) });

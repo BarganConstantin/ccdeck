@@ -417,16 +417,84 @@ describe.skipIf(!['darwin', 'linux'].includes(process.platform))("the Command Pa
       expect(await forgets(client)).toEqual([]);
     });
 
-    it("fetches nothing for a tmux that works, or one the engine did not call fixable", async () => {
+    it("fetches nothing for a tmux that works and is 3.6 or newer (or does not say), or one the engine did not call fixable", async () => {
       const client = await useEngine();
-      await answers(client, { "terminal.status": { data: { status: 200, body: { ok: true, platform: "linux", tmux: { ok: true, version: "3.4" } }, fixable: true } } });
-      expect((await tmuxNow()), "fixable beside a tmux that works").toEqual({ ok: true, version: "3.4" });
+      // A tmux 3.2–3.5 the engine calls fixable is fetched behind: the case after this one.
+      for (const tmux of [{ ok: true, version: "3.6" }, { ok: true, version: "3.10" }, { ok: true, version: "4.0" }, { ok: true, warning: "unknown-version" }, { ok: true, version: "3" }]) {
+        await answers(client, { "terminal.status": status(tmux) });
+        expect(await tmuxNow(), `fixable beside ${JSON.stringify(tmux)}`).toEqual(tmux);
+      }
+      await answers(client, { "terminal.status": status({ ok: true, version: "3.4" }, false) });
+      expect(await tmuxNow(), "a tmux 3.4 the engine did not call fixable").toEqual({ ok: true, version: "3.4" });
       await answers(client, { "terminal.status": status(missing, false) });
       expect(await tmuxNow(), "only the engine's fixable starts a download").toEqual(missing);
       await answers(client, { "terminal.status": status({ ok: false, reason: "unsupported-platform" }) });
       expect(await tmuxNow()).toEqual({ ok: false, reason: "unsupported-platform" });
       await delay(20);
       // `quiet` (afterEach): nothing fetched.
+    });
+
+    describe("behind a tmux 3.2–3.5 that works, which the engine calls fixable", () => {
+      const older = { ok: true, version: "3.4" };
+
+      it("fetches it behind the answer, says nothing of it, and tells the engine to look again once it has landed", async () => {
+        const client = await useEngine();
+        const t = ownTmuxFor({ fetch: fetching(ARCHIVE, { held: true }) });
+        own.current = t.own;
+        await answers(client, { "terminal.status": status(older), "terminal.forgetTmux": { data: { forgot: true } } });
+        const first = await ask("GET", "/api/terminal/status");
+        expect([first.status, first.body], "the engine's answer as it is: no installing").toEqual([200, { ok: true, platform: "linux", tmux: older }]);
+        await vi.waitFor(() => expect(t.fetch.waiting()).toBe(1));
+        expect(await tmuxNow(), "the older tmux still, while the bytes are on their way").toEqual(older);
+        expect(t.fetch.asked, "one download for both asks").toEqual([ASSET_URL]);
+        expect(await forgets(client), "nothing has landed yet").toEqual([]);
+        // The engine moves to the build once it has forgotten its answer.
+        await answers(client, { "terminal.status": status({ ok: true, version: "3.8" }, false) });
+        t.fetch.release();
+        await vi.waitFor(async () => expect((await forgets(client)).map(c => c.params)).toEqual([{ body: null }]));
+        await vi.waitFor(() => expect(t.own.out).toBe(false));
+        expect(await tmuxNow()).toEqual({ ok: true, version: "3.8" });
+        expect(existsSync(t.binary), "in the folder the engine looks in").toBe(true);
+        expect((await routeCalls(client)).map(c => c.route)).toEqual(["terminal.status", "terminal.status", "terminal.forgetTmux", "terminal.status"]);
+      });
+
+      it("offline, keeps answering the older tmux with no word of the failure, and does not try again yet", async () => {
+        const client = await useEngine();
+        const t = ownTmuxFor({ fetch: fetching(ARCHIVE, { status: 404 }) });
+        own.current = t.own;
+        await answers(client, { "terminal.status": status(older), "terminal.forgetTmux": { data: { forgot: true } } });
+        expect(await tmuxNow()).toEqual(older);
+        await vi.waitFor(() => expect(t.own.out).toBe(false));
+        for (let i = 0; i < 2; i++) {
+          const got = await ask("GET", "/api/terminal/status");
+          expect([got.status, got.body], "no download, no installing").toEqual([200, { ok: true, platform: "linux", tmux: older }]);
+        }
+        expect(t.fetch.asked, "asked once, not again while the failure is believed").toEqual([ASSET_URL]);
+        expect(existsSync(t.binary)).toBe(false);
+        expect(await forgets(client), "nothing landed, nothing to forget").toEqual([]);
+      });
+
+      it("fetches nothing, and forgets nothing, for a build already in place, where the download is switched off, or where there is no build", async () => {
+        const client = await useEngine();
+        await answers(client, { "terminal.status": status(older), "terminal.forgetTmux": { data: { forgot: true } } });
+        // In place: the engine knows, and keeps the older tmux for its sessions.
+        const there = ownTmuxFor();
+        mkdirSync(join(there.binary, ".."), { recursive: true });
+        writeFileSync(there.binary, "#!/fake/tmux\n");
+        own.current = there.own;
+        expect(await tmuxNow()).toEqual(older);
+        await delay(20);
+        expect(there.fetch.asked).toEqual([]);
+        for (const options of [{ env: { AGENTS_DECK_NO_INSTALL: "1" } }, { env: { AGENTS_DECK_NO_DOWNLOAD: "1" } }, { platform: "win32" }, { arch: "arm64" }]) {
+          const t = ownTmuxFor(options);
+          own.current = t.own;
+          expect(await tmuxNow(), JSON.stringify(options)).toEqual(older);
+          await delay(20);
+          expect(t.fetch.asked, JSON.stringify(options)).toEqual([]);
+        }
+        expect(await forgets(client)).toEqual([]);
+        expect((await routeCalls(client)).map(c => c.route).every(r => r === "terminal.status"), "never asked again on the way").toBe(true);
+      });
     });
 
     it("fetches nothing for a build already in place: the engine is told to forget and asked once more, and what it then says is the answer", async () => {

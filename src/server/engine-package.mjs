@@ -12,7 +12,8 @@
 // no I/O. command-panel-engine.mjs calls importEngine only when a question for
 // the Command Panel arrives while its switch is on, on a platform that has the
 // panel, and only when the deck holds keys to verify with. With the switch off
-// (the default) nothing here is called: the package folder is never looked at.
+// (it is on by default) nothing here is called: the package folder is never
+// looked at.
 //
 // THE PACKAGE IS FOUND BY WALKING UP FROM THE DECK'S OWN FOLDER through each
 // `node_modules`, the way Node finds a dependency, and nowhere else: not on

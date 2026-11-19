@@ -109,8 +109,9 @@ const READ_LOST = new Map([
 
 /** What an engine route answers: `status` and `body` for the page, and maybe
  *  a `handle` where that body's ticket is, a line for the deck's log, and
- *  `fixable` on a status with no tmux the engine can use, which the deck
- *  could fetch its own of (terminal-routes.mjs' withOwnTmux). */
+ *  `fixable` on a status with no tmux the engine can use, or only one older
+ *  than 3.6, which the deck could fetch its own of (terminal-routes.mjs'
+ *  withOwnTmux and fetchBehind). */
 const ANSWER_KEYS = new Set(["status", "body", "handle", "log", "fixable"]);
 const HANDLE = /^[0-9a-f]{64}$/;
 
