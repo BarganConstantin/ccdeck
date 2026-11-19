@@ -60,7 +60,7 @@ const catalog: Catalog = {
   "shell.guide.welcome.title": "ccdeck の歩き方",
   "shell.guide.welcome.waiting.line": "対応を待つセッションは、セッション一覧の「対応待ち」の下で先頭に並びます。",
   "shell.guide.welcome.waiting.tip": "確認待ちを通知で受け取るには：設定 › 通知。",
-  "shell.guide.welcome.terminal.line": "カードをクリックすると、ボードの横にターミナルが開き、そこで回答できます。",
+  "shell.guide.welcome.terminal.line": "カードをクリックすると、ワークスペースでターミナルが開き、そこで回答できます。",
   "shell.guide.welcome.terminal.tip": "別のターミナルアプリで始めたもの？そちらで終了すると「ここで開き直す」が出ます。",
   "shell.guide.welcome.workspace.line": "ワークスペースでは最大4つのセッションを並べられます。Ctrl+` で切り替え。",
   "shell.guide.welcome.workspace.tip": "セッションで Shift+Enter を押すと横に開きます。ペインへのドラッグでも開けます。",

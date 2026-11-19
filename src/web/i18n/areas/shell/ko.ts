@@ -61,7 +61,7 @@ const catalog: Catalog = {
   "shell.guide.welcome.title": "ccdeck 둘러보기",
   "shell.guide.welcome.waiting.line": "사용자를 기다리는 세션은 세션 목록의 확인 필요 아래 맨 위에 옵니다.",
   "shell.guide.welcome.waiting.tip": "질문할 때 알림 받기: 설정 › 알림.",
-  "shell.guide.welcome.terminal.line": "카드를 클릭하면 보드 옆에 터미널이 열리고, 거기서 바로 답할 수 있습니다.",
+  "shell.guide.welcome.terminal.line": "카드를 클릭하면 작업 공간에 터미널이 열리고, 거기서 바로 답할 수 있습니다.",
   "shell.guide.welcome.terminal.tip": "다른 터미널 앱에서 시작했나요? 그곳에서 종료하면 '여기서 다시 열기'가 나타납니다.",
   "shell.guide.welcome.workspace.line": "작업 공간에는 세션을 최대 네 개까지 나란히 띄웁니다. Ctrl+`로 전환합니다.",
   "shell.guide.welcome.workspace.tip": "세션에서 Shift+Enter를 누르면 옆에 열립니다. 창으로 끌어다 놓아도 됩니다.",

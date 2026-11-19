@@ -71,7 +71,9 @@ describe("a step is a picture with one line under it", () => {
     // when they press Done, so it is the step Done is under.
     expect(WELCOME_STEPS.map(s => s.line)).toEqual([
       expect.stringMatching(/waiting/),
-      expect.stringMatching(/Click a card: its terminal opens beside the board/),
+      // CHANGED ON PURPOSE (#2637, 4.0.2): with the terminal on, a card's click
+      // opens its session in Workspace, no longer in a pane beside the board.
+      expect.stringMatching(/Click a card: its terminal opens in Workspace/),
       expect.stringMatching(/^Workspace .*four/),
       expect.stringMatching(/Inspector.*agent.*tool call.*cost/),
       expect.stringMatching(/^Left edge: .*Right: /),
