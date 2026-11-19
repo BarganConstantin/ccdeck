@@ -343,14 +343,14 @@ describe("where Usage and Machine sit in Workspace", () => {
     expect(col).not.toMatch(/position:\s*fixed/);
     expect(decl(rule(workspace, '.app[data-view="workspace"]:has(.left-column) .ws-side[data-on]'), "grid-column")).toBe("3");
     expect(decl(rule(workspace, '.app[data-view="workspace"]:has(.banner-mark, .rating-banner) .ws-side[data-on]'), "grid-row")).toBe("3 / -1");
-    // The column is a track: the pane's cell gives it its width, and the
-    // Inspector stays the last track, after it.
+    // The side column owns the last track. The Inspector sits beside the pane.
     expect(decl(rule(workspace, 'body .app[data-view="workspace"][data-side]:not([data-zoom])'), "grid-template-columns")).toBe("minmax(0, 1fr) auto");
     expect(decl(rule(workspace, 'body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column)'), "grid-template-columns")).toBe("auto minmax(0, 1fr) auto");
     const wide = workspace.slice(workspace.indexOf("@media (min-width: 1320px)"));
-    expect(decl(rule(wide, 'body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.detail)'), "grid-template-columns")).toBe("minmax(0, 1fr) auto var(--inspector-w)");
-    expect(decl(rule(wide, 'body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column):has(.detail)'), "grid-template-columns")).toBe("auto minmax(0, 1fr) auto var(--inspector-w)");
-    expect(decl(rule(wide, '.app[data-view="workspace"][data-side]:not([data-zoom]) .detail'), "grid-column")).toBe("-2 / -1");
+    expect(decl(rule(wide, 'body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.detail)'), "grid-template-columns")).toBe("minmax(0, 1fr) var(--inspector-w) auto");
+    expect(decl(rule(wide, 'body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column):has(.detail)'), "grid-template-columns")).toBe("auto minmax(0, 1fr) var(--inspector-w) auto");
+    expect(decl(rule(wide, '.app[data-view="workspace"][data-side]:not([data-zoom]) .detail'), "grid-column")).toBe("-3 / -2");
+    expect(decl(rule(wide, '.app[data-view="workspace"][data-side]:not([data-zoom]):has(.detail) .ws-side[data-on]'), "grid-column")).toBe("-2 / -1");
     // Under 1100 the list is a sheet, so the column is the second track.
     const narrow = workspace.slice(workspace.indexOf("@media (max-width: 1099px)"));
     expect(narrow).toContain('body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column) { grid-template-columns: minmax(0, 1fr) auto; }');

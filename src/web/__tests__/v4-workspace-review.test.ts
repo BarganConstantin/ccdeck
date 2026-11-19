@@ -188,7 +188,7 @@ describe("✕ on a pane lands the focus on the empty pane's action (review C)", 
   });
 });
 
-describe("Usage and Machine over the Inspector (review 11)", () => {
+describe("Usage and Machine alongside the Inspector", () => {
   const css = strip(read("styles/workspace.css"));
   const machine = strip(read("styles/machine-panel.css"));
 
@@ -205,14 +205,11 @@ describe("Usage and Machine over the Inspector (review 11)", () => {
     throw new Error(`unclosed ${head}`);
   }
 
-  it("puts their right edge where the Board has no Inspector under them, from 1320 up, in Workspace only", () => {
+  it("puts the dock right of the Inspector from 1320 up in Workspace", () => {
     const wide = block(css, "@media (min-width: 1320px)");
-    // CHANGED ON PURPOSE (owner, 2026-11-08): nothing is over the Inspector any
-    // more. The two dock in a side column, a grid track left of the
-    // Inspector's, which stays the last track; no right edge is written.
     const flat = wide.replace(/\s+/g, " ");
-    expect(flat).toContain('body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.detail) { grid-template-columns: minmax(0, 1fr) auto var(--inspector-w); }');
-    expect(flat).toContain('.app[data-view="workspace"][data-side]:not([data-zoom]) .detail { grid-column: -2 / -1; }');
+    expect(flat).toContain('body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.detail) { grid-template-columns: minmax(0, 1fr) var(--inspector-w) auto; }');
+    expect(flat).toContain('.app[data-view="workspace"][data-side]:not([data-zoom]) .detail { grid-column: -3 / -2; }');
     expect(flat).not.toMatch(/:is\(\.usage-panel, \.sysdetail\)/);
   });
 

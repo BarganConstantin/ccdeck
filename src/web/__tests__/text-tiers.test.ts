@@ -303,6 +303,7 @@ describe("what was migrated to the secondary tier", () => {
       // CHANGED ON PURPOSE (V4 Inspector, V4's Figma): the Context body's section
       // captions, "Cumulative usage · whole session" and the two after it: titles a
       // reader reads to know which numbers follow, no longer 11px uppercase --muted.
+      ".ctx-files-toggle",
       ".ctx-section-title",
       ".detail-recap",
       // The trash zone's hint while a card is over it, "The session list (L)

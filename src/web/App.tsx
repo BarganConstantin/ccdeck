@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ReactFlowProvider, useReactFlow } from "reactflow";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
 // for why `{open && <Panel/>}` cannot do that on its own.
@@ -803,6 +803,11 @@ function Inner() {
     active: inWorkspace, detailOpen,
     fold: () => setInspectorFolded(true), hold: holdRight.detail, restore: setDetailStored,
   });
+  const inspectedWorkspaceSession = inWorkspace && inspectorColumn && stage.shell.phase !== "closed"
+    ? targetSession(stage.shell.target) : null;
+  useLayoutEffect(() => {
+    if (inspectedWorkspaceSession) setInspectorFolded(false);
+  }, [inspectedWorkspaceSession]);
   // The stripes are icons while Workspace is up (stripe-words.ts), in the
   // commit that draws it.
   useLayoutEffect(() => { setStripeWorkspace(inWorkspace); }, [inWorkspace]);
@@ -1392,7 +1397,8 @@ function Inner() {
     // data-view exists only in Workspace, so with the Command Panel off the
     // root is the root it was; data-zoom folds the list and the Inspector
     // (workspace.css); the switch between the views is view-switch.ts.
-    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase} data-side={side.on ? "" : undefined} data-right-col={rightCol ? "" : undefined}>
+    <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase} data-side={side.on ? "" : undefined} data-right-col={rightCol ? "" : undefined}
+      style={side.on ? { "--workspace-side-w": `${side.width}px` } as CSSProperties : undefined}>
       {/* Whether the deck has a session yet, for every part drawn below that
           stays out until it does (board-empty.ts). No element: the grid's
           children are the ones they were. */}
@@ -1513,6 +1519,7 @@ function Inner() {
           {!phone && accountsNodes}
           {sessionListDrawn && (
             <SessionList
+              historyReady={historyReplayed}
               leaving={isLeaving(listOnScreen, sessionListPhase)}
               state={stateRef.current}
               now={now}
@@ -1667,8 +1674,8 @@ function Inner() {
           needed no layout change of its own. */}
       {/* WORKSPACE draws the Inspector as a column whether or not a session is in
           focus (an empty pane means none, and the column says so), down to 1320px,
-          once it is unfolded: each visit starts with it folded
-          (use-workspace-inspector.ts). Under that it is the detail sheet, opened
+          once it is unfolded. Opening a session unfolds the column.
+          Under that it is the detail sheet, opened
           as on the Board. */}
       {inWorkspace && inspectorColumn && !inspectorFolded && !(detailOpen && selected) ? (
         selected ? (
