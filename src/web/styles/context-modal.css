@@ -1036,7 +1036,9 @@
   font-weight: 600;
   line-height: 1.45;
 }
-.ctx-files-toggle:hover { color: var(--text); }
+@media (hover: hover) {
+  .ctx-files-toggle:hover { color: var(--text); }
+}
 .ctx-files-toggle::marker { color: var(--muted); }
 .ctx-files-toggle > span:first-child { margin-inline-start: 3px; }
 .ctx-files-count {
