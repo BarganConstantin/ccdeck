@@ -61,7 +61,7 @@ const catalog: Catalog = {
   "shell.guide.welcome.title": "Vos repères dans ccdeck",
   "shell.guide.welcome.waiting.line": "Les sessions qui vous attendent ouvrent la liste des sessions, sous Vous attend.",
   "shell.guide.welcome.waiting.tip": "Être averti quand l’une demande : Paramètres › Notifications.",
-  "shell.guide.welcome.terminal.line": "Cliquez sur une carte : son terminal s’ouvre à côté du tableau, vous y répondez.",
+  "shell.guide.welcome.terminal.line": "Cliquez sur une carte : son terminal s’ouvre dans Workspace, vous y répondez.",
   "shell.guide.welcome.terminal.tip": "Lancée dans une autre app de terminal ? Quittez-la là-bas, et ccdeck propose Rouvrir ici.",
   "shell.guide.welcome.workspace.line": "Workspace affiche jusqu’à quatre sessions côte à côte. Ctrl+` y bascule.",
   "shell.guide.welcome.workspace.tip": "Shift+Enter sur une session l’ouvre à côté, ou glissez-la sur un volet.",

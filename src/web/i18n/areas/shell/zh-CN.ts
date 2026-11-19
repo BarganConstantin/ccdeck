@@ -60,7 +60,7 @@ const catalog: Catalog = {
   "shell.guide.welcome.title": "ccdeck 使用指引",
   "shell.guide.welcome.waiting.line": "等待您处理的会话排在会话列表最前，位于“需要您”下。",
   "shell.guide.welcome.waiting.tip": "想在会话提问时收到通知：设置 › 通知。",
-  "shell.guide.welcome.terminal.line": "点击卡片，它的终端会在看板旁打开，您可以直接在那里回答。",
+  "shell.guide.welcome.terminal.line": "点击卡片，它的终端会在工作区中打开，您可以直接在那里回答。",
   "shell.guide.welcome.terminal.tip": "在其他终端应用中启动的？在那里退出后，ccdeck 会提供“在此重新打开”。",
   "shell.guide.welcome.workspace.line": "工作区可并排显示最多四个会话。按 Ctrl+` 切换过去。",
   "shell.guide.welcome.workspace.tip": "在会话上按 Shift+Enter 会在旁边打开，也可以把它拖到窗格上。",

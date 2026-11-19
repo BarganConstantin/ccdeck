@@ -61,7 +61,7 @@ const catalog: Catalog = {
   "shell.guide.welcome.title": "Your way around the deck",
   "shell.guide.welcome.waiting.line": "Sessions waiting on you lead the session list, under Needs you.",
   "shell.guide.welcome.waiting.tip": "Get notified when one asks: Settings › Notifications.",
-  "shell.guide.welcome.terminal.line": "Click a card: its terminal opens beside the board, so you can answer there.",
+  "shell.guide.welcome.terminal.line": "Click a card: its terminal opens in Workspace, so you can answer there.",
   "shell.guide.welcome.terminal.tip": "Started in another terminal app? Quit it there, and ccdeck offers Reopen here.",
   "shell.guide.welcome.workspace.line": "Workspace puts up to four sessions side by side. Ctrl+` switches to it.",
   "shell.guide.welcome.workspace.tip": "Shift+Enter on a session opens it beside, or drag it onto a pane.",

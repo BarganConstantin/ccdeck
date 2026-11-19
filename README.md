@@ -59,11 +59,11 @@ The deck opens on these seven pictures the first time it runs — they are the w
 <table>
 <tr>
 <td><img src="assets/guide/welcome-1.svg" width="440" alt="Sessions waiting on you lead the session list, under Needs you."></td>
-<td><img src="assets/guide/welcome-2.svg" width="440" alt="Click a card: its terminal opens beside the board, so you can answer there."></td>
+<td><img src="assets/guide/welcome-2.svg" width="440" alt="Click a card: its terminal opens in Workspace, so you can answer there."></td>
 </tr>
 <tr>
 <td align="center"><sub>Sessions waiting on you lead the session list, under Needs you.</sub></td>
-<td align="center"><sub>Click a card: its terminal opens beside the board, so you can answer there.</sub></td>
+<td align="center"><sub>Click a card: its terminal opens in Workspace, so you can answer there.</sub></td>
 </tr>
 <tr>
 <td><img src="assets/guide/welcome-3.svg" width="440" alt="Workspace puts up to four sessions side by side. Ctrl+` switches to it."></td>
@@ -92,7 +92,7 @@ The deck opens on these seven pictures the first time it runs — they are the w
 | | |
 |---|---|
 | **Blocked on you** | A permission prompt, or a finished turn waiting for your next instruction, sorts that session to the top of the Sessions list with how long it has been stuck — longest wait first, so the oldest block is the first row. A permission prompt also puts a count in the topbar that jumps straight to it, and the session's name beside it, with how long it has waited and on what — one click from its card. Claude Code only — the deck reads Codex from its rollout log, and a rollout carries no such signal. |
-| **Its terminal, in the deck** | Click a session's card and its terminal opens in a pane beside the board: type to Claude Code or Codex there, resume a session that ended, or start a new one in any folder. **Workspace** puts up to four side by side. See [Terminal](#terminal) and [Workspace](#workspace). |
+| **Its terminal, in the deck** | Click a session's card and its terminal opens in Workspace: type to Claude Code or Codex there, resume a session that ended, or start a new one in any folder. **Workspace** puts up to four side by side. See [Terminal](#terminal) and [Workspace](#workspace). |
 | **What each session is doing** | The note tied to each session's card — and the line under its row in the Sessions list — says it while it works: the sentence the newest reply wrote, or the description on the command it ran. Once the turn is over it keeps the last thing the session did, until Claude Code's recap takes its place. A background session (`claude --bg`, or one started from `claude agents`) shows Claude Code's own line instead, read from its job folder in `~/.claude/jobs`: the question it is stuck on and the reply Claude Code suggests, or the headline of what it got done. No model is called for any of it. A Codex session, read from its rollout log, has the note only while a turn runs, and it says the first line of the prompt that began the turn: no line is taken from a Codex reply, and no recap follows. |
 | **Live DAG** | Nodes are agents and edges are spawns; each agent's latest tool calls sit beside its node and light up while they run. In-flight edges animate, settled ones dim. |
 | **Both providers, one canvas** | Claude Code through hooks, Codex through its rollout log. The card names a Codex session, and the Inspector shows each session's model (`Opus 5`, `GPT-5.5`). Codex child sessions are connected when their rollout records an explicit parent. Each thread keeps its own tool calls and token totals. |
@@ -112,7 +112,7 @@ Step by step: [See which Claude Code session is waiting for input](https://ccdec
 
 ## Terminal
 
-Your sessions' terminals are inside the deck, for Claude Code and Codex alike, on Linux, macOS and Windows. Click a session's card on the board, or **Open** under its title in the Inspector, and its terminal opens in a pane beside the board, with the keys in it: type to the agent as you would in any terminal. **✕** closes the pane, and the session keeps running.
+Your sessions' terminals are inside the deck, for Claude Code and Codex alike, on Linux, macOS and Windows. Click a session's card on the board and its terminal opens in Workspace, or press **Open** under its title in the Inspector to open it in a pane beside the board, with the keys in it either way: type to the agent as you would in any terminal. **✕** closes the pane, and the session keeps running.
 
 What the pane does depends on where the session runs:
 
@@ -134,7 +134,7 @@ Ending an agent yourself (`/exit` or `Ctrl+D`) closes its pane, and the session 
 
 | Key | Does |
 |---|---|
-| click a card | open its session's terminal pane, with the keys in it |
+| click a card | open its session's terminal pane in Workspace, with the keys in it |
 | `J` `K`, then `Enter` | with a pane open: step through the sessions beside it, then type into one |
 | `N` | with a pane open: the next session waiting on you |
 | `Ctrl+Shift+X` (`⌃⇧X` on a Mac) | give the keys back to the board |
