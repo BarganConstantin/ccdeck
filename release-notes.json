@@ -17,6 +17,10 @@
       "body": "Where the system's tmux is 3.2 to 3.5, as on Ubuntu 24.04, the deck now runs its own newer tmux, so a pane that reconnects no longer shows a line shifted by one character; sessions already running keep their tmux until they end."
     },
     {
+      "title": "🎨 Codex keeps its colours in terminal panes",
+      "body": "A Codex session started from the deck now shows its prompt and status line in colour, even where the deck itself runs with NO_COLOR set."
+    },
+    {
       "title": "📡 Browser Watch's radar keeps turning",
       "body": "The radar no longer stops with an error when its dialog has no room for it, and draws again as soon as there is space."
     }
