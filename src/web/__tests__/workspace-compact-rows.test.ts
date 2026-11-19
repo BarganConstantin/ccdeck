@@ -60,6 +60,19 @@ beforeEach(() => {
 });
 
 describe("compact session rows", () => {
+  it("holds replayed rows until the initial history is complete", () => {
+    const state = initialState();
+    addSession(state, "replayed", "History row", TASK, "claude", "/repo/web-api");
+    const draw = (historyReady: boolean) => renderToStaticMarkup(createElement(SessionList, {
+      state, now: NOW, historyReady, selectedIds: new Set<string>(), onSelect: noop, onClose: noop,
+    }));
+    const loading = draw(false);
+    expect(loading).toContain('aria-busy="true"');
+    expect(loading).not.toContain('data-session="replayed"');
+    expect(loading).not.toContain('class="sl-empty');
+    expect(rowButton(draw(true), "replayed")).toContain("History row");
+  });
+
   it("uses group headings instead of technical suffixes until look-alikes share a group", () => {
     const rows = [row({ sessionId: "same-aude" }), row({ sessionId: "same-ting" })];
     const groups = new Map([["same-aude", 2 as const], ["same-ting", 0 as const]]);

@@ -256,6 +256,7 @@ function focusIsVisible(el: Element | null): boolean {
 interface Props {
   state: GraphState;
   now: number;
+  historyReady?: boolean;
   selectedIds: Set<string>;
   onSelect: (sessionId: string) => void;
   onClose: () => void;
@@ -305,7 +306,7 @@ interface Props {
 interface Ghost { row: Row; group: RailGroup; after: string | null; until: number }
 interface Entry { id: string; row: Row; ghost: boolean }
 
-export default function SessionList({ state, now, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, openPanes, onOpenKeys, onOpenBeside, onNewSession, offline = null, emptyNotice = null, edge = null }: Props) {
+export default function SessionList({ state, now, historyReady = true, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, openPanes, onOpenKeys, onOpenBeside, onNewSession, offline = null, emptyNotice = null, edge = null }: Props) {
   const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
@@ -323,7 +324,9 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
   // session looked at moves out of Done · new.
   const seenVersion = useSessionsSeenVersion();
   const watchKey = watching ? [...watching].sort().join("\n") : "";
-  const rows = useMemo(() => buildRows(state, now, watching), [state, state.revision, now, seenVersion, watchKey]);
+  // The replay fills the store in batches. Publish its rows in a single render.
+  const rows = useMemo(() => historyReady ? buildRows(state, now, watching) : [],
+    [historyReady, state, state.revision, now, seenVersion, watchKey]);
   const byId = new Map(rows.map(r => [r.sessionId, r]));
   // New finished turns keep their priority in buildRows, but share Done's
   // header, count and fold with seen turns. Looking at one clears its row
@@ -418,7 +421,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
 
   const list = useRef<HTMLUListElement>(null);
   useRailFlip(list, layout.map(s => `${s.group}:${s.id}`).join("|"), aimed);
-  useRailMembership(list, layout.map(s => s.id));
+  useRailMembership(list, layout.map(s => s.id), historyReady);
 
   // LAND. A jump that arrives while the rail is open scrolls the row into view
   // at once and lights it for a moment; a jump to a row behind a fold opens the
@@ -478,7 +481,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
   // No summary line over the groups any more (V4 top-10 #5): "Nobody's
   // waiting · 5 working" said what the group headings under it and the top
   // bar's counts already say. An empty Needs you is simply not drawn.
-  if (rows.length === 0) {
+  if (historyReady && rows.length === 0) {
     nodes.push(emptyNotice
       ? <li key="empty" className="sl-empty sl-empty-notice">{emptyNotice}</li>
       : <li key="empty" className="sl-empty">{t("board.list.empty")}</li>);
@@ -531,7 +534,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
             (#381). This <aside> was already the shape the other two panels
             were given there; only its heading moved. The groups say what the
             waiting and live chips used to. */}
-        <h2>{t("board.list.title")} <span className="sl-count">{rows.length}</span></h2>
+        <h2>{t("board.list.title")} {historyReady && <span className="sl-count">{rows.length}</span>}</h2>
         <div className="sl-header-end">
           {/* New session, V4's Plus: the launch the Command Panel's navigator
               already has (its popover hangs off this button's id). Drawn only
@@ -547,7 +550,7 @@ export default function SessionList({ state, now, selectedIds, onSelect, onClose
         </div>
       </div>
       {offline}
-      <ul className="sl-rows" ref={list}>
+      <ul className="sl-rows" ref={list} aria-busy={!historyReady || undefined}>
         {nodes}
       </ul>
       {(() => {

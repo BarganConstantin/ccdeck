@@ -1513,6 +1513,7 @@ function Inner() {
           {!phone && accountsNodes}
           {sessionListDrawn && (
             <SessionList
+              historyReady={historyReplayed}
               leaving={isLeaving(listOnScreen, sessionListPhase)}
               state={stateRef.current}
               now={now}
