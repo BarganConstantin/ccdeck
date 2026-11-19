@@ -118,10 +118,10 @@
 body .app[data-view="workspace"][data-side]:not([data-zoom]) { grid-template-columns: minmax(0, 1fr) auto; }
 body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column) { grid-template-columns: auto minmax(0, 1fr) auto; }
 @media (min-width: 1320px) {
-  body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.detail) { grid-template-columns: minmax(0, 1fr) auto var(--inspector-w); }
-  body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column):has(.detail) { grid-template-columns: auto minmax(0, 1fr) auto var(--inspector-w); }
-  /* The Inspector stays the last track, after the column. */
-  .app[data-view="workspace"][data-side]:not([data-zoom]) .detail { grid-column: -2 / -1; }
+  body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.detail) { grid-template-columns: minmax(0, 1fr) var(--inspector-w) auto; }
+  body .app[data-view="workspace"][data-side]:not([data-zoom]):has(.left-column):has(.detail) { grid-template-columns: auto minmax(0, 1fr) var(--inspector-w) auto; }
+  .app[data-view="workspace"][data-side]:not([data-zoom]) .detail { grid-column: -3 / -2; }
+  .app[data-view="workspace"][data-side]:not([data-zoom]):has(.detail) .ws-side[data-on] { grid-column: -2 / -1; }
 }
 
 /* A PART OF THE COLUMN: the panel's own box (fixed, a border, a shadow, its
@@ -480,7 +480,7 @@ body .app[data-view="workspace"][data-zoom]:has(.left-column) { grid-template-co
 :root[data-motion="instant"] .app[data-view="workspace"][data-zoom] :is(.left-column, .detail, .usage-panel, .sysdetail) { transition: none; }
 
 /* The side column goes with them. Zoomed, it is an overlay at the place the
-   grid gave it, left of the Inspector's when that is a column too; its parts
+   grid gave it, at the right edge; its parts
    slide by the rules above and the column under them fades on the same
    timing. No transform on the column itself, so a part popped out of it is
    still placed against the window. */
@@ -495,7 +495,7 @@ body .app[data-view="workspace"][data-zoom]:has(.left-column) { grid-template-co
     visibility 0s var(--ease) var(--dur-stage-out);
 }
 @media (min-width: 1320px) {
-  .app[data-view="workspace"][data-zoom]:has(.detail) .ws-side[data-on] { right: calc(var(--edge-w) + var(--inspector-w)); }
+  .app[data-view="workspace"][data-zoom][data-side] .detail { right: calc(var(--edge-w) + var(--workspace-side-w)); }
 }
 .app[data-view="workspace"][data-zoom="unfold"] .ws-side[data-on] {
   transition:
