@@ -72,6 +72,7 @@ describe('existing Codex session account engine', () => {
       if (method !== 'model/list') return request(method, params);
       f.calls.push({ method, params });
       expect(f.actual().email).toBe('second@example.test');
+      expect(params.modelProvider).toBe('openai');
       return params.cursor ? { data: [{ model: available ? 'existing-model' : 'another-model' }] }
         : { data: [{ model: 'default-model' }], nextCursor: 'second-page' };
     });

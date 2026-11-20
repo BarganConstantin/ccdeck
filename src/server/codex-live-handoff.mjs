@@ -264,7 +264,7 @@ export async function codexHandoffModelsAvailable(rpc, entries) {
   let cursor;
   const seen = new Set();
   do {
-    const page = await rpc.request('model/list', { limit: 100, includeHidden: true, ...(cursor ? { cursor } : {}) });
+    const page = await rpc.request('model/list', { modelProvider: 'openai', limit: 100, includeHidden: true, ...(cursor ? { cursor } : {}) });
     if (!Array.isArray(page?.data) || page.data.some(item => typeof item?.model !== 'string')) {
       throw liveError('native_model_catalog_unverified');
     }
