@@ -2,6 +2,7 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import { engineClaudeHint } from './claude-dir.mjs';
 import { ENGINE_PROTOCOL, ENGINE_MAX_FRAME, verifyEngineInstallation } from './pro-engine-install.mjs';
 
 const fail = (code, message = 'The terminal engine is unavailable.') => Object.assign(new Error(message), { code });
@@ -30,11 +31,14 @@ export const TERMINAL_OPT_IN = 'CCDECK_ENGINE_TERMINAL';
  * The engine's environment: `env` without TERMINAL_OPT_IN, in any case, so a
  * value the deck inherited from its shell never reaches an engine; then set to
  * exactly "1" for an engine started for the Command Panel (`terminal`), and
- * for no other.
+ * for no other. `claude` is the deck's own `claude` where the engine's search
+ * would not find it (claude-dir.mjs engineClaudeHint), given as
+ * AGENTS_DECK_CLAUDE only while `env` has no value of its own for it.
  */
-export function engineEnv(env, terminal) {
+export function engineEnv(env, terminal, claude = null) {
   const out = {};
   for (const [key, value] of Object.entries(env)) if (key.toUpperCase() !== TERMINAL_OPT_IN) out[key] = value;
+  if (typeof claude === 'string' && claude && !String(out.AGENTS_DECK_CLAUDE ?? '').trim()) out.AGENTS_DECK_CLAUDE = claude;
   if (terminal === true) out[TERMINAL_OPT_IN] = '1';
   return out;
 }
@@ -95,7 +99,7 @@ export class ProEngineClient extends EventEmitter {
   async #launch() {
     const installation = await awaitStartup(this.#verify(this.options), undefined, 5000);
     if (this.#closed) throw fail('closed');
-    const child = spawn(installation.executable, [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, shell: false, env: engineEnv(process.env, this.options.terminal) });
+    const child = spawn(installation.executable, [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, shell: false, env: engineEnv(process.env, this.options.terminal, engineClaudeHint()) });
     this.#child = child; this.#installation = installation; this.#nonce = randomBytes(32).toString('hex');
     const generation = ++this.#generation;
     // Stream ids start again at 1 for every engine instance.
