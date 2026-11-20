@@ -568,6 +568,7 @@ const catalog: Catalog = {
   "board.stage.reopenHere": "ここで開き直す",
   "board.stage.checking": "確認中…",
   "board.stage.tryAgain": "再試行",
+  "board.stage.claudeMissing": "このマシンには Claude Code がインストールされていません。",
   "board.stage.tmuxSettingUp": "tmux · 準備中",
   "board.stage.tmuxFetching": "このマシンにはコマンドパネルで使える tmux がないため、ccdeck が専用のものを取得しています。約1MBで、1回だけです。ccdeck のフォルダー内に置かれ、システムには何もインストールされません。",
   "board.stage.tmuxFetchingLabel": "tmux を取得中",

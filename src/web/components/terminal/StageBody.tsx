@@ -31,9 +31,10 @@ import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } f
 import { copyText } from "../../copy-text";
 import { CAUGHT_KEYS_ATTR } from "../../shortcuts";
 import type { TmuxProgress } from "../../terminal-api";
-import { LAUNCHED_UNREACHABLE_MSG, PROVENANCE_UNKNOWN_MSG, agentName, elsewhereLine, errorWords, frameRun, launchedUnreachable, provenanceUnknown, type FrameRun, type StagePhase, type StageState } from "./stage-model";
+import { CLAUDE_MISSING_MSG, LAUNCHED_UNREACHABLE_MSG, PROVENANCE_UNKNOWN_MSG, agentName, elsewhereLine, errorWords, frameRun, launchedUnreachable, provenanceUnknown, type FrameRun, type StagePhase, type StageState } from "./stage-model";
 import { CopyGlyph, StageGlyph } from "./stage-icons";
 import EngineCard, { engineCardCode } from "./EngineCard";
+import ClaudeInstall from "../ClaudeInstall";
 import type { WaitingCard } from "./stage-board";
 import { Kbd } from "../Kbd";
 import { richText } from "../settings-rich";
@@ -333,17 +334,20 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
       // nothing to check, and offers only Not now.
       const again = phase.code !== "unsupported";
       const check = !!phase.code;
+      const acts = (
+        <div className="ts-acts">
+          {again && (
+            <button type="button" className="btn" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onRetry}>
+              {check ? (phase.busy ? t("board.stage.checking") : t("board.stage.checkAgain")) : t("board.stage.tryAgain")}
+            </button>
+          )}
+          <button type="button" className="btn" data-stage-land={again ? undefined : true} onClick={p.onNotNow}>{t("common.notNow")}</button>
+        </div>
+      );
       const plain = (
         <div className="ts-card">
           <p className="ts-text">{errorWords(phase.message)}</p>
-          <div className="ts-acts">
-            {again && (
-              <button type="button" className="btn" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onRetry}>
-                {check ? (phase.busy ? t("board.stage.checking") : t("board.stage.checkAgain")) : t("board.stage.tryAgain")}
-              </button>
-            )}
-            <button type="button" className="btn" data-stage-land={again ? undefined : true} onClick={p.onNotNow}>{t("common.notNow")}</button>
-          </div>
+          {acts}
         </div>
       );
       // No engine here, one that did not verify, one that did not start, or
@@ -353,6 +357,36 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
       if (engineCardCode(phase.code)) {
         return (
           <EngineCard code={phase.code ?? ""} message={errorWords(phase.message)} busy={phase.busy} onRetry={p.onRetry} onNotNow={p.onNotNow} plain={plain} />
+        );
+      }
+      // Claude Code is not installed: said in the deck's own words, with
+      // Install Claude Code, Try again for one installed by hand, Not now,
+      // and the command to run by hand. Once an install this card started is
+      // done, the sentence goes and the session is asked for again, once;
+      // while one runs, only Not now. Where the deck cannot say anything of
+      // the install, Try again and Not now as before, under the same
+      // sentence. The keys land on the first of Install, Try again, Not now
+      // that is offered.
+      if (phase.missing === "claude") {
+        return (
+          <div className="ts-card" data-missing="claude">
+            <ClaudeInstall
+              place="stage"
+              lead={<p className="ts-text">{t(CLAUDE_MISSING_MSG)}</p>}
+              onInstalled={p.onRetry}
+              actions={state => (
+                <>
+                  {state !== "running" && state !== "done" && (
+                    <button type="button" className="btn" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onRetry}>
+                      {t("board.stage.tryAgain")}
+                    </button>
+                  )}
+                  <button type="button" className="btn" data-stage-land onClick={p.onNotNow}>{t("common.notNow")}</button>
+                </>
+              )}
+              fallback={acts}
+            />
+          </div>
         );
       }
       return plain;

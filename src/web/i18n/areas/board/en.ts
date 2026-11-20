@@ -568,6 +568,7 @@ const catalog: Catalog = {
   "board.stage.reopenHere": "Reopen here",
   "board.stage.checking": "Checking…",
   "board.stage.tryAgain": "Try again",
+  "board.stage.claudeMissing": "Claude Code is not installed on this machine.",
   "board.stage.tmuxSettingUp": "tmux · setting up",
   "board.stage.tmuxFetching": "This machine has no tmux the Command Panel can use, so the deck is fetching its own: about a megabyte, once. It stays in the deck's folder; nothing is installed on the system.",
   "board.stage.tmuxFetchingLabel": "Fetching tmux",

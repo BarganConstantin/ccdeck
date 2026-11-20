@@ -163,6 +163,7 @@ describe("mutations require the deck's own authority", () => {
     { path: "/api/upgrade", body: "", cleared: 409 },                                      // declines to install
     { path: "/api/restart", body: "", cleared: 501 },                                      // unsupervised
     { path: "/api/clear", body: "", cleared: 200 },                                        // genuinely runs
+    { path: "/api/claude-install", body: "", cleared: 409 },                               // declines to download
   ];
 
   it("refuses a caller that presents nothing at all", async () => {
@@ -269,7 +270,7 @@ describe("mutations require the deck's own authority", () => {
     expect(await post("/api/clear", { headers: { Host: here, "Sec-Fetch-Site": "same-origin" } })).toBe(401);
   });
 
-  // EVERY ROUTE, NOT A LIST OF THEM. PROTECTED above is six of the POST routes,
+  // EVERY ROUTE, NOT A LIST OF THEM. PROTECTED above is seven of the POST routes,
   // chosen for what their handlers answer, and nothing POSTed /api/prefs,
   // /api/presence, the three LAN routes or either browser-watch route without
   // a credential. The gate denies by default, so a route added tomorrow is

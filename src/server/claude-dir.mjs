@@ -42,11 +42,25 @@ export function claudeConfigDir(env = process.env, home = homedir(), platform = 
 /**
  * Every place the `claude` CLI is known to live, in the order to try them.
  *
- * Pure, and the platform, environment and home directory are parameters, so the
- * Windows list can be checked from a Mac — which is the only way this list stays
- * right, since it exists entirely for machines the author is not sitting at.
+ * Pure, and the platform, environment, home directory and node's own path are
+ * parameters, so the Windows list can be checked from a Mac — which is the only
+ * way this list stays right, since it exists entirely for machines the author
+ * is not sitting at. A place on the list where nothing is installed is a stat
+ * that answers no, and every reader moves on to the next.
  */
-export function claudeCliCandidates(platform = process.platform, env = process.env, home = homedir()) {
+export function claudeCliCandidates(platform = process.platform, env = process.env, home = homedir(), execPath = process.execPath) {
+  // Distinct, first place kept: the folder beside node can be one of the
+  // places above it (/usr/local/bin), and a second stat of it finds nothing new.
+  return [...new Set([
+    ...firstClaudeCandidates(platform, env, home),
+    ...moreClaudeCandidates(platform, env, home, execPath),
+  ])];
+}
+
+/** The list as it stood before the places moreClaudeCandidates adds: PATH and
+ *  the installers' own folders, which are also where the terminal engine
+ *  looks for `claude` by itself (engineClaudeHint). */
+function firstClaudeCandidates(platform, env, home) {
   // The path flavour follows the PLATFORM ARGUMENT, not the host: node's `join`
   // would emit forward slashes when the Windows list is built on a Mac.
   const { join } = platform === "win32" ? winPath : posixPath;
@@ -74,6 +88,79 @@ export function claudeCliCandidates(platform = process.platform, env = process.e
     // and so finds claude.exe and claude.cmd alike.
     "claude",
   ];
+}
+
+/**
+ * Where else a `claude` is found on machines whose deck reached none of the
+ * places above: a desktop app or a service starts the deck with a PATH that
+ * never read the shell's startup files, and these installs are put on PATH
+ * only there. Tried after the list above, never before it, so a machine whose
+ * `claude` is found today keeps running the same one.
+ *
+ *   POSIX    ~/.claude/local/claude, Claude Code's older local install, which
+ *            its installer reached through a shell alias rather than PATH;
+ *            the `claude` beside the node running the deck, which is npm's
+ *            global bin for nvm-style installs; npm's ~/.npm-global prefix;
+ *            Homebrew on Linux.
+ *   Windows  WinGet's Links folder, Scoop's shims, and the `claude.cmd` npm
+ *            puts beside node.exe when its prefix is node's own folder.
+ *
+ * `execPath` is the node binary's path, a parameter for the same reason the
+ * others are: the answer for a machine the suite is not running on.
+ */
+function moreClaudeCandidates(platform, env, home, execPath) {
+  const { join, dirname } = platform === "win32" ? winPath : posixPath;
+  const besideNode = typeof execPath === "string" && execPath ? dirname(execPath) : "";
+  if (platform !== "win32") {
+    return [
+      join(home, ".claude", "local", "claude"),
+      ...(besideNode ? [join(besideNode, "claude")] : []),
+      join(home, ".npm-global", "bin", "claude"),
+      "/home/linuxbrew/.linuxbrew/bin/claude",
+    ];
+  }
+  return [
+    join(env.LOCALAPPDATA || join(home, "AppData", "Local"), "Microsoft", "WinGet", "Links", "claude.exe"),
+    join(env.USERPROFILE || home, "scoop", "shims", "claude.exe"),
+    ...(besideNode ? [join(besideNode, "claude.cmd")] : []),
+  ];
+}
+
+/**
+ * The `claude` to hand the terminal engine as AGENTS_DECK_CLAUDE, or null to
+ * hand it nothing.
+ *
+ * The engine finds `claude` by itself, on PATH and in the installers' folders
+ * (the list above, before moreClaudeCandidates), and honours AGENTS_DECK_CLAUDE
+ * before any of that. A machine whose only `claude` is in one of the places
+ * moreClaudeCandidates adds would have the deck sign in and read quota with it
+ * while its sessions said Claude Code is not installed; the deck names the one
+ * it found instead. Never over a value of the user's own, and nothing when the
+ * engine's own search already finds one, so on every machine that works today
+ * the engine's environment is exactly what it was.
+ *
+ * On Windows only a `.exe`: a `.cmd` is a script cmd.exe runs, and the engine
+ * starts a program.
+ */
+export function engineClaudeHint({
+  platform = process.platform,
+  env = process.env,
+  home = homedir(),
+  exists = existsSync,
+  execPath = process.execPath,
+} = {}) {
+  try {
+    if (String(env.AGENTS_DECK_CLAUDE ?? "").trim()) return null;
+    const first = firstClaudeCandidates(platform, env, home);
+    for (const _ of claudeCliFound({ platform, env, home, exists, candidates: first })) return null;
+    for (const candidate of moreClaudeCandidates(platform, env, home, execPath)) {
+      if (platform === "win32" && !/\.exe$/i.test(candidate)) continue;
+      if (exists(candidate)) return candidate;
+    }
+  } catch {
+    // A stat that throws is no answer, and the engine searches as it always did.
+  }
+  return null;
 }
 
 /**
@@ -141,10 +228,10 @@ function claudeCliOnDisk({
  * claudeCodeVersions below reads them all, because an old CLI anywhere on the
  * machine still reads the settings file a new one does.
  */
-function* claudeCliFound({ platform, env, home, exists }) {
+function* claudeCliFound({ platform, env, home, exists, candidates = claudeCliCandidates(platform, env, home) }) {
   const path = platform === "win32" ? winPath : posixPath;
   const bare = [];
-  for (const candidate of claudeCliCandidates(platform, env, home)) {
+  for (const candidate of candidates) {
     // A full path is worth a single stat; a bare name means "ask PATH", which
     // is the walk below. Same split quotaClaudeBin makes, for the same reason.
     if (candidate.includes(path.sep)) { if (exists(candidate)) yield candidate; }

@@ -34,7 +34,8 @@ import {
 } from "../signin-stages";
 import { prefersReducedMotion } from "../viewport-motion";
 import { createLoginAnnouncer } from "../login-announce";
-import { arrivalCheck, explainFailure, loginErrorText } from "../admin-failure";
+import { arrivalCheck, claudeCliMissing, explainFailure, loginErrorText } from "../admin-failure";
+import ClaudeInstall from "./ClaudeInstall";
 import { tabStripMove } from "../tablist-keys";
 import { Dialog, DialogClose } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
@@ -121,6 +122,9 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
   const [loginBusy, setLoginBusy] = useState(false);
   const [pasteBusy, setPasteBusy] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  // The start was refused because `claude` could not be run (no detail in
+  // `login` to read it from then): the failure offers to install it.
+  const [startCliMissing, setStartCliMissing] = useState(false);
   const [pasteError, setPasteError] = useState<string | null>(null);
   // The lock's drawn half: a request is out, so a press on either submit is
   // refused and says aria-busy (#620), whichever tab it is on.
@@ -218,6 +222,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
     busyRef.current = true;
     setLoginBusy(true);
     setLoginError(null);
+    setStartCliMissing(false);
     setCancelNote(null);
     startedRef.current = true;
     // The address only when there is one: a bare `{action:"login"}` is still
@@ -235,7 +240,13 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
     if (attempt !== attemptRef.current) return;
     busyRef.current = false;
     setLoginBusy(false);
-    if (!out?.ok) { setLoginError(explainFailure(out, t("accounts.add.couldNotStart"), undefined, t)); return; }
+    if (!out?.ok) {
+      // The deck's own sentences in the language on show (loginErrorText);
+      // the CLI's own words as they came.
+      setLoginError(loginErrorText(explainFailure(out, t("accounts.add.couldNotStart"), undefined, t), t));
+      setStartCliMissing(claudeCliMissing(out?.detail) || claudeCliMissing(out?.error));
+      return;
+    }
     setLogin(out as LoginState);
   }, [email]);
 
@@ -269,6 +280,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
     busyRef.current = false;
     setLoginBusy(false);
     setLoginError(null);
+    setStartCliMissing(false);
     setLogin(null);
     setCode("");
     setCodeOpen(false);
@@ -478,6 +490,8 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
   // the same sign-in for the account it was for (`email`).
   const wrong = wrongAccountText({ state: login?.state, wrongAccount: login?.wrongAccount }, t);
   const failText = wrong ?? asSentence(notice.message, t);
+  // Ended because `claude` could not be run: the failure offers to install it.
+  const cliMissing = phase === "failed" && (startCliMissing || claudeCliMissing(login?.error));
   const hint = live === "approve" ? approveHint({ since: approveSince, now, expiresAt: login?.expiresAt }, t) : null;
   const slowImport = pasteBusy ? importHint({ since: importSince, now }, t) : null;
 
@@ -617,7 +631,36 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
               <SignInProgress
                 rows={rows}
                 phase={phase}
-                detail={phase === "failed" ? (
+                detail={phase === "failed" && cliMissing ? (
+                  // Install Claude Code first, Try again beside it as it was;
+                  // the variable for a CLI somewhere unusual last, in small
+                  // print. While it installs there is no Try again: a sign-in
+                  // then would end the same way. Done, the failure's sentence
+                  // and small print go and Try again is the one button, with
+                  // the keys on it; the sign-in waits for that press, since it
+                  // opens a browser tab, which only a press may do.
+                  <ClaudeInstall
+                    place="dialog"
+                    lead={<p className="aa-note aa-reason">{failText}</p>}
+                    note={<p className="aa-note">{t("accounts.fail.login.claudePath")}</p>}
+                    actions={state => {
+                      if (state === "running") return null;
+                      const installed = state === "done";
+                      return (
+                        <button
+                          key={installed ? "installed" : "missing"}
+                          type="button"
+                          ref={retryRef}
+                          className={installed ? "btn primary" : "btn"}
+                          autoFocus={installed}
+                          onClick={retry}
+                        >
+                          {t("accounts.add.tryAgain")}
+                        </button>
+                      );
+                    }}
+                  />
+                ) : phase === "failed" ? (
                   <>
                     <p className="aa-note aa-reason">{failText}</p>
                     {restoreNote ? <p className="aa-note aa-warn" role="status">{restoreNote}</p> : null}

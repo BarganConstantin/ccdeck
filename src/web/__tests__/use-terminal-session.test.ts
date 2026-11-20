@@ -1567,7 +1567,10 @@ describe("the Command Panel's engine refusing (pro-engine-host-v1.md, Refusals)"
       ctl.show({ kind: "launch", agent: "claude", cwd: "C:\\lab\\home\\projects\\demo", key: "n9" });
       await flush();
       await flush();
-      expect(r.last().phase, `${code}: the engine's sentence, with Try again and Not now`).toEqual({ kind: "error", message: said });
+      // A Claude session refused for want of Claude Code is marked so, and its
+      // card offers to install it (ClaudeInstall.tsx); the sentence is kept.
+      expect(r.last().phase, `${code}: the engine's sentence, with Try again and Not now`)
+        .toEqual(code === "agent-missing" ? { kind: "error", message: said, missing: "claude" } : { kind: "error", message: said });
       expect(r.status, `${code}: the engine's 409 is not tmux missing`).not.toHaveBeenCalled();
       await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
       expect(r.launch, `${code}: never launched again by itself`).toHaveBeenCalledTimes(1);
@@ -1581,14 +1584,49 @@ describe("the Command Panel's engine refusing (pro-engine-host-v1.md, Refusals)"
     }
   });
 
-  it("on Linux, says a launch refused for want of Claude as it always has: its sentence, with Try again", async () => {
+  it("on Linux, keeps the code of a launch refused for want of Claude, so the card can offer to install it", async () => {
     const said = "Claude Code is not installed on this machine.";
     const { r, ctl } = rig();
     answered(r, { ok: false, error: said, code: "agent-missing" });
     ctl.show({ kind: "launch", agent: "claude", cwd: "/w", key: "n10" });
     await flush();
     await flush();
+    expect(r.last().phase).toEqual({ kind: "error", message: said, missing: "claude" });
+    expect(r.status, "not tmux's").not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+    expect(r.launch, "never launched again by itself").toHaveBeenCalledTimes(1);
+
+    // Installed: the card asks once (its onInstalled is the stage's retry),
+    // and that is the same launch, by its key, once.
+    ctl.retry();
+    await flush();
+    expect(r.launch).toHaveBeenCalledTimes(2);
+    expect(r.launch.mock.calls[1][0]).toMatchObject({ agent: "claude", key: "n10" });
+    await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+    expect(r.launch, "and no more").toHaveBeenCalledTimes(2);
+  });
+
+  it("says a Codex launch refused for want of Codex as it always has: its sentence, with Try again", async () => {
+    const said = "Codex is not installed on this machine.";
+    const { r, ctl } = rig();
+    answered(r, { ok: false, error: said, code: "agent-missing" });
+    ctl.show({ kind: "launch", agent: "codex", cwd: "/w", key: "n11" });
+    await flush();
+    await flush();
     expect(r.last().phase).toEqual({ kind: "error", message: said });
+  });
+
+  it("marks a Claude session's open refused for want of Claude, and a Codex one's not", async () => {
+    for (const provider of ["claude", "codex"] as const) {
+      const { r, ctl } = rig();
+      r.open.mockResolvedValueOnce(refusal(409, "agent-missing", "not installed"));
+      ctl.show({ kind: "session", ref: { ...REF, provider } });
+      await flush();
+      expect(r.last().phase, provider).toEqual(provider === "claude"
+        ? { kind: "error", message: "not installed", missing: "claude" }
+        : { kind: "error", message: "not installed" });
+      ctl.dispose();
+    }
   });
 
   it("offers a launch the engine refused for a moment again, by its key, only when pressed", async () => {
