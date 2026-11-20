@@ -36,6 +36,7 @@ const catalog: Catalog = {
   "codex.row.switchWaiting": "正在等待运行中的工具完成或必要的输入，然后切换账号。",
   "codex.row.switchWaitingUsing": "仍在使用 {account}。运行中的工具或必要的输入完成后，将切换账号。",
   "codex.row.childrenResuming": "账号已切换，正在等待子代理恢复。",
+  "codex.row.chooseModel": "新账号未列出当前模型。请在 Codex 中打开 /model，选择可用模型，然后继续对话。",
   "codex.row.continueUnconfirmed": "无法确认是否已自动继续。继续之前请检查对话。",
   "codex.row.reading": "正在读取用量…",
   "codex.lane.limit": "限额",

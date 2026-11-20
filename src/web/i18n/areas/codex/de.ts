@@ -36,6 +36,7 @@ const catalog: Catalog = {
   "codex.row.switchWaiting": "Vor dem Kontowechsel warten wir auf laufende Tools oder erforderliche Eingaben.",
   "codex.row.switchWaitingUsing": "Noch aktiv: {account}. Das Konto wechselt, sobald laufende Tools oder erforderliche Eingaben abgeschlossen sind.",
   "codex.row.childrenResuming": "Konto gewechselt. Wir warten, bis die Unteragenten fortfahren.",
+  "codex.row.chooseModel": "Das neue Konto listet das aktuelle Modell nicht auf. Öffne in Codex /model, wähle ein verfügbares Modell und setze die Unterhaltung fort.",
   "codex.row.continueUnconfirmed": "Die automatische Fortsetzung wurde nicht bestätigt. Prüfe die Unterhaltung, bevor du fortfährst.",
   "codex.row.reading": "Nutzung wird gelesen …",
   "codex.lane.limit": "Limit",

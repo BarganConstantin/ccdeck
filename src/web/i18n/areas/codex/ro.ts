@@ -43,6 +43,7 @@ const catalog: Catalog = {
   "codex.row.switchWaiting": "Așteptăm uneltele în desfășurare sau răspunsul necesar înainte de schimbarea contului.",
   "codex.row.switchWaitingUsing": "Se folosește încă {account}. Contul se schimbă după ce se termină uneltele în desfășurare sau răspunsul necesar.",
   "codex.row.childrenResuming": "Contul a fost schimbat. Așteptăm reluarea subagenților.",
+  "codex.row.chooseModel": "Contul nou nu afișează modelul curent. În Codex, deschide /model, alege un model disponibil și continuă conversația.",
   "codex.row.continueUnconfirmed": "Reluarea automată nu a putut fi confirmată; verifică conversația înainte să continui.",
   "codex.row.reading": "Se citește utilizarea…",
   "codex.lane.limit": "limită",

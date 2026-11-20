@@ -200,6 +200,9 @@ export function codexLiveSaid(live, name) {
     return { tone: "warn", text: "Codex account control is paused after a login change or lost connection — check /status in Codex" };
   }
   if (live?.continuation === "manual_required") {
+    if (live.reason === "native_model_unavailable") {
+      return { tone: "warn", text: `Switched to ${name}. Choose an available model with /model in Codex, then continue the conversation.` };
+    }
     return { tone: "warn", text: `switched to ${name} — automatic continuation could not be confirmed; check the conversation` };
   }
   if (state === "waiting") return { tone: "info", text: `switching to ${name} once running tools and pending input are done` };

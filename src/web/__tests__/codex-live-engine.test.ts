@@ -64,6 +64,26 @@ async function fixture({ saved = null as any, actual = A, readCredential = null 
     externalLogin: (id: string) => { account = { ...account, email: email(id) }; callbacks.onNotification({ method: 'account/updated' }); } };
 }
 describe('existing Codex session account engine', () => {
+  it.each([true, false])('checks the switched account model catalog before continuing (available: %s)', async available => {
+    const f = await fixture({ active: true });
+    Object.assign(f.thread, { model: 'existing-model', modelProvider: 'openai' });
+    const request = f.rpc.request.getMockImplementation()!;
+    f.rpc.request.mockImplementation(async (method, params) => {
+      if (method !== 'model/list') return request(method, params);
+      f.calls.push({ method, params });
+      expect(f.actual().email).toBe('second@example.test');
+      return params.cursor ? { data: [{ model: available ? 'existing-model' : 'another-model' }] }
+        : { data: [{ model: 'default-model' }], nextCursor: 'second-page' };
+    });
+    const switched = await f.c.request({ id: B, revision: 1 });
+    expect(switched).toMatchObject({ state: 'applied', profileId: B, continuation: available ? 'automatic' : 'manual_required' });
+    expect(f.calls.filter(c => c.method === 'model/list')).toHaveLength(2);
+    expect(f.calls.filter(c => c.method === 'turn/start')).toHaveLength(available ? 1 : 0);
+    if (!available) {
+      expect(switched.reason).toBe('native_model_unavailable');
+      expect(f.journals.at(-1)).toMatchObject({ phase: 'finished', entries: [{ phase: 'skipped' }] });
+    }
+  });
   it('continues a fresh usage-limit failure once after a different account is confirmed', async () => {
     const f = await fixture({ active: true }); Object.assign(f.thread, { canAcceptDirectInput: true });
     f.thread.status.type = 'idle'; f.turn.status = 'failed';
