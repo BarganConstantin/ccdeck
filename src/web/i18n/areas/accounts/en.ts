@@ -644,6 +644,7 @@ const catalog: Catalog = {
   "accounts.signin.said.active": ", in progress",
   "accounts.signin.said.failed": ", failed",
   "accounts.lane.scoped": "{name} ({n}d)",
+  "accounts.lane.weekly": "Weekly",
   "accounts.fail.login.noLink": "the claude CLI did not print a sign-in link",
   "accounts.fail.login.couldNotFinish": "the sign-in could not be finished — see the deck's log",
   "accounts.fail.login.windowExpired": "the sign-in window expired",

@@ -641,6 +641,7 @@ const catalog: Catalog = {
   "accounts.signin.said.active": ", läuft",
   "accounts.signin.said.failed": ", fehlgeschlagen",
   "accounts.lane.scoped": "{name} ({n} Tage)",
+  "accounts.lane.weekly": "Woche",
   "accounts.fail.login.noLink": "die claude-CLI hat keinen Anmeldelink ausgegeben",
   "accounts.fail.login.couldNotFinish": "die Anmeldung konnte nicht abgeschlossen werden – siehe das Protokoll von ccdeck",
   "accounts.fail.login.windowExpired": "das Anmeldefenster ist abgelaufen",

@@ -662,6 +662,7 @@ const catalog: Catalog = {
   "accounts.signin.said.active": ", în curs",
   "accounts.signin.said.failed": ", eșuat",
   "accounts.lane.scoped": "{name} ({n}z)",
+  "accounts.lane.weekly": "Săptămânal",
   "accounts.fail.login.noLink": "CLI-ul claude nu a afișat un link de autentificare",
   "accounts.fail.login.couldNotFinish": "autentificarea nu a putut fi finalizată — vezi jurnalul ccdeck",
   "accounts.fail.login.windowExpired": "fereastra de autentificare a expirat",

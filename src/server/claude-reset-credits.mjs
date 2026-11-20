@@ -12,7 +12,17 @@
 // decision, taken in Claude itself. So nothing here reads a grant's `id`, its
 // `label`, `next_grant_id` or `event_props`: an id is a redemption handle, and
 // a value that is never read cannot end up in a response, a log line or a test
-// fixture. What survives the parse is a count and two instants per grant.
+// fixture. What survives the parse is a count, two instants and a kind per
+// grant, the kind one word from RESET_KINDS.
+//
+// WHICH LIMIT A RESET CLEARS. Claude names its grants by what they give back —
+// a 5-hour reset, a weekly one, a full one, and a Fable reset that returns what
+// Fable used to the weekly limit — and a panel that called them all "limit
+// resets" left nobody able to tell which quota one would clear (user feedback).
+// The kind is worked out the way Claude Code works it out (2.1.328), from three
+// fields and nothing else: `gives_back_weekly`, `type` and `clears`. A grant
+// whose fields say nothing this deck recognises is "unknown", which the panel
+// words as the neutral limit reset it always printed — never a guess.
 //
 // FAIL CLOSED. The shape below is Claude Code's own (its zod schema for this
 // block, read out of the 2.1.283 binary), and it can change without notice. A
@@ -37,7 +47,51 @@ export const MAX_GRANT_RECORDS = 200;
  */
 export const MAX_AVAILABLE_RESETS = 50;
 
+/**
+ * What a grant can be, in the order the Usage panel lists them: the kinds
+ * Claude names, then the grant nothing here could name.
+ */
+export const RESET_KINDS = Object.freeze(["fable", "full", "weekly", "session", "unknown"]);
+
+/** The `type` values Claude Code knows. Anything else is not read. */
+const KNOWN_TYPES = new Set(["session", "weekly", "full"]);
+
+/** The limits a grant's `clears` may name, as Claude Code's schema lists them. */
+const KNOWN_LIMITS = new Set([
+  "five_hour", "seven_day", "seven_day_overage_included", "seven_day_opus", "seven_day_sonnet",
+  "seven_day_cowork", "seven_day_omelette", "seven_day_oauth_apps",
+]);
+
 const isCount = (v) => Number.isInteger(v) && v >= 0;
+
+/**
+ * Which limit a grant clears, as one of RESET_KINDS.
+ *
+ * Claude Code's rule: a grant that gives back weekly usage is a Fable reset;
+ * otherwise its `type`, when it has one; otherwise its `clears` — the 5-hour
+ * limit alone is a session reset, weekly limits without the 5-hour one a weekly
+ * reset, and both a full one.
+ *
+ * Each field is read only when it is what that rule expects: `gives_back_weekly`
+ * a boolean, `type` one of the three known words, `clears` a non-empty list of
+ * known limit names. A list with anything else in it is not read at all,
+ * because a grant that clears a limit this deck has never heard of may clear
+ * more than the names it does know. Claude Code calls a grant with nothing to
+ * go on a full reset; this deck calls it unknown, which is every grant sent
+ * before these fields existed.
+ */
+function grantKind(g) {
+  if (g.gives_back_weekly === true) return "fable";
+  if (KNOWN_TYPES.has(g.type)) return g.type;
+  const clears = g.clears;
+  if (!Array.isArray(clears) || clears.length === 0) return "unknown";
+  if (!clears.every((c) => typeof c === "string" && KNOWN_LIMITS.has(c))) return "unknown";
+  const fiveHour = clears.includes("five_hour");
+  const others = clears.some((c) => c !== "five_hour");
+  if (fiveHour && !others) return "session";
+  if (others && !fiveHour) return "weekly";
+  return "full";
+}
 
 /**
  * A grant's start or end as epoch milliseconds: `null` when it has none, and
@@ -67,7 +121,7 @@ function readGrant(g) {
   const startsAt = bound(g.starts_at);
   const endsAt = bound(g.ends_at);
   if (startsAt === undefined || endsAt === undefined) return null;
-  return { resetsLeft: g.resets_left, paused: g.paused, startsAt, endsAt };
+  return { resetsLeft: g.resets_left, paused: g.paused, startsAt, endsAt, kind: grantKind(g) };
 }
 
 /**
@@ -93,8 +147,11 @@ export function readResetGrants(block) {
 }
 
 /**
- * What the Usage panel shows, from grants readResetGrants accepted: how many
- * resets can be spent at `now`, and when the first of them lapses.
+ * What the Usage panel shows, from grants readResetGrants accepted: for each
+ * kind of reset the account can spend at `now`, how many, and when the first
+ * of them lapses — `[{ kind, availableCount, nextExpiryAt }]`, in RESET_KINDS'
+ * order, with only the kinds that have one. An eligible account with nothing
+ * to spend is an empty list; null is "not known", as before.
  *
  * A grant counts when it is not paused, has resets left, has started and has
  * not ended. `usable_now` is deliberately not consulted: Claude sets it false
@@ -103,7 +160,11 @@ export function readResetGrants(block) {
  * owns.
  *
  * `nextExpiryAt` is epoch milliseconds, like the Codex row's, and null when no
- * counted grant has an end.
+ * counted grant of that kind has an end.
+ *
+ * The cap holds for every group and for all of them together: more than
+ * MAX_AVAILABLE_RESETS in either reads as a malformed block, and the whole
+ * answer is null rather than one implausible line beside believable ones.
  *
  * Recomputed at every read rather than frozen at fetch time, because the
  * inventory is held between fetches: a grant that ends while it is held has to
@@ -111,17 +172,22 @@ export function readResetGrants(block) {
  */
 export function availableResetCredits(grants, now) {
   if (!Array.isArray(grants)) return null;
-  let availableCount = 0;
-  let nextExpiryAt = null;
+  const byKind = new Map();
+  let total = 0;
   for (const g of grants) {
     if (g.paused || g.resetsLeft <= 0) continue;
     if (g.startsAt !== null && g.startsAt > now) continue;
     if (g.endsAt !== null && g.endsAt <= now) continue;
-    availableCount += g.resetsLeft;
-    if (g.endsAt !== null && (nextExpiryAt === null || g.endsAt < nextExpiryAt)) nextExpiryAt = g.endsAt;
+    const kind = RESET_KINDS.includes(g.kind) ? g.kind : "unknown";
+    const group = byKind.get(kind) ?? { kind, availableCount: 0, nextExpiryAt: null };
+    group.availableCount += g.resetsLeft;
+    if (g.endsAt !== null && (group.nextExpiryAt === null || g.endsAt < group.nextExpiryAt)) group.nextExpiryAt = g.endsAt;
+    byKind.set(kind, group);
+    total += g.resetsLeft;
   }
-  if (availableCount > MAX_AVAILABLE_RESETS) return null;
-  return { availableCount, nextExpiryAt };
+  const groups = RESET_KINDS.filter((k) => byKind.has(k)).map((k) => byKind.get(k));
+  if (total > MAX_AVAILABLE_RESETS || groups.some((g) => g.availableCount > MAX_AVAILABLE_RESETS)) return null;
+  return groups;
 }
 
 /** Both of the above, for a response read once and shown straight away. */

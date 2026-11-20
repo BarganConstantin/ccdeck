@@ -641,6 +641,7 @@ const catalog: Catalog = {
   "accounts.signin.said.active": ", en curso",
   "accounts.signin.said.failed": ", fallido",
   "accounts.lane.scoped": "{name} ({n}d)",
+  "accounts.lane.weekly": "Semanal",
   "accounts.fail.login.noLink": "la CLI de claude no mostró un enlace de inicio de sesión",
   "accounts.fail.login.couldNotFinish": "no se pudo terminar el inicio de sesión: consulta el registro de ccdeck",
   "accounts.fail.login.windowExpired": "la ventana de inicio de sesión caducó",
