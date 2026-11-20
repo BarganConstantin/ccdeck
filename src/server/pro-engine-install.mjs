@@ -34,7 +34,7 @@ export const ENGINE_MANIFEST_MAX = 16 * 1024;
 export const TARGETS = {
   'darwin-x64': 'x86_64-apple-darwin', 'darwin-arm64': 'aarch64-apple-darwin',
   'linux-x64': 'x86_64-unknown-linux-gnu', 'linux-arm64': 'aarch64-unknown-linux-gnu',
-  'win32-x64': 'x86_64-pc-windows-msvc',
+  'win32-x64': 'x86_64-pc-windows-msvc', 'win32-arm64': 'aarch64-pc-windows-msvc',
 };
 /** Who may not hold write access to anything the engine runs from on Windows:
  *  by the names and by the well-known identifiers Windows gives the same

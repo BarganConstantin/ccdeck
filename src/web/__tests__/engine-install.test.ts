@@ -192,6 +192,10 @@ describe("the engine install's status", () => {
     expect((await installer(w).status()).blocked).toBe("not-published");
     const freebsd = installMod.createEngineInstaller({ platform: "freebsd", arch: "x64", env: {}, keys: w.keys, dataFolder: w.data, root: w.root });
     expect((await freebsd.status()).blocked).toBe("unsupported");
+    // Windows on ARM has a package name and a target, so with no pin it is
+    // not-published, not unsupported: the deck offers it only once a pin exists.
+    const winArm = installMod.createEngineInstaller({ platform: "win32", arch: "arm64", env: {}, keys: w.keys, dataFolder: w.data, root: w.root });
+    expect(await winArm.status()).toMatchObject({ supported: true, blocked: "not-published" });
     const w2 = await world();
     const off = installer(w2, { env: { AGENTS_DECK_NO_DOWNLOAD: "1" } });
     expect((await off.status()).blocked).toBe("download-disabled");

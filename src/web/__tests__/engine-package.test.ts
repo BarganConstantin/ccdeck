@@ -93,7 +93,7 @@ const inodeOf = async (path: string) => (await lstat(path)).ino;
 
 describe("the engine's package names and header check", () => {
   it("keeps every package name in one constant, one per platform and arch", () => {
-    expect(Object.keys(pkg.ENGINE_PACKAGE_NAMES).sort()).toEqual(["darwin-arm64", "darwin-x64", "linux-arm64", "linux-x64", "win32-x64"]);
+    expect(Object.keys(pkg.ENGINE_PACKAGE_NAMES).sort()).toEqual(["darwin-arm64", "darwin-x64", "linux-arm64", "linux-x64", "win32-arm64", "win32-x64"]);
     expect(Object.isFrozen(pkg.ENGINE_PACKAGE_NAMES)).toBe(true);
     expect(pkg.enginePackageName("linux", "x64")).toBe("@ccdeck/engine-linux-x64");
     expect(pkg.enginePackageName("freebsd", "x64")).toBeNull();
