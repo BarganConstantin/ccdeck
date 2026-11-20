@@ -220,11 +220,24 @@ describe("what the panel is allowed to offer", () => {
     // asked of the file that holds it: the button renders only under
     // `issue.fix` and is the popover's one call to `onSignIn`, and the panel
     // hands it the dialog's opener and nothing else.
+    //
+    // CHANGED ON PURPOSE (user feedback): both open the dialog filled in with
+    // the account's address, as the row's own Sign in does, so the server can
+    // refuse a sign-in that comes back as somebody else.
     const popover = src("../components/AccountIssuePopover.tsx");
     expect(popover).toMatch(/\{issue\.fix && \(\s*<button type="button" className="btn primary" onClick=\{\(\) => \{ onClose\(true\); onSignIn\(\); \}\}/);
     expect((popover.match(/onSignIn\(\)/g) ?? []).length, "the popover signs in from somewhere other than its fix").toBe(1);
-    expect(panel).toMatch(/<AccountIssuePopover[^>]*onSignIn=\{\(\) => setAddOpen\(true\)\}/);
-    expect(panel).toMatch(/\{activeIssue\.fix && \(\s*<button type="button" className="ap-notice-fix" onClick=\{\(\) => setAddOpen\(true\)\}/);
+    expect(panel).toMatch(/<AccountIssuePopover[^>]*onSignIn=\{\(\) => signInAgain\(a\.email\)\}/);
+    expect(panel).toMatch(/\{activeIssue\.fix && \(\s*<button type="button" className="ap-notice-fix" onClick=\{\(\) => signInAgain\(activeAcct\.email\)\}/);
+    // The ⋯ menu's item is the third door onto the same fix, and stands on the
+    // same verdict: the menu asks accountIssue for `fix` and draws the item
+    // only under it.
+    const menu = src("../components/AccountMenuPopover.tsx");
+    expect(menu).toMatch(/const fix = onSignIn \? accountIssue\(a, nowSec, undefined, t\)\?\.fix \?\? null : null;/);
+    expect(menu).toMatch(/\{fix && onSignIn && \(\s*<button type="button" role="menuitem" className="ap-menu-item"/);
+    expect((menu.match(/onSignIn\(\)/g) ?? []).length, "the menu signs in outside its gated item").toBe(1);
+    expect(panel).toMatch(/onSignIn=\{\(\) => \{ signInAgain\(a\.email\); closeMenu\(a\.num\); \}\}/);
+    expect((accountsSurface().match(/signInAgain\(/g) ?? []).length, "the dialog is opened for an account from an ungated place").toBe(3);
     //
     // The fourth opener is a refused switch's remedy (#2184): the deck would
     // not put an expired login live and says so on the row pressed. That is a
@@ -251,7 +264,12 @@ describe("what the panel is allowed to offer", () => {
     // which is exactly when the live login is in no row.
     expect(panel).toMatch(/\{!activeAcct && data\.unlistedLogin && \(\s*<div className="ap-notice">[\s\S]*?<button type="button" className="ap-notice-fix" onClick=\{\(\) => setAddOpen\(true\)\}/);
     const openers = (accountsSurface().match(/setAddOpen\(true\)/g) ?? []).length;
-    expect(openers, "something opens the sign-in dialog outside the gated fixes and the header's +").toBe(6); // CHANGED ON PURPOSE (V4's Figma): six — the "No accounts" state's Add account button is the header's + by another door
+    // CHANGED ON PURPOSE (V4's Figma): the "No accounts" state's Add account
+    // button is the header's + by another door. CHANGED ON PURPOSE again (user
+    // feedback): the issue popover and the notice now open it through
+    // signInAgain, pinned above, which leaves four — signInAgain itself, the
+    // header's +, the empty state's and the unlisted-login notice.
+    expect(openers, "something opens the sign-in dialog outside the gated fixes and the header's +").toBe(4);
   });
 
   it("offers nothing for a silence it will not explain, and the fix when it will", () => {
