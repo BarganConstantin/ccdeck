@@ -201,7 +201,7 @@ export function codexLiveSaid(live, name) {
   }
   if (live?.continuation === "manual_required") {
     if (live.reason === "native_model_unavailable") {
-      return { tone: "warn", text: `Switched to ${name}. Choose an available model with /model in Codex, then continue the conversation.` };
+      return { tone: "warn", text: `switched to ${name} — it lacks the conversation's model; choose one with /model in Codex` };
     }
     return { tone: "warn", text: `switched to ${name} — automatic continuation could not be confirmed; check the conversation` };
   }
