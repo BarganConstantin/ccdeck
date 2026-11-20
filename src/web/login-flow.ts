@@ -76,6 +76,27 @@ export function loginEndNotice(
   };
 }
 
+/** A sign-in started for one account that came back as another: who signed in,
+ *  and the account it was for (cswap-admin.mjs refuseOtherAccount). */
+export type WrongAccount = { signedIn: string; wanted: string };
+
+/**
+ * The sentence for a sign-in that came back as a different account, or null.
+ *
+ * "Sign in again" fills in the expired account's address, and the sign-in page
+ * still lets the reader pick any account the browser holds. The server records
+ * nothing then and puts the machine back where it was; this says so with both
+ * addresses, in the reader's language — the server's own `error` is one fixed
+ * English clause for whatever reads nothing else.
+ */
+export function wrongAccountText(
+  { state, wrongAccount }: { state?: string | null; wrongAccount?: WrongAccount | null },
+  t: TFunction = tNow,
+): string | null {
+  if (state !== "failed" || !wrongAccount?.signedIn || !wrongAccount.wanted) return null;
+  return t("accounts.signin.wrongAccount", { got: wrongAccount.signedIn, expected: wrongAccount.wanted });
+}
+
 /** Which account the machine ended up signed in as, when it is not the one the
  *  user was working in. `email` is `""` for a slot the store holds no address
  *  for, which readStore treats as a real state rather than as missing. */

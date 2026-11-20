@@ -416,9 +416,15 @@ let _starting = null;
 
 export function loginState() {
   if (!_login) return { state: "idle" };
-  const { state, step, url, error, account, expiresAt, restore } = _login;
+  const { state, step, url, error, account, expiresAt, restore, wrongAccount } = _login;
   return {
     state, url: url ?? null, error: error ?? null, account: account ?? null, expiresAt: expiresAt ?? null,
+    // Who signed in instead of the account this sign-in was started for, and
+    // that account — set only on the `failed` that refuseOtherAccount writes,
+    // so the dialog can name both in the reader's language. Not `reason`:
+    // every refusal spreads this object AFTER its own reason, and a field of
+    // that name here would overwrite it.
+    wrongAccount: wrongAccount ?? null,
     // Where inside `registering` the flow is — see LOGIN_STEPS. Null before it
     // and on a failure that happened before it, and left on the step that was
     // running when anything after it failed, which is how the dialog knows
@@ -619,6 +625,10 @@ async function spawnLogin(email) {
     // account than the store records: the restore puts THAT one back.
     previousActive: before.liveNum,
     previousEmail: identity?.email ?? null,
+    // The account this sign-in was started FOR, when it was started for one —
+    // "Sign in again" on an account whose login expired. Null for the plain
+    // Add, which takes whoever signs in. See refuseOtherAccount.
+    wanted: email ?? null,
     before,
     url: null,
     error: null,
@@ -755,6 +765,10 @@ function loginFailureText(r) {
  * with; the done handler simply drops it.
  */
 async function registerSignedIn(flow, identity) {
+  // Asked before anything is written: `cswap add` records whoever is signed in,
+  // so a sign-in started for one account that came back as another would add
+  // or refresh THAT one and leave the account the user meant to fix as it was.
+  if (flow.wanted && !sameAddress(identity?.email, flow.wanted)) return refuseOtherAccount(flow, identity);
   // Before the lock, not inside it: waiting for another change to the store to
   // finish is part of saving this one, and the dialog says so rather than
   // going on claiming the sign-in is still being confirmed.
@@ -810,6 +824,42 @@ async function registerSignedIn(flow, identity) {
     flow.state = "done";
     flow.account = { num, email: identity.email, added };
     return { ok: true, ...loginState() };
+  });
+}
+
+/** The sentence a sign-in that came back as another account ends with: the
+ *  dialog names both accounts from `wrongAccount`, and this is for anything
+ *  that reads only `error`. The same words as admin-failure.ts's REASONS row. */
+const WRONG_ACCOUNT_TEXT = "a different account signed in, so nothing was saved";
+
+/**
+ * A sign-in for one account that came back as another: nothing is recorded,
+ * and the machine goes back to the account it was on, exactly as a cancel
+ * puts it back.
+ *
+ * "Sign in again" on an expired account pre-fills its address, and the page
+ * still lets the user pick any account the browser is signed into. Taking that
+ * one would add it — or refresh it, if the deck already holds it — while the
+ * expired account stays expired, under a success card that names somebody
+ * else. So no `cswap add`, and no store write of any kind besides the restore.
+ *
+ * The restore is not optional here: `claude auth login` has already replaced
+ * Claude Code's live login with the account that signed in, and nothing else
+ * would move it back.
+ */
+async function refuseOtherAccount(flow, identity) {
+  return withStoreLock(async () => {
+    flow.restore = await restoreActive(flow.previousActive);
+    invalidateClaudeAccountsCache();
+    // Left on `confirm`, the stage that found it: the account was confirmed,
+    // and it was the wrong one.
+    flow.step = "confirm";
+    flow.error = WRONG_ACCOUNT_TEXT;
+    flow.wrongAccount = { signedIn: identity?.email ?? "", wanted: flow.wanted };
+    // Last, because the dialog stops polling on it: everything it reads about
+    // this ending has to be on the flow by then.
+    flow.state = "failed";
+    return { ok: false, reason: "wrong_account", ...loginState() };
   });
 }
 
@@ -907,6 +957,21 @@ export async function cancelLogin() {
 const RESTORED = Object.freeze({ restored: true, activeNum: null, activeEmail: null, detail: null });
 
 /**
+ * Whether slot `num` is back in front: in the store AND as Claude Code's live
+ * login.
+ *
+ * The store alone answered this, and `claude auth login` never touches the
+ * store: a sign-in that completed in the browser and was then cancelled, or
+ * refused as the wrong account, leaves activeAccountNumber where it was while
+ * every Claude Code session runs as whoever just signed in. The store read
+ * "already back" and the switch that would have put the login back never ran.
+ * `liveNum` is the store's own number when no live login can be read, so this
+ * asks nothing more of a machine where the two cannot differ.
+ */
+const backOn = (store, num) =>
+  String(store.activeNum) === String(num) && String(store.liveNum) === String(num);
+
+/**
  * Put the account that was active before the login back in front — and ANSWER
  * whether it went back (#951).
  *
@@ -935,11 +1000,15 @@ const RESTORED = Object.freeze({ restored: true, activeNum: null, activeEmail: n
 async function restoreActive(num) {
   if (num == null) return RESTORED;
   const after = await readStore();
-  if (String(after.activeNum) === String(num)) return RESTORED;
+  if (backOn(after, num)) return RESTORED;
   const r = await run(await cswapBin(), ["switch", String(num)], { timeout: 30_000 });
   const now = await readStore();
-  if (String(now.activeNum) === String(num)) return RESTORED;
-  const active = now.activeNum == null ? null : String(now.activeNum);
+  if (backOn(now, num)) return RESTORED;
+  // Who the machine is on: Claude Code's login when that is what did not come
+  // back, and null for one the store does not hold — "could not be put back,
+  // check which account" is then the true sentence, not a slot that is wrong.
+  const on = String(now.liveNum) !== String(num) ? now.liveNum : now.activeNum;
+  const active = on == null ? null : String(on);
   return {
     restored: false,
     activeNum: active,
