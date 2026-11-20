@@ -103,8 +103,13 @@ describe("an install", () => {
     expect(ran[0].args).toEqual([join(ran[0].dir, "install.sh")]);
     expect(ran[0].opts.shell).toBe(false);
     expect(ran[0].script).toBe(SCRIPT);
-    expect(ran[0].fileMode).toBe(0o600);
-    expect(ran[0].dirMode).toBe(0o700);
+    // The modes are read off the real disk, and a Windows host keeps no POSIX
+    // modes (every file and folder reads 0o666 there, whatever was asked), so
+    // they are checked where the host has them; the rest holds everywhere.
+    if (process.platform !== "win32") {
+      expect(ran[0].fileMode).toBe(0o600);
+      expect(ran[0].dirMode).toBe(0o700);
+    }
     // And the folder is gone afterwards.
     expect(existsSync(ran[0].dir)).toBe(false);
     expect(leftovers()).toEqual([]);
