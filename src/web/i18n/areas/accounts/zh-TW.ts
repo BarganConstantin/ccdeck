@@ -641,6 +641,7 @@ const catalog: Catalog = {
   "accounts.signin.said.active": "，進行中",
   "accounts.signin.said.failed": "，失敗",
   "accounts.lane.scoped": "{name}（{n} 天）",
+  "accounts.lane.weekly": "每週",
   "accounts.fail.login.noLink": "claude CLI 沒有輸出登入連結",
   "accounts.fail.login.couldNotFinish": "無法完成登入——請查看 ccdeck 的記錄檔",
   "accounts.fail.login.windowExpired": "登入時限已過",

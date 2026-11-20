@@ -584,17 +584,58 @@
 /* EVERYTHING UNDER THE HEAD STARTS UNDER THE NAME. The mark's column and the
    head's gap are 22px, and the lines below are indented by them, so the eye
    reads down from the account rather than from the row's edge. */
-/* OPEN: one key and one value to a line, 18 high on a 4 gap, 6 under line 2 —
-   every window with its reset, when it was read, what its organization sends
-   ("7-day  49% · resets Thu 9:00 AM"). The key is muted and the value is in
-   the secondary ink, both 12 on 16. */
-.ap-detail { margin: 4px 0 0 var(--ap-indent); }
-.ap-lanes {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+/* OPEN: the windows, then one key and one value to a line, 16 high, 4 under
+   the line over them — every window with its reset, when it was read, what its
+   organization sends. Keys are muted and values in the secondary ink, all 12
+   on 16.
+
+   The detail is the container the lanes measure themselves against (below),
+   and a container may paint over the door the row lies under. It takes no
+   pointer, so a press on an open row's lines still shuts it, as it always
+   has; what is raised over the door for its title takes one back. */
+.ap-detail {
+  container: ap-detail / inline-size;
+  margin: 4px 0 0 var(--ap-indent);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  pointer-events: none;
 }
+.ap-detail :is(.ap-age, .ap-lane-pct[data-reset]) { pointer-events: auto; }
+/* THE WINDOWS ARE THREE COLUMNS (user feedback: the lines were hard to read):
+   the window's name, how full it is with its mark, and when it resets
+   ("Weekly  ⚠ 99% · high  resets Mon 7:00 PM"). Each column is as wide as its
+   widest cell, so the figures stand one under another and scan as a column,
+   and so do the resets. A lane and its value draw no box of their own; their
+   cells are the grid's. */
+.ap-lanes {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 8px;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
+.ap-lanes > .ap-hint { grid-column: 1 / -1; }
 .ap-lane,
+.ap-lane-value { display: contents; }
+.ap-lane {
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
+.ap-lane-label { grid-column: 1; }
+.ap-lane-pct { grid-column: 2; white-space: nowrap; }
+/* A reset wraps inside its column rather than run past the panel, between its
+   words and never inside its time (the phrase keeps "Sun 12:00 PM" or
+   "2 h 00 min" whole, resetPhrase's `together`), and where
+   the panel is too narrow for the three, it drops under its figure: from
+   16em for figures without a mark, and from 19em when one wears "⚠ … · high",
+   the widest a figure gets. */
+.ap-lane-reset { grid-column: 3; min-width: 0; overflow-wrap: anywhere; }
+@container ap-detail (max-width: 16em) {
+  .ap-lane-reset { grid-column: 2 / -1; }
+}
+@container ap-detail (max-width: 19em) {
+  .ap-lanes[data-high] .ap-lane-reset { grid-column: 2 / -1; }
+}
 .ap-meta-line {
   display: flex;
   align-items: baseline;
@@ -612,16 +653,14 @@
 }
 .ap-lane-value,
 .ap-meta-value {
-  display: flex;
-  gap: 6px;
   min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
   color: var(--text-secondary);
 }
-.ap-lane-value > :not(:first-child)::before { content: "·"; margin-right: 6px; }
-.ap-lane-value > *,
-.ap-meta-value { overflow: hidden; text-overflow: ellipsis; }
+/* A value says all of itself (user feedback): what an organization's telemetry
+   sends ran past the panel's edge into an ellipsis, with the rest only in a
+   title that touch and the keyboard cannot reach. It wraps onto a second line,
+   under its own first. */
+.ap-meta-value { overflow-wrap: anywhere; }
 .ap-lane-pct { font-variant-numeric: tabular-nums; }
 /* The warning mark a high figure wears on the shut row (AccountRow QuotaPct):
    the figure's own ink, a hair before the number. */
@@ -638,7 +677,7 @@
    in the quiet ink the row's figures take for it. */
 .ap-account[data-frozen] .ap-lane-pct,
 .ap-lane-pct[data-reset] { color: var(--muted); }
-.ap-lane-reset { color: var(--text-secondary); white-space: nowrap; }
+.ap-lane-reset { color: var(--text-secondary); }
 
 /* The open row's reading: when claude-swap last read the account and when it
    plans to again, and what its organization sends. */
@@ -652,21 +691,18 @@
   color: var(--text-secondary);
 }
 /* The address a name stands in for, in the open detail as text: the secondary
-   ink, on its own line. */
+   ink, on its own line, and whole — wrapped rather than cut, like every value
+   in the detail. */
 .ap-meta-email {
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   color: var(--text-secondary);
 }
 .ap-stale { color: var(--warn); }
 .ap-age {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   cursor: help;
 }
 

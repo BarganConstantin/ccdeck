@@ -641,6 +641,7 @@ const catalog: Catalog = {
   "accounts.signin.said.active": ", em andamento",
   "accounts.signin.said.failed": ", falhou",
   "accounts.lane.scoped": "{name} ({n}d)",
+  "accounts.lane.weekly": "Semanal",
   "accounts.fail.login.noLink": "o claude CLI não imprimiu um link de login",
   "accounts.fail.login.couldNotFinish": "não foi possível concluir o login — veja o log do ccdeck",
   "accounts.fail.login.windowExpired": "a janela de login expirou",

@@ -73,9 +73,11 @@ const shutSays = (html: string, label: string) =>
   seen(new RegExp(`<span class="ap-fig ap-fig-[12]"[^>]*><span class="ap-q-label">${label}</span>[^]*?</span></span>`).exec(html)?.[0] ?? "")
     .replace(label, "").trim();
 
+// CHANGED ON PURPOSE (user feedback): the open row names the week's window
+// "Weekly", beside the model lanes that run a week too.
 const WINDOWS = [
   { label: "5h", name: "5-hour", said: "Reported reset time passed 15h ago, 96% when read 18h ago" },
-  { label: "7d", name: "7-day", said: "Reported reset time passed 17h ago, 84% when read 18h ago" },
+  { label: "7d", name: "Weekly", said: "Reported reset time passed 17h ago, 84% when read 18h ago" },
 ];
 
 describe("an open account row whose windows have reset since a reading that is frozen", () => {

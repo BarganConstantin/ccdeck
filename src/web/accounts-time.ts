@@ -24,15 +24,20 @@ export function dueLabel(nextAt: number | null, nowSec: number, t: TFunction = t
 
 /** When a window resets, as the tail of a line: "resets in 4h 18m" inside a
  *  day, and "resets Thu 9:00 AM" past one, where the day and the hour say more
- *  than a countdown in days. Null for a reset that has already passed. */
-export function resetPhrase(resetAtSec: number, nowSec: number, t: TFunction = tNow): string | null {
+ *  than a countdown in days. Null for a reset that has already passed.
+ *
+ *  `together` keeps the time itself on one line, for a phrase that wraps: the
+ *  words before it may break, "Sun 12:00 PM" and "2 h 00 min" may not, so a
+ *  narrow column never leaves "PM" or "00 min" alone on a line. */
+export function resetPhrase(resetAtSec: number, nowSec: number, t: TFunction = tNow, opts: { together?: boolean } = {}): string | null {
   const left = resetCountdown(resetAtSec, nowSec);
   if (!left) return null;
-  if (resetAtSec - nowSec < 86400) return t("accounts.row.resetsInLower", { time: left });
+  const keep = (s: string) => (opts.together ? s.replace(/ /g, " ") : s);
+  if (resetAtSec - nowSec < 86400) return t("accounts.row.resetsInLower", { time: keep(left) });
   const at = new Date(resetAtSec * 1000);
   const lang = currentLanguage();
   const when = `${at.toLocaleDateString(lang, { weekday: "short" })} ${at.toLocaleTimeString(lang, { hour: "numeric", minute: "2-digit" })}`;
-  return t("accounts.row.resetsOn", { when });
+  return t("accounts.row.resetsOn", { when: keep(when) });
 }
 
 /** "A", "A and B", "A, B and C" — in the language's own way of joining. */

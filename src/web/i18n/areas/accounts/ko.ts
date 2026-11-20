@@ -641,6 +641,7 @@ const catalog: Catalog = {
   "accounts.signin.said.active": ", 진행 중",
   "accounts.signin.said.failed": ", 실패",
   "accounts.lane.scoped": "{name} ({n}d)",
+  "accounts.lane.weekly": "주간",
   "accounts.fail.login.noLink": "claude CLI가 로그인 링크를 출력하지 않았습니다",
   "accounts.fail.login.couldNotFinish": "로그인을 끝낼 수 없었습니다. ccdeck 로그를 확인하세요",
   "accounts.fail.login.windowExpired": "로그인 시간이 만료되었습니다",
