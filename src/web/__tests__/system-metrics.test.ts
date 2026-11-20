@@ -34,18 +34,19 @@ import {
   parseGetProcessJson,
 } from "../../server/process-list.mjs";
 
-// Trimmed from a real `vm_stat` on a 32 GB machine: 4 KiB pages, ~56k free but
-// ~2.6M inactive. Naive "free" would call this 0.2 GB available; the truth is
-// the free/speculative/inactive/purgeable sum.
+// A mix of inactive anonymous pages and file cache, plus compressed memory.
 const VM_STAT = `Mach Virtual Memory Statistics: (page size of 4096 bytes)
 Pages free:                                    56858.
-Pages active:                                2632862.
-Pages inactive:                              2628883.
+Pages inactive:                              3628883.
 Pages speculative:                              3067.
-Pages throttled:                                   0.
-Pages wired down:                            1609527.
-Pages purgeable:                                 354.
+Pages wired down:                            1600000.
+Pages purgeable:                               50000.
+File-backed pages:                           2928683.
+Anonymous pages:                             3000000.
+Pages stored in compressor:                  2700000.
+Pages occupied by compressor:                800000.
 `;
+const USED_PAGES = 5_350_000;
 
 const MEMINFO = `MemTotal:       32780012 kB
 MemFree:          412332 kB
@@ -57,18 +58,19 @@ Cached:         14203112 kB
 const GB = 1024 ** 3;
 
 describe("availableFromVmStat", () => {
-  it("counts every page the kernel can reclaim, not just the free ones", () => {
-    const avail = availableFromVmStat(VM_STAT, 32 * GB);
-    // 56858 + 3067 + 2628883 + 354 = 2689162 pages x 4096
-    expect(avail).toBe(2689162 * 4096);
-    // The whole point, stated as the number a reader would see: ~34% available
-    // rather than the 0.5% "free" alone would claim.
-    expect(avail / (32 * GB)).toBeGreaterThan(0.3);
+  it("keeps inactive anonymous memory and physical compressor pages in used memory", () => {
+    expect(availableFromVmStat(VM_STAT, 32 * GB)).toBe(32 * GB - USED_PAGES * 4096);
   });
 
   it("reads the page size from the header rather than assuming 4096", () => {
     const sixteenK = VM_STAT.replace("page size of 4096 bytes", "page size of 16384 bytes");
-    expect(availableFromVmStat(sixteenK, 64 * GB)).toBe(2689162 * 16384);
+    expect(availableFromVmStat(sixteenK, 96 * GB)).toBe(96 * GB - USED_PAGES * 16384);
+  });
+
+  it("accepts zero available bytes and rejects incomplete snapshots", () => {
+    expect(availableFromVmStat(VM_STAT, USED_PAGES * 4096)).toBe(0);
+    expect(availableFromVmStat(VM_STAT.replace(/^Anonymous pages:.*\n/m, ""), 32 * GB)).toBeNull();
+    expect(availableFromVmStat(VM_STAT.replace(/^Mach Virtual.*\n/m, ""), 32 * GB)).toBeNull();
   });
 
   it("returns null rather than a wrong number when the output is unusable", () => {

@@ -54,6 +54,10 @@ Investigate failures before attributing them to your change.
 
 - Reproduce a reported bug before fixing it; add a regression test when the
   behavior warrants one. Run relevant tests, typecheck and build after editing.
+- When fixing a bug on one supported OS, check the equivalent paths on macOS,
+  Linux and Windows. Fix the same defect wherever it is confirmed. Test the
+  affected paths on native systems when available, or use platform fixtures
+  and the CI matrix. Report which platforms were verified and how.
 - For visual or interaction changes, also run the app and inspect it in a real
   browser. Brave and Chrome DevTools MCP are authorized for this project. Test
   the affected interactions at desktop and narrow widths, including 390 and

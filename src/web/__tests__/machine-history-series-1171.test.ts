@@ -85,13 +85,12 @@ vi.mock("node:fs/promises", async (importOriginal) => {
  *  spawns — the thermal probes, the network counters — exits non-zero, which is
  *  what those readings already do on a machine that cannot answer them. */
 const VM_STAT = [
-  // 1,024,000 reclaimable pages of 4 KiB is the same 4,096,000 KiB the meminfo
-  // above reports. `Pages active` is deliberately NOT reclaimable and is here
-  // to be ignored — counting it would be the `os.freemem()` mistake #789 is
-  // about, in reverse.
+  // 3,072,000 used pages of 4 KiB is 75% of the mocked 16,384,000 KiB total.
   "Mach Virtual Memory Statistics: (page size of 4096 bytes)",
-  "Pages free:                          1024000.",
-  "Pages active:                        1000000.",
+  "Anonymous pages:                     2300000.",
+  "Pages purgeable:                       28000.",
+  "Pages wired down:                     600000.",
+  "Pages occupied by compressor:         200000.",
 ].join("\n");
 const SYSCTL_SWAP = "total = 4096.00M  used = 1024.00M  free = 3072.00M  (encrypted)";
 const COMMIT_JSON = '{"TotalVirtualMemorySize":4000000,"FreeVirtualMemory":3000000}';
