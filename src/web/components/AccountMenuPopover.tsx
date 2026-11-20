@@ -11,7 +11,7 @@
 // spells.
 import AnchoredPopover from "./AnchoredPopover";
 import { slotChoices } from "../account-move";
-import { sentence } from "../account-issue";
+import { accountIssue, sentence } from "../account-issue";
 import { ALIAS_MAX_LENGTH } from "../alias-save";
 import { PRODUCT } from "../brand";
 import { type Account } from "../claude-accounts";
@@ -46,11 +46,14 @@ interface Props {
   onHome: () => void;
   /** Who holds each slot, by name, for the move list's "swap with …". */
   names?: Record<number, string>;
+  /** Open the sign-in dialog for this account, closing the menu behind it.
+   *  Offered only while its login needs a new sign-in. */
+  onSignIn?: () => void;
 }
 
 export default function AccountMenuPopover({
   a, slots, nowSec, boundaryId, accountMenu, busy, pressProps, onProjects, onRotation,
-  home, onHome, names,
+  home, onHome, names, onSignIn,
 }: Props) {
   const {
     menu, menuError, aliasDraft, confirmRemove, share, shareCopied, slotDraft,
@@ -60,6 +63,10 @@ export default function AccountMenuPopover({
   // The panel draws this only while a menu is open; this is for the type.
   const t = useT();
   if (!menu) return null;
+  // The row's own Sign in stands on exactly this: the fix accountIssue hands
+  // back for a login claude-swap rejected or never stored, and for nothing
+  // else — never a stale copy the deck is re-capturing by itself.
+  const fix = onSignIn ? accountIssue(a, nowSec, undefined, t)?.fix ?? null : null;
   const titleId = `ap-pop-title-${a.num}`;
   // Under the control that was pressed, in every view. The popover
   // stays open on a refusal, holding what the user had done.
@@ -86,6 +93,13 @@ export default function AccountMenuPopover({
               needs more than a press turns this same surface into
               the one form it needs. The arrows walk the items, and
               Tab leaves the menu instead of stepping through it. */}
+          {/* The account's one repair, first while it needs it: the same
+              sign-in the row's Sign in opens, for this account's address. */}
+          {fix && onSignIn && (
+            <button type="button" role="menuitem" className="ap-menu-item"
+              title={t("accounts.issuePop.fixTip")}
+              onClick={() => onSignIn()}>{fix}</button>
+          )}
           <button type="button" role="menuitem" className="ap-menu-item"
             onClick={() => startRename(a.num, a.alias)}>{t("accounts.menu.rename")}</button>
           <button type="button" role="menuitem" className="ap-menu-item"

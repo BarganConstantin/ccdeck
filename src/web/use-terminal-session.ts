@@ -607,9 +607,13 @@ const transient = (f: ApiFailure) => f.status === null || f.status === 502 || f.
 const recovering = (f: ApiFailure) => transient(f) && (PANEL_RECOVERING as readonly string[]).includes(f.code ?? "");
 
 /** A failure as the card draws it. A refusal that is a state of this machine
- *  keeps its code, so the card checks again in place. */
-const failed = (f: ApiFailure): StagePhase =>
-  panelUnavailable(f.code) ? { kind: "error", message: f.error, code: f.code, busy: false } : { kind: "error", message: f.error };
+ *  keeps its code, so the card checks again in place. A Claude session
+ *  refused because Claude Code is not installed is said so, and the card
+ *  offers to install it; Codex's keeps the engine's sentence. */
+const failed = (f: ApiFailure, agent?: TerminalProvider): StagePhase =>
+  panelUnavailable(f.code) ? { kind: "error", message: f.error, code: f.code, busy: false }
+    : f.code === "agent-missing" && agent === "claude" ? { kind: "error", message: f.error, missing: "claude" }
+      : { kind: "error", message: f.error };
 
 /** Whether two answers about the deck's tmux download say the same thing, so
  *  a poll that learned nothing new draws nothing. */
@@ -982,7 +986,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       // Opening starts nothing, so a moment's refusal is waited out even on
       // a first open, its card kept up while the engine comes back.
       if ((reconnecting && transient(answer)) || recovering(answer)) { reconnect(my, answer); return; }
-      setPhase(failed(answer));
+      setPhase(failed(answer, refOf()?.provider));
       return;
     }
     if (answer.target.kind === "unsupported") {
@@ -1010,7 +1014,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       // status — a launch is started only by a press, and its key keeps a
       // second press to the one agent.
       if (answer.status === 409 && !answer.code) await tmuxOr(my, { kind: "error", message: answer.error });
-      else setPhase(failed(answer));
+      else setPhase(failed(answer, agent));
       return;
     }
     launched = true;
@@ -1229,7 +1233,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
           runningElsewhere({ ...phase, stillRunning: true, busy: false }, my);
           return;
         }
-        setPhase(failed(answer));
+        setPhase(failed(answer, ref.provider));
       });
     },
 

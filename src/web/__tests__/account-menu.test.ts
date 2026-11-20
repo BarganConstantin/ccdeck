@@ -91,11 +91,15 @@ describe("the menu", () => {
     // it was a word under every account while auto-switch ran; and making it
     // Auto-switch's home or removing that, which the row's ⌂ only shows.
     const menu = view("menu");
-    expect([...menu.matchAll(/role="menuitem"/g)]).toHaveLength(7);
+    // CHANGED ON PURPOSE (user feedback): an eighth, first and only while the
+    // account's login needs a new sign-in — the row's own Sign in, for a reader
+    // who looks for it in the ⋯.
+    expect([...menu.matchAll(/role="menuitem"/g)]).toHaveLength(8);
     // CHANGED ON PURPOSE (V4's Figma): the menu has three groups, so there are
     // two separators — one after Projects and one before Remove.
     const at = (s: string) => menu.indexOf(s);
     const order = [
+      at("onClick={() => onSignIn()}>{fix}</button>"),
       at('t("accounts.menu.rename")}</button>'), at('t("accounts.menu.moveSlot")}</button>'),
       at(': t("accounts.menu.share")}'), at('t("accounts.menu.projects")}</button>'),
       at('role="separator"'),

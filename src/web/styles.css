@@ -70,6 +70,7 @@
 @import "./styles/canvas-motion.css";            /* a card displaced by a growing session, and the canvas's reduced motion */
 @import "./styles/accounts-manage.css";          /* adding, managing and sharing accounts */
 @import "./styles/add-account.css";              /* the add-account dialog, its primer and its confetti */
+@import "./styles/claude-install.css";           /* Install Claude Code, in the session pane and the sign-in */
 @import "./styles/accounts-details.css";         /* the accounts panel's details, and reduced motion off the canvas */
 @import "./styles/browser-watch.css";            /* Browser Watch */
 @import "./styles/account-share.css";            /* sharing a set of accounts, and what an import did */

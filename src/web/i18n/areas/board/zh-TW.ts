@@ -568,6 +568,7 @@ const catalog: Catalog = {
   "board.stage.reopenHere": "在此重新開啟",
   "board.stage.checking": "檢查中…",
   "board.stage.tryAgain": "重試",
+  "board.stage.claudeMissing": "這台電腦尚未安裝 Claude Code。",
   "board.stage.tmuxSettingUp": "tmux · 設定中",
   "board.stage.tmuxFetching": "這台電腦沒有指令面板可用的 tmux，因此 ccdeck 正在取得自己的版本：約 1 MB，只下載一次。它會留在 ccdeck 的資料夾內，系統不會安裝任何東西。",
   "board.stage.tmuxFetchingLabel": "正在取得 tmux",

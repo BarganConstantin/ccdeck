@@ -617,8 +617,11 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                     <WarnGlyph />
                     <span className="ap-issue-text">{t("accounts.panel.needsAttention")}</span>
                   </button>
+                  {/* With the account's address, as the row's own Sign in
+                      does: the sign-in is for this account, and the server
+                      refuses one that comes back as anybody else. */}
                   {activeIssue.fix && (
-                    <button type="button" className="ap-notice-fix" onClick={() => setAddOpen(true)}
+                    <button type="button" className="ap-notice-fix" onClick={() => signInAgain(activeAcct.email)}
                       title={t("accounts.panel.signInTip")}>
                       {t("accounts.row.signIn")}
                     </button>
@@ -712,6 +715,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                     boundaryId={rowBoundary(a.num)} nowSec={nowSec}
                     busy={busy} pressProps={pressProps}
                     onProjects={() => { setProjectsFor({ num: a.num, name: a.alias ?? a.email ?? t("accounts.accountNLower", { n: a.num }) }); closeMenu(a.num); }}
+                    onSignIn={() => { signInAgain(a.email); closeMenu(a.num); }}
                     onRotation={() => post({ action: "account", account: a.num, enabled: a.disabled }, `rot-${a.num}`, "menu")
                       .then(out => { load(true); if (out?.ok) closeMenu(a.num); })}
                     home={isHome(a, auto?.choice?.home)}
@@ -736,7 +740,7 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                     fetchedAt={a.fetchedAt}
                     nowSec={nowSec}
                     onClose={closeIssue}
-                    onSignIn={() => setAddOpen(true)}
+                    onSignIn={() => signInAgain(a.email)}
                     // The report carries the issue's own words and nothing that
                     // names the account: what is wrong, in the product's voice,
                     // never who it is wrong for (#1853). A warning is a bug to

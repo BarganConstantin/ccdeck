@@ -91,6 +91,10 @@ export const REASONS: Record<string, string> = {
   login_failed: "the code was not accepted",
   no_identity: "signed in, but the CLI still reports nobody logged in",
   add_failed: "signed in, but claude-swap could not record the account",
+  // A "Sign in again" that came back as another account (cswap-admin.mjs
+  // refuseOtherAccount). The dialog names both from `wrongAccount`; this is the
+  // sentence for anything that has only the reason, or the flow's `error`.
+  wrong_account: "a different account signed in, so nothing was saved",
   not_a_share: "that does not look like a shared account — it should start with ccdeck2:",
   corrupt: "that share is incomplete — copy the whole thing",
   wrong_version: `that share was made by a newer ${PRODUCT}`,
@@ -540,6 +544,13 @@ const LOGIN_ERRORS = new Map<string, string>(Object.entries({
   "the claude CLI could not be run: not on PATH. Set AGENTS_DECK_CLAUDE to its full path.": "accounts.fail.login.claudeMissing",
   "cswap could not be run: not on PATH, and not in the places uv and pipx install to. Set AGENTS_DECK_CSWAP to its full path.": "accounts.fail.login.cswapMissing",
 }));
+
+/** Whether a sign-in ended because the deck could not run `claude` at all:
+ *  not installed, or installed where the deck does not look. The dialog then
+ *  offers to install it (ClaudeInstall.tsx). */
+export function claudeCliMissing(text: string | null | undefined): boolean {
+  return !!text && LOGIN_ERRORS.get(text) === "accounts.fail.login.claudeMissing";
+}
 
 /** A sign-in flow's ending in the language on show; any other text as it came. */
 export function loginErrorText<T extends string | null | undefined>(text: T, t: TFunction = tNow): T | string {

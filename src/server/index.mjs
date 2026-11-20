@@ -205,6 +205,9 @@ import {
   handleEngineStatus, handleEngineAction,
 } from "./terminal-routes.mjs";
 import { installTerminalUpgrade } from "./terminal-socket.mjs";
+// Claude Code's own installer, run from the deck where a session pane or a
+// sign-in finds no `claude` (claude-install.mjs).
+import { handleClaudeInstallStart, handleClaudeInstallStatus } from "./claude-install.mjs";
 // Whether this deck's platform has the Command Panel, which Settings' switch
 // follows: Linux and macOS; on Windows only the test-only preview, which no
 // production entry can ask for (command-panel-platform.mjs).
@@ -580,6 +583,13 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     // install from the registry or from a file, a cancel and a remove.
     if (req.method === "GET"  && url.pathname === "/api/terminal/engine") return guard(handleEngineStatus(req, res, terminal), res);
     if (req.method === "POST" && url.pathname.startsWith("/api/terminal/engine/")) return guard(handleEngineAction(req, res, url.pathname.slice("/api/terminal/engine/".length), terminal), res);
+    // Claude Code's install, beside the engine's and behind the same gates:
+    // the read is in GUARDED_READS, the start is a mutation like any other.
+    // Not under the Command Panel's switch, since the Accounts sign-in offers
+    // it as well (claude-install.mjs). Spelled out, as every route here is,
+    // so the gate tests that read the routes from this source see it.
+    if (req.method === "GET"  && url.pathname === "/api/claude-install") return guard(handleClaudeInstallStatus(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/claude-install") return guard(handleClaudeInstallStart(req, res), res);
     // The ccdeck account (account-flag.mjs). Switched off, each of these is
     // the 404 below, word for word, and nothing of the account is loaded. The
     // two reads are in GUARDED_READS; the POSTs are mutations like any other.

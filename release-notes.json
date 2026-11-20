@@ -1,4 +1,26 @@
 {
+  "4.0.4": [
+    {
+      "title": "📥 Install Claude Code from the deck",
+      "body": "Where the deck finds no Claude Code, the session pane and the sign-in dialog now offer Install Claude Code, which runs the installer from Anthropic's setup page, and show its command with Copy for an install by hand. In a session pane, the session starts once the install is done."
+    },
+    {
+      "title": "🔎 The deck finds Claude Code in more places",
+      "body": "The deck now also finds Claude Code where the older installer, a user-level npm install, Homebrew on Linux, WinGet and Scoop put it, so signing in from the desktop app no longer fails with “not on PATH”."
+    },
+    {
+      "title": "🔑 Sign in again brings back the same account",
+      "body": "Sign in again, now also in an account's ⋯ menu, opens the sign-in for that account. If the browser signs in a different account, the deck saves nothing, says so, offers Try again, and keeps the machine on the account it was using."
+    },
+    {
+      "title": "🧾 Account cards are easier to read",
+      "body": "A closed card says which window its reset is for, as in “5h resets in 3h 53m”. An open card shows each limit once, in aligned columns, and long values wrap instead of being cut off."
+    },
+    {
+      "title": "♻️ Saved resets say which limit they clear",
+      "body": "Usage now lists each kind of saved Claude reset on its own line, such as “1 Fable reset” or “2 Global resets”, and says on hover what each one gives back."
+    }
+  ],
   "4.0.3": [
     {
       "title": "🪟 Sessions start on Windows right after ccdeck starts",
@@ -216,6 +238,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.0.4": "Install Claude Code from the deck, sign in again to the same account, and easier account cards",
     "4.0.3": "Sessions start on Windows right after ccdeck starts",
     "4.0.2": "Board cards open in Workspace, the Inspector opens with the session, and panes draw right on tmux 3.2–3.5",
     "4.0.0": "A calmer deck, with your sessions' terminals inside it",
