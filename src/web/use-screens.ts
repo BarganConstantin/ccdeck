@@ -17,7 +17,7 @@
 import { createElement, lazy, Suspense, useMemo, useState, type ComponentType } from "react";
 import type { Provider } from "./types";
 import type { ChatViewProps } from "./components/chat/ChatView";
-import type { ChatSource } from "./components/chat/chat-model";
+import type { ChatAsk, ChatSource } from "./components/chat/chat-model";
 import type { ChatComposerProps } from "./components/chat/ChatComposer";
 import type { DecisionCardProps } from "./components/decision/DecisionCard";
 import { readScreenFlags, screensEffective, type ScreenFlags } from "./use-screen-flags";
@@ -53,6 +53,8 @@ export interface ScreensProps {
   provider?: Provider;
   /** A question to dock under the chat, or alone under the terminal. */
   decision?: DecisionCardProps;
+  /** How Chat answers a question the assistant asked; without it the card is read only. */
+  ask?: ChatAsk;
 }
 
 /** The flags as they count in this pane: read once, then gated by where the pane is. */
@@ -72,7 +74,7 @@ export function ScreensSlot({ screens, flags }: { screens?: ScreensProps; flags:
   if (!screens) return null;
   const decision = flags.decision ? screens.decision : undefined;
   if (chatShown(flags, screens)) {
-    return createElement(Suspense, { fallback: null }, createElement(LazyChatView, { source: screens.source!, provider: screens.provider, decision }));
+    return createElement(Suspense, { fallback: null }, createElement(LazyChatView, { source: screens.source!, provider: screens.provider, decision, ask: screens.ask }));
   }
   if (decision) {
     return createElement(Suspense, { fallback: null }, createElement(LazyDecisionCard, decision));
