@@ -442,7 +442,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
   const voice = codexVoice(t);
   const pendingSwitch = ['waiting', 'switching'].includes(liveSelection?.state ?? '');
   const usingAccount = profiles?.find(profile => profile.id === liveSelection?.profileId)?.label;
-  const liveNote = liveSelection?.continuation === 'manual_required' ? t("codex.row.continueUnconfirmed")
+  const liveNote = liveSelection?.continuation === 'manual_required' ? t(liveSelection.reason === "native_model_unavailable" ? "codex.row.chooseModel" : "codex.row.continueUnconfirmed")
     : pendingSwitch ? (usingAccount && liveSelection?.profileId !== liveSelection?.requestedProfileId
       ? t("codex.row.switchWaitingUsing", { account: usingAccount }) : t("codex.row.switchWaiting"))
     : liveSelection?.continuation === 'waiting' ? t("codex.row.childrenResuming") : null;

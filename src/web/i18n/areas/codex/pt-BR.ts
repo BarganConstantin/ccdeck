@@ -37,6 +37,7 @@ const catalog: Catalog = {
   "codex.row.switchWaiting": "Aguardando ferramentas em execução ou a entrada necessária antes de trocar de conta.",
   "codex.row.switchWaitingUsing": "Ainda usando {account}. A conta será trocada quando as ferramentas em execução ou a entrada necessária terminarem.",
   "codex.row.childrenResuming": "Conta alterada. Aguardando a retomada dos subagentes.",
+  "codex.row.chooseModel": "A nova conta não lista o modelo atual. No Codex, abra /model, escolha um modelo disponível e continue a conversa.",
   "codex.row.continueUnconfirmed": "A continuação automática não pôde ser confirmada; confira a conversa antes de continuar.",
   "codex.row.reading": "Lendo o uso…",
   "codex.lane.limit": "limite",

@@ -10,7 +10,7 @@ import { readCodexAuto } from './codex-auto.mjs';
 import { resolveCodexLiveEndpoint, connectCodexLiveRpc, liveError } from './codex-live-rpc.mjs';
 import { acquireCodexLiveLease } from './codex-live-lease.mjs';
 import { readLiveCodexCredential } from './codex-live-credentials.mjs';
-import { prepareCodexLiveHandoff, assertCodexLiveQuiet, continueCodexLiveHandoff, confirmCodexLiveChildren, readCodexLiveTurn, retainCodexLiveHandoff } from './codex-live-handoff.mjs';
+import { codexHandoffModelsAvailable, prepareCodexLiveHandoff, assertCodexLiveQuiet, continueCodexLiveHandoff, confirmCodexLiveChildren, readCodexLiveTurn, retainCodexLiveHandoff } from './codex-live-handoff.mjs';
 import { requestCodexLiveCheckpoints, inspectCodexLiveCheckpoints } from './codex-live-checkpoint.mjs';
 
 const idPattern = /^[a-f0-9]{20}$/;
@@ -376,7 +376,20 @@ export function createCodexLiveAccountController(input = {}) {
         try {
           // A checkpoint can itself end with a usage error. Only a different
           // login authorizes retrying that failure, including this late race.
-          const result = await resume(!refresh && !sameAccount(before, next));
+          const changedAccount = !refresh && !sameAccount(before, next);
+          if (changedAccount) {
+            await verifyOwnership();
+            const available = await codexHandoffModelsAvailable(rpc, handoff.paused);
+            await verifyOwnership();
+            if (!available) {
+              // Keep the whole handoff paused, including any delegated children.
+              // No automatic send is pending once the user takes over in Codex.
+              for (const entry of handoff.paused) await record(entry, 'skipped');
+              update({ continuation: 'manual_required', reason: 'native_model_unavailable' });
+              return status();
+            }
+          }
+          const result = await resume(changedAccount);
           if (result.delegated?.length) {
             childContinuation = { rpc, entries: result.delegated, deadline: Date.now() + (options.delegationTimeoutMs ?? 60_000),
               record, journal, identity: resumeIdentity };
