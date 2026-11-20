@@ -1,4 +1,10 @@
 {
+  "4.0.3": [
+    {
+      "title": "🪟 Sessions start on Windows right after ccdeck starts",
+      "body": "On Windows, starting or opening a session in the first moments after ccdeck starts no longer fails with “The terminal engine is unavailable.” The deck now waits until the terminal engine has finished starting."
+    }
+  ],
   "4.0.2": [
     {
       "title": "🖱️ A click on a Board card opens the session in Workspace",
@@ -210,6 +216,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.0.3": "Sessions start on Windows right after ccdeck starts",
     "4.0.2": "Board cards open in Workspace, the Inspector opens with the session, and panes draw right on tmux 3.2–3.5",
     "4.0.0": "A calmer deck, with your sessions' terminals inside it",
     "3.82.3": "Windows CPU limits and more reliable session and usage history",

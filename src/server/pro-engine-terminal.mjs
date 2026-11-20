@@ -80,6 +80,25 @@ const LOST_REASON = "the server could not handle a message";
  *  reviewed. */
 const MUTATIONS = new Set(["claim", "open", "adopt", "launch", "endHosts"]);
 
+/** How many times the client's own deadline a mutation waits for its answer:
+ *  30 seconds with the client's 10. A read past the client's deadline is a
+ *  `no-answer` the page asks again, but a mutation past its own is the deck's
+ *  500, never asked again, though the engine may still carry it out. An
+ *  engine that has just started can take longer than a read's deadline for
+ *  its first answer — on Windows it first finds the session hosts still
+ *  running from before — so a mutation gets room for that and its own work.
+ *  Never past the longest one request may wait (pro-engine-client.mjs). */
+const MUTATION_DEADLINE_FACTOR = 3;
+const LONGEST_REQUEST_MS = 120_000;
+
+/** The request options for `method`: a mutation's longer deadline, and the
+ *  client's own for anything else. */
+function deadlineFor(client, method) {
+  const deadline = client.options?.timeoutMs;
+  if (!MUTATIONS.has(method) || !Number.isFinite(deadline) || deadline <= 0) return {};
+  return { timeoutMs: Math.min(deadline * MUTATION_DEADLINE_FACTOR, LONGEST_REQUEST_MS) };
+}
+
 /** A request's errors that say the engine never ran it, whatever the route,
  *  and the refusal each is: not serving terminals, too many requests, one
  *  that was not well formed, or no engine to send it to yet. */
@@ -158,7 +177,8 @@ function forgetTmuxInEngine(client) {
  *   - a read it did not answer (READ_LOST).
  *
  * Throws — the deck's own 500, through `guard` — for `internal`, for a
- * mutation that may have reached it and was not answered (MUTATIONS), for any
+ * mutation that may have reached it and was not answered, in its longer
+ * deadline or at all (MUTATIONS, MUTATION_DEADLINE_FACTOR), for any
  * other error, and for an answer that is not one.
  */
 export async function routeThroughEngine(client, method, body) {
@@ -171,7 +191,7 @@ export async function routeThroughEngine(client, method, body) {
   if (!backend || backend === "unavailable") return engineRefusal("no-terminal");
   let answer;
   try {
-    answer = await client.request(`terminal.${method}`, { body });
+    answer = await client.request(`terminal.${method}`, { body }, deadlineFor(client, method));
   } catch (error) {
     const code = error?.code;
     if (NOT_RUN.has(code)) return engineRefusal(NOT_RUN.get(code));
