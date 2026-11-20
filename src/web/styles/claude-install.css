@@ -1,0 +1,63 @@
+/* Install Claude Code (ClaudeInstall.tsx), in the session pane's card and in
+   the sign-in dialog. The command to run by hand is one muted line under the
+   buttons: its words, the command in mono, and Copy, wrapping at a narrow
+   width rather than running off the card. The command is in --text, like
+   every other command a muted hint hands over to copy (the empty board's, the
+   quota hint's, the token help's): it is the thing to copy, not prose. */
+.ci-manual {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  max-width: 100%;
+  margin: 0;
+}
+.ci-manual[data-place="stage"] { justify-content: center; }
+/* The command wraps between its parts, as text does, and its end ("| bash")
+   and Copy are one piece that never breaks: a narrow card reads "curl -fsSL",
+   the URL, then "| bash" with Copy after it, never a pipe left dangling at
+   the end of a line or a Copy on a line of its own. One click on the command
+   still selects all of it; a press on Copy selects nothing. */
+.ci-cmd {
+  min-width: 0;
+  max-width: 100%;
+  user-select: all;
+}
+.ci-end { white-space: nowrap; }
+.ci-manual code {
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+.ci-manual .glyph-btn { margin: -4px 0 -4px 4px; vertical-align: middle; user-select: none; }
+/* Copy's target reaches past its box, 4px above and below (a 32px square
+   under a fingertip), so on a wrapped command it reaches into the line above:
+   a click on the URL copied instead of selecting it. The command's words are
+   drawn over that reach, so a press on a word selects the command and Copy
+   keeps all of its target everywhere else. Raised only within this line
+   (isolation), never over anything outside it. */
+.ci-manual { isolation: isolate; }
+.ci-manual code { position: relative; z-index: 1; }
+/* The card's buttons (Install beside the host's own): at a narrow width a
+   whole button goes to the next line, never half of its label. */
+.ci-acts { flex-wrap: wrap; }
+.ci-acts > .btn { white-space: nowrap; max-width: 100%; }
+/* Install while it runs: the loader beside its words, 8px apart, as every
+   loader line pairs them. Words longer than the card wrap inside the button
+   rather than run out of it. */
+.ci-busy { display: inline-flex; align-items: center; gap: 8px; }
+.ci-busy > span { white-space: normal; }
+/* A failed installer's last lines, as it printed them: muted mono, kept to
+   the card's measure. */
+.ci-detail {
+  box-sizing: border-box;
+  max-width: min(60ch, 100%);
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-align: start;
+  font-family: var(--font-mono);
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 1.45;
+  color: var(--muted);
+}

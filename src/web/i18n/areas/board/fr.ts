@@ -568,6 +568,7 @@ const catalog: Catalog = {
   "board.stage.reopenHere": "Rouvrir ici",
   "board.stage.checking": "Vérification…",
   "board.stage.tryAgain": "Réessayer",
+  "board.stage.claudeMissing": "Claude Code n'est pas installé sur cette machine.",
   "board.stage.tmuxSettingUp": "tmux · installation",
   "board.stage.tmuxFetching": "Cette machine n’a pas de tmux que le Command Panel puisse utiliser, ccdeck télécharge donc le sien : environ un mégaoctet, une seule fois. Il reste dans le dossier de ccdeck ; rien n’est installé sur le système.",
   "board.stage.tmuxFetchingLabel": "Téléchargement de tmux",

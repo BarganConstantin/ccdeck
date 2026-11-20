@@ -65,8 +65,10 @@ export type StagePhase =
   | { kind: "detached" }
   /** `code`: the engine's refusal, when it is a state of this machine
    *  (terminal-api's PANEL_UNAVAILABLE). Such a card checks again in place,
-   *  `busy` while it does, as the tmux card does. */
-  | { kind: "error"; message: string; code?: PanelUnavailable; busy?: boolean };
+   *  `busy` while it does, as the tmux card does. `missing`: a Claude
+   *  session refused `agent-missing`, which the card offers to install
+   *  (ClaudeInstall.tsx); a Codex one keeps the plain card. */
+  | { kind: "error"; message: string; code?: PanelUnavailable; busy?: boolean; missing?: "claude" };
 
 export type StagePhaseKind = StagePhase["kind"];
 
@@ -372,10 +374,15 @@ export function stageAnnouncement(name: string, phase: StagePhase): string | nul
     case "not-attachable": return phase.stillRunning ? t("board.stage.announceStillRunning", { name }) : t("board.stage.announceNoPane", { name });
     case "tmux-installing": return t("board.stage.announceTmuxSetup");
     case "tmux-missing": return t("board.stage.announceTmuxMissing");
-    case "error": return errorWords(phase.message);
+    case "error": return phase.missing === "claude" ? t(CLAUDE_MISSING_MSG) : errorWords(phase.message);
     default: return null;
   }
 }
+
+/** What the card says for a Claude session refused because Claude Code is not
+ *  installed: the deck's own sentence in the language on show, whatever the
+ *  engine said (its Windows sentence is longer and names installers). */
+export const CLAUDE_MISSING_MSG = "board.stage.claudeMissing";
 
 /** What the Error card says when the stage cannot say more. */
 export const PANEL_STOPPED_MSG = "board.stage.panelStopped";

@@ -23,6 +23,7 @@ const { default: AddAccountDialog } = await import("../components/AddAccountDial
 const { default: SignInProgress } = await import("../components/SignInProgress");
 const { default: Confetti } = await import("../components/Confetti");
 const { HANDOFF_MS } = await import("../signin-stages");
+const { default: ClaudeInstall } = await import("../components/ClaudeInstall");
 
 const URL_ = "https://claude.com/cai/oauth/authorize?code=true&state=test";
 const EMAIL = "personal@example.com";
@@ -236,6 +237,72 @@ describe("a failure, on the row it happened at", () => {
     expect(statuses(view.tree)).toEqual(["failed", "pending", "pending", "pending"]);
     expect(labels(view.tree)[0]).toBe("The sign-in page did not open");
     expect(button(detail(view.tree), "Try again")).not.toBeNull();
+  });
+
+  // User feedback: in the desktop app the start failed with "not on PATH. Set
+  // AGENTS_DECK_CLAUDE…", in English, with nothing to do about it.
+  const NOT_ON_PATH = "the claude CLI could not be run: not on PATH. Set AGENTS_DECK_CLAUDE to its full path.";
+  const MISSING = "Claude Code is not installed on this machine, or ccdeck cannot find it.";
+
+  it("says plainly that Claude Code is missing, offers to install it beside Try again, and names the variable last", async () => {
+    const view = open();
+    (button(view.tree, "Open the sign-in page")!.props.onClick as () => void)();
+    await flush();
+    posts.at(-1)!.answer({ ok: false, reason: "no_url", state: "failed", url: null, detail: NOT_ON_PATH });
+    await flush();
+    expect(statuses(view.tree)).toEqual(["failed", "pending", "pending", "pending"]);
+    const shown = detail(view.tree);
+    const install = one(shown, el => el.type === ClaudeInstall)!;
+    expect(install.props.place).toBe("dialog");
+    expect(install.props.onInstalled, "a sign-in opens a browser tab: only a press starts it").toBeUndefined();
+    // CHANGED ON PURPOSE: the sentence, Try again and the small print were
+    // drawn by the dialog around the card. The card draws them now, so that
+    // once Claude Code is installed the "not installed" sentence and the
+    // variable go, and Try again is the one button.
+    const lead = install.props.lead as Drawn;
+    expect(lead.props.className).toBe("aa-note aa-reason");
+    expect(textOf(lead)).toBe(MISSING);
+    expect(textOf(shown) + textOf(lead), "the variable is not the sentence").not.toContain("not on PATH");
+    expect(textOf(install.props.note)).toBe("Installed it somewhere unusual? Set AGENTS_DECK_CLAUDE to its full path.");
+    const actions = install.props.actions as (state: string) => Drawn | null;
+    const again = actions("ask")!;
+    expect(textOf(again)).toBe("Try again");
+    expect(again.props.className).toBe("btn");
+    expect(textOf(actions("failed"))).toBe("Try again");
+    expect(actions("running"), "no sign-in while Claude Code installs: it would end the same way").toBeNull();
+    const installed = actions("done")!;
+    expect(textOf(installed)).toBe("Try again");
+    expect(installed.props.className).toBe("btn primary");
+    expect(installed.props.autoFocus, "the keys go to the one thing left to do").toBe(true);
+    expect(said(view.tree)).toContain(MISSING);
+
+    // Try again is the sign-in again, as it was.
+    (again.props.onClick as () => void)();
+    await flush();
+    expect(posts.at(-1)!.body).toEqual({ action: "login" });
+    posts.at(-1)!.answer(flowAt("awaiting_code"));
+    await flush();
+    expect(all(view.tree, el => el.type === ClaudeInstall), "gone once the sign-in runs").toHaveLength(0);
+  });
+
+  it("offers the install too when the CLI went missing during the sign-in", async () => {
+    const view = open();
+    await started(view);
+    await answerPoll(flowAt("failed", { error: NOT_ON_PATH }));
+    const shown = detail(view.tree);
+    const install = one(shown, el => el.type === ClaudeInstall);
+    expect(install).not.toBeNull();
+    // CHANGED ON PURPOSE: the sentence is the card's lead now, not the dialog's.
+    expect(textOf(install!.props.lead)).toBe(MISSING);
+  });
+
+  it("offers no install for any other failure", async () => {
+    const view = open();
+    (button(view.tree, "Open the sign-in page")!.props.onClick as () => void)();
+    await flush();
+    posts.at(-1)!.answer({ ok: false, reason: "no_url", state: "failed", url: null });
+    await flush();
+    expect(all(detail(view.tree), el => el.type === ClaudeInstall)).toHaveLength(0);
   });
 
   it("calls a sign-in the server forgot ended, where it was last seen", async () => {

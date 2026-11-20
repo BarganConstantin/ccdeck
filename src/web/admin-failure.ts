@@ -545,6 +545,13 @@ const LOGIN_ERRORS = new Map<string, string>(Object.entries({
   "cswap could not be run: not on PATH, and not in the places uv and pipx install to. Set AGENTS_DECK_CSWAP to its full path.": "accounts.fail.login.cswapMissing",
 }));
 
+/** Whether a sign-in ended because the deck could not run `claude` at all:
+ *  not installed, or installed where the deck does not look. The dialog then
+ *  offers to install it (ClaudeInstall.tsx). */
+export function claudeCliMissing(text: string | null | undefined): boolean {
+  return !!text && LOGIN_ERRORS.get(text) === "accounts.fail.login.claudeMissing";
+}
+
 /** A sign-in flow's ending in the language on show; any other text as it came. */
 export function loginErrorText<T extends string | null | undefined>(text: T, t: TFunction = tNow): T | string {
   if (!text) return text;
