@@ -2,6 +2,8 @@
 // the session's transcript (src/server/transcript-turns.mjs) and read through
 // use-session-transcript.ts. A test hands ChatView a stand-in; every line below
 // is transcript text, so none of it is held in src/.
+import type { AskPick } from "../../ask-keys";
+import type { AskSendResult } from "../../use-terminal-session";
 
 /** One line of the conversation. */
 export type ChatTurn =
@@ -20,8 +22,40 @@ export type ChatTurn =
       /** Which mark the row wears. */
       mark?: "file" | "search" | "terminal";
     }
+  /** Questions the assistant asked you (AskUserQuestion), with their options. */
+  | {
+      kind: "ask";
+      questions: ChatQuestion[];
+      /** Still waiting for your answer. */
+      running?: boolean;
+      /** Once answered: what was chosen, per question in order; "" when left unanswered. */
+      answers?: string[];
+      /** What you wrote back instead of choosing. */
+      reply?: string;
+    }
   /** What you answered and how long it took, after the card folds. */
   | { kind: "record"; text: string };
+
+export interface ChatQuestion {
+  /** The short tag over the question: "Scope". May be "". */
+  header: string;
+  question: string;
+  /** Several options may be chosen. */
+  multi: boolean;
+  /** Its options carry a preview, which Claude Code lays out side by side. */
+  preview?: boolean;
+  /** None when it asks for text or a number: then it is answered in Term. */
+  options: { label: string; description: string }[];
+}
+
+/** How Chat answers a waiting question: the stage's, handed down to the card. */
+export interface ChatAsk {
+  /** Why an answer cannot go from here right now; none when it can. */
+  blocked?: string;
+  /** Sends the picks as the keys a person would press, once Term shows the question. */
+  send(questions: ChatQuestion[], picks: AskPick[]): Promise<AskSendResult>;
+  onShowTerm?(): void;
+}
 
 export interface ChatSince {
   toolCalls: number;

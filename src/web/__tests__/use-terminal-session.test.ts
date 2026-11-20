@@ -24,8 +24,13 @@ import { forgetTerminalTextStep, setTerminalTextStep, terminalTextStep } from ".
 import { MAX_MESSAGE_BYTES, connectTerminal, type TerminalConnection } from "../terminal-protocol";
 import { CLEAN_END_MIN_LIVE_MS } from "../components/terminal/stage-model";
 import { launchTerminal, type ApiFailure, type NotAttachable, type SessionRef, type TerminalStatus, type Ticketed, type Launched } from "../terminal-api";
+import { askSteps, SUBMIT_WORDS } from "../ask-keys";
+import type { ChatQuestion } from "../components/chat/chat-model";
 import {
   ACK_EVERY_BYTES,
+  ASK_KEY_GAP_MS,
+  ASK_SCREEN_POLL_MS,
+  ASK_SCREEN_WAIT_MS,
   CTRL_V,
   ECHO_WINDOW_MS,
   ELSEWHERE_POLL_MS,
@@ -994,6 +999,178 @@ describe("sending a Chat prompt on the current terminal connection", () => {
       expect(next.sentBytes()).toEqual([]);
     }
     ctl.dispose();
+  });
+});
+
+describe("answering Claude Code's question from Chat (sendAsk)", () => {
+  const question = (text: string, labels: string[], extra: Partial<ChatQuestion> = {}): ChatQuestion =>
+    ({ header: "", question: text, multi: false, options: labels.map(label => ({ label, description: "" })), ...extra });
+  const DB = question("Which database should the service use?", ["Postgres", "SQLite", "DynamoDB"]);
+  const FEATURES = question("Which features should ship first?", ["Search", "Export", "Sharing"], { multi: true });
+  const DB_SCREEN = " ☐ Database\n\n Which database should the service use?\n\n ❯ 1. Postgres\n   2. SQLite\n   3. DynamoDB\n   4. Type something.";
+  const FEATURES_SCREEN = " Which features should ship first?\n\n   1. [ ] Search\n   2. [ ] Export\n   3. [ ] Sharing";
+  const REVIEW_SCREEN = " Review your answers\n\n Ready to submit your answers?\n ❯ 1. Submit answers\n   2. Cancel";
+
+  async function askRig({ screen = DB_SCREEN as string | null, readOnly = false } = {}) {
+    const { r, ctl } = rig();
+    let connection: TerminalConnection;
+    const connect = r.deps.connect;
+    r.deps.connect = options => (connection = connect(options));
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    const s = await attach(r, ctl);
+    if (readOnly) s.text({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: true });
+    const view = { text: screen ?? "" };
+    if (screen !== null) Object.assign(r.terminal(), { screen: () => view.text });
+    s.sent.length = 0;
+    return { r, ctl, s, view, connection: connection! };
+  }
+  /** One poll of the screen: the deck's clock and the timers move together. */
+  const poll = async (r: Rig, ms = ASK_SCREEN_POLL_MS) => { r.clock.now += ms; await vi.advanceTimersByTimeAsync(ms); };
+
+  it("one choice: the digit alone, at once, when the screen shows the question", async () => {
+    const { ctl, s } = await askRig();
+    expect(await ctl.sendAsk(askSteps([DB], [{ options: [1] }])!, REF_SUBJECT)).toBe("sent");
+    expect(s.sent).toEqual([enc("2")]);
+    ctl.dispose();
+  });
+
+  it("each step waits for the program to draw what it answers, then the review screen's submit", async () => {
+    const { r, ctl, s, view } = await askRig();
+    const steps = askSteps([DB, FEATURES], [{ options: [0] }, { options: [0, 2] }])!;
+    const done = ctl.sendAsk(steps, REF_SUBJECT);
+    await flush();
+    expect(s.sent, "the second question is not on screen yet").toEqual([enc("1")]);
+    await poll(r, ASK_KEY_GAP_MS + ASK_SCREEN_POLL_MS);
+    expect(s.sent).toHaveLength(1);
+    view.text = FEATURES_SCREEN;
+    await poll(r);
+    expect(s.sent, "the step's first key goes as its question shows").toEqual([enc("1"), enc("1")]);
+    await poll(r, ASK_KEY_GAP_MS);
+    expect(s.sent).toEqual([enc("1"), enc("1"), enc("3")]);
+    await poll(r, ASK_KEY_GAP_MS);
+    expect(s.sent).toEqual([enc("1"), enc("1"), enc("3"), enc("\t")]);
+    view.text = REVIEW_SCREEN;
+    await poll(r, ASK_KEY_GAP_MS);
+    expect(await done).toBe("sent");
+    expect(s.sent).toEqual([enc("1"), enc("1"), enc("3"), enc("\t"), enc("1")]);
+    expect(REVIEW_SCREEN).toContain(SUBMIT_WORDS);
+    ctl.dispose();
+  });
+
+  // A prompt that reads "13" in one go does not see two presses, and words
+  // pasted before "Type something" opens miss the box: keys come apart, as a
+  // person's do.
+  it("keys go apart: the next one only after the program had time to read the last", async () => {
+    const { r, ctl, s } = await askRig({ screen: FEATURES_SCREEN });
+    const done = ctl.sendAsk([{ expect: [], keys: [{ input: "1" }, { input: "3" }, { input: "\t" }] }], REF_SUBJECT);
+    await flush();
+    expect(s.sent).toEqual([enc("1")]);
+    await poll(r, ASK_KEY_GAP_MS - 1);
+    expect(s.sent, "not before the gap").toEqual([enc("1")]);
+    await poll(r, 1);
+    expect(s.sent).toEqual([enc("1"), enc("3")]);
+    await poll(r, ASK_KEY_GAP_MS);
+    expect(await done).toBe("sent");
+    expect(s.sent).toEqual([enc("1"), enc("3"), enc("\t")]);
+    ctl.dispose();
+  });
+
+  it("the session going away between two keys of a step stops the rest", async () => {
+    const { r, ctl, s } = await askRig({ screen: FEATURES_SCREEN });
+    const done = ctl.sendAsk(askSteps([FEATURES], [{ options: [0, 1] }])!, REF_SUBJECT);
+    await flush();
+    expect(s.sent).toEqual([enc("1")]);
+    ctl.show({ kind: "session", ref: OTHER });
+    await poll(r, ASK_KEY_GAP_MS);
+    expect(await done).toBe("partial");
+    expect(s.sent).toEqual([enc("1")]);
+    ctl.dispose();
+  });
+
+  it("your own words: the box's digit, the words as one paste once the box had time to open, Enter only once they show", async () => {
+    const { r, ctl, s, view } = await askRig();
+    const done = ctl.sendAsk(askSteps([DB], [{ options: [], text: "MySQL, please" }])!, REF_SUBJECT);
+    await flush();
+    expect(s.sent, "the words wait for the box").toEqual([enc("4")]);
+    await poll(r, ASK_KEY_GAP_MS);
+    expect(s.sent).toEqual([enc("4"), JSON.stringify({ t: "paste", text: "MySQL, please" })]);
+    await poll(r, ASK_KEY_GAP_MS + ASK_SCREEN_POLL_MS);
+    expect(s.sent, "Enter waits until the words show").toHaveLength(2);
+    view.text = `${DB_SCREEN}\n   > MySQL, please`;
+    await poll(r);
+    expect(await done).toBe("sent");
+    expect(s.sent.at(-1)).toEqual(enc("\r"));
+    ctl.dispose();
+  });
+
+  it("a screen that never shows the question sends nothing and says it changed", async () => {
+    const { r, ctl, s } = await askRig({ screen: "$ " });
+    const done = ctl.sendAsk(askSteps([DB], [{ options: [1] }])!, REF_SUBJECT);
+    await poll(r, ASK_SCREEN_WAIT_MS - ASK_SCREEN_POLL_MS);
+    expect(s.sent).toEqual([]);
+    await poll(r);
+    expect(await done).toBe("changed");
+    expect(s.sent).toEqual([]);
+    ctl.dispose();
+  });
+
+  it("a later step that never shows: what went stays, and the rest is left to Term", async () => {
+    const { r, ctl, s } = await askRig();
+    const done = ctl.sendAsk(askSteps([DB, FEATURES], [{ options: [2] }, { options: [1] }])!, REF_SUBJECT);
+    await poll(r, ASK_KEY_GAP_MS);
+    await poll(r, ASK_SCREEN_WAIT_MS);
+    expect(await done).toBe("partial");
+    expect(s.sent).toEqual([enc("3")]);
+    ctl.dispose();
+  });
+
+  it("the session going away while a step waits stops the keys", async () => {
+    const { r, ctl, s } = await askRig();
+    const done = ctl.sendAsk(askSteps([DB, FEATURES], [{ options: [0] }, { options: [1] }])!, REF_SUBJECT);
+    await flush();
+    ctl.show({ kind: "session", ref: OTHER });
+    await poll(r, ASK_KEY_GAP_MS);
+    expect(await done).toBe("partial");
+    expect(s.sent).toEqual([enc("1")]);
+    const next = r.sockets.at(-1)!;
+    expect(next === s || next.sent.length === 0).toBe(true);
+    ctl.dispose();
+  });
+
+  it("refuses with nothing sent: read only, another session, no screen to read, no steps", async () => {
+    const steps = askSteps([DB], [{ options: [0] }])!;
+    const readOnly = await askRig({ readOnly: true });
+    expect(await readOnly.ctl.sendAsk(steps, REF_SUBJECT)).toBe("unavailable");
+    expect(readOnly.s.sent).toEqual([]);
+    readOnly.ctl.dispose();
+    const other = await askRig();
+    expect(await other.ctl.sendAsk(steps, OTHER_SUBJECT)).toBe("unavailable");
+    expect(await other.ctl.sendAsk([], REF_SUBJECT)).toBe("unavailable");
+    expect(other.s.sent).toEqual([]);
+    other.ctl.dispose();
+    const blind = await askRig({ screen: null });
+    expect(await blind.ctl.sendAsk(steps, REF_SUBJECT)).toBe("unavailable");
+    expect(blind.s.sent).toEqual([]);
+    blind.ctl.dispose();
+    const { ctl } = rig();
+    expect(await ctl.sendAsk(steps, REF_SUBJECT)).toBe("unavailable");
+    ctl.dispose();
+  });
+
+  it("a key the connection refuses: nothing went is unavailable, after one went is partial", async () => {
+    const first = await askRig();
+    vi.spyOn(first.connection, "sendInput").mockReturnValue(false);
+    expect(await first.ctl.sendAsk(askSteps([DB], [{ options: [0] }])!, REF_SUBJECT)).toBe("unavailable");
+    first.ctl.dispose();
+    const later = await askRig({ screen: `${DB_SCREEN}\n${FEATURES_SCREEN}` });
+    const send = later.connection.sendInput.bind(later.connection);
+    vi.spyOn(later.connection, "sendInput").mockImplementation(data => data === "1" && send(data));
+    const done = later.ctl.sendAsk(askSteps([DB, FEATURES], [{ options: [0] }, { options: [1] }])!, REF_SUBJECT);
+    await poll(later.r, ASK_KEY_GAP_MS);
+    expect(await done).toBe("partial");
+    expect(later.s.sent).toEqual([enc("1")]);
+    later.ctl.dispose();
   });
 });
 

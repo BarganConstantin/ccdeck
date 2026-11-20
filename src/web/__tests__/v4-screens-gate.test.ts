@@ -217,10 +217,13 @@ describe("what is drawn with the flags off", () => {
   // chat flag effective, and never hands the Decision card, which has no way to answer.
   // CHANGED ON PURPOSE (internal #99): the switch goes through showView, which takes
   // the keys out of the pane on the way to Chat (v4-chat-writes-in-term.test.ts).
+  // CHANGED ON PURPOSE: Chat is also handed how to answer a question the assistant
+  // asked, as the keys Term takes (ask-keys.ts, chat-ask.test.ts).
   it("the stage hands Chat only for a supported session with the flag effective, and no Decision card", () => {
     const stage = code("components/terminal/TerminalStage.tsx");
     expect(stage).toContain('chatSessionFor(screenFlags.chat, chatRef)');
-    expect(stage).toContain("screens={chatSession !== null ? { view, source: chatSource, provider: chatProvider } : undefined}");
+    expect(stage).toContain("screens={chatSession !== null ? { view, source: chatSource, provider: chatProvider, ask: chatAsk } : undefined}");
+    expect(stage).toContain("const chatAsk: ChatAsk | undefined = chatSession === null ? undefined : {");
     expect(stage).toContain("view={chatSession !== null ? { current: view, onChange: showView } : undefined}");
     expect(stage).not.toMatch(/decision[:=]|DecisionCard/);
   });

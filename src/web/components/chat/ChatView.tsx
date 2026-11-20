@@ -14,7 +14,7 @@ import IntegrationSkeleton from "../IntegrationSkeleton";
 import type { Provider } from "../../types";
 import { useT } from "../../i18n";
 import DecisionCard, { type DecisionCardProps } from "../decision/DecisionCard";
-import type { ChatSource, ChatTurn } from "./chat-model";
+import type { ChatAsk, ChatSource, ChatTurn } from "./chat-model";
 import { conversationBlocks } from "./chat-model";
 import { AssistantBlock, RecordLine, SinceDivider, YourMessage } from "./ChatTurn";
 import "./chat.css";
@@ -24,27 +24,40 @@ export interface ChatViewProps {
   provider?: Provider;
   /** The question docked under the chat. Its flag is the caller's to check. */
   decision?: DecisionCardProps;
+  /** How a waiting question is answered from here; without it the card is read only. */
+  ask?: ChatAsk;
+}
+
+/** The turn a waiting question card answers: the last turn, when it is one. */
+export function liveAskAt(turns: readonly ChatTurn[]): number {
+  const at = turns.length - 1;
+  const last = turns[at];
+  return last?.kind === "ask" && last.running ? at : -1;
 }
 
 /** The distance from the bottom, in px, under which the reader counts as at the bottom. */
 export const BOTTOM_SLACK = 24;
 
-/** What identifies the last turn: its kind and what it says, and a tool row's state. */
+/** What identifies the last turn: its kind and what it says, and a tool row's
+ *  or a question card's state. */
 export function tailKey(turn: ChatTurn | undefined): string {
   if (!turn) return "";
-  return turn.kind === "tool" ? `tool|${turn.name}|${turn.arg}|${turn.note ?? ""}|${turn.running ? 1 : 0}` : `${turn.kind}|${turn.text}`;
+  if (turn.kind === "tool") return `tool|${turn.name}|${turn.arg}|${turn.note ?? ""}|${turn.running ? 1 : 0}`;
+  if (turn.kind === "ask") return `ask|${turn.questions.map(q => q.question).join("\n")}|${turn.running ? 1 : 0}|${(turn.answers ?? []).join("\n")}|${turn.reply ?? ""}`;
+  return `${turn.kind}|${turn.text}`;
 }
 
 /** Before paint in a browser, so the bottom never flashes the top; a plain effect
  *  where there is no layout to wait for (rendering to a string). */
 const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
-export default function ChatView({ source, provider, decision }: ChatViewProps) {
+export default function ChatView({ source, provider, decision, ask }: ChatViewProps) {
   const t = useT();
   const scroller = useRef<HTMLDivElement | null>(null);
   const stuck = useRef(true);
   const [following, setFollowing] = useState(true);
   const count = source.state === "ready" ? source.turns.length : 0;
+  const live = source.state === "ready" ? liveAskAt(source.turns) : -1;
   const tail = source.state === "ready" ? tailKey(source.turns[source.turns.length - 1]) : "";
   // New lines keep the reader at the bottom, unless they scrolled up. The last
   // turn counts as well as how many there are: once a host's cap slides the
@@ -81,7 +94,8 @@ export default function ChatView({ source, provider, decision }: ChatViewProps) 
               {source.since && <SinceDivider since={source.since} />}
               {source.turns.length === 0 && <p className="chat-empty">{t("board.chat.empty")}</p>}
               {conversationBlocks(source.turns).map(block => block.kind === "assistant"
-                ? <AssistantBlock key={block.index} turns={block.turns} provider={provider} />
+                ? <AssistantBlock key={block.index} turns={block.turns} provider={provider}
+                  ask={ask && live >= block.index && live < block.index + block.turns.length ? { ...ask, at: live - block.index } : undefined} />
                 : block.kind === "user" ? <YourMessage key={block.index} text={block.text} />
                 : <RecordLine key={block.index} text={block.text} />)}
             </>
