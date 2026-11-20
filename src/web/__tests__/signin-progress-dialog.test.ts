@@ -257,6 +257,66 @@ describe("a failure, on the row it happened at", () => {
   });
 });
 
+describe("a sign-in again that came back as another account (user feedback)", () => {
+  const OTHER = "someone.else@example.com";
+  const wrong = (extra: Answer = {}) => flowAt("failed", {
+    step: "confirm", error: "a different account signed in, so nothing was saved",
+    wrongAccount: { signedIn: OTHER, wanted: EMAIL }, ...extra,
+  });
+
+  it("names who signed in and the account that still needs it, with Try again", async () => {
+    const view = open({ email: EMAIL });
+    await started(view);
+    expect(posts.at(-1)!.body).toEqual({ action: "login", email: EMAIL });
+    await answerPoll(wrong());
+    expect(statuses(view.tree)).toEqual(["done", "done", "failed", "pending"]);
+    const reason = `You signed in as ${OTHER}, so nothing was saved. ${EMAIL} still needs a new sign-in.`;
+    expect(textOf(one(detail(view.tree), el => el.type === "p"))).toBe(reason);
+    expect(said(view.tree)).toBe(`The sign-in could not be confirmed. ${reason}`);
+    expect(button(detail(view.tree), "Start over")).toBeNull();
+    expect(button(detail(view.tree), "Try again")).not.toBeNull();
+  });
+
+  it("starts the sign-in again for the account it was for", async () => {
+    const view = open({ email: EMAIL });
+    await started(view);
+    await answerPoll(wrong());
+    (button(detail(view.tree), "Try again")!.props.onClick as () => void)();
+    await flush();
+    expect(posts.at(-1)!.body).toEqual({ action: "login", email: EMAIL });
+    expect(statuses(view.tree)).toEqual(["active", "pending", "pending", "pending"]);
+  });
+
+  it("says so when the machine could not be put back on the account it was on", async () => {
+    const view = open({ email: EMAIL });
+    await started(view);
+    await answerPoll(wrong({ restored: false, activeAccount: { num: null, email: null } }));
+    const warn = one(detail(view.tree), el => el.props.className === "aa-note aa-warn")!;
+    expect(textOf(warn)).toMatch(/^The account you were using could not be put back/);
+  });
+
+  it("says it in the reader's language, never the server's English", async () => {
+    const { setLanguage } = await import("../i18n");
+    // setLanguage marks the document's language, which the stub above has none of.
+    vi.stubGlobal("document", { body: null, activeElement: null, documentElement: {} });
+    try {
+      setLanguage("fr");
+      const view = open({ email: EMAIL });
+      (button(view.tree, "Ouvrir la page de connexion")!.props.onClick as () => void)();
+      await flush();
+      posts.at(-1)!.answer(flowAt("awaiting_code"));
+      await flush();
+      await answerPoll(wrong());
+      const text = textOf(one(detail(view.tree), el => el.type === "p"));
+      expect(text).toContain(OTHER);
+      expect(text).toContain(EMAIL);
+      expect(text).not.toMatch(/signed in|nothing was saved/);
+    } finally {
+      setLanguage("en");
+    }
+  });
+});
+
 describe("Cancel", () => {
   it("tells the server, and puts the dialog back at its start", async () => {
     const view = open();

@@ -27,7 +27,7 @@ import { createPortal } from "react-dom";
 import Confetti from "./Confetti";
 import SuccessMark from "./SuccessMark";
 import SignInProgress, { type ProgressPhase } from "./SignInProgress";
-import { exitRequest, loginEndNotice, loginTabView, restoreWarning, shouldPollLogin, type ActiveAccount, type LoginServerState } from "../login-flow";
+import { exitRequest, loginEndNotice, loginTabView, restoreWarning, shouldPollLogin, wrongAccountText, type ActiveAccount, type LoginServerState, type WrongAccount } from "../login-flow";
 import {
   approveHint, asSentence, celebrates, doneTitle, failedStage, handoffHold, HANDOFF_MS, importHint, liveStage,
   loginPollMs, stageAnnouncement, stageDetail, stageFailureTitle, stageRows, type SignInStage,
@@ -58,6 +58,8 @@ type LoginState = {
    *  account the machine is actually signed in as. See restoreWarning (#951). */
   restored?: boolean;
   activeAccount?: ActiveAccount | null;
+  /** A sign-in for `email` that came back as somebody else (wrongAccountText). */
+  wrongAccount?: WrongAccount | null;
 };
 
 type Props = {
@@ -472,7 +474,10 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
   const phase: ProgressPhase = stoppedAt ? "failed" : holding ? "resolving" : "live";
   const rows = stageRows(holding ? { done: true } : stoppedAt ? { failed: stoppedAt, state: login?.state } : { live }, t);
   const failTitle = stoppedAt ? stageFailureTitle(stoppedAt, login?.state, t) : "";
-  const failText = asSentence(notice.message, t);
+  // A sign-in that came back as another account names both, and its retry is
+  // the same sign-in for the account it was for (`email`).
+  const wrong = wrongAccountText({ state: login?.state, wrongAccount: login?.wrongAccount }, t);
+  const failText = wrong ?? asSentence(notice.message, t);
   const hint = live === "approve" ? approveHint({ since: approveSince, now, expiresAt: login?.expiresAt }, t) : null;
   const slowImport = pasteBusy ? importHint({ since: importSince, now }, t) : null;
 
@@ -615,11 +620,12 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                 detail={phase === "failed" ? (
                   <>
                     <p className="aa-note aa-reason">{failText}</p>
+                    {restoreNote ? <p className="aa-note aa-warn" role="status">{restoreNote}</p> : null}
                     {/* Past the first stage a retry is the whole sign-in again,
                         browser and all, and the button says so. */}
                     <div className="aa-actions">
                       <button type="button" ref={retryRef} className="btn primary" onClick={retry}>
-                        {stoppedAt === "link" ? t("accounts.add.tryAgain") : t("accounts.add.startOver")}
+                        {stoppedAt === "link" || wrong ? t("accounts.add.tryAgain") : t("accounts.add.startOver")}
                       </button>
                     </div>
                   </>
