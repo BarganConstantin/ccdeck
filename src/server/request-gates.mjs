@@ -510,6 +510,9 @@ export const GUARDED_READS = new Set([
   // The engine's install state (engine-install.mjs): which version is here,
   // an install's progress and why one failed. The same one caller.
   "/api/terminal/engine",
+  // And Claude Code's install from the deck (claude-install.mjs), beside it:
+  // where it stands, and the last lines a failed installer printed.
+  "/api/claude-install",
   "/api/radio-stations",
   "/api/radio-click",
   // The trackers this deck is connected to (#2178): the list of connections
