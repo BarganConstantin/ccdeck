@@ -9,8 +9,13 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { resetCreditsLine } from "../reset-credits";
+import { RESET_KINDS, resetCreditGroups, resetCreditsLine, resetGroupText, resetGroupTitle } from "../reset-credits";
 import { en } from "../i18n/en";
+import { catalogFor } from "../i18n/catalogs";
+import { LANGUAGES } from "../i18n/registry";
+import { translate } from "../i18n/translate";
+// @ts-expect-error — plain JS module, no types
+import { RESET_KINDS as SERVER_KINDS } from "../../server/claude-reset-credits.mjs";
 import { sourceOf } from "./client-source";
 import { USAGE_FILES } from "./usage-surface";
 import { sheetText } from "./sheet-source";
@@ -76,20 +81,24 @@ describe("the Claude card", () => {
   it("declares the field the server sends", () => {
     expect(quota).toContain("result.resetCredits = credits");
     // The shape the route answers in moved to use-quota.ts with the hook that reads it.
-    expect(sourceOf("use-quota.ts")).toMatch(/interface QuotaData \{[^}]*resetCredits\?: ResetCredits \| null;/);
+    // One group per kind now, and still the single total a deck from before
+    // the kinds sends.
+    expect(sourceOf("use-quota.ts")).toMatch(/interface QuotaData \{[^}]*resetCredits\?: ResetCreditGroup\[\] \| ResetCredits \| null;/);
   });
 
-  it("draws the row only when there is a reset to spend", () => {
+  it("draws a line for each kind there is a reset to spend of, and nothing else", () => {
     // Zero, unknown and absent all draw nothing — an eligible account with no
     // grants is not news, and an inventory the server could not establish is
     // not a zero.
-    expect(panel).toMatch(/\{quota\.resetCredits && quota\.resetCredits\.availableCount > 0 && \(/);
-    expect(panel).toContain('resetCreditsText("limit", quota.resetCredits, t)');
+    expect(panel).toContain("{resetCreditGroups(quota.resetCredits).map(g => (");
+    expect(panel).toContain("{resetGroupText(g, t)}");
+    for (const nothing of [undefined, null, [], { availableCount: 0, nextExpiryAt: null }, [{ kind: "full", availableCount: 0, nextExpiryAt: null }], "3", 3])
+      expect(resetCreditGroups(nothing), JSON.stringify(nothing)).toEqual([]);
   });
 
   it("says where a reset is redeemed, and that the deck only reports them", () => {
-    const row = panel.slice(panel.indexOf('resetCreditsText("limit"') - 400, panel.indexOf('resetCreditsText("limit"'));
-    expect(row).toContain('title={t("usage.credits.claudeTitle", { product: PRODUCT })}');
+    const row = panel.slice(panel.indexOf("resetCreditGroups(quota.resetCredits)"), panel.indexOf("{resetGroupText(g, t)}"));
+    expect(row).toContain('title={resetGroupTitle(g.kind, t("usage.credits.claudeTitle", { product: PRODUCT }), t)}');
     expect(en["usage.credits.claudeTitle"]).toMatch(/Redeem one in Claude on the web or desktop — \{product\} only reports them/);
   });
 
@@ -108,5 +117,82 @@ describe("the row's type", () => {
     expect(rule).toMatch(/font-variant-numeric: tabular-nums/);
     // --warn is the colour of an agent blocked on the user, and nothing else.
     expect(rule).not.toMatch(/--warn/);
+  });
+});
+
+// Claude's resets come in kinds (user feedback: a Fable reset and one that
+// clears every limit read the same, "1 limit reset available"). The server
+// sends one group per kind; the card prints a line for each.
+describe("a line per kind of reset", () => {
+  // 9:59am in Berlin on March 9 (CET, UTC+1).
+  const MAR_9 = Date.parse("2027-03-09T08:59:00Z");
+  const said = (g: Parameters<typeof resetGroupText>[0]) => resetGroupText(g).replace(/\u00a0/g, " ");
+
+  it("names the kind, the way Claude's own Settings name it", () => {
+    expect(said({ kind: "fable", availableCount: 1, nextExpiryAt: MAR_9 })).toBe("1 Fable reset · expires Mar 9, 9:59am");
+    expect(said({ kind: "full", availableCount: 2, nextExpiryAt: MAR_9 })).toBe("2 Global resets · expires Mar 9, 9:59am");
+    expect(said({ kind: "weekly", availableCount: 1, nextExpiryAt: null })).toBe("1 weekly reset");
+    expect(said({ kind: "session", availableCount: 1, nextExpiryAt: null })).toBe("1 5-hour reset");
+    expect(said({ kind: "session", availableCount: 3, nextExpiryAt: MAR_9 })).toBe("3 5-hour resets · expires Mar 9, 9:59am");
+  });
+
+  it("keeps today's neutral line for a reset whose grant did not say what it clears", () => {
+    expect(said({ kind: "unknown", availableCount: 1, nextExpiryAt: MAR_9 })).toBe("1 limit reset available · expires Mar 9, 9:59am");
+    expect(said({ kind: "unknown", availableCount: 2, nextExpiryAt: null })).toBe("2 limit resets available");
+  });
+
+  it("says what a Fable and a Global reset do in their title, over where any reset is redeemed", () => {
+    const where = "Saved in Claude";
+    expect(resetGroupTitle("fable", where)).toBe("Gives back what Fable used to your weekly limit\nSaved in Claude");
+    expect(resetGroupTitle("full", where)).toBe("Clears every limit\nSaved in Claude");
+    for (const kind of ["weekly", "session", "unknown"] as const) expect(resetGroupTitle(kind, where)).toBe(where);
+  });
+
+  it("lists the kinds in the server's order, Fable first", () => {
+    expect([...RESET_KINDS]).toEqual(SERVER_KINDS);
+    expect(resetCreditGroups([
+      { kind: "unknown", availableCount: 1, nextExpiryAt: null },
+      { kind: "session", availableCount: 1, nextExpiryAt: null },
+      { kind: "fable", availableCount: 1, nextExpiryAt: MAR_9 },
+      { kind: "full", availableCount: 2, nextExpiryAt: null },
+    ]).map(g => g.kind)).toEqual(["fable", "full", "session", "unknown"]);
+  });
+
+  it("reads the single total a deck from before the kinds sends as the neutral line", () => {
+    // A paired deck one release behind, or a page left open across an upgrade,
+    // still holds { availableCount, nextExpiryAt }.
+    const old = resetCreditGroups({ availableCount: 2, nextExpiryAt: MAR_9 });
+    expect(old).toEqual([{ kind: "unknown", availableCount: 2, nextExpiryAt: MAR_9 }]);
+    expect(said(old[0])).toBe("2 limit resets available · expires Mar 9, 9:59am");
+  });
+
+  it("reads a kind this page does not know as the neutral line, and drops a group that is not one", () => {
+    expect(resetCreditGroups([
+      { kind: "turbo", availableCount: 1, nextExpiryAt: MAR_9 },
+      { kind: "unknown", availableCount: 1, nextExpiryAt: MAR_9 + 1000 },
+      { kind: "fable", availableCount: 1.5, nextExpiryAt: null },
+      { kind: "full", availableCount: 1, nextExpiryAt: "Mar 9" },
+      null,
+    ])).toEqual([{ kind: "unknown", availableCount: 2, nextExpiryAt: MAR_9 }]);
+  });
+
+  it("is translated, with its plurals, in every language the deck ships", () => {
+    for (const { code } of LANGUAGES) {
+      const catalog = catalogFor(code);
+      for (const kind of ["fable", "full", "weekly", "session"]) {
+        for (const form of ["one", "other"]) expect(catalog[`usage.credits.${kind}.${form}`], `${code} ${kind}.${form}`).toBeTruthy();
+        for (const count of [1, 2, 5, 21]) {
+          const line = translate(code, catalog, `usage.credits.${kind}` as never, { count, expiry: "" });
+          expect(line, `${code} ${kind} ${count}`).toContain(String(count));
+          expect(line, `${code} ${kind} ${count}`).not.toMatch(/\{|\}/);
+        }
+      }
+      for (const key of ["usage.credits.fableTitle", "usage.credits.fullTitle"]) expect(catalog[key], `${code} ${key}`).toBeTruthy();
+      if (code !== "en") {
+        // Translated, not English copied over.
+        expect(catalog["usage.credits.full.other"], code).not.toBe(en["usage.credits.full.other"]);
+        expect(catalog["usage.credits.fableTitle"], code).not.toBe(en["usage.credits.fableTitle"]);
+      }
+    }
   });
 });

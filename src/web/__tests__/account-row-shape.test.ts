@@ -4,11 +4,12 @@
 // Line 1 is the name — an address's part before the @ in the text ink and its
 // domain quieter, the domain cut first — its grey marks, and the first window's
 // figure at the right edge. Line 2 is the plan and when the first window
-// resets, with the second window's figure under the first. A state (a rate
-// limit, a weekly limit, a login that needs signing in again, a reading that
-// has gone old) gets its own line under the name, its own glyph and ink, and
-// pressing the row opens every window, when it was read and what its
-// organization sends, between line 2 and the meter.
+// resets, named by that window ("5h resets in 4h 18m"), with the second
+// window's figure under the first. A state (a rate limit, a weekly limit, a
+// login that needs signing in again, a reading that has gone old) gets its own
+// line under the name, its own glyph and ink, and pressing the row opens every
+// window, when it was read and what its organization sends, in place of line 2
+// and over the meter.
 //
 // What these pin: that shape and its order; the state line for each state;
 // the inks a figure and the meter take as a window fills; the held-out row;
@@ -23,6 +24,8 @@ import type { Account } from "../claude-accounts";
 import { codexVoice } from "../codex-accounts";
 import { sheetText } from "./sheet-source";
 import { sourceOf } from "./client-source";
+import { resetPhrase } from "../accounts-time";
+import type { TFunction } from "../i18n";
 
 const NOW = 1_790_000_000;
 const HOUR = 3600;
@@ -75,24 +78,125 @@ describe("the row's shape", () => {
     expect(quota).toContain(figure(html, 2));
     expect(text(figure(html, 2))).toBe("7d 21%");
     // Line 2 is the plan, when there is one, and the first window's reset.
-    expect(text(quota)).toBe("Resets in 4h 18m 7d 21%");
+    // CHANGED ON PURPOSE (user feedback): the reset names its window, in the
+    // figures' short name and their quiet ink, because said bare beside the 7d
+    // figure it read as the week's reset.
+    expect(text(quota)).toBe("5h resets in 4h 18m 7d 21%");
+    expect(quota).toContain('<span class="ap-q-reset"><span class="ap-q-label">5h</span> resets in 4h 18m</span>');
     expect(text(/<p class="ap-quota"[^]*?<\/p>/.exec(row(account(), false, { planLabel: "Max 5×" }))![0]))
-      .toBe("Max 5× Resets in 4h 18m 7d 21%");
+      .toBe("Max 5× 5h resets in 4h 18m 7d 21%");
   });
 
-  it("opens to every window, when it was read and what its organization sends, between line 2 and the meter", () => {
+  it("names the window whose reset line 2 says, whichever window comes first", () => {
+    // A row whose first window is its week (a provider with no 5-hour window).
+    const weekFirst = account({ lanes: [{ id: "seven_day", label: "7d", pct: 21, resetAt: NOW + 5 * HOUR }] });
+    const quota = /<p class="ap-quota"[^]*?<\/p>/.exec(row(weekFirst))![0];
+    expect(text(quota)).toMatch(/^7d resets in 5h 00m /);
+  });
+
+  it("opens to every window, when it was read and what its organization sends, in place of line 2 and over the meter", () => {
     const telemetry = { orgName: "Northwind", level: "metrics" as const, content: [], destinations: ["https://otel.northwind.example"], seenAt: (NOW - HOUR) * 1000 };
     const html = row(account({ telemetry }), true);
-    expect(html).toMatch(/<\/p><div class="ap-detail" id="ap-detail-3">[^]*<\/div><div class="ap-meter" aria-hidden="true">/);
+    // CHANGED ON PURPOSE (user feedback): the detail follows the head; line 2
+    // said the same windows a second time over it.
+    expect(html).toMatch(/<\/div><div class="ap-detail" id="ap-detail-3">[^]*<\/div><div class="ap-meter" aria-hidden="true">/);
     const lines = [...html.matchAll(/<(?:div|span) class="ap-(?:lane|meta-line)"[^>]*>([^]*?)<\/(?:div|span)>(?=<(?:div|span) class="ap-(?:lane|meta-line)"|<\/div>)/g)]
       .map(m => text(m[1]));
     expect(lines[0]).toBe("5-hour 56% resets in 4h 18m");
-    expect(lines[1]).toMatch(/^7-day 21% resets \S+ /);
+    // CHANGED ON PURPOSE (user feedback): the week's window is "Weekly".
+    expect(lines[1]).toMatch(/^Weekly 21% resets \S+ /);
     expect(text(html)).toContain("Read 1m ago · next in 4m");
     expect(text(html)).toContain("Telemetry usage data");
     // A window nobody has spent from yet says so instead of a reset.
     const idle = account({ lanes: [{ id: "five_hour", label: "5h", pct: 0, resetAt: null }, account().lanes[1]] });
     expect(text(row(idle, true))).toContain("5-hour 0% not started");
+  });
+});
+
+// User feedback: the open card printed every window twice — on line 2 and on
+// the lanes under it — and its lanes ran the name, the figure and the reset
+// together, so nothing lined up and the telemetry line ran into an ellipsis.
+describe("the open row", () => {
+  const quotaLine = (html: string) => /<p class="ap-quota[^"]*" id="ap-quota-3">[^]*?<\/p>/.exec(html)?.[0] ?? null;
+
+  it("does not draw line 2 over the lanes that say the same windows", () => {
+    const shut = row(account());
+    const open = row(account(), true);
+    expect(quotaLine(shut)).not.toBeNull();
+    expect(quotaLine(open)).toBeNull();
+    expect(figure(open, 2)).toBe("");
+    expect(text(open)).not.toContain("5h resets in");
+    // Each window is said once, on its lane.
+    expect(text(open).match(/resets in 4h 18m/g)).toHaveLength(1);
+    // And the door is not described by a line that is not there.
+    expect(open).not.toContain('aria-describedby="ap-quota-3"');
+  });
+
+  it("keeps what only line 2 says: the plan, and that auto-switch skips a held-out account", () => {
+    expect(quotaLine(row(account(), true, { planLabel: "Max 5×" })))
+      .toBe('<p class="ap-quota" id="ap-quota-3"><span class="ap-q-plan">Max 5×</span></p>');
+    expect(text(quotaLine(row(account({ disabled: true }), true)) ?? "")).toBe("Skipped by auto-switch");
+    // A row in a state keeps its state line, figure and all, open or shut.
+    const limited = row(account({ error: "http-429", fetchedAt: (NOW - 5 * 60) * 1000 }), true, { planLabel: "Max 5×" });
+    expect(stateLines(limited)).toEqual(["wait"]);
+    expect(quotaLine(limited)).toBeNull();
+  });
+
+  it("says whether a lane's figure wears its mark, which is when the reset needs the most room", () => {
+    const hot = account({ lanes: [{ id: "five_hour", label: "5h", pct: 92, resetAt: NOW + HOUR }, account().lanes[1]] });
+    expect(row(hot, true)).toContain('<div class="ap-lanes" data-high="">');
+    expect(row(account(), true)).toContain('<div class="ap-lanes">');
+    // A frozen reading is a record: its figures wear no mark.
+    expect(row({ ...hot, stale: true, fetchedAt: (NOW - 42 * 60) * 1000 }, true)).toContain('<div class="ap-lanes">');
+  });
+
+  it("lays the lanes out as three columns, the reset dropping under its figure where they do not fit", () => {
+    const css = sheetText();
+    expect(css).toMatch(/\.ap-lanes \{\s*display: grid;\s*grid-template-columns: max-content max-content minmax\(0, 1fr\);/);
+    expect(css).toContain(".ap-lane,\n.ap-lane-value { display: contents; }");
+    expect(css).toContain(".ap-lane-label { grid-column: 1; }");
+    expect(css).toContain(".ap-lane-pct { grid-column: 2; white-space: nowrap; }");
+    expect(css).toContain(".ap-lane-reset { grid-column: 3; min-width: 0; overflow-wrap: anywhere; }");
+    // Measured against the open detail, never the window: the panel is as
+    // wide as the column, whatever the window is.
+    expect(css).toMatch(/\.ap-detail \{\s*container: ap-detail \/ inline-size;/);
+    expect(css).toMatch(/@container ap-detail \(max-width: 16em\) \{\s*\.ap-lane-reset \{ grid-column: 2 \/ -1; \}/);
+    expect(css).toMatch(/@container ap-detail \(max-width: 19em\) \{\s*\.ap-lanes\[data-high\] \.ap-lane-reset \{ grid-column: 2 \/ -1; \}/);
+    // The dot that joined a lane's figure and reset went with the columns.
+    expect(css).not.toContain('.ap-lane-value > :not(:first-child)::before');
+  });
+
+  it("still shuts on a press anywhere on its lines: the detail takes no pointer but its titled words", () => {
+    const css = sheetText();
+    expect(css).toMatch(/\.ap-detail \{[^}]*pointer-events: none;/);
+    expect(css).toContain(".ap-detail :is(.ap-age, .ap-lane-pct[data-reset]) { pointer-events: auto; }");
+  });
+
+  it("wraps a long value onto a second line instead of cutting it", () => {
+    // Every rule that names the selector in its list, comments aside.
+    const rules = (sel: string) => [...sheetText().replace(/\/\*[^]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(m => m[1].split(",").map(x => x.trim()).includes(sel)).map(m => m[2]).join(";");
+    for (const sel of [".ap-meta-value", ".ap-age", ".ap-meta-email"]) {
+      expect(rules(sel), sel).not.toMatch(/white-space: nowrap|text-overflow: ellipsis|overflow: hidden/);
+      expect(rules(sel), sel).toContain("overflow-wrap: anywhere");
+    }
+    // And a lane's reset wraps inside its column before it would run past it.
+    expect(rules(".ap-lane-reset")).not.toMatch(/white-space: nowrap/);
+  });
+
+  it("wraps a reset between its words, never inside its time", () => {
+    // Browser QA: in a narrow column a two-digit hour left "PM" alone on a
+    // line ("resets Sun 12:00 / PM"), and French broke "dans 2 / h 00 min".
+    // The time's own spaces do not break; the words before it still may.
+    const resets = [...row(account(), true).matchAll(/<span class="ap-lane-reset"[^>]*>([^<]*)<\/span>/g)].map(m => m[1]);
+    expect(resets[0]).toBe("resets in 4h 18m");
+    expect(resets[1].startsWith("resets ")).toBe(true);
+    expect(resets[1].slice("resets ".length)).not.toContain(" ");
+    expect(resets[1].slice("resets ".length)).toContain(" ");
+    // Only where it is asked for: elsewhere the phrase keeps its plain spaces.
+    const say = ((_key: string, v: { time?: string; when?: string }) => `dans ${v.time ?? v.when}`) as unknown as TFunction;
+    expect(resetPhrase(NOW + 2 * HOUR, NOW, say, { together: true })).toBe("dans 2h 00m");
+    expect(resetPhrase(NOW + 2 * HOUR, NOW, say)).toBe("dans 2h 00m");
   });
 });
 
@@ -169,8 +273,8 @@ describe("the state line", () => {
     expect(figure(html, 1)).not.toContain("data-level");
     expect(meter(html)).toContain("background:var(--muted)");
     expect(sheetText()).toContain(".ap-account[data-frozen] .ap-fig .ap-q-pct,");
-    // The reset is still said.
-    expect(text(/<p class="ap-quota vis-hidden"[^]*?<\/p>/.exec(html)![0])).toContain("Resets in 1h");
+    // The reset is still said, with its window.
+    expect(text(/<p class="ap-quota vis-hidden"[^]*?<\/p>/.exec(html)![0])).toContain("5h resets in 1h");
   });
 
   it("is a line of 22 in 12 medium, on the name's column, in the state's ink", () => {
