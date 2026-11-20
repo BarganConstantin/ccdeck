@@ -11,7 +11,7 @@
 import { useId } from "react";
 import { PRODUCT } from "../brand";
 import { useT, type TFunction } from "../i18n";
-import { resetCreditsText } from "../reset-credits";
+import { resetCreditGroups, resetCreditsText, resetGroupText, resetGroupTitle } from "../reset-credits";
 import type { Incident } from "../provider-status";
 import type { CodexQuotaData, QuotaData } from "../use-quota";
 import { weekEndsLine, weekEndsTitle, type QuotaClose } from "../quota-closes";
@@ -223,12 +223,16 @@ export function ClaudeQuotaSection({ quota, quotaLoading, nowSec, incident, week
           {/* Saved limit resets (#1308). Not the windows' own reset times
               above — those say when a window rolls over by itself; these are
               one-off resets the account holds. Counted, never spent: the
-              deck has no way to redeem one and does not want one. */}
-          {quota.resetCredits && quota.resetCredits.availableCount > 0 && (
-            <div className="up-quota-sub up-reset-credits" title={t("usage.credits.claudeTitle", { product: PRODUCT })}>
-              {resetCreditsText("limit", quota.resetCredits, t)}
+              deck has no way to redeem one and does not want one. One line
+              per kind, so a Fable reset never reads as one that clears every
+              limit (user feedback); what a Fable or a Global reset does is
+              its title. */}
+          {resetCreditGroups(quota.resetCredits).map(g => (
+            <div key={g.kind} className="up-quota-sub up-reset-credits" data-kind={g.kind}
+              title={resetGroupTitle(g.kind, t("usage.credits.claudeTitle", { product: PRODUCT }), t)}>
+              {resetGroupText(g, t)}
             </div>
-          )}
+          ))}
         </div>
       ) : quota?.ok === false ? (
         <QuotaDown headline={quota.reason === "no_subscription" ? t("usage.quota.none") : t("usage.quota.unavailable")}

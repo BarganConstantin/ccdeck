@@ -9,7 +9,7 @@
 // /usage` and the Codex poll refreshes an OAuth token against OpenAI.
 import { useEffect, useRef, useState } from "react";
 import { selfPressAccepted } from "./panel-press";
-import type { ResetCredits } from "./reset-credits";
+import type { ResetCreditGroup, ResetCredits } from "./reset-credits";
 
 // ── Quota types ────────────────────────────────────────────────────────────
 export interface QuotaData {
@@ -72,11 +72,14 @@ export interface QuotaData {
   extraCurrency?: string;
 
   /** Claude's saved limit resets — "Reset for free" in Claude's Settings →
-   *  Usage — that can be spent now, and when the first of them lapses (epoch
-   *  milliseconds). The Codex card's `resetCredits`, in the same shape. Absent
-   *  whenever the server could not establish the inventory for this account —
-   *  which is not the same as having none, and is why nothing is drawn for it. */
-  resetCredits?: ResetCredits | null;
+   *  Usage — that can be spent now: one group per kind of reset (Fable, full,
+   *  weekly, 5-hour, or not named), each with how many and when the first of
+   *  them lapses (epoch milliseconds). A deck from before the kinds sends one
+   *  total in the Codex card's shape instead, so this is read through
+   *  resetCreditGroups. Absent whenever the server could not establish the
+   *  inventory for this account — which is not the same as having none, and is
+   *  why nothing is drawn for it. */
+  resetCredits?: ResetCreditGroup[] | ResetCredits | null;
 }
 
 // ── Quota fetch hook ───────────────────────────────────────────────────────

@@ -113,7 +113,10 @@ const resets = (n: number, firstEndsIn = 6 * DAY) => ({
 const profileOf = (who: typeof ALICE) =>
   ({ status: 200, body: { account: { uuid: "acct", email: who.email }, organization: { uuid: who.organizationUuid } } });
 
-type Credits = { availableCount: number; nextExpiryAt: number | null };
+/** One line of the panel's: a kind of reset, how many, and the nearest end.
+ *  The fixtures say nothing about what a grant clears, as every grant sent
+ *  before Claude named them, so they arrive as one "unknown" group. */
+type Credits = Array<{ kind: string; availableCount: number; nextExpiryAt: number | null }>;
 type Quota = {
   ok: boolean; reason?: string; source?: string; stale?: boolean;
   session5hPct?: number; week7dPct?: number; resetCredits?: Credits | null;
@@ -177,9 +180,26 @@ describe("source 2: the resets arrive with the windows", () => {
     const q = await freshQuota();
     const r = await read(q, { force: true });
     expect(r).toMatchObject({ ok: true, source: "api", session5hPct: 41, week7dPct: 18 });
-    expect(r.resetCredits).toEqual({ availableCount: 2, nextExpiryAt: FROZEN_AT + 6 * DAY });
+    expect(r.resetCredits).toEqual([{ kind: "unknown", availableCount: 2, nextExpiryAt: FROZEN_AT + 6 * DAY }]);
     // One request, and no identity lookup: the response is the token's own.
     expect(api.calls.map(c => c.url)).toEqual([USAGE]);
+  });
+
+  it("says which limit each reset clears, one group per kind, and nothing of the grant beyond that", async () => {
+    signedIn();
+    const named = resets(3);
+    named.grants[0] = { ...named.grants[0], gives_back_weekly: true, type: "weekly", clears: ["seven_day"] } as typeof named.grants[0];
+    named.grants[2] = { ...named.grants[2], type: "full", clears: ["five_hour", "seven_day"] } as typeof named.grants[0];
+    api.answers[USAGE] = { status: 200, body: { ...WINDOWS, cedar_ember: named } };
+    const r = await read(await freshQuota(), { force: true });
+    expect(r.resetCredits).toEqual([
+      { kind: "fable", availableCount: 1, nextExpiryAt: FROZEN_AT + 6 * DAY },
+      { kind: "full", availableCount: 1, nextExpiryAt: FROZEN_AT + 8 * DAY },
+      { kind: "unknown", availableCount: 1, nextExpiryAt: FROZEN_AT + 7 * DAY },
+    ]);
+    expect(JSON.stringify(r.resetCredits)).not.toMatch(/five_hour|seven_day|weekly/);
+    expect(JSON.stringify(r)).not.toContain(GRANT_ID);
+    expect(JSON.stringify(r)).not.toContain(GRANT_LABEL);
   });
 
   it("asks the way Claude Code asks, since the endpoint withholds grants from anything else", async () => {
@@ -230,7 +250,7 @@ describe("source 1: claude-swap has the windows, and the resets are read beside 
     at(61 * SEC);
     const second = await read(q);
     expect(second).toMatchObject({ ok: true, source: "claude-swap", session5hPct: 63 });
-    expect(second.resetCredits).toEqual({ availableCount: 1, nextExpiryAt: FROZEN_AT + 6 * DAY });
+    expect(second.resetCredits).toEqual([{ kind: "unknown", availableCount: 1, nextExpiryAt: FROZEN_AT + 6 * DAY }]);
   });
 
   it("never asks for another account's resets when the token belongs to someone else", async () => {
@@ -265,7 +285,7 @@ describe("source 1: claude-swap has the windows, and the resets are read beside 
     const q = await freshQuota();
     await read(q);
     at(61 * SEC);
-    expect((await read(q)).resetCredits).toMatchObject({ availableCount: 2 });
+    expect((await read(q)).resetCredits).toMatchObject([{ availableCount: 2 }]);
 
     // `cswap switch` in a terminal: the deck is never told, so nothing is
     // invalidated, and the next store read is simply about Bob. The token is
@@ -342,7 +362,7 @@ describe("an inventory read that fails", () => {
     await read(q);
     api.answers[RESETS] = { status: 500 };
     at(89 * MIN);
-    expect((await read(q)).resetCredits).toMatchObject({ availableCount: 1 });
+    expect((await read(q)).resetCredits).toMatchObject([{ availableCount: 1 }]);
     at(91 * MIN);
     expect(await read(q)).not.toHaveProperty("resetCredits");
   });
@@ -382,13 +402,13 @@ describe("what the store path spends", () => {
   it("shows a used reset gone after the next read that says so", async () => {
     const q = await aliceWithOneReset();
     at(61 * SEC);
-    expect((await read(q)).resetCredits).toMatchObject({ availableCount: 1 });
+    expect((await read(q)).resetCredits).toMatchObject([{ availableCount: 1 }]);
     // Redeemed in Claude: the grant is still listed, with nothing left in it.
     api.answers[RESETS] = { status: 200, body: { cedar_ember: { ...resets(1), grants: [{ ...resets(1).grants[0], resets_left: 0 }] } } };
     at(6 * MIN);
     await read(q, { force: true });
     at(7 * MIN + SEC);
-    expect((await read(q)).resetCredits).toEqual({ availableCount: 0, nextExpiryAt: null });
+    expect((await read(q)).resetCredits).toEqual([]);
   });
 
   it("stops counting a held reset the moment it ends, without spending a request", async () => {
@@ -399,9 +419,9 @@ describe("what the store path spends", () => {
     const q = await freshQuota();
     await read(q);
     at(9 * MIN);
-    expect((await read(q)).resetCredits).toMatchObject({ availableCount: 1 });
+    expect((await read(q)).resetCredits).toMatchObject([{ availableCount: 1 }]);
     at(11 * MIN);
-    expect((await read(q)).resetCredits).toEqual({ availableCount: 0, nextExpiryAt: null });
+    expect((await read(q)).resetCredits).toEqual([]);
     expect(asked(RESETS)).toBe(1);
   });
 
@@ -416,7 +436,7 @@ describe("what the store path spends", () => {
     await read(q);
     expect(asked(RESETS)).toBe(2);
     at(6 * MIN + SEC);
-    expect((await read(q)).resetCredits).toMatchObject({ availableCount: 1 });
+    expect((await read(q)).resetCredits).toMatchObject([{ availableCount: 1 }]);
   });
 
   it("is a pure rule, and the cooldown beats every floor", async () => {
@@ -463,8 +483,8 @@ describe("what leaves the server", () => {
     at(7 * MIN);
     answers.push(await read(q, { force: true }));
 
-    expect(answers[0].resetCredits).toMatchObject({ availableCount: 2 });
-    expect(answers[2].resetCredits).toMatchObject({ availableCount: 2 });
+    expect(answers[0].resetCredits).toMatchObject([{ availableCount: 2 }]);
+    expect(answers[2].resetCredits).toMatchObject([{ availableCount: 2 }]);
     const everything = JSON.stringify(answers) + logged.join("\n");
     for (const secret of [TOKEN, GRANT_ID, GRANT_LABEL, ALICE.organizationUuid]) {
       expect(everything).not.toContain(secret);
