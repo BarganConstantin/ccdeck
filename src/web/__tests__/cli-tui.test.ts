@@ -34,7 +34,7 @@ const { parseArgs, isOneShot } = await import("../../server/args.mjs");
 // @ts-expect-error — plain .mjs module, no types
 const view = await import("../../server/tui-view.mjs");
 // @ts-expect-error — plain .mjs module, no types
-const { codexRows } = await import("../../server/tui-codex.mjs");
+const { codexRows, codexLiveSaid } = await import("../../server/tui-codex.mjs");
 // @ts-expect-error — plain .mjs module, no types
 const { createScreen, framesHeld, ALT_SCREEN_ON, ALT_SCREEN_OFF, SYNC_ON, WRAP_ON, WRAP_OFF } = await import("../../server/tui-screen.mjs");
 // @ts-expect-error — plain .mjs module, no types
@@ -679,6 +679,16 @@ describe("the Codex side", () => {
     const signIn = enter(onCodex({ codexAt: 2 }));
     expect(signIn.effect).toBeNull();
     expect(signIn.state.codexSignin).toEqual({ id: CXC, name: "#3 cal@openai.example", adding: false, started: false, login: null });
+  });
+
+  it("says what a switch did to the running Codex, and names /model when the account lacks the conversation's model", () => {
+    const said = (live: Row) => codexLiveSaid(live, "#2 ben@openai.example");
+    expect(said({ state: "applied", continuation: "manual_required", reason: "native_model_unavailable" }))
+      .toEqual({ tone: "warn", text: "switched to #2 ben@openai.example — it lacks the conversation's model; choose one with /model in Codex" });
+    expect(said({ state: "applied", continuation: "manual_required", reason: "native_continue_unconfirmed" }))
+      .toEqual({ tone: "warn", text: "switched to #2 ben@openai.example — automatic continuation could not be confirmed; check the conversation" });
+    expect(said({ state: "applied", continuation: "automatic" }))
+      .toEqual({ tone: "ok", text: "switched to #2 ben@openai.example — connected Codex conversations use it now" });
   });
 
   it("offers the deck's Codex menu, by its rules", () => {

@@ -252,6 +252,33 @@ export async function assertCodexLiveQuiet(rpc) {
   if ((await snapshot(rpc)).threads.length) throw liveError('native_activity_changed');
 }
 
+/** Check known OpenAI models against the catalog after the new login. */
+export async function codexHandoffModelsAvailable(rpc, entries) {
+  const models = new Set();
+  for (const entry of entries) {
+    const { thread } = await rpc.request('thread/read', { threadId: entry.threadId, includeTurns: false });
+    if (thread?.status?.type === 'idle' && (!thread.modelProvider || thread.modelProvider === 'openai')
+      && typeof thread.model === 'string' && thread.model) models.add(thread.model);
+  }
+  if (!models.size) return true;
+  let cursor;
+  const seen = new Set();
+  do {
+    const page = await rpc.request('model/list', { modelProvider: 'openai', limit: 100, includeHidden: true, ...(cursor ? { cursor } : {}) });
+    if (!Array.isArray(page?.data) || page.data.some(item => typeof item?.model !== 'string')) {
+      throw liveError('native_model_catalog_unverified');
+    }
+    for (const item of page.data) models.delete(item.model);
+    if (!models.size) return true;
+    cursor = page.nextCursor;
+    if (cursor != null && (typeof cursor !== 'string' || seen.has(cursor) || seen.size >= 9)) {
+      throw liveError('native_model_catalog_unverified');
+    }
+    if (cursor) seen.add(cursor);
+  } while (cursor);
+  return false;
+}
+
 /** Mark a send durably before submitting. An uncertain send is never replayed. */
 export async function continueCodexLiveHandoff(rpc, handoff, options = {}) {
   let resumed = 0;

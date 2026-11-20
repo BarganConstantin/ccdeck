@@ -36,6 +36,7 @@ const catalog: Catalog = {
   "codex.row.switchWaiting": "계정을 전환하기 전에 실행 중인 도구나 필요한 입력을 기다리고 있습니다.",
   "codex.row.switchWaitingUsing": "아직 {account}을(를) 사용 중입니다. 실행 중인 도구나 필요한 입력이 끝나면 계정이 전환됩니다.",
   "codex.row.childrenResuming": "계정이 전환되었습니다. 하위 에이전트가 재개되기를 기다리고 있습니다.",
+  "codex.row.chooseModel": "새 계정에 현재 모델이 표시되지 않습니다. Codex에서 /model을 열고 사용 가능한 모델을 선택한 후 대화를 계속하세요.",
   "codex.row.continueUnconfirmed": "자동 재개를 확인하지 못했습니다. 계속하기 전에 대화를 확인하세요.",
   "codex.row.reading": "사용량 읽는 중…",
   "codex.lane.limit": "한도",
