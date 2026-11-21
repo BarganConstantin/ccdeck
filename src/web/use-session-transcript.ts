@@ -247,18 +247,21 @@ export function useSessionTranscript(input: SessionTranscriptInput, deps: Sessio
 
   // Soon after the session is heard from. One ask per burst: a timer already
   // waiting is not pushed back, so a steady stream of events still asks.
-  const seen = useRef({ heard, life });
+  const seenHeard = useRef(heard);
+  const seenLife = useRef(life);
   const soon = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    const was = seen.current;
-    seen.current = { heard, life };
-    if (was.life !== life) {
+    const wasHeard = seenHeard.current;
+    const wasLife = seenLife.current;
+    seenHeard.current = heard;
+    seenLife.current = life;
+    if (wasLife !== life) {
       // Shown again, or another session: the ask on show covers it.
       if (soon.current) clearTimeout(soon.current);
       soon.current = null;
       return;
     }
-    if (heard === was.heard || !shown || !session || soon.current) return;
+    if (heard === wasHeard || !shown || !session || soon.current) return;
     soon.current = setTimeout(() => {
       soon.current = null;
       if (!life.signal.aborted && visible()) ask(session, life.signal);

@@ -86,8 +86,9 @@ export default function ChatView({ source, provider, decision, ask }: ChatViewPr
   const older = source.state === "ready" ? source.older : undefined;
   // How tall the conversation was before turns went in at the top: read while
   // rendering, before the new ones reach the page.
-  const anchor = useRef({ head, height: 0 });
-  if (head !== anchor.current.head && scroller.current) anchor.current.height = scroller.current.scrollHeight;
+  const anchorHead = useRef(head);
+  const anchorHeight = useRef(0);
+  if (head !== anchorHead.current && scroller.current) anchorHeight.current = scroller.current.scrollHeight;
   const pressed = useRef(false);
   // New lines keep the reader at the bottom, unless they scrolled up. The last
   // turn counts as well as how many there are: once a host's cap slides the
@@ -99,11 +100,12 @@ export default function ChatView({ source, provider, decision, ask }: ChatViewPr
   // Turns put in at the top: the line being read stays in place.
   useBeforePaint(() => {
     const el = scroller.current;
-    const was = anchor.current;
-    if (head === was.head) return;
-    anchor.current = { head, height: 0 };
+    const wasHeight = anchorHeight.current;
+    if (head === anchorHead.current) return;
+    anchorHead.current = head;
+    anchorHeight.current = 0;
     if (!el) return;
-    if (!stuck.current) el.scrollTop += el.scrollHeight - was.height;
+    if (!stuck.current) el.scrollTop += el.scrollHeight - wasHeight;
     // The button pressed is gone once the start is reached: the reading region keeps the keys.
     if (pressed.current && !older && typeof document !== "undefined" && (document.activeElement === null || document.activeElement === document.body)) {
       el.focus({ preventScroll: true });
