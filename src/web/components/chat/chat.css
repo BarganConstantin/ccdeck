@@ -198,6 +198,9 @@
 @media (hover: hover) and (pointer: fine) {
 .chat-retry:hover { text-decoration: underline; }
 }
+/* Older messages, on request: Retry's quiet link, centred over the conversation. */
+.chat-older { align-self: center; margin: 0; }
+.chat-older[aria-busy] { color: var(--text-secondary); cursor: progress; }
 
 /* A question the assistant asked (AskUserQuestion): a card as wide as its
    prose. It waits in --warn, as the Decision card does, and goes neutral once

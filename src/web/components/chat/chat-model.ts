@@ -137,10 +137,29 @@ export interface ChatSince {
   label: string;
 }
 
+/** The part of the conversation before the turns held, offered on request. */
+export interface ChatOlder {
+  /** Reads it and puts it in front of the turns. */
+  load(): void;
+  loading?: boolean;
+  /** The last try could not read it; pressing again tries again. */
+  failed?: boolean;
+}
+
 export type ChatSource =
   | { state: "loading" }
   | { state: "error"; message: string; onRetry?(): void }
-  | { state: "ready"; turns: ChatTurn[]; since?: ChatSince };
+  | {
+      state: "ready";
+      turns: ChatTurn[];
+      since?: ChatSince;
+      /** Offered only while an older part exists and the host keeps fewer turns than it may. */
+      older?: ChatOlder;
+      /** Moves by the turns put in front of (or taken from before) the ones
+       *  there were: the view keeps the line being read in place, and its keys
+       *  steady, by it. */
+      head?: number;
+    };
 
 /** A turn drawn on your side of the conversation, or a record of it: a block of its own. */
 type OwnTurn = Extract<ChatTurn, { kind: "user" | "command" | "record" }>;

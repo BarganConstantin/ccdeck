@@ -9,6 +9,11 @@
 // THE COLUMN stops at 776 and centres in a wider pane (chat.css). It sticks to the
 // bottom as lines arrive, unless the reader scrolled up to read; there is no
 // virtualisation in 4.0, and a host caps the turns it hands over.
+//
+// OLDER TURNS come on request: a quiet button at the top while the host has
+// more (`source.older`). When they arrive above, the line being read stays
+// where it was: the height above it grew by what was put in, and the scroll
+// moves by the same. `source.head` says when that happened.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import IntegrationSkeleton from "../IntegrationSkeleton";
 import type { Provider } from "../../types";
@@ -77,6 +82,13 @@ export default function ChatView({ source, provider, decision, ask }: ChatViewPr
   const live = source.state === "ready" ? liveAskAt(source.turns) : -1;
   const todo = source.state === "ready" ? lastTodoAt(source.turns) : -1;
   const tail = source.state === "ready" ? tailKey(source.turns[source.turns.length - 1]) : "";
+  const head = source.state === "ready" ? source.head ?? 0 : 0;
+  const older = source.state === "ready" ? source.older : undefined;
+  // How tall the conversation was before turns went in at the top: read while
+  // rendering, before the new ones reach the page.
+  const anchor = useRef({ head, height: 0 });
+  if (head !== anchor.current.head && scroller.current) anchor.current.height = scroller.current.scrollHeight;
+  const pressed = useRef(false);
   // New lines keep the reader at the bottom, unless they scrolled up. The last
   // turn counts as well as how many there are: once a host's cap slides the
   // window, a new line pushes an old one out and the count stays the same.
@@ -84,6 +96,20 @@ export default function ChatView({ source, provider, decision, ask }: ChatViewPr
     const el = scroller.current;
     if (el && stuck.current) el.scrollTop = el.scrollHeight;
   }, [count, tail]);
+  // Turns put in at the top: the line being read stays in place.
+  useBeforePaint(() => {
+    const el = scroller.current;
+    const was = anchor.current;
+    if (head === was.head) return;
+    anchor.current = { head, height: 0 };
+    if (!el) return;
+    if (!stuck.current) el.scrollTop += el.scrollHeight - was.height;
+    // The button pressed is gone once the start is reached: the reading region keeps the keys.
+    if (pressed.current && !older && typeof document !== "undefined" && (document.activeElement === null || document.activeElement === document.body)) {
+      el.focus({ preventScroll: true });
+    }
+    pressed.current = false;
+  }, [head]);
   return (
     <div className="chat" data-docked={decision ? "" : undefined}>
       <div className="chat-reading">
@@ -109,15 +135,27 @@ export default function ChatView({ source, provider, decision, ask }: ChatViewPr
           )}
           {source.state === "ready" && (
             <>
+              {older && (
+                <button type="button" className="chat-retry chat-older" aria-busy={older.loading || undefined}
+                  onClick={() => {
+                    if (older.loading) return;
+                    pressed.current = true;
+                    older.load();
+                  }}>
+                  {t(older.loading ? "board.chat.olderLoading" : older.failed ? "board.chat.olderFailed" : "board.chat.older")}
+                </button>
+              )}
               {source.since && <SinceDivider since={source.since} />}
               {source.turns.length === 0 && <p className="chat-empty">{t("board.chat.empty")}</p>}
+              {/* Keyed from where the turns were before any went in at the top,
+                  so a turn keeps its row (and what is open in it) when older ones arrive. */}
               {conversationBlocks(source.turns).map(block => block.kind === "assistant"
-                ? <AssistantBlock key={block.index} turns={block.turns} provider={provider}
+                ? <AssistantBlock key={block.index - head} turns={block.turns} provider={provider}
                   ask={ask && live >= block.index && live < block.index + block.turns.length ? { ...ask, at: live - block.index } : undefined}
                   todoAt={inBlock(todo, block.index, block.turns.length)} />
-                : block.kind === "user" ? <YourMessage key={block.index} text={block.text} images={block.images} />
-                : block.kind === "command" ? <YourCommand key={block.index} turn={block} />
-                : <RecordLine key={block.index} text={block.text} />)}
+                : block.kind === "user" ? <YourMessage key={block.index - head} text={block.text} images={block.images} />
+                : block.kind === "command" ? <YourCommand key={block.index - head} turn={block} />
+                : <RecordLine key={block.index - head} text={block.text} />)}
             </>
           )}
         </div>
