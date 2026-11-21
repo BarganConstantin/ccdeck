@@ -7,11 +7,9 @@
 // the left is the digit that picks it. A locked row is reachable so it can be
 // read, and says "aria-disabled" with its lock note as the description.
 import { useId, type KeyboardEvent, type Ref } from "react";
+import { useT } from "../../i18n";
 import { LockGlyph } from "../chat/chat-icons";
 import type { DecisionOptionModel } from "./decision-model";
-
-export const PICK_TAG = "Claude’s pick";
-export const SEND_WORD = "Send";
 
 export interface DecisionOptionProps {
   index: number;
@@ -39,6 +37,7 @@ export interface DecisionOptionProps {
 
 export default function DecisionOption(p: DecisionOptionProps) {
   const { option: o } = p;
+  const t = useT();
   // Unique per card: two cards on a page do not share a description.
   const uid = useId();
   const noteId = o.locked ? `${uid}-lock-${p.index}` : undefined;
@@ -62,12 +61,13 @@ export default function DecisionOption(p: DecisionOptionProps) {
       >
         <span className="dc-chip" aria-hidden="true">{p.index + 1}</span>
         <span className="dc-opt-text">
-          <span className="dc-opt-label">{o.label}</span>
+          {/* A long row (a rule's folder) ends in an ellipsis; the whole label shows on hover. */}
+          <span className="dc-opt-label" title={o.label}>{o.label}</span>
           {o.locked
             ? <span className="dc-opt-sub dc-lock" id={noteId}><LockGlyph />{o.lockNote}</span>
             : <span className="dc-opt-sub">{o.sub}</span>}
         </span>
-        {o.pick && <span className="dc-pick">{PICK_TAG}</span>}
+        {o.pick && <span className="dc-pick">{t("board.decision.pickTag")}</span>}
         {p.selection === "checkbox" && <span className="dc-box" aria-hidden="true" data-on={p.checked || undefined} />}
       </div>
       {p.typing && (
@@ -81,7 +81,7 @@ export default function DecisionOption(p: DecisionOptionProps) {
             onChange={e => p.onText(e.target.value)}
             onKeyDown={p.onFieldKey}
           />
-          <span className="dc-send" aria-hidden="true">{SEND_WORD} {"↵"}</span>
+          <span className="dc-send" aria-hidden="true">{t("board.decision.send")} {"↵"}</span>
         </div>
       )}
     </div>

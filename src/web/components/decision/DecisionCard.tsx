@@ -13,6 +13,7 @@
 // the answer the ring is on, and Esc closes and never answers (decision-keys.ts).
 // A digit pressed with focus anywhere else is not the card's.
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useT, type MessageKey } from "../../i18n";
 import { useSingleKeyShortcuts } from "../../use-single-key-shortcuts";
 import {
   initialState, LOCKED_ANNOUNCE, step,
@@ -41,6 +42,7 @@ let nextId = 0;
 
 export default function DecisionCard(p: DecisionCardProps) {
   const { model } = p;
+  const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   const [id] = useState(() => `dc-${++nextId}`);
   const [state, setState] = useState<DecisionState>(() => ({
@@ -48,7 +50,9 @@ export default function DecisionCard(p: DecisionCardProps) {
     ...(p.outcome ? { outcome: p.outcome } : null),
     ...p.initial,
   }));
-  const [said, setSaid] = useState("");
+  // What the live region says, as its message key: worded at render, so it
+  // follows the reader's language.
+  const [said, setSaid] = useState<MessageKey | "">("");
   const stateRef = useRef(state);
   const hooks = useRef(p);
   hooks.current = p;
@@ -234,7 +238,7 @@ export default function DecisionCard(p: DecisionCardProps) {
         singleKeys={singleKeys}
         onShowTerm={() => dispatch({ type: "showTerm" })}
       />
-      <div className="vis-hidden" role="status" aria-atomic="true">{said}</div>
+      <div className="vis-hidden" role="status" aria-atomic="true">{said && t(said)}</div>
     </div>
   );
 }

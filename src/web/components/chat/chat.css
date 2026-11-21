@@ -146,6 +146,10 @@
 .chat-ask-title { font-weight: 600; color: var(--text); }
 .chat-ask-state { margin-left: auto; color: var(--muted); }
 .chat-ask[data-state="waiting"] .chat-ask-state { color: var(--warn); }
+/* A plan to approve: the same card, its body the plan's prose. A long plan
+   scrolls inside the card, so the docked Decision card stays in reach. */
+.chat-plan .chat-plan-text { max-height: 360px; overflow-y: auto; overscroll-behavior: contain; }
+.chat-plan-cut { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); }
 .chat-ask-form { display: flex; flex-direction: column; gap: 12px; min-width: 0; margin: 0; }
 .chat-ask-q { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .chat-ask-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 16px; }

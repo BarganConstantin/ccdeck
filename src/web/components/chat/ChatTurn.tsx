@@ -274,6 +274,26 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
   );
 }
 
+/** A plan the assistant asks you to approve, drawn as prose so it can be read
+ *  here. It waits in --warn as a question card does; the answer itself is the
+ *  Decision card's, docked under the chat, so this card only says where it is.
+ *  A plan longer than the transcript keeps says the rest is in Term. */
+export function PlanCard({ turn }: { turn: Extract<Turn, { kind: "plan" }> }) {
+  const t = useT();
+  const state = turn.running ? "waiting" : turn.approved ? "approved" : "declined";
+  return (
+    <section className="chat-ask chat-plan" data-state={state === "waiting" ? "waiting" : state === "approved" ? "answered" : "unanswered"}
+      aria-label={t("board.chat.plan.title")}>
+      <div className="chat-ask-head">
+        <span className="chat-ask-title">{t("board.chat.plan.title")}</span>
+        <span className="chat-ask-state">{t(`board.chat.plan.${state}`)}</span>
+      </div>
+      {turn.text && <div className="chat-said chat-plan-text"><ChatMarkdown text={turn.text} /></div>}
+      {turn.cut && <p className="chat-plan-cut">{t("board.chat.plan.cut")}</p>}
+    </section>
+  );
+}
+
 /** "You answered  1 · Yes, run it  ·  6m 42s after it asked": the text is the
  *  host's, spaces and all, and is drawn as given. */
 export function RecordLine({ text }: { text: string }) {
@@ -303,6 +323,7 @@ export function TurnRow({ turn, ask }: { turn: Turn; ask?: ChatAsk }) {
     case "tool": return <ToolRow turn={turn} />;
     // Other questions are another card: what was picked for the last never carries over.
     case "ask": return <AskCard key={turn.questions.map(q => q.question).join("\n")} turn={turn} ask={ask} />;
+    case "plan": return <PlanCard turn={turn} />;
     case "record": return <RecordLine text={turn.text} />;
   }
 }

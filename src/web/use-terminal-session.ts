@@ -615,6 +615,9 @@ export interface TerminalSessionController {
   /** Answer Claude Code's question prompt, a step at a time: each step's keys
    *  go only once the live screen shows what it expects (ask-keys.ts). */
   sendAsk(steps: readonly AskStep[], expectedSubject: string): Promise<AskSendResult>;
+  /** The live screen's text, for the caller's subjectKey only; null while that
+   *  session is not live in the pane (screen-prompt.ts reads it). */
+  readScreen(expectedSubject: string): string | null;
   /** One key from the phone's key row, as the bytes the terminal would have sent
    *  for it: through the same input the keyboard types into. */
   press(bytes: string, held?: boolean): void;
@@ -1367,6 +1370,14 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         return sent ? "partial" : "unavailable";
       }
     },
+    readScreen(expectedSubject) {
+      // Only the caller's session, live: a screen read while another session is
+      // switching in, or before the pane holds one, is no screen at all.
+      if (disposed || !conn || subjectKey(subject) !== expectedSubject || snap.subject !== expectedSubject) return null;
+      if (snap.phase.kind !== "live") return null;
+      const screen = term?.screen?.();
+      return typeof screen === "string" ? screen : null;
+    },
     press(bytes, heldBefore) {
       // The terminal's own key: an arrow follows the cursor-key mode, a view
       // scrolled back comes to the bottom as it does for a typed key, and a
@@ -1429,6 +1440,7 @@ export interface TerminalSessionView extends SessionSnapshot {
   type(text: string): void;
   sendPrompt(text: string, expectedSubject: string): PromptSendResult;
   sendAsk(steps: readonly AskStep[], expectedSubject: string): Promise<AskSendResult>;
+  readScreen(expectedSubject: string): string | null;
   press(bytes: string, held?: boolean): void;
   holdsFocus(): boolean;
   release(): void;
@@ -1494,9 +1506,14 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
     if (!ctl || expectedSubject !== subjectKey(latest.current.subject)) return "unavailable";
     return ctl.sendAsk(steps, expectedSubject);
   }, []);
+  const readScreen = useCallback((expectedSubject: string): string | null => {
+    const ctl = controller.current;
+    if (!ctl || expectedSubject !== subjectKey(latest.current.subject)) return null;
+    return ctl.readScreen(expectedSubject);
+  }, []);
   const press = useCallback((bytes: string, held?: boolean) => controller.current?.press(bytes, held), []);
   const holdsFocus = useCallback(() => controller.current?.holdsFocus() === true, []);
   const release = useCallback(() => controller.current?.release(), []);
 
-  return { ...snapshot, hostRef, adopt, retry, focus, type, sendPrompt, sendAsk, press, holdsFocus, release };
+  return { ...snapshot, hostRef, adopt, retry, focus, type, sendPrompt, sendAsk, readScreen, press, holdsFocus, release };
 }
