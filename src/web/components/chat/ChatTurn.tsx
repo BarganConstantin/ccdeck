@@ -23,6 +23,7 @@ import { answerable, MAX_ASK_TEXT, picksComplete, type AskPick } from "../../ask
 import type { AskSendResult } from "../../use-terminal-session";
 import { copyText } from "../../copy-text";
 import { CopyGlyph } from "../terminal/stage-icons";
+import { CODEX_TOOL_LABEL } from "../../tool-taxonomy";
 
 /** What you typed, and a chip that counts the images you sent with it: under
  *  the words, or alone when you sent only images. The images themselves are
@@ -77,15 +78,24 @@ export function DiffBlock({ diff }: { diff: ChatDiff }) {
   </>;
 }
 
+/** The word a tool row shows. Codex's raw names ("exec_command",
+ *  "apply_patch") read as the board shows them ("Shell", "Edit"); the raw name
+ *  stays in the tooltip. Only the table's own keys count, so a tool named
+ *  "toString" is shown as it is. */
+export function toolLabel(name: string): string {
+  return Object.hasOwn(CODEX_TOOL_LABEL, name) ? CODEX_TOOL_LABEL[name] : name;
+}
+
 export function ToolRow({ turn }: { turn: ToolTurn }) {
   const t = useT();
   const id = useId();
   const [open, setOpen] = useState(false);
   const Mark = MARKS[turn.mark ?? (turn.name === "Bash" ? "terminal" : turn.name === "Explore" ? "search" : "file")];
   const failed = turn.error !== undefined;
+  const label = toolLabel(turn.name);
   const content = <>
     <span className="chat-tool-mark"><Mark /></span>
-    <span className="chat-tool-name">{turn.name}</span>
+    <span className="chat-tool-name" title={label === turn.name ? undefined : turn.name}>{label}</span>
     <span className="chat-tool-arg" title={turn.arg}>{turn.arg}</span>
     {turn.note && <span className="chat-tool-note">{turn.note}</span>}
     {failed && <span className="chat-tool-failed">{t("board.chat.tool.failed")}</span>}
