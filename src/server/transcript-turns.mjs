@@ -1,4 +1,4 @@
-import { codexItemText } from "./codex-translate.mjs";
+import { codexItemText, codexToolOutcome } from "./codex-translate.mjs";
 
 // A Claude Code transcript's lines, as the turns Chat draws: what you typed
 // (and how many images came with it), each slash command you ran with what it
@@ -537,27 +537,218 @@ function capTurns(turns) {
 }
 
 /** Prefer Codex's conversation events. The model-facing response items repeat
- * these messages and can also carry injected user-role context. */
+ * these messages and can also carry injected user-role context. Tool calls are
+ * read from the response items, which are the only record of them. */
 export function codexTranscriptWindow(lines) {
-  const turns = [];
+  return capTurns(codexTurns(lines));
+}
+
+// ─── Codex ───────────────────────────────────────────────────────────────────
+// A Codex rollout's lines, as the turns Chat draws: what you typed and what
+// Codex said (its conversation events), one row per tool call with how it
+// went, the change an apply_patch makes, and its plan (update_plan) as the
+// task list.
+//
+// A CALL AND ITS RESULT ARE TWO RECORDS. Codex writes the call as a
+// `response_item` when it is made and the result as another, tied by
+// `call_id`: a `function_call` (arguments as JSON text), a `custom_tool_call`
+// (a bare string: a patch, a script) or a `local_shell_call` (an argv). What a
+// result says is read in codex-translate.mjs (codexToolOutcome). A web search
+// is a `web_search_call`, with no result of its own. A call with no result is
+// running until its turn ends (task_complete, turn_aborted): after that Codex
+// will not answer it.
+
+/** The tools that run a command: their row wears the terminal mark. */
+const CODEX_COMMAND_TOOLS = new Set(["exec_command", "shell", "shell_command", "local_shell", "exec", "write_stdin"]);
+const CODEX_PATCH_TOOL = "apply_patch";
+const CODEX_PLAN_TOOL = "update_plan";
+// Named as Claude Code names its own web search, so both read the same in Chat.
+const CODEX_SEARCH_TOOL = "WebSearch";
+
+/** The first line of a text that says something, cut; or "". */
+function firstLine(text) {
+  const first = typeof text === "string" ? text.split(/\r?\n/).find(line => line.trim() !== "") : undefined;
+  return first === undefined ? "" : cut(first.trim(), MAX_ARG);
+}
+
+// A shell's own argv, ["bash", "-lc", "<command>"]: the command is what
+// follows its script flag.
+const SHELL_PROGRAM = /(?:^|[\\/])(?:(?:ba|z|da|k)?sh|powershell|pwsh|cmd)(?:\.exe)?$/i;
+const SCRIPT_FLAG = /^(?:-[a-z]*c|-command|\/c)$/i;
+
+function argvCommand(argv) {
+  const words = argv.filter(word => typeof word === "string");
+  const flag = SHELL_PROGRAM.test(words[0] ?? "") ? words.findIndex(word => SCRIPT_FLAG.test(word)) : -1;
+  return flag > 0 && flag + 1 < words.length ? words[flag + 1] : words.join(" ");
+}
+
+// The `exec` tool's input is a short JavaScript program that calls Codex's
+// tools. What it ran is the `cmd` it hands tools.exec_command, as the board
+// reads it (codexScriptCommand, tool-taxonomy.ts), else the tool it calls.
+const SCRIPT_CMD = /\btools\.exec_command\s*\(\s*\{[^{}]*?\bcmd\s*:\s*(["'`])((?:\\.|(?!\1)[^\\])*)\1/;
+const SCRIPT_CALL = /\btools\.([A-Za-z_$][\w$]*)\s*\(/;
+const SCRIPT_ESCAPE = /\\(["'`\\nrt])/g;
+
+function scriptArg(script) {
+  const cmd = SCRIPT_CMD.exec(script)?.[2].replace(SCRIPT_ESCAPE, (_, c) => (c === "n" ? "\n" : c === "r" ? "\r" : c === "t" ? "\t" : c));
+  if (cmd?.trim()) return firstLine(cmd);
+  const call = SCRIPT_CALL.exec(script)?.[1];
+  return call ? cut(call, MAX_ARG) : firstLine(script);
+}
+
+/** One line of a Codex call's input: the command it ran, else the usual fields. */
+function codexArg(name, input) {
+  if (typeof input === "string") return name === "exec" ? scriptArg(input) : firstLine(input);
+  if (!input || typeof input !== "object") return "";
+  if (typeof input.cmd === "string") return firstLine(input.cmd);
+  if (Array.isArray(input.command)) return firstLine(argvCommand(input.command));
+  return toolArg(input);
+}
+
+// AN APPLY_PATCH SHOWS ITS CHANGE, as an Edit does. The patch is Codex's own
+// format: "*** Add File: …", "*** Update File: …" or "*** Delete File: …"
+// headers, an "@@" line before each hunk of an update, and lines that start
+// " ", "-" or "+". The row's argument is the files it touches; its hunks go
+// through editDiff, so the note and the caps are an Edit's.
+const PATCH_FILE = /^\*\*\* (?:Add|Delete|Update) File: (.+)$/;
+
+/** The patch text of an apply_patch call: the bare string, or its `input` or `patch` field. */
+function patchText(input) {
+  if (typeof input === "string") return input;
+  if (!input || typeof input !== "object") return "";
+  return [input.input, input.patch].find(value => typeof value === "string") ?? "";
+}
+
+/** The files a patch touches, and its change as hunks of diff lines. */
+function patchChange(patch) {
+  const files = [];
+  const hunks = [];
+  let hunk = null;
+  for (const line of patch.split(/\r?\n/)) {
+    const file = PATCH_FILE.exec(line);
+    if (file) {
+      files.push(file[1].trim());
+      hunk = null;
+    } else if (line.startsWith("@@")) {
+      hunk = null;
+    } else if (files.length && /^[ +-]/.test(line)) {
+      if (!hunk) hunks.push(hunk = []);
+      hunk.push(line);
+    }
+  }
+  return { files, hunks: hunks.map(lines => ({ lines })) };
+}
+
+/** The todo turn of an update_plan call, or null when it carries no plan. Its
+ *  steps take the same three states as TodoWrite's. */
+function planTodo(input) {
+  const plan = input && typeof input === "object" && Array.isArray(input.plan) ? input.plan : null;
+  return plan ? todoTurn({ todos: plan.map(item => ({ content: item?.step, status: item?.status })) }) : null;
+}
+
+/** The row of one call, with its result (`answered`), the patch_apply_end
+ *  Codex wrote for it, and whether its turn has ended. */
+function codexToolTurn(name, input, answered, result, applied, over) {
+  const patch = name === CODEX_PATCH_TOOL ? patchChange(patchText(input)) : null;
+  const turn = { kind: "tool", name: cut(name, MAX_ARG), arg: patch ? cut(patch.files.join(", "), MAX_ARG) : codexArg(name, input) };
+  if (CODEX_COMMAND_TOOLS.has(name)) turn.mark = "terminal";
+  const outcome = answered ? codexToolOutcome(result) : null;
+  const notApplied = applied?.success === false;
+  if (outcome?.declined) turn.declined = true;
+  else if (outcome?.failed) turn.error = errorText(outcome.text.replace(ESCAPES, ""));
+  else if (notApplied) turn.error = errorText(String(applied.stderr || applied.stdout || "").replace(ESCAPES, ""));
+  else if (!answered && !applied && !over) turn.running = true;
+  if (patch && turn.error === undefined && !turn.declined) {
+    const change = editDiff(name, undefined, { structuredPatch: patch.hunks });
+    if (change) {
+      turn.note = change.note;
+      turn.diff = change.diff;
+    }
+  }
+  return turn;
+}
+
+/** The row of a web search: what it looked for. */
+function webSearchTurn(payload) {
+  const action = payload.action && typeof payload.action === "object" ? payload.action : {};
+  const asked = [action.query, action.url, action.pattern].find(value => typeof value === "string" && value.trim());
+  return { kind: "tool", name: CODEX_SEARCH_TOOL, arg: firstLine(asked), mark: "search" };
+}
+
+/** A user or assistant turn from a conversation event, or null. */
+function codexMessage(event) {
+  let kind, text;
+  if (event?.type === "user_message" || event?.type === "agent_message") {
+    kind = event.type === "user_message" ? "user" : "assistant";
+    text = event.message;
+  } else if (event?.type === "item_completed") {
+    if (event.item?.type === "UserMessage") {
+      kind = "user";
+      text = codexItemText(event.item);
+    } else if (event.item?.type === "AgentMessage") {
+      kind = "assistant";
+      text = typeof event.item.content === "string" ? event.item.content : codexItemText(event.item);
+    }
+  }
+  return typeof text === "string" && text.trim() ? { kind, text: cut(text.trim(), MAX_TEXT) } : null;
+}
+
+/** The turns in a Codex rollout's `lines`, oldest first. */
+function codexTurns(lines) {
+  const records = [];
+  // Each answered call's result, the patch_apply_end of each patch, and where
+  // the last turn ended.
+  const results = new Map();
+  const applied = new Map();
+  let ended = -1;
   for (const line of lines) {
     const record = parse(line);
-    if (record?.type !== "event_msg") continue;
-    const event = record.payload;
-    let kind, text;
-    if (event?.type === "user_message" || event?.type === "agent_message") {
-      kind = event.type === "user_message" ? "user" : "assistant";
-      text = event.message;
-    } else if (event?.type === "item_completed") {
-      if (event.item?.type === "UserMessage") {
-        kind = "user";
-        text = codexItemText(event.item);
-      } else if (event.item?.type === "AgentMessage") {
-        kind = "assistant";
-        text = typeof event.item.content === "string" ? event.item.content : codexItemText(event.item);
-      }
+    if (!record) continue;
+    const payload = record.payload;
+    if (record.type === "response_item" && (payload?.type === "function_call_output" || payload?.type === "custom_tool_call_output")) {
+      if (typeof payload.call_id === "string") results.set(payload.call_id, payload.output);
+    } else if (record.type === "event_msg" && payload?.type === "patch_apply_end") {
+      if (typeof payload.call_id === "string") applied.set(payload.call_id, payload);
+    } else if (record.type === "event_msg" && (payload?.type === "task_complete" || payload?.type === "turn_aborted")) {
+      ended = records.length;
     }
-    if (typeof text === "string" && text.trim()) turns.push({ kind, text: cut(text.trim(), MAX_TEXT) });
+    records.push(record);
   }
-  return capTurns(turns);
+  const turns = [];
+  records.forEach((record, at) => {
+    const payload = record.payload;
+    if (record.type === "event_msg") {
+      const message = codexMessage(payload);
+      if (message) turns.push(message);
+      return;
+    }
+    if (record.type !== "response_item" || !payload || typeof payload !== "object") return;
+    if (payload.type === "web_search_call") {
+      turns.push(webSearchTurn(payload));
+      return;
+    }
+    let name, input;
+    if (payload.type === "function_call") {
+      name = payload.name;
+      input = payload.arguments;
+      if (typeof input === "string") {
+        try { input = JSON.parse(input); } catch { /* kept as written */ }
+      }
+    } else if (payload.type === "custom_tool_call") {
+      name = payload.name;
+      input = payload.input;
+    } else if (payload.type === "local_shell_call") {
+      name = "local_shell";
+      input = { command: payload.action?.command };
+    }
+    if (typeof name !== "string" || !name) return;
+    const todo = name === CODEX_PLAN_TOOL ? planTodo(input) : null;
+    if (todo) {
+      turns.push(todo);
+      return;
+    }
+    const id = typeof payload.call_id === "string" ? payload.call_id : undefined;
+    turns.push(codexToolTurn(name, input, id !== undefined && results.has(id), results.get(id), id === undefined ? undefined : applied.get(id), at < ended));
+  });
+  return turns;
 }

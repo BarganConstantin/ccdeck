@@ -409,15 +409,10 @@ function codexOutputParts(output) {
  * on a session that did nothing wrong.
  */
 function codexCallFailed(output) {
-  const first = codexOutputParts(output)[0];
-  if (typeof first !== "string") return false;
-  const head = first.split("\n")[0].replace(/\r$/, "");
-  if (/^Script failed\b/.test(head)) return true;
-  // apply_patch reports itself with an exit code instead of a word. Anything
-  // non-zero is a patch that did not apply.
-  const exit = /^Exit code:\s*(\d+)/.exec(head);
-  if (exit) return Number(exit[1]) !== 0;
-  return false;
+  // The board and Chat read a result the same way (codexToolOutcome): 0.169's
+  // exec_command writes its exit on the third head line, which a first-line
+  // read missed, so a command that failed drew green.
+  return codexToolOutcome(output).failed;
 }
 
 function parseCodexOutput(raw) {
@@ -428,4 +423,51 @@ function parseCodexOutput(raw) {
   } catch {
     return raw;
   }
+}
+
+// ─── What a tool result says, for Chat ─────────────────────────────────────
+// Chat (transcript-turns.mjs) draws each Codex call as a row with how it went,
+// and the board's colours (codexCallFailed) take `failed` from here too. The
+// strings below are read from the Codex 0.169.0 binary (linux-x64).
+//
+// Codex heads a result with lines of its own, then "Output:" and what the call
+// printed. 0.169's exec_command writes its exit in those head lines, after
+// "Chunk ID: …" and "Wall time: … seconds": "Process exited with code N". Only
+// lines above "Output:", and only the first MAX_HEAD_LINES, are read, so
+// nothing a command printed can pass for one.
+const MAX_HEAD_LINES = 6;
+const EXIT_LINE = /^(?:Exit code:\s*|Process exited with code )(-?\d+)/;
+// What a call answered No at the approval prompt hands the model: it never ran.
+const DECLINED_OUTPUT = /^(?:exec command|patch) rejected by user$/;
+// What a call Codex could not run at all hands the model: it failed.
+const NOT_RUN = /^(?:unsupported call|unsupported custom tool call|failed to parse function arguments|apply_patch verification failed): /;
+
+/** The exit code in the older shell tool's { output, metadata: { exit_code } } envelope, else 0. */
+function envelopeExit(output) {
+  if (typeof output !== "string") return 0;
+  try {
+    const o = JSON.parse(output);
+    const code = o && typeof o.output === "string" && o.metadata ? o.metadata.exit_code : undefined;
+    return Number.isInteger(code) ? code : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * What a Codex tool result says about its call: `failed`, `declined` (you
+ * answered No, so it never ran) and `text`, what it printed without Codex's
+ * head lines (the whole text when there are none).
+ */
+export function codexToolOutcome(output) {
+  const text = codexOutputParts(output).join("\n").replace(/\r\n?/g, "\n");
+  if (DECLINED_OUTPUT.test(text.trim())) return { failed: false, declined: true, text: "" };
+  const lines = text.split("\n");
+  const at = lines.slice(0, MAX_HEAD_LINES + 1).indexOf("Output:");
+  const head = at >= 0 ? lines.slice(0, at) : lines.slice(0, 1);
+  const body = at >= 0 ? lines.slice(at + 1).join("\n").trim() : "";
+  const first = head[0] ?? "";
+  const failed = /^Script failed\b/.test(first) || NOT_RUN.test(first) || envelopeExit(output) !== 0
+    || head.some(line => Number(EXIT_LINE.exec(line)?.[1] ?? 0) !== 0);
+  return { failed, declined: false, text: body || text.trim() };
 }
