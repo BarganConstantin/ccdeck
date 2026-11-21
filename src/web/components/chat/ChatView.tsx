@@ -16,7 +16,7 @@ import { useT } from "../../i18n";
 import DecisionCard, { type DecisionCardProps } from "../decision/DecisionCard";
 import type { ChatAsk, ChatSource, ChatTurn } from "./chat-model";
 import { conversationBlocks } from "./chat-model";
-import { AssistantBlock, RecordLine, SinceDivider, YourMessage } from "./ChatTurn";
+import { AssistantBlock, RecordLine, SinceDivider, YourCommand, YourMessage } from "./ChatTurn";
 import "./chat.css";
 
 export interface ChatViewProps {
@@ -49,9 +49,12 @@ const inBlock = (at: number, start: number, length: number) => (at >= start && a
 export const BOTTOM_SLACK = 24;
 
 /** What identifies the last turn: its kind and what it says, and a tool row's,
- *  a question card's, a task list's or a sub-agent's state. */
+ *  a question card's, a task list's or a sub-agent's state, a command's output
+ *  as it arrives and grows, and the images counted on a message. */
 export function tailKey(turn: ChatTurn | undefined): string {
   if (!turn) return "";
+  if (turn.kind === "user") return `user|${turn.text}|${turn.images ?? 0}`;
+  if (turn.kind === "command") return `command|${turn.name}|${turn.args ?? ""}|${turn.failed ? 1 : 0}|${turn.output ?? ""}`;
   if (turn.kind === "tool") return `tool|${turn.name}|${turn.arg}|${turn.note ?? ""}|${turn.running ? 1 : 0}|${turn.error === undefined ? 0 : 1}|${turn.declined ? 1 : 0}`;
   if (turn.kind === "ask") return `ask|${turn.questions.map(q => q.question).join("\n")}|${turn.running ? 1 : 0}|${(turn.answers ?? []).join("\n")}|${turn.reply ?? ""}`;
   if (turn.kind === "plan") return `plan|${turn.text}|${turn.running ? 1 : 0}|${turn.approved ? 1 : 0}`;
@@ -112,7 +115,8 @@ export default function ChatView({ source, provider, decision, ask }: ChatViewPr
                 ? <AssistantBlock key={block.index} turns={block.turns} provider={provider}
                   ask={ask && live >= block.index && live < block.index + block.turns.length ? { ...ask, at: live - block.index } : undefined}
                   todoAt={inBlock(todo, block.index, block.turns.length)} />
-                : block.kind === "user" ? <YourMessage key={block.index} text={block.text} />
+                : block.kind === "user" ? <YourMessage key={block.index} text={block.text} images={block.images} />
+                : block.kind === "command" ? <YourCommand key={block.index} turn={block} />
                 : <RecordLine key={block.index} text={block.text} />)}
             </>
           )}

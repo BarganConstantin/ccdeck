@@ -1,7 +1,7 @@
 // The pieces of a conversation, one per kind of line (the kit's Chat parts):
-// what you typed, what the assistant said, a tool call, the record of an
-// answer, the task list, a sub-agent, a notice, and the divider that says what
-// happened since you looked.
+// what you typed, a slash command you ran, what the assistant said, a tool
+// call, the record of an answer, the task list, a sub-agent, a notice, and the
+// divider that says what happened since you looked.
 //
 // ONE QUIET LINE, DETAIL ON DEMAND. A failed call says "Failed" and an edit its
 // "+4 −1" on the row; the error or the change opens under it from the row's
@@ -11,7 +11,7 @@
 // NEW LINES APPEAR WITH NO MOTION. A line is drawn where it belongs and that is
 // all; there is no entrance, no highlight, no scroll animation.
 import {
-  AgentGlyph, ChevronRightGlyph, DoneGlyph, FileGlyph, SearchGlyph, TodoActiveGlyph, TodoPendingGlyph, ToolTerminalGlyph,
+  AgentGlyph, ChevronRightGlyph, DoneGlyph, FileGlyph, ImageGlyph, SearchGlyph, TodoActiveGlyph, TodoPendingGlyph, ToolTerminalGlyph,
 } from "./chat-icons";
 import { t as tNow, useT, type TFunction } from "../../i18n";
 import type { ChatAsk, ChatDiff, ChatQuestion, ChatSince, ChatTodo, ChatTurn as Turn } from "./chat-model";
@@ -24,9 +24,32 @@ import type { AskSendResult } from "../../use-terminal-session";
 import { copyText } from "../../copy-text";
 import { CopyGlyph } from "../terminal/stage-icons";
 
-export function YourMessage({ text }: { text: string }) {
+/** What you typed, and a chip that counts the images you sent with it: under
+ *  the words, or alone when you sent only images. The images themselves are
+ *  never in the transcript Chat reads. */
+export function YourMessage({ text, images }: { text: string; images?: number }) {
   const t = useT();
-  return <div className="chat-you"><span className="chat-author">{t("board.chat.you")}</span><p className="chat-you-text">{text.replace(/\r\n?/g, "\n")}</p></div>;
+  return (
+    <div className="chat-you">
+      <span className="chat-author">{t("board.chat.you")}</span>
+      {text && <p className="chat-you-text">{text.replace(/\r\n?/g, "\n")}</p>}
+      {images ? <span className="chat-you-images"><span className="chat-you-images-mark"><ImageGlyph /></span>{t("board.chat.images", { count: images })}</span> : null}
+    </div>
+  );
+}
+
+/** A slash command you ran, as you typed it ("/model opus"), and what it
+ *  printed under it: wrapped, scrolled inside its own block, in --warn when it
+ *  came on stderr as a failed call's "Failed" is. */
+export function YourCommand({ turn }: { turn: Extract<Turn, { kind: "command" }> }) {
+  const t = useT();
+  return (
+    <div className="chat-you">
+      <span className="chat-author">{t("board.chat.you")}</span>
+      <p className="chat-command-line"><code>{turn.args ? `${turn.name} ${turn.args}` : turn.name}</code></p>
+      {turn.output && <pre className="chat-command-output" data-failed={turn.failed || undefined}><code>{turn.output}</code></pre>}
+    </div>
+  );
 }
 
 export function AssistantText({ text }: { text: string }) {
@@ -442,7 +465,8 @@ export function SinceDivider({ since }: { since: ChatSince }) {
 /** One turn. `latest` says a task list is the conversation's last, drawn whole. */
 export function TurnRow({ turn, ask, latest }: { turn: Turn; ask?: ChatAsk; latest?: boolean }) {
   switch (turn.kind) {
-    case "user": return <YourMessage text={turn.text} />;
+    case "user": return <YourMessage text={turn.text} images={turn.images} />;
+    case "command": return <YourCommand turn={turn} />;
     case "assistant": return <AssistantText text={turn.text} />;
     case "tool": return <ToolRow turn={turn} />;
     case "todo": return latest ? <TodoList turn={turn} /> : <TodoLine turn={turn} />;

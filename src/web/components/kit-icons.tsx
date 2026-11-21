@@ -91,6 +91,12 @@ export const KIT_ICONS = {
   history: { size: 14, els: [
     { d: "M3 11.5V7M7 11.5V3M11 11.5V8.5" }
   ] },
+  // A picture: its frame, a hill and the sun. The images sent with a message,
+  // on Chat's chip (ChatTurn.tsx). Drawn to the kit's grid, not exported.
+  image: { size: 14, els: [
+    { d: "M3.2 2H10.8C11.4627 2 12 2.53726 12 3.2V10.8C12 11.4627 11.4627 12 10.8 12H3.2C2.53726 12 2 11.4627 2 10.8V3.2C2 2.53726 2.53726 2 3.2 2ZM12 8.8L10.1 6.9C9.71 6.51 9.09 6.51 8.7 6.9L3.6 12" },
+    { cx: 5.3, cy: 5.3, r: 1 }
+  ] },
   info: { size: 14, els: [
     { cx: 7, cy: 7, r: 5.5 },
     { d: "M7 6.3V9.7" },

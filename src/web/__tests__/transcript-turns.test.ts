@@ -69,14 +69,22 @@ describe("what Claude Code wrote for itself is not what you typed", () => {
     expect(transcriptTurns([user(summary)])).toHaveLength(1);
   });
 
-  it("skips user text made only of a slash command's wrappers or a local command's output", () => {
+  it("never draws a slash command's wrappers or a local command's output as something you said", () => {
+    // CHANGED ON PURPOSE (slash commands in the history): a line of a slash
+    // command's wrappers is a command turn now, with the local command's
+    // output under it (transcript-inputs.test.ts). Output with no command
+    // before it is still left out.
     const wrapped = [
       "<command-name>/clear</command-name><command-message>clear</command-message><command-args></command-args>",
       "<command-name>/model</command-name>\n<command-args>opus</command-args>",
       "<local-command-stdout>Set model to opus</local-command-stdout>",
       "<local-command-stderr>oops</local-command-stderr>",
     ];
-    expect(transcriptTurns(wrapped.map(w => user(w)))).toEqual([]);
+    expect(transcriptTurns(wrapped.map(w => user(w)))).toEqual([
+      { kind: "command", name: "/clear" },
+      { kind: "command", name: "/model", args: "opus", output: "Set model to opus\noops", failed: true },
+    ]);
+    expect(transcriptTurns(wrapped.slice(2).map(w => user(w)))).toEqual([]);
     expect(transcriptTurns([user([{ type: "text", text: wrapped[2] }])])).toEqual([]);
   });
 

@@ -19,9 +19,10 @@ describe("the kit's icons", () => {
   // CHANGED ON PURPOSE (the terminal's text size): text-size joins the kit,
   // the −/+ of the pane's own zoom in its header. CHANGED ON PURPOSE (owner's
   // decision, 2026-11-12): partial joins the state glyphs, a turn that
-  // finished with failed calls.
-  it("has the 56 icons and the 6 state glyphs", () => {
-    expect(names).toHaveLength(56);
+  // finished with failed calls. CHANGED ON PURPOSE (images in Chat's
+  // history): image joins the kit, the mark on a message's image chip.
+  it("has the 57 icons and the 6 state glyphs", () => {
+    expect(names).toHaveLength(57);
     expect(Object.keys(KIT_STATE_GLYPHS).sort()).toEqual(["done", "error", "idle", "partial", "waiting", "working"]);
   });
 
