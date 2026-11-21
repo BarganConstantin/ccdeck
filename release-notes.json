@@ -1,4 +1,22 @@
 {
+  "4.2.0": [
+    {
+      "title": "📋 Chat shows each step Claude Code takes",
+      "body": "Between Claude Code's messages, Chat now shows its task checklist, the steps that failed or that you declined, file edits as the lines they changed, and sub-agents with how far they got. It also says when a reply was interrupted or the request to the API failed."
+    },
+    {
+      "title": "⏹️ Stop Claude Code from Chat",
+      "body": "While Claude Code works, Chat shows a Stop button that interrupts it, as Esc does in Term. The conversation now also shows the slash commands you ran, with what they printed, and how many images you sent with a message."
+    },
+    {
+      "title": "🧰 Codex steps in Chat",
+      "body": "In a Codex session, Chat now shows its commands, file edits, plan and web searches as steps, the way it does for Claude Code. A command that failed reads Failed, with what it printed, and the board counts it as an error."
+    },
+    {
+      "title": "🔄 Chat keeps up with the session",
+      "body": "Chat now shows a new reply moments after the session moves, instead of on the next timed check, and a session at rest refreshes too. In a long conversation, Load older messages reads back further than the latest part."
+    }
+  ],
   "4.1.0": [
     {
       "title": "💬 Answer Claude Code's questions in Chat",
@@ -256,6 +274,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.2.0": "Chat shows every step, gets Stop and keeps up with the session",
     "4.1.0": "Answer Claude Code's questions, commands and plans from Chat",
     "4.0.4": "Install Claude Code from the deck, sign in again to the same account, and easier account cards",
     "4.0.3": "Sessions start on Windows right after ccdeck starts",
