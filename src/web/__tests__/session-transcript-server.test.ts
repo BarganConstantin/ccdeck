@@ -71,7 +71,15 @@ describe("the transcript route on a running deck", () => {
   it("answers the deck's own page the turns of a session the deck knows", async () => {
     const { status, raw } = await get(route, page());
     expect(status).toBe(200);
-    expect(JSON.parse(raw)).toEqual({ ok: true, complete: true, turns: [{ kind: "user", text: "hello deck" }] });
+    expect(JSON.parse(raw)).toEqual({ ok: true, complete: true, turns: [{ kind: "user", text: "hello deck" }], version: expect.stringMatching(/^[A-Za-z0-9_-]{22}$/) });
+  });
+
+  it("answers the page that holds the file's version unchanged, through the same gate", async () => {
+    const { version } = JSON.parse((await get(route, page())).raw);
+    const { status, raw } = await get(`${route}&since=${version}`, page());
+    expect(status).toBe(200);
+    expect(JSON.parse(raw)).toEqual({ ok: true, unchanged: true });
+    expect((await get(`${route}&since=${version}`)).status).toBe(401);
   });
 
   it("answers the token for a client that is not a browser", async () => {
