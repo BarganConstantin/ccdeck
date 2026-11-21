@@ -177,6 +177,8 @@ export function stageShowFor(
       // The Inspector's Context tab reads the same two numbers (contextFill).
       contextUse: contextUseOf(root),
       promptCount: typedPrompts(root.prompts).length,
+      // Every event the board hears for the session moves it: Chat asks soon after.
+      ...(root.lastEventAt != null ? { heardAt: root.lastEventAt } : {}),
       // While the pane attaches: what the face says the session is doing, or
       // failing that, what it was last asked.
       ghostLine: signal?.long ?? promptLine(lastPrompt),

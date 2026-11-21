@@ -8,17 +8,20 @@ import KeysBar from "../components/terminal/KeysBar";
 import { ChatComposerSlot } from "../use-screens";
 import type { ChatComposerProps } from "../components/chat/ChatComposer";
 import type { StagePhase } from "../components/terminal/stage-model";
+import { stopSteps } from "../chat-stop";
 
 const held = vi.hoisted(() => ({
   subject: "session:a", phase: { kind: "live", sizeOwner: "dock", readOnly: false } as StagePhase,
-  sendPrompt: vi.fn(() => "sent"), focus: vi.fn(), release: vi.fn(),
+  sendPrompt: vi.fn(() => "sent"), sendAsk: vi.fn(async () => "sent"), focus: vi.fn(), release: vi.fn(),
+  /** What Chat's transcript was last asked to follow: it reads again when this changes. */
+  change: "",
 }));
 vi.mock("react", async () => (await import("./fake-react")).react);
 vi.mock("../use-terminal-session", async importOriginal => ({
   ...await importOriginal<typeof import("../use-terminal-session")>(),
   useTerminalSession: () => ({
     subject: held.subject, phase: held.phase, keysOwner: "board", streaming: false,
-    hostRef: { current: null }, sendPrompt: held.sendPrompt, focus: held.focus,
+    hostRef: { current: null }, sendPrompt: held.sendPrompt, sendAsk: held.sendAsk, focus: held.focus,
     release: held.release, adopt: vi.fn(), retry: vi.fn(), type: vi.fn(), press: vi.fn(), holdsFocus: () => false,
   }),
 }));
@@ -28,20 +31,21 @@ vi.mock("../use-screens", async importOriginal => ({
 }));
 vi.mock("../use-session-transcript", async importOriginal => ({
   ...await importOriginal<typeof import("../use-session-transcript")>(),
-  useSessionTranscript: () => ({ state: "ready", turns: [] }),
+  useSessionTranscript: ({ change }: { change: string }) => { held.change = change; return { state: "ready", turns: [] }; },
 }));
 
 beforeEach(() => {
   held.subject = "session:a";
   held.phase = { kind: "live", sizeOwner: "dock", readOnly: false };
   held.sendPrompt.mockReset().mockReturnValue("sent");
+  held.sendAsk.mockReset().mockResolvedValue("sent");
   held.focus.mockClear(); held.release.mockClear();
 });
-function props(id = "a", waiting = false): TerminalStageProps {
+function props(id = "a", waiting = false, state: "idle" | "waiting" | "working" = waiting ? "waiting" : "idle", provider = "claude"): TerminalStageProps {
   return {
     show: { kind: "session", session: {
-      ref: { sessionId: id, provider: "claude", cwd: "/demo" }, name: id,
-      status: { state: waiting ? "waiting" : "idle", phrase: "", emphasis: "", tool: null, arg: null },
+      ref: { sessionId: id, provider, cwd: "/demo" }, name: id,
+      status: { state, phrase: "", emphasis: "", tool: null, arg: null },
       context: null, hue: 1,
     } },
     geometry: stageGeometry({ appW: 1200, bodyH: 700, cellW: 8, cellH: 18, expanded: false, narrow: false, storedCols: null, fill: true }),
@@ -96,6 +100,41 @@ describe("direct Chat reply wiring", () => {
     expect(composer(view).unavailable).toBeTruthy();
     expect(composer(view).onSend("keep my draft")).toBe("unavailable");
     expect(held.sendPrompt).not.toHaveBeenCalled(); view.unmount();
+  });
+
+  it("offers Stop only while Claude Code works and the pane can take keys", () => {
+    const canStop = (p: TerminalStageProps) => {
+      const view = mount(TerminalStage, p); changeView(view, "chat");
+      const offered = composer(view).canStop;
+      view.unmount();
+      return offered;
+    };
+    expect(canStop(props("a", false, "working"))).toBe(true);
+    expect(canStop(props("a", false, "idle"))).toBe(false);
+    expect(canStop(props("a", false, "waiting"))).toBe(false);
+    expect(canStop(props("a", false, "working", "codex"))).toBe(false);
+    held.phase = { kind: "live", sizeOwner: "dock", readOnly: true };
+    expect(canStop(props("a", false, "working"))).toBe(false);
+    held.phase = { kind: "attaching", reconnect: true } as StagePhase;
+    expect(canStop(props("a", false, "working"))).toBe(false);
+    held.phase = { kind: "live", sizeOwner: "dock", readOnly: false }; held.subject = "session:previous";
+    expect(canStop(props("a", false, "working"))).toBe(false);
+  });
+
+  it.each([
+    { result: "sent", reread: true }, { result: "partial", reread: true },
+    { result: "changed", reread: false }, { result: "unavailable", reread: false },
+  ] as const)("stops through the guarded path to the bound subject: $result", async ({ result, reread }) => {
+    held.sendAsk.mockResolvedValue(result);
+    const view = mount(TerminalStage, props("a", false, "working")); changeView(view, "chat");
+    const before = held.change;
+    expect(await composer(view).onStop!()).toBe(result);
+    expect(held.sendAsk).toHaveBeenCalledOnce();
+    expect(held.sendAsk).toHaveBeenCalledWith(stopSteps(), "session:a");
+    // Keys that went make Chat read the conversation again, as a reply does.
+    expect(held.change !== before).toBe(reread);
+    expect(held.sendPrompt).not.toHaveBeenCalled();
+    view.unmount();
   });
 
   it("replaces the old handoff footer while retaining end/ask actions", () => {

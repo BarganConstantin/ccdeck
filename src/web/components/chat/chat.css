@@ -55,6 +55,29 @@
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
+/* The images you sent: counted on a quiet chip under your words (or alone),
+   as a question's tag is drawn. The images themselves are never shown. */
+.chat-you-images { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 1px 8px; border-radius: var(--r-tag); background: var(--ctl-fill); color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 20px; }
+.chat-you-images-mark { flex: none; display: inline-flex; color: var(--muted); }
+/* A slash command you ran: as typed, in mono, on your message's surface; what
+   it printed under it in a muted block that wraps and scrolls inside itself,
+   never the page. Printed on stderr, it is --warn, as a failed call's
+   "Failed" is. */
+.chat-command-line {
+  margin: 0;
+  box-sizing: border-box;
+  max-width: min(100%, 640px);
+  padding: 8px 12px;
+  background: var(--your-message);
+  border-radius: var(--r-overlay) var(--r-overlay) var(--r-tag) var(--r-overlay);
+  color: var(--text);
+  font: calc(12px + var(--ui-text-increase, 0px))/1.6 var(--font-mono);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.chat-command-output { box-sizing: border-box; max-width: min(100%, 640px); max-height: 160px; margin: 0; padding: 8px 10px; overflow-y: auto; overscroll-behavior: contain; border-radius: var(--r-ctl); background: var(--sunken); color: var(--text-secondary); font: calc(12px + var(--ui-text-increase, 0px))/1.6 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-command-output[data-failed] { color: var(--warn); }
+.chat-command-line code, .chat-command-output code { font: inherit; }
 /* The assistant: text, no bubble, and a line that stops at 640. */
 .chat-said { margin: 0; max-width: 640px; font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 1.65; color: var(--text); overflow-wrap: anywhere; min-width: 0; }
 .chat-response { min-width: 0; }
@@ -103,6 +126,8 @@
 .chat-tool:focus-visible, .chat-activity-head:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
 @media (hover: hover) and (pointer: fine) {
   .chat-tool:hover, .chat-activity-head:hover { background: var(--ctl-fill); }
+  /* A task line and a sub-agent open nothing, so they do not light up as if they did. */
+  .chat-tool:is(.chat-todo-line, .chat-agent):hover { background: transparent; }
 }
 .chat-tool-mark { flex: none; display: inline-flex; color: var(--muted); }
 .chat-tool-name { flex: none; font-weight: 500; color: var(--text-secondary); }
@@ -114,6 +139,58 @@
 /* What you answered and how long it took: the spaces in it are the host's. */
 .chat-record { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--muted); white-space: pre-wrap; }
 
+/* A call with an error or a change to show: the row is a real button, drawn
+   as the disclosure row it sits beside. "Failed" is quiet --warn, and a
+   group of calls counts its failures on its head so they show while closed. */
+.chat-tool-toggle { width: 100%; margin: 0; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.chat-tool-toggle[aria-expanded="true"] .chat-disclosure { transform: rotate(90deg); }
+.chat-tool-failed { flex: none; margin-left: auto; padding-left: 8px; white-space: nowrap; color: var(--warn); }
+.chat-tool-note + .chat-tool-failed { margin-left: 0; }
+.chat-tool-declined { flex: none; margin-left: auto; padding-left: 8px; white-space: nowrap; color: var(--muted); }
+.chat-activity-failed { color: var(--warn); font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.chat-tool-detail { min-width: 0; }
+/* The error as the tool said it: wrapped, and scrolled inside past a few lines. */
+.chat-tool-error { margin: 0 8px 8px 30px; padding: 8px 10px; max-height: 240px; overflow-y: auto; overscroll-behavior: contain; border-radius: var(--r-ctl); background: var(--sunken); color: var(--text); font: calc(12px + var(--ui-text-increase, 0px))/1.6 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* An edit's change: lines kept as typed, so a long one scrolls the block, never
+   the page. Added and removed lines are tinted with --ok and --err, as the
+   forge's diffstat colours them, and keep their +/- so the tint is not alone. */
+.chat-diff { box-sizing: border-box; max-height: 360px; margin: 0 8px 8px 30px; padding: 6px 0; overflow: auto; overscroll-behavior: contain; border-radius: var(--r-ctl); background: var(--sunken); color: var(--text); font: calc(12px + var(--ui-text-increase, 0px))/1.6 var(--font-mono); white-space: pre; }
+.chat-diff code { display: block; width: max-content; min-width: 100%; }
+.chat-diff-line { display: block; padding: 0 10px; }
+.chat-diff-line[data-op="add"] { background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.chat-diff-line[data-op="del"] { background: color-mix(in srgb, var(--err) 14%, transparent); }
+.chat-diff-line[data-op="gap"] { color: var(--muted); }
+.chat-diff-cut { margin: -4px 8px 8px 30px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); }
+
+/* The task list. Earlier lists are one muted row among the calls; the last one
+   is a checklist: done muted, the one being worked on in --text with an accent
+   mark, the rest plain. */
+.chat-todo-line { color: var(--muted); }
+.chat-todo-line-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-todo { display: flex; flex-direction: column; gap: 6px; max-width: 640px; min-width: 0; }
+.chat-todo-head { padding: 0 8px; color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 18px; font-weight: 500; }
+.chat-todo-list { display: flex; flex-direction: column; gap: 2px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+.chat-todo-item { display: flex; align-items: flex-start; gap: 8px; min-width: 0; padding: 2px 8px; color: var(--text); font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 20px; }
+.chat-todo-mark { flex: none; display: inline-flex; margin-top: 4px; color: var(--muted); }
+.chat-todo-text { min-width: 0; overflow-wrap: anywhere; }
+.chat-todo-item[data-status="done"] { color: var(--muted); }
+.chat-todo-item[data-status="active"] { font-weight: 500; }
+.chat-todo-item[data-status="active"] .chat-todo-mark { color: var(--accent); }
+/* Words for a screen reader where the eye has a mark: a task's state. */
+.chat-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* A sub-agent: one row in the tool row's type, its state at the end. Several
+   started together sit as one list, row under row, as calls in a group do. */
+.chat-response-content > .chat-agent + .chat-agent { margin-top: -16px; }
+.chat-agent-desc { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-agent-state { flex: none; margin-left: auto; padding-left: 8px; white-space: nowrap; color: var(--muted); }
+.chat-agent[data-state="running"] .chat-agent-state { color: var(--inflight); }
+.chat-agent[data-state="failed"] .chat-agent-state { color: var(--warn); }
+
+/* Why the assistant stopped: an interruption muted, an API error in --warn. */
+.chat-notice { margin: 0; padding: 0 8px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+.chat-notice[data-what="error"] { color: var(--warn); }
+
 .chat-error { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--bg-soft); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--text); }
 .chat-error > span { min-width: 0; overflow-wrap: anywhere; }
 .chat-retry { flex: none; min-height: 28px; margin: 0 0 0 auto; padding: 0; background: none; border: 0; border-radius: var(--r-ctl); font: inherit; font-weight: 500; color: var(--accent); cursor: pointer; }
@@ -121,6 +198,9 @@
 @media (hover: hover) and (pointer: fine) {
 .chat-retry:hover { text-decoration: underline; }
 }
+/* Older messages, on request: Retry's quiet link, centred over the conversation. */
+.chat-older { align-self: center; margin: 0; }
+.chat-older[aria-busy] { color: var(--text-secondary); cursor: progress; }
 
 /* A question the assistant asked (AskUserQuestion): a card as wide as its
    prose. It waits in --warn, as the Decision card does, and goes neutral once
@@ -238,6 +318,8 @@
   .chat-response-content { padding-left: 0; }
   .chat-tool { flex-wrap: wrap; }
   .chat-tool-note { max-width: 100%; white-space: normal; }
+  /* A sub-agent stays one row: what it was asked gives way, cut short. */
+  .chat-tool.chat-agent { flex-wrap: nowrap; }
 }
 @media (pointer: coarse) {
   .chat-tool, .chat-activity-head, .chat-latest { min-height: 44px; }

@@ -51,11 +51,12 @@ export interface HeldPrompt {
   gone?: boolean;
 }
 
-/** Where the last call or plan still waiting sits in the transcript, or -1. */
+/** Where the last call or plan still waiting sits in the transcript, or -1. A
+ *  sub-agent still running counts as a call: its own calls can ask too. */
 export function waitingAt(turns: readonly ChatTurn[]): number {
   for (let i = turns.length - 1; i >= 0; i--) {
     const turn = turns[i];
-    if ((turn.kind === "tool" || turn.kind === "plan") && turn.running) return i;
+    if ((turn.kind === "tool" || turn.kind === "plan" || turn.kind === "agent") && turn.running) return i;
   }
   return -1;
 }

@@ -22,6 +22,26 @@ describe("the call a card answers", () => {
     expect(waitingAt(P1)).toBe(1);
     expect(waitingAt([])).toBe(-1);
   });
+
+  it("counts a sub-agent still running as a call, since its own calls can ask", () => {
+    const agent: ChatTurn = { kind: "agent", type: "Explore", description: "Find the auth code", running: true };
+    expect(waitingAt([agent])).toBe(0);
+    expect(waitingAt([...T2, agent, { kind: "assistant", text: "Meanwhile." }])).toBe(1);
+    // The later of a running call and a running sub-agent is the one held.
+    expect(waitingAt([agent, ...T1])).toBe(1);
+    expect(waitingAt([...T1, agent])).toBe(1);
+    expect(nextHeld(null, BASH, [agent])).toEqual({ prompt: BASH, turns: [agent], at: 0 });
+  });
+
+  it("not a sub-agent that is done or failed, nor the other new lines", () => {
+    expect(waitingAt([{ kind: "agent", type: "Explore", description: "d" }])).toBe(-1);
+    expect(waitingAt([{ kind: "agent", type: "", description: "d", failed: true }])).toBe(-1);
+    expect(waitingAt([
+      { kind: "todo", items: [{ text: "a", status: "active" }] },
+      { kind: "notice", what: "interrupted" },
+      { kind: "notice", what: "error", text: "API Error: 529" },
+    ])).toBe(-1);
+  });
 });
 
 describe("the card held against the screen", () => {

@@ -71,6 +71,7 @@ import { ChatComposerSlot, useScreenFlags } from "../../use-screens";
 import { fontSizeFor, stepTerminalText, useTerminalTextStep } from "../../terminal-text-size";
 import { chatSessionFor, useSessionTranscript } from "../../use-session-transcript";
 import { askSteps } from "../../ask-keys";
+import { stopSteps } from "../../chat-stop";
 import type { ChatAsk, ChatTurn } from "../chat/chat-model";
 import { usePromptDecision } from "../../use-prompt-decision";
 import { DialogPresence } from "../Dialog";
@@ -186,6 +187,8 @@ export interface StageSessionInfo {
   launched?: boolean;
   /** How many prompts the board has for it: Chat reads its conversation again when this changes. */
   promptCount?: number;
+  /** When the board last heard from it (its `lastEventAt`): Chat asks soon after this moves. */
+  heardAt?: number;
   /** What the header's Rename needs (session-rename.ts renameFacts), for a
    *  session the board has; left out, the name is only drawn. */
   rename?: RenameFacts | null;
@@ -391,6 +394,7 @@ export default function TerminalStage(p: TerminalStageProps) {
     working: p.show.kind === "session" && p.show.session.status.state === "working",
     ended: p.show.kind === "session" && p.show.session.status.state === "ended",
     change: p.show.kind === "session" ? `${p.show.session.promptCount ?? 0}:${p.show.session.status.state}:${chatSent}` : "",
+    heard: p.show.kind === "session" ? p.show.session.heardAt : undefined,
   });
   useEffect(() => { if (chatSession === null) setView("term"); }, [chatSession]);
   // Workspace's pane is sunken (V4), the terminal with it; beside the board it
@@ -718,6 +722,14 @@ export default function TerminalStage(p: TerminalStageProps) {
       if (chatUnavailable) return "unavailable";
       const result = session.sendPrompt(text, key);
       if (result === "sent") setChatSent(sent => sent + 1);
+      return result;
+    }}
+    // Stop is Claude Code's Esc, offered while the board says it works and
+    // sent only once Term shows "esc to interrupt" (chat-stop.ts).
+    canStop={chatProvider === "claude" && chatCannotSend === undefined && board?.state === "working"}
+    onStop={async () => {
+      const result = await session.sendAsk(stopSteps(), key);
+      if (result === "sent" || result === "partial") setChatSent(sent => sent + 1);
       return result;
     }}
   /> : undefined;

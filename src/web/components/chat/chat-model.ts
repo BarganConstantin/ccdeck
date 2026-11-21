@@ -7,7 +7,24 @@ import type { AskSendResult } from "../../use-terminal-session";
 
 /** One line of the conversation. */
 export type ChatTurn =
-  | { kind: "user"; text: string }
+  | {
+      kind: "user";
+      /** What you typed; "" when you sent only images. */
+      text: string;
+      /** How many images you sent with it; none are carried, only counted. */
+      images?: number;
+    }
+  /** A slash command you ran ("/model opus"), with what a local command printed. */
+  | {
+      kind: "command";
+      /** As typed: "/model", "/plugin:skill". */
+      name: string;
+      args?: string;
+      /** What it printed, as plain text, cut. */
+      output?: string;
+      /** It printed on stderr: it failed. */
+      failed?: boolean;
+    }
   | { kind: "assistant"; text: string }
   | {
       kind: "tool";
@@ -21,6 +38,37 @@ export type ChatTurn =
       running?: boolean;
       /** Which mark the row wears. */
       mark?: "file" | "search" | "terminal";
+      /** The call failed: what it said, trimmed and cut. May be "" when it said nothing. */
+      error?: string;
+      /** You answered No at its permission prompt: it did not run. */
+      declined?: boolean;
+      /** What an edit changed (Edit, MultiEdit, Write), as diff lines. */
+      diff?: ChatDiff;
+    }
+  /** The assistant's task list (TodoWrite): each call is the whole list as it stands. */
+  | { kind: "todo"; items: ChatTodo[] }
+  /** Why the assistant stopped: you interrupted it, or a request to the API failed. */
+  | {
+      kind: "notice";
+      what: "interrupted" | "error";
+      /** An error's first line: "API Error: 529 …". */
+      text?: string;
+    }
+  /** A sub-agent the assistant started (Agent, or Task in older versions). */
+  | {
+      kind: "agent";
+      /** Its subagent_type: "Explore". May be "". */
+      type: string;
+      /** What it was asked to do, one line. */
+      description: string;
+      /** Still working. */
+      running?: boolean;
+      /** It ended with an error. */
+      failed?: boolean;
+      /** You answered No at its permission prompt: it did not start. */
+      declined?: boolean;
+      /** It was started in the background: launched, not finished. */
+      background?: boolean;
     }
   /** Questions the assistant asked you (AskUserQuestion), with their options. */
   | {
@@ -47,6 +95,20 @@ export type ChatTurn =
     }
   /** What you answered and how long it took, after the card folds. */
   | { kind: "record"; text: string };
+
+/** An edit's change. Lines start " " (kept), "-" (removed) or "+" (added);
+ *  a "…" line parts two hunks. */
+export interface ChatDiff {
+  lines: string[];
+  /** The change was longer than the transcript keeps. */
+  cut?: boolean;
+}
+
+/** One item of the task list. */
+export interface ChatTodo {
+  text: string;
+  status: "pending" | "active" | "done";
+}
 
 export interface ChatQuestion {
   /** The short tag over the question: "Scope". May be "". */
@@ -75,26 +137,54 @@ export interface ChatSince {
   label: string;
 }
 
+/** The part of the conversation before the turns held, offered on request. */
+export interface ChatOlder {
+  /** Reads it and puts it in front of the turns. */
+  load(): void;
+  loading?: boolean;
+  /** The last try could not read it; pressing again tries again. */
+  failed?: boolean;
+}
+
 export type ChatSource =
   | { state: "loading" }
   | { state: "error"; message: string; onRetry?(): void }
-  | { state: "ready"; turns: ChatTurn[]; since?: ChatSince };
+  | {
+      state: "ready";
+      turns: ChatTurn[];
+      since?: ChatSince;
+      /** Offered only while an older part exists and the host keeps fewer turns than it may. */
+      older?: ChatOlder;
+      /** Moves by the turns put in front of (or taken from before) the ones
+       *  there were: the view keeps the line being read in place, and its keys
+       *  steady, by it. */
+      head?: number;
+    };
+
+/** A turn drawn on your side of the conversation, or a record of it: a block of its own. */
+type OwnTurn = Extract<ChatTurn, { kind: "user" | "command" | "record" }>;
 
 export type ConversationBlock =
-  | { kind: "user" | "record"; text: string; index: number }
+  | (OwnTurn & { index: number })
   | { kind: "assistant"; turns: ChatTurn[]; index: number };
 
-/** Keep an assistant's prose and tool calls together, in transcript order. */
+/** The kinds that start the assistant's block. */
+const ASSISTANT_KINDS: ReadonlySet<string> = new Set(["assistant", "tool", "todo", "notice", "agent", "ask", "plan"]);
+
+/** Keep an assistant's prose and tool calls together, in transcript order. A
+ *  kind this build does not know (a newer host's) is drawn as nothing: it
+ *  starts no block, and inside one it keeps its place so the turns after it
+ *  keep their index. */
 export function conversationBlocks(turns: ChatTurn[]): ConversationBlock[] {
   const blocks: ConversationBlock[] = [];
   turns.forEach((turn, index) => {
-    if (turn.kind === "user" || turn.kind === "record") {
-      blocks.push({ kind: turn.kind, text: turn.text, index });
+    if (turn.kind === "user" || turn.kind === "command" || turn.kind === "record") {
+      blocks.push({ ...turn, index });
       return;
     }
     const last = blocks.at(-1);
     if (last?.kind === "assistant") last.turns.push(turn);
-    else blocks.push({ kind: "assistant", turns: [turn], index });
+    else if (ASSISTANT_KINDS.has(turn.kind)) blocks.push({ kind: "assistant", turns: [turn], index });
   });
   return blocks;
 }
