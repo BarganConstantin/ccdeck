@@ -104,4 +104,37 @@ describe("when Chat looks at the screen", () => {
     expect(mayPrompt([{ kind: "plan", text: "x", approved: true }])).toBe(false);
     expect(mayPrompt([tool("Bash", "x"), { kind: "ask", questions: [], running: true }])).toBe(false);
   });
+
+  it("while a sub-agent runs, as while a call does: its own calls can ask", () => {
+    const agent: ChatTurn = { kind: "agent", type: "Explore", description: "Find the auth code", running: true };
+    expect(mayPrompt([agent])).toBe(true);
+    expect(mayPrompt([tool("Read", "a.ts", false), agent, { kind: "assistant", text: "Meanwhile." }])).toBe(true);
+    // A question card waiting still wins, as it does over a call.
+    expect(mayPrompt([agent, { kind: "ask", questions: [], running: true }])).toBe(false);
+  });
+
+  it("not for a sub-agent that is done or failed, nor for a task list or a notice", () => {
+    expect(mayPrompt([{ kind: "agent", type: "Explore", description: "d" }])).toBe(false);
+    expect(mayPrompt([{ kind: "agent", type: "", description: "d", failed: true }])).toBe(false);
+    expect(mayPrompt([{ kind: "todo", items: [{ text: "a", status: "active" }] }, { kind: "notice", what: "interrupted" }])).toBe(false);
+  });
+});
+
+describe("while a sub-agent runs", () => {
+  const agent: ChatTurn = { kind: "agent", type: "Explore", description: "Find the auth code", running: true };
+
+  it("the prompt may be one of its own calls, so no one call is named", () => {
+    const alone = promptDecision(BASH, [agent], "s");
+    expect(alone.title).toBe("Allow this step?");
+    expect(alone.command).toBeUndefined();
+    const beside = promptDecision(BASH, [agent, tool("Bash", "npm test")], "s");
+    expect(beside.title).toBe("Allow this step?");
+    expect(beside.command).toBeUndefined();
+  });
+
+  it("once it is done, the one call waiting is named again", () => {
+    const model = promptDecision(BASH, [{ kind: "agent", type: "Explore", description: "d" }, tool("Bash", "npm test")], "s");
+    expect(model.title).toBe("Allow this command?");
+    expect(model.command).toBe("npm test");
+  });
 });

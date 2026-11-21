@@ -21,6 +21,37 @@ export type ChatTurn =
       running?: boolean;
       /** Which mark the row wears. */
       mark?: "file" | "search" | "terminal";
+      /** The call failed: what it said, trimmed and cut. May be "" when it said nothing. */
+      error?: string;
+      /** You answered No at its permission prompt: it did not run. */
+      declined?: boolean;
+      /** What an edit changed (Edit, MultiEdit, Write), as diff lines. */
+      diff?: ChatDiff;
+    }
+  /** The assistant's task list (TodoWrite): each call is the whole list as it stands. */
+  | { kind: "todo"; items: ChatTodo[] }
+  /** Why the assistant stopped: you interrupted it, or a request to the API failed. */
+  | {
+      kind: "notice";
+      what: "interrupted" | "error";
+      /** An error's first line: "API Error: 529 …". */
+      text?: string;
+    }
+  /** A sub-agent the assistant started (Agent, or Task in older versions). */
+  | {
+      kind: "agent";
+      /** Its subagent_type: "Explore". May be "". */
+      type: string;
+      /** What it was asked to do, one line. */
+      description: string;
+      /** Still working. */
+      running?: boolean;
+      /** It ended with an error. */
+      failed?: boolean;
+      /** You answered No at its permission prompt: it did not start. */
+      declined?: boolean;
+      /** It was started in the background: launched, not finished. */
+      background?: boolean;
     }
   /** Questions the assistant asked you (AskUserQuestion), with their options. */
   | {
@@ -47,6 +78,20 @@ export type ChatTurn =
     }
   /** What you answered and how long it took, after the card folds. */
   | { kind: "record"; text: string };
+
+/** An edit's change. Lines start " " (kept), "-" (removed) or "+" (added);
+ *  a "…" line parts two hunks. */
+export interface ChatDiff {
+  lines: string[];
+  /** The change was longer than the transcript keeps. */
+  cut?: boolean;
+}
+
+/** One item of the task list. */
+export interface ChatTodo {
+  text: string;
+  status: "pending" | "active" | "done";
+}
 
 export interface ChatQuestion {
   /** The short tag over the question: "Scope". May be "". */

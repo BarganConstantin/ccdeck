@@ -35,16 +35,29 @@ export function liveAskAt(turns: readonly ChatTurn[]): number {
   return last?.kind === "ask" && last.running ? at : -1;
 }
 
+/** The conversation's last task list, the one drawn whole; -1 when there is none.
+ *  Each TodoWrite call is the whole list, so the earlier ones are history. */
+export function lastTodoAt(turns: readonly ChatTurn[]): number {
+  for (let i = turns.length - 1; i >= 0; i--) if (turns[i].kind === "todo") return i;
+  return -1;
+}
+
+/** Where `at` falls in a block of `length` turns starting at `start`, or undefined outside it. */
+const inBlock = (at: number, start: number, length: number) => (at >= start && at < start + length ? at - start : undefined);
+
 /** The distance from the bottom, in px, under which the reader counts as at the bottom. */
 export const BOTTOM_SLACK = 24;
 
-/** What identifies the last turn: its kind and what it says, and a tool row's
- *  or a question card's state. */
+/** What identifies the last turn: its kind and what it says, and a tool row's,
+ *  a question card's, a task list's or a sub-agent's state. */
 export function tailKey(turn: ChatTurn | undefined): string {
   if (!turn) return "";
-  if (turn.kind === "tool") return `tool|${turn.name}|${turn.arg}|${turn.note ?? ""}|${turn.running ? 1 : 0}`;
+  if (turn.kind === "tool") return `tool|${turn.name}|${turn.arg}|${turn.note ?? ""}|${turn.running ? 1 : 0}|${turn.error === undefined ? 0 : 1}|${turn.declined ? 1 : 0}`;
   if (turn.kind === "ask") return `ask|${turn.questions.map(q => q.question).join("\n")}|${turn.running ? 1 : 0}|${(turn.answers ?? []).join("\n")}|${turn.reply ?? ""}`;
   if (turn.kind === "plan") return `plan|${turn.text}|${turn.running ? 1 : 0}|${turn.approved ? 1 : 0}`;
+  if (turn.kind === "todo") return `todo|${turn.items.map(item => `${item.status}:${item.text}`).join("\n")}`;
+  if (turn.kind === "agent") return `agent|${turn.type}|${turn.description}|${turn.running ? 1 : 0}|${turn.failed ? 1 : 0}|${turn.declined ? 1 : 0}|${turn.background ? 1 : 0}`;
+  if (turn.kind === "notice") return `notice|${turn.what}|${turn.text ?? ""}`;
   return `${turn.kind}|${turn.text}`;
 }
 
@@ -59,6 +72,7 @@ export default function ChatView({ source, provider, decision, ask }: ChatViewPr
   const [following, setFollowing] = useState(true);
   const count = source.state === "ready" ? source.turns.length : 0;
   const live = source.state === "ready" ? liveAskAt(source.turns) : -1;
+  const todo = source.state === "ready" ? lastTodoAt(source.turns) : -1;
   const tail = source.state === "ready" ? tailKey(source.turns[source.turns.length - 1]) : "";
   // New lines keep the reader at the bottom, unless they scrolled up. The last
   // turn counts as well as how many there are: once a host's cap slides the
@@ -96,7 +110,8 @@ export default function ChatView({ source, provider, decision, ask }: ChatViewPr
               {source.turns.length === 0 && <p className="chat-empty">{t("board.chat.empty")}</p>}
               {conversationBlocks(source.turns).map(block => block.kind === "assistant"
                 ? <AssistantBlock key={block.index} turns={block.turns} provider={provider}
-                  ask={ask && live >= block.index && live < block.index + block.turns.length ? { ...ask, at: live - block.index } : undefined} />
+                  ask={ask && live >= block.index && live < block.index + block.turns.length ? { ...ask, at: live - block.index } : undefined}
+                  todoAt={inBlock(todo, block.index, block.turns.length)} />
                 : block.kind === "user" ? <YourMessage key={block.index} text={block.text} />
                 : <RecordLine key={block.index} text={block.text} />)}
             </>
