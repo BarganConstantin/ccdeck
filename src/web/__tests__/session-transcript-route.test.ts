@@ -391,6 +391,30 @@ describe("older windows, by cursor", () => {
     expect(older.complete).toBe(true);
     expect(older.turns.map((t: { text: string }) => t.text)).toEqual(Array.from({ length: 30 }, (_, i) => `c${i}`));
   });
+
+  it("reads a Codex command's result from the line after an older window: Failed, not running", async () => {
+    const roots = () => [join(DIR, "codex", "sessions")];
+    const day = join(roots()[0], "2026", "11", "21");
+    mkdirSync(day, { recursive: true });
+    const path = join(day, "rollout-2026-11-21T09-00-00-known.jsonl");
+    const said = (text: string) => JSON.stringify({ type: "event_msg", payload: { type: "user_message", message: text } });
+    const item = (payload: object) => JSON.stringify({ type: "response_item", payload });
+    // Codex 0.169's exec_command: the exit code on the result's third line.
+    const result = "Chunk ID: 3f9a1c\nWall time: 0.5 seconds\nProcess exited with code 1\nOriginal token count: 9\nOutput:\nFAIL src/a.test.ts";
+    const lines = [
+      ...Array.from({ length: 29 }, (_, i) => said(`c${i}`)),
+      item({ type: "function_call", name: "exec_command", arguments: JSON.stringify({ cmd: "npm test" }), call_id: "x1" }),
+      item({ type: "function_call_output", call_id: "x1", output: result }),
+      ...Array.from({ length: 200 }, (_, i) => said(`n${i}`)),
+    ];
+    writeFileSync(path, lines.join("\n") + "\n");
+    const io = { ...known(path), roots };
+    const live = (await call("?session=known&provider=codex", io)).body;
+    expect(live.turns[0].text).toBe("n0");
+    const older = (await call(`?session=known&provider=codex&before=${live.older}`, io)).body;
+    expect(older.complete).toBe(true);
+    expect(older.turns.at(-1)).toEqual({ kind: "tool", name: "exec_command", arg: "npm test", mark: "terminal", error: "FAIL src/a.test.ts" });
+  });
 });
 
 describe("a cursor is held to the file as it is now", () => {
