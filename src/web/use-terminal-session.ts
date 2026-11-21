@@ -65,6 +65,7 @@ import { openLink } from "./terminal-links";
 import { copyText } from "./copy-text";
 import { leaveRepliesToTmux } from "./terminal-replies";
 import { isApplePlatform, platformName } from "./platform";
+import { screenShows, type AskStep } from "./ask-keys";
 import { prefersReducedMotion } from "./viewport-motion";
 import { t as tr } from "./i18n";
 import { endedCleanly, showsFrame, type KeysOwner, type StagePhase } from "./components/terminal/stage-model";
@@ -176,6 +177,8 @@ export interface StageTerminal {
   /** What a typed key does to a view scrolled back: it comes to the bottom,
    *  unless the terminal's own scrollOnUserInput is off. */
   scrollForInput(): void;
+  /** The live screen's text, one line per row: what the program shows now. */
+  screen?(): string;
   /** The text's size in CSS pixels: the pane's own zoom. The cell follows. */
   setFontSize(px: number): void;
   /** The cell it drew with, in CSS pixels, once it has drawn. */
@@ -486,6 +489,14 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
     hasFocus: () => term.textarea != null && document.activeElement === term.textarea,
     applicationCursorKeys: () => term.modes.applicationCursorKeysMode,
     scrollForInput: () => { if (term.options.scrollOnUserInput !== false) term.scrollToBottom(); },
+    // The live screen, whatever the view is scrolled back to: its rows from
+    // the buffer's base, which is where the program draws.
+    screen: () => {
+      const buffer = term.buffer.active;
+      const lines: string[] = [];
+      for (let y = 0; y < term.rows; y++) lines.push(buffer.getLine(buffer.baseY + y)?.translateToString(true) ?? "");
+      return lines.join("\n");
+    },
     setFontSize: px => { if (term.options.fontSize !== px) term.options.fontSize = px; },
     // The screen element is exactly cols × rows cells: xterm sizes it to the
     // renderer's canvas. Measured rather than read off xterm's private render
@@ -574,6 +585,19 @@ export const PASTE_TOO_LARGE_MSG = "board.session.pasteTooLarge";
  *  A partial send pasted the text but could not safely submit it; never retry it. */
 export type PromptSendResult = "sent" | "unavailable" | "too-large" | "partial" | "empty";
 
+/** An answer from Chat: every key went; the screen showed something else and
+ *  nothing went; some keys went before it stopped; or no connection to send on. */
+export type AskSendResult = "sent" | "changed" | "partial" | "unavailable";
+/** How long a step waits for the screen to show its question, and how often it looks. */
+export const ASK_SCREEN_WAIT_MS = 3000;
+export const ASK_SCREEN_POLL_MS = 80;
+/** The pause before each key after the first, as a person's keys come apart.
+ *  The prompt reads a key and redraws before the next arrives: two keys read
+ *  in one go ("13", or a digit with the words after it) are not two presses
+ *  to it, and words pasted before "Type something" opens would miss the box. */
+export const ASK_KEY_GAP_MS = 120;
+const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
 export interface TerminalSessionController {
   mount(host: HTMLElement, init: Omit<TerminalInit, "cols" | "rows">): void;
   show(subject: StageSubject): void;
@@ -588,6 +612,12 @@ export interface TerminalSessionController {
   type(text: string): void;
   /** Paste and submit only to the caller's subjectKey, without moving focus. */
   sendPrompt(text: string, expectedSubject: string): PromptSendResult;
+  /** Answer Claude Code's question prompt, a step at a time: each step's keys
+   *  go only once the live screen shows what it expects (ask-keys.ts). */
+  sendAsk(steps: readonly AskStep[], expectedSubject: string): Promise<AskSendResult>;
+  /** The live screen's text, for the caller's subjectKey only; null while that
+   *  session is not live in the pane (screen-prompt.ts reads it). */
+  readScreen(expectedSubject: string): string | null;
   /** One key from the phone's key row, as the bytes the terminal would have sent
    *  for it: through the same input the keyboard types into. */
   press(bytes: string, held?: boolean): void;
@@ -1301,6 +1331,53 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         return pasted ? "partial" : "unavailable";
       }
     },
+    async sendAsk(steps, expectedSubject) {
+      const current = conn;
+      const my = gen;
+      const writable = () => !disposed && gen === my && conn === current
+        && subjectKey(subject) === expectedSubject && snap.subject === expectedSubject
+        && snap.phase.kind === "live"
+        && !snap.phase.readOnly && !readOnly;
+      const shows = (expect: readonly string[]) => {
+        const screen = term?.screen?.();
+        return typeof screen === "string" && screenShows(screen, expect);
+      };
+      if (!current || !writable() || !term?.screen || !steps.length) return "unavailable";
+      let sent = false;
+      try {
+        for (const step of steps) {
+          // The program redraws after each key: the screen is asked again
+          // until it shows what this step answers, or the wait runs out.
+          if (sent) await sleep(ASK_KEY_GAP_MS);
+          const until = deps.now() + ASK_SCREEN_WAIT_MS;
+          while (writable() && !shows(step.expect) && deps.now() < until) await sleep(ASK_SCREEN_POLL_MS);
+          if (!writable()) return sent ? "partial" : "unavailable";
+          if (!shows(step.expect)) return sent ? "partial" : "changed";
+          for (const [i, key] of step.keys.entries()) {
+            if (i > 0) {
+              await sleep(ASK_KEY_GAP_MS);
+              if (!writable()) return "partial";
+            }
+            typed();
+            const ok = "paste" in key ? current.sendPaste(key.paste) : current.sendInput(key.input);
+            if (!ok) return sent ? "partial" : "unavailable";
+            sent = true;
+            if (!writable()) return "partial";
+          }
+        }
+        return "sent";
+      } catch {
+        return sent ? "partial" : "unavailable";
+      }
+    },
+    readScreen(expectedSubject) {
+      // Only the caller's session, live: a screen read while another session is
+      // switching in, or before the pane holds one, is no screen at all.
+      if (disposed || !conn || subjectKey(subject) !== expectedSubject || snap.subject !== expectedSubject) return null;
+      if (snap.phase.kind !== "live") return null;
+      const screen = term?.screen?.();
+      return typeof screen === "string" ? screen : null;
+    },
     press(bytes, heldBefore) {
       // The terminal's own key: an arrow follows the cursor-key mode, a view
       // scrolled back comes to the bottom as it does for a typed key, and a
@@ -1362,6 +1439,8 @@ export interface TerminalSessionView extends SessionSnapshot {
   focus(): void;
   type(text: string): void;
   sendPrompt(text: string, expectedSubject: string): PromptSendResult;
+  sendAsk(steps: readonly AskStep[], expectedSubject: string): Promise<AskSendResult>;
+  readScreen(expectedSubject: string): string | null;
   press(bytes: string, held?: boolean): void;
   holdsFocus(): boolean;
   release(): void;
@@ -1422,9 +1501,19 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
     if (!ctl || expectedSubject !== subjectKey(latest.current.subject)) return "unavailable";
     return ctl.sendPrompt(text, expectedSubject);
   }, []);
+  const sendAsk = useCallback(async (steps: readonly AskStep[], expectedSubject: string): Promise<AskSendResult> => {
+    const ctl = controller.current;
+    if (!ctl || expectedSubject !== subjectKey(latest.current.subject)) return "unavailable";
+    return ctl.sendAsk(steps, expectedSubject);
+  }, []);
+  const readScreen = useCallback((expectedSubject: string): string | null => {
+    const ctl = controller.current;
+    if (!ctl || expectedSubject !== subjectKey(latest.current.subject)) return null;
+    return ctl.readScreen(expectedSubject);
+  }, []);
   const press = useCallback((bytes: string, held?: boolean) => controller.current?.press(bytes, held), []);
   const holdsFocus = useCallback(() => controller.current?.holdsFocus() === true, []);
   const release = useCallback(() => controller.current?.release(), []);
 
-  return { ...snapshot, hostRef, adopt, retry, focus, type, sendPrompt, press, holdsFocus, release };
+  return { ...snapshot, hostRef, adopt, retry, focus, type, sendPrompt, sendAsk, readScreen, press, holdsFocus, release };
 }

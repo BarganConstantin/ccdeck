@@ -1,5 +1,5 @@
 // What happened after a pick, under the options: the panel the Figma card calls
-// `dout`. Six outcomes, one panel shape: a glyph, a title, a line, and at most
+// `dout`. Seven outcomes, one panel shape: a glyph, a title, a line, and at most
 // one text link. It is a live region, the one place the product announces the
 // outcome of a decision.
 //
@@ -8,8 +8,10 @@
 // no flicker (decision.css). "Ended" is not red: the title is --text, and the
 // card turns neutral while the question stays readable.
 import type { ReactNode } from "react";
+import { useT, type TFunction } from "../../i18n";
 import { StateMark } from "../StateMark";
 import { ExternalLinkGlyph } from "../action-glyphs";
+import { richText } from "../settings-rich";
 import { StageGlyph } from "../terminal/stage-icons";
 import { ChangedGlyph } from "../chat/chat-icons";
 import type { Outcome } from "./decision-machine";
@@ -29,56 +31,63 @@ interface Words {
   tone?: "ok";
 }
 
-export const CHECKING_TITLE = "Checking the prompt is still on screen";
-export const CHECKING_SUB = "Nothing is sent if it changed.";
-export const CHANGED_TITLE = "The question changed, so nothing was sent";
-export const ENDED_SUB = "Nothing was sent.";
-export const HELD_TITLE = "Held: you have unsent text in the terminal";
-export const HELD_SUB = "Send it or clear it there, then pick again.";
-export const ELSEWHERE_SUB = "Nothing to send from here.";
+const mono = (text: string) => <code className="dc-mono">{text}</code>;
+
+/** "Running npm test." only when the picked row runs the card's command: a
+ *  refusal, or words for Claude, run nothing. */
+function runsCommand(o: Extract<Outcome, { kind: "sent" }>, model: DecisionModel): boolean {
+  const answer = o.answer;
+  return !!model.command && answer.kind !== "many" && model.options[answer.index]?.runs === true;
+}
 
 /** The words of an outcome, or null when there is no panel to draw. */
-export function outcomeWords(o: Outcome, model: DecisionModel, a: OutcomeActions): Words | null {
+export function outcomeWords(o: Outcome, model: DecisionModel, a: OutcomeActions, t: TFunction): Words | null {
+  const openTerm = { label: t("board.decision.openTerm"), run: a.onShowTerm };
   switch (o.kind) {
     case "none":
       return null;
     case "checking":
-      return { glyph: <StageGlyph kind="working" />, title: CHECKING_TITLE, sub: CHECKING_SUB };
+      return { glyph: <StageGlyph kind="working" />, title: t("board.decision.checking.title"), sub: t("board.decision.checking.sub") };
     case "sent":
       return {
         glyph: <StageGlyph kind="done" />,
-        title: `Sent to ${model.session}`,
+        title: t("board.decision.sent.title", { session: model.session }),
         tone: "ok",
-        sub: model.command ? <>Running <code className="dc-mono">{model.command}</code>.</> : "Claude has your answer.",
+        sub: runsCommand(o, model)
+          ? richText(t("board.decision.sent.running", { command: "{command}" }), { command: mono(model.command!) })
+          : t("board.decision.sent.answer"),
       };
     case "changed":
-      return {
-        glyph: <ChangedGlyph />,
-        title: CHANGED_TITLE,
-        sub: <>Claude now asks about <code className="dc-mono">{o.now}</code></>,
-        link: { label: "Show it", run: a.onShowNew },
-      };
+      // No question the card can name: the screen moved on to something else.
+      return o.now
+        ? {
+          glyph: <ChangedGlyph />,
+          title: t("board.decision.changed.title"),
+          sub: richText(t("board.decision.changed.now", { question: "{question}" }), { question: mono(o.now) }),
+          link: { label: t("board.decision.changed.show"), run: a.onShowNew },
+        }
+        : { glyph: <ChangedGlyph />, title: t("board.decision.changed.title"), sub: t("board.decision.changed.term"), link: openTerm };
     case "ended":
       return {
         glyph: <span className="dc-err"><StateMark kind="err" size={14} /></span>,
-        title: `${model.session} ended before the answer went out`,
-        sub: ENDED_SUB,
-        link: { label: "Open the transcript", run: a.onOpenTranscript },
+        title: t("board.decision.ended.title", { session: model.session }),
+        sub: t("board.decision.ended.sub"),
+        link: { label: t("board.decision.ended.transcript"), run: a.onOpenTranscript },
       };
     case "held":
-      return {
-        glyph: <StageGlyph kind="idle" />,
-        title: HELD_TITLE,
-        sub: HELD_SUB,
-        link: { label: "Open Term", run: a.onShowTerm },
-      };
+      return { glyph: <StageGlyph kind="idle" />, title: t("board.decision.held.title"), sub: t("board.decision.held.sub"), link: openTerm };
     case "elsewhere":
-      return { glyph: <StageGlyph kind="done" />, title: `Answered in the terminal at ${o.at}`, sub: ELSEWHERE_SUB };
+      return { glyph: <StageGlyph kind="done" />, title: t("board.decision.elsewhere.title", { at: o.at }), sub: t("board.decision.elsewhere.sub") };
+    case "stopped":
+      return o.part
+        ? { glyph: <ChangedGlyph />, title: t("board.decision.partial.title"), sub: t("board.decision.partial.sub"), link: openTerm }
+        : { glyph: <ChangedGlyph />, title: t("board.decision.stopped.title"), sub: t("board.decision.stopped.sub"), link: openTerm };
   }
 }
 
 export default function DecisionOutcome({ outcome, model, ...actions }: { outcome: Outcome; model: DecisionModel } & OutcomeActions) {
-  const words = outcomeWords(outcome, model, actions);
+  const t = useT();
+  const words = outcomeWords(outcome, model, actions, t);
   // The live region is drawn empty, so a screen reader has it before it speaks.
   if (!words) return <div className="dc-out-empty" role="status" aria-atomic="true" />;
   return (

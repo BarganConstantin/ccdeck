@@ -1,8 +1,9 @@
 import { codexItemText } from "./codex-translate.mjs";
 
 // A Claude Code transcript's lines, as the turns Chat draws: what you typed,
-// what the assistant said, and one row per tool call. Pure: lines in, turns
-// out, nothing read from disk and nothing remembered between calls.
+// what the assistant said, one row per tool call, and a card for each set of
+// questions it asked you. Pure: lines in, turns out, nothing read from disk
+// and nothing remembered between calls.
 //
 // WHAT IS LEFT OUT, ON PURPOSE. Thinking blocks (they are not part of the
 // conversation a reader follows), sidechain lines (a subagent's own talk),
@@ -32,6 +33,120 @@ export function toolArg(input) {
     if (first !== undefined) return cut(first.trim(), MAX_ARG);
   }
   return "";
+}
+
+// A QUESTION CLAUDE ASKED IS NOT A TOOL ROW. AskUserQuestion's input holds the
+// questions and their options, and its answer the choices: Chat draws them as
+// a card, so the person reads what was asked without opening Term. Claude Code
+// allows 1–4 questions of 2–4 options (a question that asks for text or a
+// number has none); the caps are a little wider so a later version still
+// draws, and every text is cut.
+export const ASK_TOOL = "AskUserQuestion";
+export const MAX_QUESTIONS = 4;
+export const MAX_OPTIONS = 6;
+const MAX_HEADER = 40;
+const MAX_QUESTION = 1000;
+const MAX_OPTION_NOTE = 400;
+const MAX_ANSWER = 1000;
+// What Claude Code records for a question that only got a note, no choice.
+const NOTES_ONLY = "(notes only)";
+// What it hands the model when the person wrote back instead of choosing.
+const RESPONDED = /^The user responded: ([\s\S]*)$/;
+
+const bounded = (value, max) => (typeof value === "string" && value.trim() ? cut(value.trim(), max) : "");
+
+// A PLAN TO APPROVE IS NOT A TOOL ROW EITHER. Claude Code 2.1 has the model put
+// the whole plan, in Markdown, in ExitPlanMode's `plan`: Chat draws it as prose,
+// so the person reads what they approve without opening Term. A plan longer
+// than MAX_PLAN is cut and says so (`cut`); one kept elsewhere (a version that
+// leaves `plan` out) is drawn as its header only. Its answer starts "User has
+// approved…" when it was approved; anything else (No, keep planning, Esc) is not.
+export const PLAN_TOOL = "ExitPlanMode";
+export const MAX_PLAN = 12000;
+const APPROVED = /^User has approved\b/;
+
+/** The plan turn of an ExitPlanMode call, with its answer when there is one. */
+function planTurn(input, result) {
+  const plan = input && typeof input === "object" && typeof input.plan === "string" ? input.plan.trim() : "";
+  const turn = { kind: "plan", text: cut(plan, MAX_PLAN) };
+  if (plan.length > MAX_PLAN) turn.cut = true;
+  if (result) turn.approved = APPROVED.test(result.text.trim());
+  else turn.running = true;
+  return turn;
+}
+
+/** The questions of an AskUserQuestion call, or null when its input is not one. */
+export function askQuestions(input) {
+  const list = input && typeof input === "object" && Array.isArray(input.questions) ? input.questions : null;
+  if (!list) return null;
+  const questions = [];
+  for (const entry of list.slice(0, MAX_QUESTIONS)) {
+    if (!entry || typeof entry !== "object") continue;
+    const question = bounded(entry.question, MAX_QUESTION);
+    if (!question) continue;
+    const given = (Array.isArray(entry.options) ? entry.options : []).slice(0, MAX_OPTIONS);
+    const options = given
+      .map(option => ({ label: bounded(option?.label, MAX_ARG), description: bounded(option?.description, MAX_OPTION_NOTE) }))
+      .filter(option => option.label);
+    const turn = { header: bounded(entry.header, MAX_HEADER), question, multi: entry.multiSelect === true, options };
+    // Options with a preview are drawn side by side, and answered with other
+    // keys (ask-keys.ts): only that they have one is kept, never the preview.
+    if (given.some(option => bounded(option?.preview, 1))) turn.preview = true;
+    // A question that asks for text or a number has no options to pick.
+    if (typeof entry.kind === "string" && entry.kind !== "choice") turn.options = [];
+    questions.push(turn);
+  }
+  return questions.length ? questions : null;
+}
+
+/** The text of a tool_result part: a string, or its text parts joined. */
+function resultText(part) {
+  const content = part?.content;
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content.filter(item => item?.type === "text" && typeof item.text === "string").map(item => item.text).join("\n");
+}
+
+// Claude Code answers the model with `"<question>"="<answer>"` pairs, or
+// `"<question>"=(no option selected)`, joined by ", ". Read back only by the
+// questions the call asked, so a quote inside an answer cannot start a new
+// pair: an answer runs up to the next asked question's pair, or to the last
+// quote before the sentence that follows.
+function answersFromText(said, questions) {
+  const found = [];
+  for (const { question } of questions) {
+    const at = said.indexOf(`"${question}"=`);
+    if (at >= 0) found.push({ question, at, start: at + question.length + 3 });
+  }
+  found.sort((a, b) => a.at - b.at);
+  const answers = {};
+  found.forEach((entry, i) => {
+    if (said[entry.start] !== '"') return;
+    const next = found[i + 1];
+    const stretch = said.slice(entry.start + 1, next ? next.at : said.length);
+    const close = stretch.lastIndexOf('"');
+    if (close >= 0) answers[entry.question] = stretch.slice(0, close);
+  });
+  return answers;
+}
+
+/** One answer as text: a choice, or several joined as Claude Code joins them. */
+function answerText(value) {
+  const said = Array.isArray(value) ? value.filter(item => typeof item === "string").join(", ") : value;
+  return said === NOTES_ONLY ? "" : bounded(said, MAX_ANSWER);
+}
+
+/**
+ * What the person chose, per question in the order asked, and what they wrote
+ * back instead of choosing: from the line's own record of the result when it
+ * carries one, else read from the text the model was handed. An empty string
+ * for a question left unanswered.
+ */
+function askAnswers(questions, result) {
+  const own = result.own && typeof result.own === "object" ? result.own : null;
+  const answers = own?.answers && typeof own.answers === "object" ? own.answers : answersFromText(result.text, questions);
+  const reply = own ? bounded(own.response, MAX_ANSWER) : bounded(RESPONDED.exec(result.text.trim())?.[1], MAX_ANSWER);
+  return { answers: questions.map(({ question }) => answerText(answers[question])), reply };
 }
 
 function parse(line) {
@@ -83,15 +198,18 @@ export function transcriptTurns(lines) {
 /** The same turns, and whether the cap on them dropped any from the front. */
 export function transcriptWindow(lines) {
   const records = [];
-  const answered = new Set();
+  // Each answered call's result: the text the model was handed and, when the
+  // line answers that call alone, the line's own record of it.
+  const answered = new Map();
   for (const line of lines) {
     const rec = parse(line);
     if (!rec) continue;
     records.push(rec);
     const content = rec.message?.content;
     if (rec.type === "user" && Array.isArray(content)) {
-      for (const part of content) {
-        if (part?.type === "tool_result" && typeof part.tool_use_id === "string") answered.add(part.tool_use_id);
+      const results = content.filter(part => part?.type === "tool_result" && typeof part.tool_use_id === "string");
+      for (const part of results) {
+        answered.set(part.tool_use_id, { text: resultText(part), own: results.length === 1 ? rec.toolUseResult : undefined });
       }
     }
   }
@@ -113,8 +231,24 @@ export function transcriptWindow(lines) {
         if (part.type === "text" && typeof part.text === "string" && part.text.trim()) {
           turns.push({ kind: "assistant", text: cut(part.text.trim(), MAX_TEXT) });
         } else if (part.type === "tool_use" && typeof part.name === "string") {
+          const result = typeof part.id === "string" ? answered.get(part.id) : undefined;
+          if (part.name === PLAN_TOOL) {
+            turns.push(planTurn(part.input, result));
+            continue;
+          }
+          const questions = part.name === ASK_TOOL ? askQuestions(part.input) : null;
+          if (questions) {
+            const turn = { kind: "ask", questions };
+            if (result) {
+              const { answers, reply } = askAnswers(questions, result);
+              turn.answers = answers;
+              if (reply) turn.reply = reply;
+            } else turn.running = true;
+            turns.push(turn);
+            continue;
+          }
           const turn = { kind: "tool", name: cut(part.name, MAX_ARG), arg: toolArg(part.input) };
-          if (typeof part.id !== "string" || !answered.has(part.id)) turn.running = true;
+          if (!result) turn.running = true;
           turns.push(turn);
         }
       }

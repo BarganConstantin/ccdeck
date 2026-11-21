@@ -43,6 +43,7 @@ const catalog: Catalog = {
   "codex.row.switchWaiting": "Waiting for running tools or pending input before switching accounts.",
   "codex.row.switchWaitingUsing": "Still using {account}. The account will switch when running tools or pending input finish.",
   "codex.row.childrenResuming": "Account switched. Waiting for subagents to resume.",
+  "codex.row.chooseModel": "The new account does not list the current model. In Codex, open /model, choose an available model and continue the conversation.",
   "codex.row.continueUnconfirmed": "Automatic continuation could not be confirmed; check the conversation before continuing.",
   "codex.row.reading": "Reading usage…",
   "codex.lane.limit": "limit",

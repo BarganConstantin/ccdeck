@@ -59,31 +59,33 @@ const reachesScreens = (paths: string[]) => paths.filter(p => SCREEN_PATH.some(r
 
 describe("the flags", () => {
   // CHANGED ON PURPOSE (owner, 2026-11-15): Chat is on by default in V4, so its
-  // flag is on unless the stored value is exactly "0". The Decision card keeps
-  // the old rule: off unless the stored value is exactly "1".
+  // flag is on unless the stored value is exactly "0".
+  // CHANGED ON PURPOSE (Chat answers permission prompts and plans): the Decision
+  // card follows the same rule now; it was off unless the stored value was "1".
   const store = (v: Record<string, string>) => (k: string) => v[k] ?? null;
 
   it("have Chat on unless the stored value is exactly 0", () => {
-    expect(readScreenFlags(store({}))).toEqual({ chat: true, decision: false });
-    expect(readScreenFlags(store({ "agent-dag.chat": "1" }))).toEqual({ chat: true, decision: false });
-    expect(readScreenFlags(store({ "agent-dag.chat": "0" }))).toEqual(NO_SCREENS);
+    expect(readScreenFlags(store({}))).toEqual({ chat: true, decision: true });
+    expect(readScreenFlags(store({ "agent-dag.chat": "1" }))).toEqual({ chat: true, decision: true });
+    expect(readScreenFlags(store({ "agent-dag.chat": "0" }))).toEqual({ chat: false, decision: true });
+    expect(readScreenFlags(store({ "agent-dag.chat": "0", "agent-dag.decision": "0" }))).toEqual(NO_SCREENS);
     for (const v of ["true", "on", "", "yes", "11", " 1", "00", " 0", "off", "false"]) {
       expect(readScreenFlags(store({ "agent-dag.chat": v })).chat, `"${v}"`).toBe(true);
     }
   });
 
-  it("have the Decision card off unless the stored value is exactly 1", () => {
-    expect(readScreenFlags(store({ "agent-dag.decision": "1" }))).toEqual({ chat: true, decision: true });
+  it("have the Decision card on unless the stored value is exactly 0", () => {
+    expect(readScreenFlags(store({ "agent-dag.decision": "0" }))).toEqual({ chat: true, decision: false });
     expect(readScreenFlags(store({ "agent-dag.chat": "0", "agent-dag.decision": "1" }))).toEqual({ chat: false, decision: true });
-    for (const v of ["0", "true", "on", "", "yes", "11", " 1"]) {
-      expect(readScreenFlags(store({ "agent-dag.decision": v })).decision, `"${v}"`).toBe(false);
+    for (const v of ["1", "true", "on", "", "yes", "11", " 1", "00", " 0", "off", "false"]) {
+      expect(readScreenFlags(store({ "agent-dag.decision": v })).decision, `"${v}"`).toBe(true);
     }
   });
 
-  it("have Chat on and the Decision card off where the browser refuses the store", () => {
+  it("have both on where the browser refuses the store", () => {
     // readStored answers null for a store that throws (storage.ts): no value, so the defaults.
-    expect(readScreenFlags(() => null)).toEqual({ chat: true, decision: false });
-    expect(readScreenFlags()).toEqual({ chat: true, decision: false });
+    expect(readScreenFlags(() => null)).toEqual({ chat: true, decision: true });
+    expect(readScreenFlags()).toEqual({ chat: true, decision: true });
   });
 
   it("count only with the Command Panel's gate on, in Workspace, off a phone", () => {
@@ -217,12 +219,20 @@ describe("what is drawn with the flags off", () => {
   // chat flag effective, and never hands the Decision card, which has no way to answer.
   // CHANGED ON PURPOSE (internal #99): the switch goes through showView, which takes
   // the keys out of the pane on the way to Chat (v4-chat-writes-in-term.test.ts).
-  it("the stage hands Chat only for a supported session with the flag effective, and no Decision card", () => {
+  // CHANGED ON PURPOSE: Chat is also handed how to answer a question the assistant
+  // asked, as the keys Term takes (ask-keys.ts, chat-ask.test.ts).
+  // CHANGED ON PURPOSE (Chat answers permission prompts and plans): the stage now
+  // hands the Decision card too, only in Chat on a Claude session it can write to,
+  // with the card's flag effective (use-prompt-decision.ts, prompt-decision.test.ts).
+  // The card itself is still not imported here: the stage hands its props only.
+  it("the stage hands Chat only for a supported session with the flag effective, and the Decision card only in Chat", () => {
     const stage = code("components/terminal/TerminalStage.tsx");
     expect(stage).toContain('chatSessionFor(screenFlags.chat, chatRef)');
-    expect(stage).toContain("screens={chatSession !== null ? { view, source: chatSource, provider: chatProvider } : undefined}");
+    expect(stage).toContain("screens={chatSession !== null ? { view, source: chatSource, provider: chatProvider, ask: chatAsk, decision: promptCard } : undefined}");
+    expect(stage).toContain("const chatAsk: ChatAsk | undefined = chatSession === null ? undefined : {");
     expect(stage).toContain("view={chatSession !== null ? { current: view, onChange: showView } : undefined}");
-    expect(stage).not.toMatch(/decision[:=]|DecisionCard/);
+    expect(stage).toContain('on: chatOn && chatProvider === "claude" && screenFlags.decision && chatCannotSend === undefined,');
+    expect(stage).not.toMatch(/DecisionCard/);
   });
 });
 

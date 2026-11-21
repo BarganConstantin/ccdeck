@@ -70,12 +70,18 @@ import { t as tNow, useT } from "../../i18n";
 import { ChatComposerSlot, useScreenFlags } from "../../use-screens";
 import { fontSizeFor, stepTerminalText, useTerminalTextStep } from "../../terminal-text-size";
 import { chatSessionFor, useSessionTranscript } from "../../use-session-transcript";
+import { askSteps } from "../../ask-keys";
+import type { ChatAsk, ChatTurn } from "../chat/chat-model";
+import { usePromptDecision } from "../../use-prompt-decision";
 import { DialogPresence } from "../Dialog";
 import type { HostsApi } from "./older-hosts";
 import { useOlderHosts } from "./use-older-hosts";
 import type { WaitingCard } from "./stage-board";
 import type { RenameFacts } from "../../session-rename";
 import { useRenaming } from "../SessionNameField";
+
+/** One empty transcript for every render, so the card's words are not rebuilt for nothing. */
+const NO_TURNS: readonly ChatTurn[] = [];
 
 /** The phases with no pane to type into, whose cards carry no keys bar. */
 const PANELESS: ReadonlySet<StagePhaseKind> = new Set<StagePhaseKind>([
@@ -554,10 +560,39 @@ export default function TerminalStage(p: TerminalStageProps) {
     setView(next);
   };
   const chatCannotType = chatOn && p.show.kind === "session" && PANELESS.has(phase.kind);
-  const chatUnavailable = session.subject !== key ? t("board.chat.connecting") : phase.kind === "live"
-    ? phase.readOnly ? t("board.chat.readOnly")
-      : board?.state === "waiting" ? t("board.chat.waiting") : undefined
+  // Why nothing can be sent to the session from Chat: not yet or no longer
+  // attached, or read only. A question it asked is answered all the same.
+  const chatCannotSend = session.subject !== key ? t("board.chat.connecting") : phase.kind === "live"
+    ? phase.readOnly ? t("board.chat.readOnly") : undefined
     : t(phase.kind === "attaching" || phase.kind === "starting" ? "board.chat.connecting" : "board.chat.offline");
+  const chatUnavailable = chatCannotSend ?? (board?.state === "waiting" ? t("board.chat.waiting") : undefined);
+  // A question Claude Code asked (AskUserQuestion) is answered from its card
+  // with the keys Term takes, each sent only once Term shows what it answers
+  // (ask-keys.ts). The answer reads back from the transcript, as a reply does.
+  const chatAsk: ChatAsk | undefined = chatSession === null ? undefined : {
+    blocked: chatCannotSend,
+    onShowTerm: () => showView("term"),
+    send: async (questions, picks) => {
+      const steps = askSteps(questions, picks);
+      if (!steps) return "unavailable";
+      const result = await session.sendAsk(steps, key);
+      if (result === "sent" || result === "partial") setChatSent(sent => sent + 1);
+      return result;
+    },
+  };
+  // Claude Code's permission prompt and plan approval, answered from the
+  // Decision card docked under Chat: read off the live screen while the
+  // transcript says a call or a plan waits (use-prompt-decision.ts).
+  const promptCard = usePromptDecision({
+    on: chatOn && chatProvider === "claude" && screenFlags.decision && chatCannotSend === undefined,
+    turns: chatSource.state === "ready" ? chatSource.turns : NO_TURNS,
+    session: name,
+    subject: key,
+    readScreen: session.readScreen,
+    sendAsk: session.sendAsk,
+    onSent: () => setChatSent(sent => sent + 1),
+    onShowTerm: () => showView("term"),
+  });
 
   // RENAMING (internal #101): held here rather than in the header, which is
   // drawn by calling it; the facts are the session on stage, so a switch to
@@ -771,7 +806,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         workspace={workspace && p.show.kind === "empty"}
         waiting={workspace ? p.waiting ?? null : null}
         onOpenWaiting={openWaiting(p.waiting, p.onOpenWaiting)}
-        screens={chatSession !== null ? { view, source: chatSource, provider: chatProvider } : undefined}
+        screens={chatSession !== null ? { view, source: chatSource, provider: chatProvider, ask: chatAsk, decision: promptCard } : undefined}
       />
       <KeysBar
         primary={p.split?.primary ?? true}

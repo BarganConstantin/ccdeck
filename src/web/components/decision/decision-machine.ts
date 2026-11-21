@@ -14,7 +14,8 @@
 // and does nothing else. A locked row (it changes the session's rules or mode)
 // is read, never answered. Esc closes and never answers; in the free field it
 // goes back to the choices and keeps the text. A pick the outcome has settled
-// (sent, changed, ended, elsewhere) does nothing until `dismissOutcome`.
+// (sent, changed, ended, elsewhere, stopped) does nothing until `dismissOutcome`.
+import type { MessageKey } from "../../i18n";
 import type { DecisionAnswer, DecisionModel, DecisionOutcomeInput, RecheckResult } from "./decision-model";
 
 export type DecisionMode = "choose" | "free" | "multi" | "readOnly";
@@ -26,7 +27,9 @@ export type Outcome =
   | { kind: "changed"; now: string }
   | { kind: "ended" }
   | { kind: "held" }
-  | { kind: "elsewhere"; at: string };
+  | { kind: "elsewhere"; at: string }
+  /** The keys did not all go out: none (`part` false) or only the first ones. Term finishes it. */
+  | { kind: "stopped"; part: boolean };
 
 export interface DecisionState {
   mode: DecisionMode;
@@ -72,7 +75,8 @@ export type DecisionEffect =
   | { type: "showTerm" }
   | { type: "showNew" }
   | { type: "record"; answer: DecisionAnswer }
-  | { type: "announce"; text: string };
+  /** Said in the card's live region: a message key, worded in the reader's language. */
+  | { type: "announce"; text: MessageKey };
 
 export interface DecisionContext {
   model: DecisionModel;
@@ -86,9 +90,9 @@ export interface Step {
 }
 
 /** Said (in the live region) on a locked row. */
-export const LOCKED_ANNOUNCE = "Only in the terminal";
+export const LOCKED_ANNOUNCE: MessageKey = "board.decision.onlyTerm";
 /** Said when the re-read could not be done: nothing was sent, the choices are back. */
-export const CHECK_FAILED_ANNOUNCE = "Could not read the prompt again, so nothing was sent";
+export const CHECK_FAILED_ANNOUNCE: MessageKey = "board.decision.checkFailed";
 
 export function initialState(model: DecisionModel): DecisionState {
   return {

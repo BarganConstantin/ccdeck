@@ -103,14 +103,19 @@ describe('Codex default selection controls', () => {
     (one(view.tree, n => String(n.props.className).includes('ap-refresh'))!.props.onClick as () => void)(); await flush();
     expect(rowText(rowOf(view, 'Work')!)).not.toContain('open Codex app could not switch');
   });
-  it.each([undefined, 'applied', 'failed', 'waiting', 'children_waiting', 'manual_required'])('guards duplicate activation and reports native switch state %s', async liveState => {
+  it.each([undefined, 'applied', 'failed', 'waiting', 'children_waiting', 'manual_required', 'model_unavailable'])('guards duplicate activation and reports native switch state %s', async liveState => {
     let switched = false, writes = 0;
     let answer!: () => void;
     const pending = new Promise<void>(resolve => { answer = resolve; });
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url === '/api/codex-profile-select') {
         writes++; await pending; switched = true;
-        return { ok: true, json: async () => ({ ok: true, id: 'b', revision: 1, ...(liveState ? { live: { state: ['manual_required', 'children_waiting'].includes(liveState) ? 'applied' : liveState, continuation: liveState === 'children_waiting' ? 'waiting' : liveState, profileId: 'b', requestedProfileId: 'b' } } : {}) }) };
+        const continuation = liveState === 'children_waiting' ? 'waiting'
+          : liveState === 'model_unavailable' ? 'manual_required' : liveState;
+        const state = continuation === 'manual_required' || liveState === 'children_waiting' ? 'applied' : liveState;
+        const reason = liveState === 'model_unavailable' ? 'native_model_unavailable' : undefined;
+        return { ok: true, json: async () => ({ ok: true, id: 'b', revision: 1,
+          ...(liveState ? { live: { state, continuation, reason, profileId: 'b', requestedProfileId: 'b' } } : {}) }) };
       }
       if (url.startsWith('/api/codex-profile-quota')) return { ok: false, json: async () => ({}) };
       return { ok: true, json: async () => ({ revision: switched ? 1 : 0, profiles: [
@@ -147,6 +152,9 @@ describe('Codex default selection controls', () => {
       expect(rowText(selected)).not.toContain('now use this account');
     } else if (liveState === 'children_waiting') {
       expect(rowText(selected)).toContain('Account switched. Waiting for subagents to resume.');
+      expect(rowText(selected)).not.toContain('Interrupted tasks resume automatically');
+    } else if (liveState === 'model_unavailable') {
+      expect(rowText(selected)).toContain('open /model, choose an available model and continue the conversation');
       expect(rowText(selected)).not.toContain('Interrupted tasks resume automatically');
     } else if (liveState === 'manual_required') {
       expect(rowText(selected)).toContain('Automatic continuation could not be confirmed');

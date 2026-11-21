@@ -122,6 +122,114 @@
 .chat-retry:hover { text-decoration: underline; }
 }
 
+/* A question the assistant asked (AskUserQuestion): a card as wide as its
+   prose. It waits in --warn, as the Decision card does, and goes neutral once
+   answered. Options are rows like the Decision card's; the chosen one wears
+   the accent. Picked here, it is sent as the keys Term takes. */
+.chat-ask {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 640px;
+  min-width: 0;
+  padding: 11px 12px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background: var(--panel);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: 1.5;
+  color: var(--text);
+}
+.chat-ask[data-state="waiting"] { border-color: var(--warn); }
+.chat-ask-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 18px; }
+.chat-ask-title { font-weight: 600; color: var(--text); }
+.chat-ask-state { margin-left: auto; color: var(--muted); }
+.chat-ask[data-state="waiting"] .chat-ask-state { color: var(--warn); }
+/* A plan to approve: the same card, its body the plan's prose. A long plan
+   scrolls inside the card, so the docked Decision card stays in reach. */
+.chat-plan .chat-plan-text { max-height: 360px; overflow-y: auto; overscroll-behavior: contain; }
+.chat-plan-cut { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); }
+.chat-ask-form { display: flex; flex-direction: column; gap: 12px; min-width: 0; margin: 0; }
+.chat-ask-q { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.chat-ask-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 16px; }
+.chat-ask-tag { padding: 1px 6px; border-radius: var(--r-tag); background: var(--ctl-fill); color: var(--text-secondary); }
+.chat-ask-multi { color: var(--muted); }
+.chat-ask-question { margin: 0; font-weight: 500; white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-ask-options { display: flex; flex-direction: column; gap: 4px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+.chat-ask-option {
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-panel);
+}
+.chat-ask-option[data-chosen] { border-color: var(--accent); }
+.chat-ask-n {
+  flex: none;
+  box-sizing: border-box;
+  min-width: 20px;
+  margin-top: 2px;
+  padding: 1px 6px;
+  border-radius: var(--r-ctl);
+  background: var(--ctl-fill);
+  text-align: center;
+  font: 400 11px/14px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.chat-ask-option-text { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+.chat-ask-option-label { font-weight: 600; line-height: 20px; overflow-wrap: anywhere; }
+.chat-ask-option-note { font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; color: var(--muted); overflow-wrap: anywhere; }
+.chat-ask-chosen { flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: calc(11px + var(--ui-text-increase, 0px)); line-height: 20px; color: var(--accent); }
+/* Pickable: the whole row is the label, so a click anywhere on it picks. Its
+   edge is a step firmer than a read-only row's, so the rows part in dark. */
+.chat-ask-choice { flex-wrap: wrap; padding: 0; border-color: var(--line); }
+.chat-ask-pick { flex: 1 1 100%; display: flex; align-items: flex-start; gap: 8px; min-width: 0; padding: 5px 8px; border-radius: inherit; cursor: pointer; }
+.chat-ask-pick input { flex: none; width: 14px; height: 14px; margin: 3px 0 0; accent-color: var(--accent); cursor: inherit; }
+.chat-ask-pick input:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
+.chat-ask-choice:focus-within { border-color: var(--accent); }
+.chat-ask-form[data-locked] .chat-ask-pick { cursor: default; }
+/* Once sent, the pick keeps its mark: a disabled control alone goes grey. */
+.chat-ask-pick .chat-ask-chosen { margin-left: auto; }
+.chat-ask-other .chat-ask-option-label { font-weight: 500; color: var(--text-secondary); }
+.chat-ask-text {
+  box-sizing: border-box;
+  flex: 1 1 100%;
+  min-width: 0;
+  min-height: 32px;
+  margin: 0 8px 6px 30px;
+  padding: 5px 8px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-ctl);
+  background: var(--bg-soft);
+  color: var(--text);
+  caret-color: var(--accent);
+  font: inherit;
+}
+.chat-ask-text::placeholder { color: var(--text-secondary); opacity: 1; }
+.chat-ask-text:focus-visible { outline: none; border-color: var(--accent); }
+/* Sent words stay readable: the box goes quiet by its edge and fill, not by
+   fading what was sent below the hint it replaced. */
+.chat-ask-text:disabled { border-color: var(--line); background: transparent; color: var(--text); cursor: default; }
+.chat-ask-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-width: 0; }
+/* Disabled, it draws as every disabled button does (button.btn:disabled). */
+.chat-ask .chat-ask-send { flex: none; min-height: 32px; font-weight: 600; }
+.chat-ask-status { flex: 1 1 180px; min-width: 0; margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--text-secondary); overflow-wrap: anywhere; }
+.chat-ask-status:empty { flex: 0; }
+.chat-ask-status[data-result="changed"], .chat-ask-status[data-result="partial"], .chat-ask-status[data-result="unavailable"] { color: var(--warn); }
+.chat-ask-term { flex: none; min-height: 28px; padding: 2px 0; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text-secondary); font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.chat-ask-term:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
+.chat-ask-answer { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-ask-answer-label { margin-right: 6px; color: var(--muted); }
+@media (hover: hover) and (pointer: fine) {
+.chat-ask-form:not([data-locked]) .chat-ask-choice:not([data-chosen]):hover { border-color: var(--ctl-edge); }
+.chat-ask-term:hover { color: var(--text); }
+}
+
 /* With a question docked, the chat gives the dock its height. */
 .chat[data-docked] .chat-body { flex: 1 1 0; }
 
@@ -135,6 +243,10 @@
   .chat-tool, .chat-activity-head, .chat-latest { min-height: 44px; }
   .chat-response-author .chat-copy { min-width: 44px; min-height: 44px; }
   .chat-retry { min-height: 44px; }
+  .chat-ask-pick, .chat-ask .chat-ask-send, .chat-ask-term, .chat-ask-text { min-height: 44px; }
+  /* A row taller than its words keeps them in the middle, not over a gap. */
+  .chat-ask-pick { align-items: center; }
+  .chat-ask-pick input { margin-top: 0; }
 }
 
 /* In the pane: Chat fills the body and the terminal's host stays mounted, hidden

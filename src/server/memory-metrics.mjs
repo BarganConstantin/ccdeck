@@ -13,13 +13,9 @@ import { run } from "./metrics-run.mjs";
 /**
  * Bytes of memory a new process could actually get, per platform.
  *
- * `os.freemem()` is the obvious call and it is the wrong one on two of the three
- * platforms, because "free" and "available" are different questions. Pages
- * holding cached files or inactive anonymous memory are not free, but the kernel
- * will hand them over the moment something asks. Reporting them as used is what
- * makes the naive `(total - free) / total` read 99.5% on an idle 32 GB Mac — a
- * number that would send the reader straight to Activity Monitor, which is the
- * one outcome this readout exists to prevent.
+ * Linux and macOS distinguish available memory from pages that are free right
+ * now. Cached files can be reclaimed, but inactive anonymous pages still
+ * belong to applications and can require compression or swap.
  *
  *   linux   /proc/meminfo MemAvailable — the kernel's own answer, a file read
  *   win32   os.freemem() already reports available physical memory
@@ -40,38 +36,31 @@ export function availableFromMeminfo(text) {
 }
 
 /**
- * Available bytes out of `vm_stat` output, or null when it does not parse.
- *
- * Everything the kernel can hand over without swapping: genuinely free pages,
- * read-ahead it can drop, inactive anonymous pages, and purgeable caches. This
- * is the number `os.freemem()` is missing — it reports only the first of the
- * four, which is why the naive formula reads ~99% on an idle 32 GB Mac.
+ * Physical memory outside the macOS Memory Used figure. Count anonymous
+ * application pages after subtracting purgeable memory, wired pages and the
+ * physical pages occupied by the compressor.
  */
 export function availableFromVmStat(text, total) {
   const out = String(text ?? "");
-  const pageSize = Number(/page size of (\d+) bytes/.exec(out)?.[1]) || 4096;
-  const pages = name => {
-    const m = new RegExp(`^Pages ${name}:\\s+(\\d+)`, "m").exec(out);
-    return m ? Number(m[1]) : 0;
-  };
-  const reclaimable = pages("free") + pages("speculative")
-    + pages("inactive") + pages("purgeable");
-  if (reclaimable <= 0) return null;
-  const avail = reclaimable * pageSize;
-  return total != null && avail > total ? null : avail;
+  const pageSize = Number(/page size of (\d+) bytes/.exec(out)?.[1]);
+  const pages = field => Number(new RegExp(`^${field}:[ \t]+(\\d+)\\.?[ \t]*\\r?$`, "m").exec(out)?.[1]);
+  const anonymous = pages("Anonymous pages");
+  const purgeable = pages("Pages purgeable");
+  const wired = pages("Pages wired down");
+  const compressed = pages("Pages occupied by compressor");
+  if (![total, pageSize, anonymous, purgeable, wired, compressed].every(Number.isSafeInteger)
+    || total <= 0 || pageSize <= 0 || purgeable > anonymous) return null;
+  const used = (anonymous - purgeable + wired + compressed) * pageSize;
+  return used <= total ? total - used : null;
 }
 
 /**
  * How much memory is really available, or NULL when this machine could not be
  * asked.
  *
- * `os.freemem()` USED TO BE THE FALLBACK ON BOTH REAL PLATFORMS, and it is the
- * one number this function exists to avoid (#789). The header above says why:
- * counting only genuinely free pages makes the naive `(total - free) / total`
- * read 99.5% on an idle 32 GB Mac — "a number that would send the reader
- * straight to Activity Monitor, which is the one outcome this readout exists to
- * prevent". So a failed measurement produced exactly the reading the module was
- * written to suppress.
+ * On Linux and macOS a failed measurement must not fall back to free pages
+ * alone (#789). That would count all cached memory as used and could report
+ * 99% usage on an idle machine.
  *
  * And it did not merely flicker. `record` folds into the minute bucket by
  * MAXIMUM, so one failed poll painted a red 99% peak on the memory chart that

@@ -7,6 +7,7 @@
 // goes back to the choices and keeps the text. A question that changed, ended,
 // is held or was answered elsewhere stays on screen until it is dismissed.
 import { describe, expect, it } from "vitest";
+import { t } from "../i18n";
 import {
   answerCount, initialState, LOCKED_ANNOUNCE, step,
   type DecisionContext, type DecisionEffect, type DecisionEvent, type DecisionState,
@@ -100,7 +101,9 @@ describe("a locked row is read and never answered", () => {
     expect(pick.effects).toEqual([{ type: "announce", text: LOCKED_ANNOUNCE }]);
     expect(pick.state.outcome.kind).toBe("none");
     const enter = play(fresh(), [{ type: "focus", index: 1 }, { type: "submit" }], ctx());
-    expect(enter.effects).toEqual([{ type: "announce", text: "Only in the terminal" }]);
+    expect(enter.effects).toEqual([{ type: "announce", text: LOCKED_ANNOUNCE }]);
+    // The effect names the words; the card says them in the reader's language.
+    expect(t(LOCKED_ANNOUNCE)).toBe("Only in the terminal");
   });
 
   it("is reachable by the ring, so it can be read", () => {

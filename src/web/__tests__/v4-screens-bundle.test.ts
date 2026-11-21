@@ -21,10 +21,15 @@ const assets = join(repo, "dist", "web", "assets");
  *  survives a minifier because it is a literal.
  *  CHANGED ON PURPOSE: Chat's sentences ("Since you looked", "Reading the
  *  conversation") now live in the board catalog, which every visit loads, so they
- *  no longer say where Chat is; its class names ("chat-since", "chat-tool") do. */
+ *  no longer say where Chat is; its class names ("chat-since", "chat-tool") do.
+ *  CHANGED ON PURPOSE (Chat answers permission prompts and plans): the Decision
+ *  card's sentences ("Checking the prompt is still on screen", "Sent only when you
+ *  pick") moved to the board catalog the same way, so its class names
+ *  ("dc-caption", "dc-opt-label") say where it is. */
+const DECISION_MARK = "dc-caption";
 const FINGERPRINTS = [
-  "chat-since", "Checking the prompt is still on screen",
-  "Sent only when you pick", "pick and send", "agent-dag.chat", "agent-dag.decision",
+  "chat-since", DECISION_MARK, "dc-opt-label",
+  "pick and send", "agent-dag.chat", "agent-dag.decision",
   ".dc-dock", ".dc-dq", ".chat-col", ".chat-body", "dc-tick", "chat-tool",
 ];
 
@@ -46,7 +51,7 @@ describe.skipIf(!existsSync(dist))("what the build emitted for the screens", () 
 
   it("emits the screens, as scripts of their own", () => {
     const own = readdirSync(assets).filter(f => f.endsWith(".js") && !firstLoad.includes(`assets/${f}`));
-    const holding = own.filter(f => readFileSync(join(assets, f), "utf8").includes("Checking the prompt is still on screen"));
+    const holding = own.filter(f => readFileSync(join(assets, f), "utf8").includes(DECISION_MARK));
     expect(holding.length, "no chunk holds the Decision card").toBeGreaterThan(0);
     const chat = own.filter(f => readFileSync(join(assets, f), "utf8").includes("chat-since"));
     expect(chat.length, "no chunk holds Chat").toBeGreaterThan(0);
