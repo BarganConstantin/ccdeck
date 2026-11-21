@@ -55,6 +55,29 @@
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
+/* The images you sent: counted on a quiet chip under your words (or alone),
+   as a question's tag is drawn. The images themselves are never shown. */
+.chat-you-images { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 1px 8px; border-radius: var(--r-tag); background: var(--ctl-fill); color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 20px; }
+.chat-you-images-mark { flex: none; display: inline-flex; color: var(--muted); }
+/* A slash command you ran: as typed, in mono, on your message's surface; what
+   it printed under it in a muted block that wraps and scrolls inside itself,
+   never the page. Printed on stderr, it is --warn, as a failed call's
+   "Failed" is. */
+.chat-command-line {
+  margin: 0;
+  box-sizing: border-box;
+  max-width: min(100%, 640px);
+  padding: 8px 12px;
+  background: var(--your-message);
+  border-radius: var(--r-overlay) var(--r-overlay) var(--r-tag) var(--r-overlay);
+  color: var(--text);
+  font: calc(12px + var(--ui-text-increase, 0px))/1.6 var(--font-mono);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.chat-command-output { box-sizing: border-box; max-width: min(100%, 640px); max-height: 160px; margin: 0; padding: 8px 10px; overflow-y: auto; overscroll-behavior: contain; border-radius: var(--r-ctl); background: var(--sunken); color: var(--text-secondary); font: calc(12px + var(--ui-text-increase, 0px))/1.6 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-command-output[data-failed] { color: var(--warn); }
+.chat-command-line code, .chat-command-output code { font: inherit; }
 /* The assistant: text, no bubble, and a line that stops at 640. */
 .chat-said { margin: 0; max-width: 640px; font-size: calc(13px + var(--ui-text-increase, 0px)); line-height: 1.65; color: var(--text); overflow-wrap: anywhere; min-width: 0; }
 .chat-response { min-width: 0; }

@@ -1,11 +1,12 @@
 import { codexItemText } from "./codex-translate.mjs";
 
-// A Claude Code transcript's lines, as the turns Chat draws: what you typed,
-// what the assistant said, one row per tool call (with its error, or the change
-// an edit made), a card for each set of questions it asked you, its task list,
-// each sub-agent it started, and a line where you interrupted it or the API
-// failed. Pure: lines in, turns out, nothing read from disk and nothing
-// remembered between calls.
+// A Claude Code transcript's lines, as the turns Chat draws: what you typed
+// (and how many images came with it), each slash command you ran with what it
+// printed, what the assistant said, one row per tool call (with its error, or
+// the change an edit made), a card for each set of questions it asked you, its
+// task list, each sub-agent it started, and a line where you interrupted it or
+// the API failed. Pure: lines in, turns out, nothing read from disk and
+// nothing remembered between calls.
 //
 // WHAT IS LEFT OUT, ON PURPOSE. Thinking blocks (they are not part of the
 // conversation a reader follows), sidechain lines (a subagent's own talk: the
@@ -329,17 +330,75 @@ const TASK_NOTICE = /^\s*<task-notification>[\s\S]*?<\/task-notification>/;
 const INTERRUPTED = /^\[Request interrupted by user/;
 const SUMMARY_LEAD = /^This session is being continued from a previous conversation/;
 
+/** A user line's text as written: a string, or its text parts joined. */
+function rawUserText(content) {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .filter(part => part && part.type === "text" && typeof part.text === "string")
+    .map(part => part.text)
+    .join("\n");
+}
+
 /** The text a user line carries: a string, or its text parts joined, without the bookkeeping. */
 function userText(content) {
-  let text;
-  if (typeof content === "string") text = content;
-  else if (Array.isArray(content)) {
-    text = content
-      .filter(part => part && part.type === "text" && typeof part.text === "string")
-      .map(part => part.text)
-      .join("\n");
-  } else return "";
-  return text.replace(WRAPPERS, "").trim().replace(TASK_NOTICE, "").trim();
+  return rawUserText(content).replace(WRAPPERS, "").trim().replace(TASK_NOTICE, "").trim();
+}
+
+// A SLASH COMMAND YOU RAN IS A LINE OF ITS OWN. Claude Code 2.1 writes `/model
+// opus` as one user line holding nothing but its wrappers:
+// <command-message>model</command-message>, <command-name>/model</command-name>
+// and, when there are any, <command-args>opus</command-args>. Chat draws it as
+// you typed it. A local command's result follows as a line of its own,
+// <local-command-stdout> (or -stderr when it failed), and is drawn under the
+// command; output with no command just before it is left out. A skill's
+// expanded prompt and the caveat before a local command are meta lines, so
+// they stay out as every meta line does. What a command printed is plain
+// text: its colours (ANSI escapes) go, and it is cut at MAX_COMMAND_OUTPUT.
+export const MAX_COMMAND_ARGS = 200;
+export const MAX_COMMAND_OUTPUT = 2000;
+const COMMAND_NAME = /<command-name>([\s\S]*?)<\/command-name>/;
+const COMMAND_ARGS = /<command-args>([\s\S]*?)<\/command-args>/;
+const COMMAND_OUTPUT = /<local-command-(stdout|stderr)>([\s\S]*?)<\/local-command-\1>/g;
+const ESCAPES = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-Z\\-_]/g;
+
+/** The command turn of a line that only holds a command's wrappers, or null. */
+function commandTurn(raw) {
+  const name = COMMAND_NAME.exec(raw)?.[1].trim();
+  if (!name) return null;
+  const turn = { kind: "command", name: cut(name, MAX_ARG) };
+  const args = COMMAND_ARGS.exec(raw)?.[1].trim();
+  if (args) turn.args = cut(args, MAX_COMMAND_ARGS);
+  return turn;
+}
+
+/** What the local-command outputs on a line printed, and whether any of it was stderr. */
+function commandOutput(raw) {
+  const parts = [];
+  let failed = false;
+  for (const [, stream, body] of raw.matchAll(COMMAND_OUTPUT)) {
+    const text = body.replace(ESCAPES, "").trim();
+    if (!text) continue;
+    parts.push(text);
+    if (stream === "stderr") failed = true;
+  }
+  return { text: parts.join("\n"), failed };
+}
+
+/** Adds what a command printed to its turn: lines after the first join with "\n". */
+function attachOutput(turn, output) {
+  if (!output.text) return;
+  turn.output = cut(turn.output ? `${turn.output}\n${output.text}` : output.text, MAX_COMMAND_OUTPUT);
+  if (output.failed) turn.failed = true;
+}
+
+// AN IMAGE YOU SENT IS COUNTED, NEVER CARRIED. A pasted or attached image is
+// an image part beside the line's text: the turn says how many there were,
+// and none of their data goes out. An image inside a tool's result is the
+// tool's, not something you sent, so a line that answers a call counts none.
+function imageCount(content) {
+  if (!Array.isArray(content) || content.some(part => part?.type === "tool_result")) return 0;
+  return content.filter(part => part?.type === "image").length;
 }
 
 // AN API ERROR IS NOT THE ASSISTANT TALKING. Claude Code writes a failed
@@ -402,11 +461,25 @@ export function transcriptWindow(lines) {
       afterCompaction = false;
       if (summary) continue;
       const text = userText(content);
+      const images = imageCount(content);
+      const raw = text ? "" : rawUserText(content);
+      const command = text ? null : commandTurn(raw);
       if (INTERRUPTED.test(text)) {
         // Esc during a call writes two notes in a row; they are one interruption.
         const last = turns.at(-1);
         if (last?.kind !== "notice" || last.what !== "interrupted") turns.push({ kind: "notice", what: "interrupted" });
-      } else if (text) turns.push({ kind: "user", text: cut(text, MAX_TEXT) });
+      } else if (text || (images && !command)) {
+        const turn = { kind: "user", text: cut(text, MAX_TEXT) };
+        if (images) turn.images = images;
+        turns.push(turn);
+      } else if (command) {
+        attachOutput(command, commandOutput(raw));
+        turns.push(command);
+      } else if (raw) {
+        // A command's output, under the command it answers: the last turn.
+        const last = turns.at(-1);
+        if (last?.kind === "command") attachOutput(last, commandOutput(raw));
+      }
     } else if (rec.type === "assistant" && rec.isApiErrorMessage === true) {
       turns.push(apiErrorTurn(content));
     } else if (rec.type === "assistant" && Array.isArray(content)) {

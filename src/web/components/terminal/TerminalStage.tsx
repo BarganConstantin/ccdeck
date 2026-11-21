@@ -71,6 +71,7 @@ import { ChatComposerSlot, useScreenFlags } from "../../use-screens";
 import { fontSizeFor, stepTerminalText, useTerminalTextStep } from "../../terminal-text-size";
 import { chatSessionFor, useSessionTranscript } from "../../use-session-transcript";
 import { askSteps } from "../../ask-keys";
+import { stopSteps } from "../../chat-stop";
 import type { ChatAsk, ChatTurn } from "../chat/chat-model";
 import { usePromptDecision } from "../../use-prompt-decision";
 import { DialogPresence } from "../Dialog";
@@ -718,6 +719,14 @@ export default function TerminalStage(p: TerminalStageProps) {
       if (chatUnavailable) return "unavailable";
       const result = session.sendPrompt(text, key);
       if (result === "sent") setChatSent(sent => sent + 1);
+      return result;
+    }}
+    // Stop is Claude Code's Esc, offered while the board says it works and
+    // sent only once Term shows "esc to interrupt" (chat-stop.ts).
+    canStop={chatProvider === "claude" && chatCannotSend === undefined && board?.state === "working"}
+    onStop={async () => {
+      const result = await session.sendAsk(stopSteps(), key);
+      if (result === "sent" || result === "partial") setChatSent(sent => sent + 1);
       return result;
     }}
   /> : undefined;

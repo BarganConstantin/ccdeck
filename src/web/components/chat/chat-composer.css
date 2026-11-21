@@ -58,9 +58,23 @@
   font-weight: 600;
 }
 .chat-composer-send:disabled { opacity: 0.5; cursor: default; }
+/* Stop, while Claude Code works: a quiet button (the plain .btn) of Send's
+   size beside it. Pending, it draws as every disabled button does. */
+.chat-composer button.chat-composer-stop {
+  box-sizing: border-box;
+  align-self: flex-end;
+  flex: none;
+  min-height: 36px;
+  height: auto;
+  margin: 4px 0;
+  padding: 6px 10px;
+  border-radius: var(--r-ctl);
+  font: inherit;
+  font-weight: 500;
+}
 /* The input's single edge marks focus; buttons keep their own keyboard ring. */
 .chat-composer-draft:focus-visible { outline: none; }
-.chat-composer-send:focus-visible, .chat-composer-term:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
+.chat-composer-send:focus-visible, .chat-composer-stop:focus-visible, .chat-composer-term:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
 .chat-composer-meta {
   display: flex;
   flex-wrap: wrap;
@@ -73,7 +87,8 @@
 .chat-composer-term { flex: none; min-height: 28px; margin-top: 4px; padding: 2px 0; border: 0; background: transparent; color: var(--text-secondary); text-decoration: underline; text-underline-offset: 3px; }
 .chat-composer-status { flex: 1 1 180px; min-width: 0; margin: 6px 0 0; color: var(--text-secondary); overflow-wrap: anywhere; }
 .chat-composer-status:empty { flex: 0; margin: 0; }
-.chat-composer-status[data-result="partial"], .chat-composer-status[data-result="too-large"], .chat-composer-status[data-result="unavailable"], .chat-composer-status[data-result="empty"] { color: var(--warn); }
+.chat-composer-status[data-result="partial"], .chat-composer-status[data-result="too-large"], .chat-composer-status[data-result="unavailable"], .chat-composer-status[data-result="empty"],
+.chat-composer-status[data-result="stop-partial"], .chat-composer-status[data-result="stop-unavailable"] { color: var(--warn); }
 @media (hover: hover) and (pointer: fine) {
   .chat-composer-send:hover:not(:disabled) { border-color: var(--accent); background: var(--bg-soft); }
   .chat-composer-term:hover { color: var(--text); }
@@ -85,6 +100,6 @@
   .chat-composer-draft { font-size: max(16px, calc(13px + var(--ui-text-increase, 0px))); }
 }
 @media (pointer: coarse) {
-  .chat-composer button.chat-composer-send { min-height: 44px; margin-block: 0; }
+  .chat-composer button.chat-composer-send, .chat-composer button.chat-composer-stop { min-height: 44px; margin-block: 0; }
   .chat-composer-term { min-height: 44px; }
 }

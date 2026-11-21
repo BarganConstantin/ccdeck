@@ -7,7 +7,24 @@ import type { AskSendResult } from "../../use-terminal-session";
 
 /** One line of the conversation. */
 export type ChatTurn =
-  | { kind: "user"; text: string }
+  | {
+      kind: "user";
+      /** What you typed; "" when you sent only images. */
+      text: string;
+      /** How many images you sent with it; none are carried, only counted. */
+      images?: number;
+    }
+  /** A slash command you ran ("/model opus"), with what a local command printed. */
+  | {
+      kind: "command";
+      /** As typed: "/model", "/plugin:skill". */
+      name: string;
+      args?: string;
+      /** What it printed, as plain text, cut. */
+      output?: string;
+      /** It printed on stderr: it failed. */
+      failed?: boolean;
+    }
   | { kind: "assistant"; text: string }
   | {
       kind: "tool";
@@ -125,21 +142,30 @@ export type ChatSource =
   | { state: "error"; message: string; onRetry?(): void }
   | { state: "ready"; turns: ChatTurn[]; since?: ChatSince };
 
+/** A turn drawn on your side of the conversation, or a record of it: a block of its own. */
+type OwnTurn = Extract<ChatTurn, { kind: "user" | "command" | "record" }>;
+
 export type ConversationBlock =
-  | { kind: "user" | "record"; text: string; index: number }
+  | (OwnTurn & { index: number })
   | { kind: "assistant"; turns: ChatTurn[]; index: number };
 
-/** Keep an assistant's prose and tool calls together, in transcript order. */
+/** The kinds that start the assistant's block. */
+const ASSISTANT_KINDS: ReadonlySet<string> = new Set(["assistant", "tool", "todo", "notice", "agent", "ask", "plan"]);
+
+/** Keep an assistant's prose and tool calls together, in transcript order. A
+ *  kind this build does not know (a newer host's) is drawn as nothing: it
+ *  starts no block, and inside one it keeps its place so the turns after it
+ *  keep their index. */
 export function conversationBlocks(turns: ChatTurn[]): ConversationBlock[] {
   const blocks: ConversationBlock[] = [];
   turns.forEach((turn, index) => {
-    if (turn.kind === "user" || turn.kind === "record") {
-      blocks.push({ kind: turn.kind, text: turn.text, index });
+    if (turn.kind === "user" || turn.kind === "command" || turn.kind === "record") {
+      blocks.push({ ...turn, index });
       return;
     }
     const last = blocks.at(-1);
     if (last?.kind === "assistant") last.turns.push(turn);
-    else blocks.push({ kind: "assistant", turns: [turn], index });
+    else if (ASSISTANT_KINDS.has(turn.kind)) blocks.push({ kind: "assistant", turns: [turn], index });
   });
   return blocks;
 }
