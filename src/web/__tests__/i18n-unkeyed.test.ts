@@ -20,11 +20,10 @@ interface Exception {
   why: string;
 }
 
-const SCREENS_NOT_BUNDLED =
-  "Behind a flag that is off: the deck's first-load script must not carry the screen's words (v4-screens-bundle.test.ts), and the catalogs are bundled whole, so these wait for catalogs that load with the screen.";
-
 const EXCEPTIONS: readonly Exception[] = [
-  { file: "src/web/components/decision/", why: SCREENS_NOT_BUNDLED },
+  // CHANGED ON PURPOSE (Chat answers permission prompts and plans): the card's
+  // own words are keyed now; only its key tables are left, and nothing draws them.
+  { file: "src/web/components/decision/decision-keys.ts", why: "Not drawn: no host hands the card's key group to the keyboard sheet or its layer to the status bar yet (screens.ts exports them for that)." },
   { file: "src/web/components/terminal/stage-model.ts", text: "That is not a session id.", why: "The engine's own refusal, matched as it arrives to be replaced by the panel's sentence; never shown." },
   { file: "src/web/components/terminal/stage-model.ts", text: "The provider must be claude or codex.", why: "The engine's own refusal, matched as it arrives to be replaced by the panel's sentence; never shown." },
   { file: "src/web/components/guide-art.tsx", text: "Bash(npm test)", why: "A line of Claude Code's own terminal, drawn as it prints it." },

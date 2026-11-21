@@ -33,6 +33,18 @@ export type ChatTurn =
       /** What you wrote back instead of choosing. */
       reply?: string;
     }
+  /** A plan the assistant asks you to approve (ExitPlanMode), in Markdown. */
+  | {
+      kind: "plan";
+      /** The plan; "" when the call kept it elsewhere. */
+      text: string;
+      /** The plan was longer than the transcript keeps: the rest is in Term. */
+      cut?: boolean;
+      /** Still waiting for your answer. */
+      running?: boolean;
+      /** Once answered: whether it was approved. */
+      approved?: boolean;
+    }
   /** What you answered and how long it took, after the card folds. */
   | { kind: "record"; text: string };
 

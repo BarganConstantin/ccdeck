@@ -11,7 +11,7 @@ export const PERMISSION: DecisionModel = {
   command: "npm test -- rate-limit",
   caption: "Run the rate limiter's tests · Bash in ~/work/web-api",
   options: [
-    { label: "Yes, run it", sub: "Runs once. The next command asks again." },
+    { label: "Yes, run it", sub: "Runs once. The next command asks again.", runs: true },
     { label: "Yes, and don't ask again for npm test here", sub: "", locked: true, lockNote: "Changes the session's rules, so only in the terminal" },
     { label: "No, tell Claude what to do instead", sub: "The command doesn't run", free: true },
   ],

@@ -17,6 +17,8 @@ export interface DecisionOptionModel {
   pick?: boolean;
   /** Choosing it opens a field in place ("No, tell Claude what to do instead"). */
   free?: boolean;
+  /** Picking it runs the card's command: "Sent" then says "Running …". */
+  runs?: boolean;
 }
 
 export interface DecisionModel {
@@ -47,10 +49,14 @@ export type DecisionOutcomeInput =
   | { kind: "changed"; now: string }
   | { kind: "ended" }
   | { kind: "held" }
-  | { kind: "elsewhere"; at: string };
+  | { kind: "elsewhere"; at: string }
+  /** The keys stopped before the answer was whole: none went (`part` false),
+   *  or some did and the terminal has the rest to finish. */
+  | { kind: "stopped"; part: boolean };
 
-/** What a re-read of the live prompt found. */
-export type RecheckResult = "ok" | Exclude<DecisionOutcomeInput, { kind: "elsewhere" }>;
+/** What a re-read of the live prompt found. An empty `now` in "changed": the
+ *  screen shows no question the card can name. */
+export type RecheckResult = "ok" | Exclude<DecisionOutcomeInput, { kind: "elsewhere" } | { kind: "stopped" }>;
 
 /** What was picked. */
 export type DecisionAnswer =

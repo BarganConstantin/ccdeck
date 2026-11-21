@@ -55,6 +55,26 @@ const RESPONDED = /^The user responded: ([\s\S]*)$/;
 
 const bounded = (value, max) => (typeof value === "string" && value.trim() ? cut(value.trim(), max) : "");
 
+// A PLAN TO APPROVE IS NOT A TOOL ROW EITHER. Claude Code 2.1 has the model put
+// the whole plan, in Markdown, in ExitPlanMode's `plan`: Chat draws it as prose,
+// so the person reads what they approve without opening Term. A plan longer
+// than MAX_PLAN is cut and says so (`cut`); one kept elsewhere (a version that
+// leaves `plan` out) is drawn as its header only. Its answer starts "User has
+// approved…" when it was approved; anything else (No, keep planning, Esc) is not.
+export const PLAN_TOOL = "ExitPlanMode";
+export const MAX_PLAN = 12000;
+const APPROVED = /^User has approved\b/;
+
+/** The plan turn of an ExitPlanMode call, with its answer when there is one. */
+function planTurn(input, result) {
+  const plan = input && typeof input === "object" && typeof input.plan === "string" ? input.plan.trim() : "";
+  const turn = { kind: "plan", text: cut(plan, MAX_PLAN) };
+  if (plan.length > MAX_PLAN) turn.cut = true;
+  if (result) turn.approved = APPROVED.test(result.text.trim());
+  else turn.running = true;
+  return turn;
+}
+
 /** The questions of an AskUserQuestion call, or null when its input is not one. */
 export function askQuestions(input) {
   const list = input && typeof input === "object" && Array.isArray(input.questions) ? input.questions : null;
@@ -212,6 +232,10 @@ export function transcriptWindow(lines) {
           turns.push({ kind: "assistant", text: cut(part.text.trim(), MAX_TEXT) });
         } else if (part.type === "tool_use" && typeof part.name === "string") {
           const result = typeof part.id === "string" ? answered.get(part.id) : undefined;
+          if (part.name === PLAN_TOOL) {
+            turns.push(planTurn(part.input, result));
+            continue;
+          }
           const questions = part.name === ASK_TOOL ? askQuestions(part.input) : null;
           if (questions) {
             const turn = { kind: "ask", questions };

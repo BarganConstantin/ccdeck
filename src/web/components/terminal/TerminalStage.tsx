@@ -71,13 +71,17 @@ import { ChatComposerSlot, useScreenFlags } from "../../use-screens";
 import { fontSizeFor, stepTerminalText, useTerminalTextStep } from "../../terminal-text-size";
 import { chatSessionFor, useSessionTranscript } from "../../use-session-transcript";
 import { askSteps } from "../../ask-keys";
-import type { ChatAsk } from "../chat/chat-model";
+import type { ChatAsk, ChatTurn } from "../chat/chat-model";
+import { usePromptDecision } from "../../use-prompt-decision";
 import { DialogPresence } from "../Dialog";
 import type { HostsApi } from "./older-hosts";
 import { useOlderHosts } from "./use-older-hosts";
 import type { WaitingCard } from "./stage-board";
 import type { RenameFacts } from "../../session-rename";
 import { useRenaming } from "../SessionNameField";
+
+/** One empty transcript for every render, so the card's words are not rebuilt for nothing. */
+const NO_TURNS: readonly ChatTurn[] = [];
 
 /** The phases with no pane to type into, whose cards carry no keys bar. */
 const PANELESS: ReadonlySet<StagePhaseKind> = new Set<StagePhaseKind>([
@@ -576,6 +580,19 @@ export default function TerminalStage(p: TerminalStageProps) {
       return result;
     },
   };
+  // Claude Code's permission prompt and plan approval, answered from the
+  // Decision card docked under Chat: read off the live screen while the
+  // transcript says a call or a plan waits (use-prompt-decision.ts).
+  const promptCard = usePromptDecision({
+    on: chatOn && chatProvider === "claude" && screenFlags.decision && chatCannotSend === undefined,
+    turns: chatSource.state === "ready" ? chatSource.turns : NO_TURNS,
+    session: name,
+    subject: key,
+    readScreen: session.readScreen,
+    sendAsk: session.sendAsk,
+    onSent: () => setChatSent(sent => sent + 1),
+    onShowTerm: () => showView("term"),
+  });
 
   // RENAMING (internal #101): held here rather than in the header, which is
   // drawn by calling it; the facts are the session on stage, so a switch to
@@ -789,7 +806,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         workspace={workspace && p.show.kind === "empty"}
         waiting={workspace ? p.waiting ?? null : null}
         onOpenWaiting={openWaiting(p.waiting, p.onOpenWaiting)}
-        screens={chatSession !== null ? { view, source: chatSource, provider: chatProvider, ask: chatAsk } : undefined}
+        screens={chatSession !== null ? { view, source: chatSource, provider: chatProvider, ask: chatAsk, decision: promptCard } : undefined}
       />
       <KeysBar
         primary={p.split?.primary ?? true}
