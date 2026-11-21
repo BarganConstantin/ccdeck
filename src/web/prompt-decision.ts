@@ -6,8 +6,9 @@
 // THE TITLE NAMES THE CALL. One call waits: a command (Bash) is "Allow this
 // command?" with the command in mono; an edit (Edit, Write, MultiEdit,
 // NotebookEdit) is "Allow this edit?" with its file; any other tool is
-// "Allow {tool}?". Several calls wait, or none can be told: "Allow this step?"
-// with no line in mono, since the card cannot say which one the prompt is for.
+// "Allow {tool}?". Several calls wait, a sub-agent runs (its own calls are not
+// in the transcript), or none can be told: "Allow this step?" with no line in
+// mono, since the card cannot say which one the prompt is for.
 //
 // A PLAN IS READ IN THE CONVERSATION. The plan card above the Decision card
 // draws the plan's Markdown, so this card only says where it is, or, when the
@@ -37,11 +38,12 @@ function waitingPlan(turns: readonly ChatTurn[]): PlanTurn | undefined {
   return undefined;
 }
 
-/** Whether the transcript says Claude may be at a prompt: a call or a plan
- *  waits, and no question card waits (that one is answered on its own card). */
+/** Whether the transcript says Claude may be at a prompt: a call, a plan or a
+ *  sub-agent waits (a sub-agent's own calls ask too), and no question card
+ *  waits (that one is answered on its own card). */
 export function mayPrompt(turns: readonly ChatTurn[]): boolean {
   if (turns.some(turn => turn.kind === "ask" && turn.running)) return false;
-  return turns.some(turn => (turn.kind === "tool" || turn.kind === "plan") && !!turn.running);
+  return turns.some(turn => (turn.kind === "tool" || turn.kind === "plan" || turn.kind === "agent") && !!turn.running);
 }
 
 /** The Decision card for `prompt`, read with the transcript's `turns`. */
@@ -59,7 +61,10 @@ export function promptDecision(prompt: ScreenPrompt, turns: readonly ChatTurn[],
     };
   }
   const tools = waitingTools(turns);
-  const one = tools.length === 1 ? tools[0] : undefined;
+  // A sub-agent still running may be the one asking, about a call of its own
+  // the transcript does not show: then no one call can be named.
+  const agent = turns.some(turn => turn.kind === "agent" && turn.running);
+  const one = tools.length === 1 && !agent ? tools[0] : undefined;
   const command = one?.name === COMMAND_TOOL;
   const title = !one ? t("board.decision.title.step")
     : command ? t("board.decision.title.command")

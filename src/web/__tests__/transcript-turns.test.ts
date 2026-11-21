@@ -91,10 +91,11 @@ describe("what Claude Code wrote for itself is not what you typed", () => {
   });
 
   it("skips an interruption note, as text or as a part", () => {
+    // CHANGED ON PURPOSE (Chat shows what happened): never "you said", but one notice line now (transcript-detail.test.ts).
     expect(transcriptTurns([
       user("[Request interrupted by user]"),
       user([{ type: "text", text: "[Request interrupted by user for tool use]" }]),
-    ])).toEqual([]);
+    ])).toEqual([{ kind: "notice", what: "interrupted" }]);
   });
 });
 

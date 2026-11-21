@@ -1,14 +1,20 @@
 // The pieces of a conversation, one per kind of line (the kit's Chat parts):
 // what you typed, what the assistant said, a tool call, the record of an
-// answer, and the divider that says what happened since you looked.
+// answer, the task list, a sub-agent, a notice, and the divider that says what
+// happened since you looked.
+//
+// ONE QUIET LINE, DETAIL ON DEMAND. A failed call says "Failed" and an edit its
+// "+4 −1" on the row; the error or the change opens under it from the row's
+// own button. Only the conversation's last task list is drawn whole (ChatView
+// says which); earlier ones are a line each, folded in with the tool calls.
 //
 // NEW LINES APPEAR WITH NO MOTION. A line is drawn where it belongs and that is
 // all; there is no entrance, no highlight, no scroll animation.
 import {
-  ChevronRightGlyph, DoneGlyph, FileGlyph, SearchGlyph, ToolTerminalGlyph,
+  AgentGlyph, ChevronRightGlyph, DoneGlyph, FileGlyph, SearchGlyph, TodoActiveGlyph, TodoPendingGlyph, ToolTerminalGlyph,
 } from "./chat-icons";
 import { t as tNow, useT, type TFunction } from "../../i18n";
-import type { ChatAsk, ChatQuestion, ChatSince, ChatTurn as Turn } from "./chat-model";
+import type { ChatAsk, ChatDiff, ChatQuestion, ChatSince, ChatTodo, ChatTurn as Turn } from "./chat-model";
 import type { Provider } from "../../types";
 import ProviderAvatar from "../ProviderAvatar";
 import ChatMarkdown from "./ChatMarkdown";
@@ -29,14 +35,59 @@ export function AssistantText({ text }: { text: string }) {
 
 const MARKS = { file: FileGlyph, search: SearchGlyph, terminal: ToolTerminalGlyph } as const;
 
-export function ToolRow({ turn }: { turn: Extract<Turn, { kind: "tool" }> }) {
+type ToolTurn = Extract<Turn, { kind: "tool" }>;
+type TodoTurn = Extract<Turn, { kind: "todo" }>;
+
+/** Which way a diff line goes: added, removed, kept, or the gap between two hunks. */
+export function diffOp(line: string): "add" | "del" | "ctx" | "gap" {
+  if (line === "…") return "gap";
+  return line.startsWith("+") ? "add" : line.startsWith("-") ? "del" : "ctx";
+}
+
+/** An edit's change: one line per diff line, scrolled inside its own block. */
+export function DiffBlock({ diff }: { diff: ChatDiff }) {
+  const t = useT();
+  return <>
+    <pre className="chat-diff"><code>{diff.lines.map((line, i) =>
+      <span key={i} className="chat-diff-line" data-op={diffOp(line)}>{line}</span>)}</code></pre>
+    {diff.cut && <p className="chat-diff-cut">{t("board.chat.diff.cut")}</p>}
+  </>;
+}
+
+export function ToolRow({ turn }: { turn: ToolTurn }) {
+  const t = useT();
+  const id = useId();
+  const [open, setOpen] = useState(false);
   const Mark = MARKS[turn.mark ?? (turn.name === "Bash" ? "terminal" : turn.name === "Explore" ? "search" : "file")];
+  const failed = turn.error !== undefined;
   const content = <>
     <span className="chat-tool-mark"><Mark /></span>
     <span className="chat-tool-name">{turn.name}</span>
     <span className="chat-tool-arg" title={turn.arg}>{turn.arg}</span>
     {turn.note && <span className="chat-tool-note">{turn.note}</span>}
+    {failed && <span className="chat-tool-failed">{t("board.chat.tool.failed")}</span>}
+    {turn.declined && <span className="chat-tool-declined">{t("board.chat.tool.declined")}</span>}
   </>;
+  // An error to read or a change to see: the row is a button that opens them,
+  // with the whole argument above, as the plain row's disclosure shows it.
+  if (turn.error || turn.diff?.lines.length) {
+    return (
+      <div className="chat-tool-call">
+        <button type="button" className="chat-tool chat-tool-toggle" data-running={turn.running || undefined}
+          aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(was => !was)}>
+          <span className="chat-disclosure"><ChevronRightGlyph /></span>
+          {content}
+        </button>
+        {open && (
+          <div className="chat-tool-detail" id={id}>
+            {turn.arg && <pre className="chat-tool-input"><code>{turn.arg}</code></pre>}
+            {turn.error && <pre className="chat-tool-error"><code>{turn.error}</code></pre>}
+            {turn.diff && turn.diff.lines.length > 0 && <DiffBlock diff={turn.diff} />}
+          </div>
+        )}
+      </div>
+    );
+  }
   if (!turn.arg) return <div className="chat-tool" data-running={turn.running || undefined}>{content}</div>;
   return (
     <details className="chat-tool-call">
@@ -49,35 +100,108 @@ export function ToolRow({ turn }: { turn: Extract<Turn, { kind: "tool" }> }) {
   );
 }
 
-/** The disclosure contains the actual calls; it never implies unseen output. */
-export function ToolGroup({ turns }: { turns: Extract<Turn, { kind: "tool" }>[] }) {
+/** "2 of 5 done": the items done, and how many there are. */
+function todoCount(items: readonly ChatTodo[]) {
+  return { done: items.filter(item => item.status === "done").length, total: items.length };
+}
+
+const TODO_MARKS = { done: DoneGlyph, active: TodoActiveGlyph, pending: TodoPendingGlyph } as const;
+
+/** An earlier task list, or an emptied one: one muted line. */
+export function TodoLine({ turn }: { turn: TodoTurn }) {
   const t = useT();
-  const running = turns.some(turn => turn.running);
+  const text = turn.items.length ? t("board.chat.todo.updated", todoCount(turn.items)) : t("board.chat.todo.cleared");
+  return <div className="chat-tool chat-todo-line"><span className="chat-tool-mark"><DoneGlyph /></span><span className="chat-todo-line-text">{text}</span></div>;
+}
+
+/** The conversation's last task list, as a checklist: done items muted, the one
+ *  being worked on picked out, the rest plain. An emptied list is its line. */
+export function TodoList({ turn }: { turn: TodoTurn }) {
+  const t = useT();
+  if (!turn.items.length) return <TodoLine turn={turn} />;
+  const head = t("board.chat.todo.head", todoCount(turn.items));
+  return (
+    <section className="chat-todo" aria-label={head}>
+      <div className="chat-todo-head" aria-hidden="true">{head}</div>
+      <ul className="chat-todo-list">{turn.items.map((item, i) => {
+        const Mark = TODO_MARKS[item.status];
+        return (
+          <li key={i} className="chat-todo-item" data-status={item.status}>
+            <span className="chat-todo-mark"><Mark /></span>
+            <span className="chat-sr">{t(`board.chat.todo.${item.status}`)}</span>
+            <span className="chat-todo-text">{item.text}</span>
+          </li>
+        );
+      })}</ul>
+    </section>
+  );
+}
+
+/** "Sub-agent · Explore — Find the auth code", and whether it still runs. */
+export function AgentLine({ turn }: { turn: Extract<Turn, { kind: "agent" }> }) {
+  const t = useT();
+  const state = turn.running ? "running" : turn.declined ? "declined" : turn.failed ? "failed" : turn.background ? "background" : "done";
+  const label = { running: "board.chat.running", declined: "board.chat.tool.declined", failed: "board.chat.tool.failed",
+    background: "board.chat.agent.background", done: "board.chat.agent.done" }[state];
+  return (
+    <div className="chat-tool chat-agent" data-state={state}>
+      <span className="chat-tool-mark"><AgentGlyph /></span>
+      <span className="chat-tool-name">{turn.type ? t("board.chat.agent.typed", { type: turn.type }) : t("board.chat.agent.title")}</span>
+      {turn.description && <span className="chat-agent-desc" title={turn.description}>— {turn.description}</span>}
+      <span className="chat-agent-state">{t(label)}</span>
+    </div>
+  );
+}
+
+/** "Interrupted", or the API's error line. */
+export function NoticeLine({ turn }: { turn: Extract<Turn, { kind: "notice" }> }) {
+  const t = useT();
+  const text = turn.what === "interrupted" ? t("board.chat.notice.interrupted") : turn.text || t("board.chat.notice.error");
+  return <p className="chat-notice" data-what={turn.what}>{text}</p>;
+}
+
+/** What folds into a run of tool calls: a call, or an earlier task list. */
+type Folded = ToolTurn | TodoTurn;
+
+/** The disclosure contains the actual calls; it never implies unseen output.
+ *  Failed calls are counted on its head, so they show while it is closed. */
+export function ToolGroup({ turns }: { turns: Folded[] }) {
+  const t = useT();
+  const running = turns.some(turn => turn.kind === "tool" && turn.running);
+  const failed = turns.filter(turn => turn.kind === "tool" && turn.error !== undefined).length;
   return <details className="chat-activity" open={running || undefined}>
     <summary className="chat-activity-head">
       <span className="chat-disclosure"><ChevronRightGlyph /></span>
       <span>{t("board.chat.tools", { count: turns.length })}</span>
+      {failed > 0 && <span className="chat-activity-failed">{t("board.chat.toolsFailed", { count: failed })}</span>}
       {running && <span className="chat-activity-running">{t("board.chat.running")}</span>}
     </summary>
-    <div className="chat-activity-calls">{turns.map((turn, i) => <ToolRow key={i} turn={turn} />)}</div>
+    <div className="chat-activity-calls">{turns.map((turn, i) => turn.kind === "tool"
+      ? <ToolRow key={i} turn={turn} />
+      : <TodoLine key={i} turn={turn} />)}</div>
   </details>;
 }
 
 /** How a waiting question is answered, and which of the block's turns it is. */
 export type LiveAsk = ChatAsk & { at: number };
 
-/** Identify each response once. */
-export function AssistantBlock({ turns, provider = "claude", ask }: { turns: Turn[]; provider?: Provider; ask?: LiveAsk }) {
+/** Identify each response once. `todoAt` is which of the block's turns is the
+ *  conversation's last task list, drawn whole; none when it is elsewhere. */
+export function AssistantBlock({ turns, provider = "claude", ask, todoAt }: { turns: Turn[]; provider?: Provider; ask?: LiveAsk; todoAt?: number }) {
   const author = provider === "codex" ? "Codex" : "Claude Code";
   const t = useT();
   const [copied, setCopied] = useState(false);
   const answer = turns.filter((turn): turn is Extract<Turn, { kind: "assistant" }> => turn.kind === "assistant").map(turn => turn.text).join("\n\n");
   useEffect(() => setCopied(false), [answer]);
-  const parts: { index: number; turns: Turn[] }[] = [];
+  // Tool calls run together into one disclosure, and an earlier task list
+  // joins them where its TodoWrite call sat. A run with no call in it is drawn
+  // line by line: a disclosure of task lines alone would hide them.
+  const parts: { index: number; turns: Turn[]; folded: boolean }[] = [];
   turns.forEach((turn, index) => {
+    const folded = turn.kind === "tool" || (turn.kind === "todo" && index !== todoAt);
     const last = parts.at(-1);
-    if (turn.kind === "tool" && last?.turns[0]?.kind === "tool") last.turns.push(turn);
-    else parts.push({ index, turns: [turn] });
+    if (folded && last?.folded) last.turns.push(turn);
+    else parts.push({ index, turns: [turn], folded });
   });
   return <section className="chat-response" aria-label={author}>
     <div className="chat-response-author"><ProviderAvatar provider={provider} /><span>{author}</span>
@@ -85,11 +209,10 @@ export function AssistantBlock({ turns, provider = "claude", ask }: { turns: Tur
         aria-label={t(copied ? "board.stage.copied" : "board.stage.copy")}
         onClick={() => { void copyText(answer).then(ok => setCopied(ok)); }}><CopyGlyph /></button>}
     </div>
-    <div className="chat-response-content">{parts.map(part => {
-      const first = part.turns[0];
-      return first.kind === "tool"
-        ? <ToolGroup key={part.index} turns={part.turns as Extract<Turn, { kind: "tool" }>[]} />
-        : <TurnRow key={part.index} turn={first} ask={ask?.at === part.index ? ask : undefined} />;
+    <div className="chat-response-content">{parts.flatMap(part => {
+      if (part.folded && part.turns.some(turn => turn.kind === "tool")) return [<ToolGroup key={part.index} turns={part.turns as Folded[]} />];
+      return part.turns.map((turn, i) => <TurnRow key={part.index + i} turn={turn}
+        ask={ask?.at === part.index + i ? ask : undefined} latest={todoAt === part.index + i} />);
     })}</div>
   </section>;
 }
@@ -316,11 +439,15 @@ export function SinceDivider({ since }: { since: ChatSince }) {
   );
 }
 
-export function TurnRow({ turn, ask }: { turn: Turn; ask?: ChatAsk }) {
+/** One turn. `latest` says a task list is the conversation's last, drawn whole. */
+export function TurnRow({ turn, ask, latest }: { turn: Turn; ask?: ChatAsk; latest?: boolean }) {
   switch (turn.kind) {
     case "user": return <YourMessage text={turn.text} />;
     case "assistant": return <AssistantText text={turn.text} />;
     case "tool": return <ToolRow turn={turn} />;
+    case "todo": return latest ? <TodoList turn={turn} /> : <TodoLine turn={turn} />;
+    case "agent": return <AgentLine turn={turn} />;
+    case "notice": return <NoticeLine turn={turn} />;
     // Other questions are another card: what was picked for the last never carries over.
     case "ask": return <AskCard key={turn.questions.map(q => q.question).join("\n")} turn={turn} ask={ask} />;
     case "plan": return <PlanCard turn={turn} />;

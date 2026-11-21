@@ -16,3 +16,9 @@ export const SearchGlyph = () => <KitIcon name="search" />;
 export const ToolTerminalGlyph = () => <KitIcon name="terminal" />;
 /** The option you chose, on a question card: Done's tick. */
 export const DoneGlyph = () => <KitStateGlyph name="done" size={12} />;
+/** A sub-agent the assistant started. */
+export const AgentGlyph = () => <KitIcon name="agents" />;
+/** A task-list item not started yet: Idle's ring. */
+export const TodoPendingGlyph = () => <KitStateGlyph name="idle" size={12} />;
+/** The task being worked on: Working's ring, drawn still. */
+export const TodoActiveGlyph = () => <KitStateGlyph name="working" size={12} />;
