@@ -1,4 +1,22 @@
 {
+  "4.1.0": [
+    {
+      "title": "💬 Answer Claude Code's questions in Chat",
+      "body": "When Claude Code asks you a question, Chat now shows it as a card with its options and their notes. Pick one, tick several, or write your own answer, then Send answer. The card says whether the answer went in, and stays in the conversation with what you chose."
+    },
+    {
+      "title": "✅ Approve commands and plans from Chat",
+      "body": "When Claude Code asks before running a command or editing a file, or waits for you to approve its plan, Chat shows the request and its choices. The plan reads in full and says afterwards whether you approved it. Before anything goes in, the deck checks that Term still asks the same thing. Choices that change the session's rules, such as “don't ask again”, still open in Term."
+    },
+    {
+      "title": "🔁 Codex waits when the new account lacks the model",
+      "body": "After you switch Codex to another account, a conversation set to a model that account does not offer now waits instead of carrying on. Accounts and ccdeck tui say to open /model in Codex, choose an available model and continue the same conversation."
+    },
+    {
+      "title": "🧠 Machine shows Mac memory use more accurately",
+      "body": "On a Mac, Machine now counts memory that apps still hold as used, so it no longer shows much less memory in use than there is. A reading that comes back incomplete is skipped instead of drawn."
+    }
+  ],
   "4.0.4": [
     {
       "title": "📥 Install Claude Code from the deck",
@@ -238,6 +256,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.1.0": "Answer Claude Code's questions, commands and plans from Chat",
     "4.0.4": "Install Claude Code from the deck, sign in again to the same account, and easier account cards",
     "4.0.3": "Sessions start on Windows right after ccdeck starts",
     "4.0.2": "Board cards open in Workspace, the Inspector opens with the session, and panes draw right on tmux 3.2–3.5",
