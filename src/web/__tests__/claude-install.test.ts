@@ -5,10 +5,11 @@
 //
 // Nothing here reaches the network or runs a script: the download is a stand-in
 // `fetch`, the installer a stand-in `spawn` that prints what a test tells it to
-// and exits with the code it is given.
+// and exits with the code it is given, and the system's curl, the download's
+// second try, a stand-in `spawn` that saves what a test gives it.
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { EventEmitter } from "node:events";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -20,8 +21,8 @@ const install = await import("../../server/claude-install.mjs");
 const { GUARDED_READS, OPEN_MUTATIONS, isAuthorizedMutation } = await import("../../server/request-gates.mjs");
 
 const {
-  CLAUDE_INSTALL_ROUTE, INSTALL_SCRIPTS, INSTALL_SCRIPT_MAX, claudeInstallCommand, createClaudeInstaller, deckFindsClaude,
-  handleClaudeInstallStart, handleClaudeInstallStatus, installerArgv, outputTail,
+  CLAUDE_INSTALL_ROUTE, DOWNLOAD_TIMEOUT_MS, INSTALL_SCRIPTS, INSTALL_SCRIPT_MAX, claudeInstallCommand, createClaudeInstaller,
+  deckFindsClaude, downloaderArgv, handleClaudeInstallStart, handleClaudeInstallStatus, installerArgv, outputTail,
 } = install;
 
 const SCRATCH = mkdtempSync(join(tmpdir(), "ccdeck-claude-install-test-"));
@@ -63,6 +64,45 @@ function spawnOf({ output = "", code = 0 as number | null, fail = false } = {}) 
   });
   return { spawnImpl, ran };
 }
+
+interface Fetched { file: string; args: string[]; opts: Record<string, unknown> }
+
+const CURL = /(^|[\\/])curl(\.exe)?$/;
+
+/**
+ * The system's curl beside an installer: it saves `saves` to the path after
+ * its `-o` and exits `code` (`saves` null: saves nothing; `code` null: never
+ * exits until killed; `fail`: cannot be spawned). Anything else spawned is the
+ * installer `spawnOf` makes.
+ */
+function curlOf({ saves = SCRIPT as string | Uint8Array | null, code = 0 as number | null, fail = false } = {}, inst = spawnOf()) {
+  const fetched: Fetched[] = [];
+  const spawnImpl = vi.fn((file: string, args: string[], opts: Record<string, unknown>) => {
+    if (!CURL.test(file)) return inst.spawnImpl(file, args, opts);
+    fetched.push({ file, args, opts });
+    if (fail) throw Object.assign(new Error("spawn ENOENT"), { code: "ENOENT" });
+    const child = Object.assign(new EventEmitter(), {
+      kill() { setTimeout(() => child.emit("close", null, "SIGKILL"), 0); return true; },
+    });
+    setTimeout(() => {
+      if (saves !== null) writeFileSync(args[args.indexOf("-o") + 1], saves);
+      if (code !== null) child.emit("close", code);
+    }, 0);
+    return child;
+  });
+  return { spawnImpl, fetched, ran: inst.ran };
+}
+
+/** Fetch failing the way it does behind TLS inspection: Node's own CA list
+ *  does not know the company's root. */
+const tlsFailure = () => vi.fn(async () => {
+  throw Object.assign(new TypeError("fetch failed"), {
+    cause: Object.assign(new Error("unable to get local issuer certificate"), { code: "UNABLE_TO_GET_ISSUER_CERT_LOCALLY" }),
+  });
+});
+
+/** A machine with no curl anywhere: not in /usr/bin, not on PATH, not in System32. */
+const noCurl = (p: string) => !CURL.test(p);
 
 function installer(over: Record<string, unknown> = {}) {
   return createClaudeInstaller({
@@ -130,6 +170,8 @@ describe("an install", () => {
   });
 
   it("fails as a download when the script cannot be fetched, and runs nothing", async () => {
+    // On a machine with no curl, so the fetch is the only try; curl's second
+    // try has its own tests below.
     for (const fetchImpl of [
       vi.fn(async () => { throw new TypeError("fetch failed"); }),
       fetchOf("not found", { status: 404 }),
@@ -140,10 +182,29 @@ describe("an install", () => {
       fetchOf(new Uint8Array(INSTALL_SCRIPT_MAX + 1).fill(0x23)),
     ]) {
       const { spawnImpl } = spawnOf();
+      const i = installer({ fetchImpl, spawnImpl, exists: noCurl });
+      i.start();
+      await i.settled();
+      expect(i.status()).toMatchObject({ state: "failed", reason: "download-failed" });
+      expect(spawnImpl).not.toHaveBeenCalled();
+      expect(leftovers()).toEqual([]);
+    }
+  });
+
+  it("does not ask curl when fetch got an answer that is not a script, and runs nothing", async () => {
+    for (const fetchImpl of [
+      fetchOf(SCRIPT, { url: "http://claude.ai/install.sh" }),
+      fetchOf("<!DOCTYPE html><html><body>sign in</body></html>"),
+      fetchOf(""),
+      fetchOf(SCRIPT, { headers: { "content-length": String(INSTALL_SCRIPT_MAX + 1) } }),
+      fetchOf(new Uint8Array(INSTALL_SCRIPT_MAX + 1).fill(0x23)),
+    ]) {
+      const { spawnImpl, fetched } = curlOf();
       const i = installer({ fetchImpl, spawnImpl });
       i.start();
       await i.settled();
       expect(i.status()).toMatchObject({ state: "failed", reason: "download-failed" });
+      expect(fetched).toEqual([]);
       expect(spawnImpl).not.toHaveBeenCalled();
       expect(leftovers()).toEqual([]);
     }
@@ -209,6 +270,175 @@ describe("an install", () => {
       expect(i.start()).toEqual({ ok: false, code: "download-disabled" });
       expect(fetchImpl).not.toHaveBeenCalled();
     }
+  });
+});
+
+describe("when fetch cannot reach the script: the system's curl, once", () => {
+  it("downloads it with curl when fetch fails as it does behind TLS inspection, then installs exactly as after a fetch", async () => {
+    const said = [vi.spyOn(console, "log"), vi.spyOn(console, "error"), vi.spyOn(console, "warn"), vi.spyOn(console, "info")];
+    const env = { HTTPS_PROXY: "http://proxy.example:3128" };
+    const fetchImpl = tlsFailure();
+    const { spawnImpl, fetched, ran } = curlOf({ saves: SCRIPT });
+    const i = installer({ env, fetchImpl, spawnImpl });
+    const started = i.start();
+    await i.settled();
+    expect(i.status()).toMatchObject({ state: "done", id: started.id });
+    expect(i.status().reason).toBeUndefined();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetched).toHaveLength(1);
+    expect(ran).toHaveLength(1);
+    // curl saved into the job's own folder, the one the installer then ran in.
+    const { file, args, opts } = fetched[0];
+    expect(file).toBe("/usr/bin/curl");
+    expect(args).toEqual([
+      "-fsSL", "--proto", "=https", "--proto-redir", "=https",
+      "--max-time", String(DOWNLOAD_TIMEOUT_MS / 1000), "--max-filesize", String(INSTALL_SCRIPT_MAX),
+      "-o", join(ran[0].dir, "download.part"), "https://claude.ai/install.sh",
+    ]);
+    // An argument vector, the deck's environment (so its proxy setting reaches
+    // curl), and nothing curl prints is read.
+    expect(opts).toMatchObject({ shell: false, stdio: "ignore", cwd: ran[0].dir });
+    expect(opts.env).toBe(env);
+    // And from there on as after a fetch: the same script, as a 0600 file in a
+    // 0700 folder, run by bash, and the folder gone afterwards.
+    expect(ran[0].file).toMatch(/(^|\/)bash$/);
+    expect(ran[0].args).toEqual([join(ran[0].dir, "install.sh")]);
+    expect(ran[0].opts.shell).toBe(false);
+    expect(ran[0].script).toBe(SCRIPT);
+    if (process.platform !== "win32") {
+      expect(ran[0].fileMode).toBe(0o600);
+      expect(ran[0].dirMode).toBe(0o700);
+    }
+    expect(existsSync(ran[0].dir)).toBe(false);
+    expect(leftovers()).toEqual([]);
+    for (const spy of said) expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("asks curl when fetch gets an answer that is not ok, a proxy's 407 or a 503", async () => {
+    for (const status of [407, 503]) {
+      const fetchImpl = fetchOf("Proxy Authentication Required", { status });
+      const { spawnImpl, fetched, ran } = curlOf({ saves: SCRIPT });
+      const i = installer({ fetchImpl, spawnImpl });
+      i.start();
+      await i.settled();
+      expect(i.status()).toMatchObject({ state: "done" });
+      expect(fetched).toHaveLength(1);
+      expect(ran).toHaveLength(1);
+      expect(ran[0].script).toBe(SCRIPT);
+      expect(leftovers()).toEqual([]);
+    }
+  });
+
+  it("fails as a download when curl fails too, cannot start, or outlives the deadline, and runs nothing", async () => {
+    for (const fake of [
+      { saves: null, code: 22 }, // an HTTP error, as -f reports it
+      { saves: null, code: 60 }, // a certificate it could not verify either
+      { fail: true },
+      { saves: null, code: null }, // hangs: stopped at the deadline
+    ]) {
+      const { spawnImpl, fetched, ran } = curlOf(fake);
+      const i = installer({ fetchImpl: tlsFailure(), spawnImpl, downloadTimeoutMs: 30 });
+      i.start();
+      await i.settled();
+      expect(i.status()).toMatchObject({ state: "failed", reason: "download-failed" });
+      expect(fetched).toHaveLength(1);
+      expect(ran).toEqual([]);
+      expect(leftovers()).toEqual([]);
+    }
+  });
+
+  it("holds what curl saved to the fetch's rules: a web page, nothing, or too much is not a script", async () => {
+    for (const saves of [
+      "<!DOCTYPE html><html><body>Access denied by your proxy</body></html>",
+      "\n  <HTML><body>sign in</body></HTML>",
+      "",
+      null, // exited 0 and saved no file at all
+      new Uint8Array(INSTALL_SCRIPT_MAX + 1).fill(0x23),
+    ]) {
+      const { spawnImpl, fetched, ran } = curlOf({ saves });
+      const i = installer({ fetchImpl: tlsFailure(), spawnImpl });
+      i.start();
+      await i.settled();
+      expect(i.status()).toMatchObject({ state: "failed", reason: "download-failed" });
+      expect(fetched).toHaveLength(1);
+      expect(ran).toEqual([]);
+      expect(leftovers()).toEqual([]);
+    }
+  });
+
+  it("never asks curl when fetch brings the script", async () => {
+    const { spawnImpl, fetched, ran } = curlOf();
+    const i = installer({ fetchImpl: fetchOf(), spawnImpl });
+    i.start();
+    await i.settled();
+    expect(i.status()).toMatchObject({ state: "done" });
+    expect(fetched).toEqual([]);
+    expect(ran).toHaveLength(1);
+  });
+
+  it("fails as a download on a machine with no curl, and spawns nothing", async () => {
+    for (const platform of ["linux", "darwin", "win32"]) {
+      const { spawnImpl } = curlOf();
+      const env = { PATH: "/usr/local/bin:/opt/bin", Path: "C:\\tools" };
+      const i = installer({ platform, env, fetchImpl: tlsFailure(), spawnImpl, exists: noCurl });
+      i.start();
+      await i.settled();
+      expect(i.status()).toMatchObject({ state: "failed", reason: "download-failed" });
+      expect(spawnImpl).not.toHaveBeenCalled();
+      expect(leftovers()).toEqual([]);
+    }
+  });
+});
+
+describe("the downloader's argument vector", () => {
+  const SH = "https://claude.ai/install.sh";
+  const PS1 = "https://claude.ai/install.ps1";
+  const argsFor = (file: string, url: string) => [
+    "-fsSL", "--proto", "=https", "--proto-redir", "=https",
+    "--max-time", String(DOWNLOAD_TIMEOUT_MS / 1000), "--max-filesize", String(INSTALL_SCRIPT_MAX),
+    "-o", file, url,
+  ];
+  /** curl itself, its arguments a vector: no shell, nothing a shell would read. */
+  const noShell = (argv: { file: string; args: string[] }) => {
+    expect(argv.file).toMatch(CURL);
+    expect(argv.args.join(" ")).not.toMatch(/\||&&|;|\bbash\b|\bsh -c\b|cmd\.exe|powershell/i);
+  };
+
+  it("is /usr/bin/curl on macOS and Linux, https only, under the deadline and the cap", () => {
+    for (const platform of ["linux", "darwin"]) {
+      const exists = (p: string) => p === "/usr/bin/curl" || p === "/opt/bin/curl";
+      const argv = downloaderArgv(platform, SH, "/t/download.part", { env: { PATH: "/opt/bin" }, exists });
+      expect(argv).toEqual({ file: "/usr/bin/curl", args: argsFor("/t/download.part", SH) });
+      noShell(argv);
+    }
+  });
+
+  it("asks PATH on macOS and Linux only when /usr/bin has none, and is null when nothing has one", () => {
+    const argv = downloaderArgv("linux", SH, "/t/download.part", { env: { PATH: "/opt/bin:/usr/local/bin" }, exists: (p: string) => p === "/usr/local/bin/curl" });
+    expect(argv).toEqual({ file: "/usr/local/bin/curl", args: argsFor("/t/download.part", SH) });
+    noShell(argv);
+    expect(downloaderArgv("linux", SH, "/t/download.part", { env: { PATH: "/opt/bin" }, exists: () => false })).toBeNull();
+    expect(downloaderArgv("darwin", SH, "/t/download.part", { env: {}, exists: () => false })).toBeNull();
+  });
+
+  it("is System32's curl.exe on Windows, by its full path, and never one from PATH", () => {
+    const file = "C:\\Users\\alice\\AppData\\Local\\Temp\\x\\download.part";
+    const onD = downloaderArgv("win32", PS1, file, { env: { SystemRoot: "D:\\Win" }, exists: (p: string) => p === "D:\\Win\\System32\\curl.exe" });
+    expect(onD).toEqual({ file: "D:\\Win\\System32\\curl.exe", args: argsFor(file, PS1) });
+    noShell(onD);
+    const plain = downloaderArgv("win32", PS1, file, { env: {}, exists: (p: string) => p === "C:\\Windows\\System32\\curl.exe" });
+    expect(plain).toEqual({ file: "C:\\Windows\\System32\\curl.exe", args: argsFor(file, PS1) });
+    // A Windows older than 1803 has none in System32; the one on PATH is not taken.
+    expect(downloaderArgv("win32", PS1, file, { env: { Path: "C:\\tools" }, exists: (p: string) => p === "C:\\tools\\curl.exe" })).toBeNull();
+  });
+
+  it("gives curl the deadline the deck gives the download, in whole seconds", () => {
+    const maxTime = (timeoutMs: number) => {
+      const { args } = downloaderArgv("linux", SH, "/t/f", { exists: () => true, timeoutMs });
+      return args[args.indexOf("--max-time") + 1];
+    };
+    expect(maxTime(30)).toBe("1");
+    expect(maxTime(90_500)).toBe("91");
   });
 });
 
