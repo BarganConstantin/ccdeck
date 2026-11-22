@@ -16,7 +16,11 @@
 // DOWNLOADED, THEN RUN AS A FILE. https only, under a deadline and a size cap,
 // into a 0600 file inside a fresh 0700 folder of its own, run as an argument
 // vector and never through a shell string, and the folder removed afterwards
-// whatever happened.
+// whatever happened. Node's fetch goes first; when it cannot reach the script
+// at all (an error, or an answer that is not ok), the system's curl tries once,
+// into that same folder and under the same rules, because fetch ignores
+// HTTPS_PROXY and the system's certificate store: behind a company proxy or TLS
+// inspection it fails where the manual command's curl gets through.
 //
 // NOTHING OF IT IS LOGGED. Neither the script nor what it prints. The last few
 // lines of its output are kept in memory for one reason, a failure's, and are
@@ -38,7 +42,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync, promises as fs } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, win32 as winPath } from "node:path";
-import { adminClaudeBin } from "./claude-identity.mjs";
+import { deckFindsClaude } from "./claude-identity.mjs";
 import { killTree, watchChild } from "./exec-children.mjs";
 import { pathLookup } from "./exec-spec.mjs";
 import { readBody, send } from "./http-io.mjs";
@@ -78,6 +82,9 @@ export function claudeInstallBlocked(env = process.env) {
   return env.AGENTS_DECK_NO_INSTALL === "1" || env.AGENTS_DECK_NO_DOWNLOAD === "1" ? "download-disabled" : null;
 }
 
+/** Windows' own folder, the one System32 is in. */
+const systemRoot = (env) => env.SystemRoot || env.SYSTEMROOT || env.systemroot || "C:\\Windows";
+
 /**
  * The program and its arguments for the downloaded `file`: bash on macOS and
  * Linux, Windows PowerShell from System32 on Windows (by its full path, so
@@ -85,25 +92,50 @@ export function claudeInstallBlocked(env = process.env) {
  */
 export function installerArgv(platform, file, { env = process.env, exists = existsSync } = {}) {
   if (platform === "win32") {
-    const root = env.SystemRoot || env.SYSTEMROOT || env.systemroot || "C:\\Windows";
-    const ps = winPath.join(root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+    const ps = winPath.join(systemRoot(env), "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
     return { file: ps, args: ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", file] };
   }
   return { file: exists("/bin/bash") ? "/bin/bash" : "bash", args: [file] };
 }
 
 /**
- * Whether the deck's own resolver finds `claude` now: the path the sign-in
- * and the quota read run (adminClaudeBin, over claude-dir.mjs's list), there
- * on disk, or a bare name PATH holds.
+ * The system's curl and its arguments for saving `url` to `file`, or null when
+ * the machine has none: /usr/bin/curl on macOS and Linux, else the curl PATH
+ * holds; on Windows the curl.exe System32 has carried since Windows 10 1803
+ * (it reads the Windows certificate store), by its full path as PowerShell is
+ * taken above, and never one from PATH. https only, redirects included, under
+ * the download's deadline and the script's cap.
  */
-export function deckFindsClaude({
-  platform = process.platform, env = process.env, home = homedir(), exists = existsSync,
+export function downloaderArgv(platform, url, file, {
+  env = process.env, exists = existsSync, timeoutMs = DOWNLOAD_TIMEOUT_MS,
 } = {}) {
-  const bin = adminClaudeBin(platform, env, home, exists);
-  if (/[\\/]/.test(bin)) return Boolean(exists(bin));
-  return pathLookup(bin, platform, { pathEnv: env.PATH ?? env.Path ?? env.path ?? "", exists }) !== null;
+  let program;
+  if (platform === "win32") {
+    const exe = winPath.join(systemRoot(env), "System32", "curl.exe");
+    program = exists(exe) ? exe : null;
+  } else {
+    program = exists("/usr/bin/curl")
+      ? "/usr/bin/curl"
+      : pathLookup("curl", platform, { pathEnv: env.PATH ?? env.Path ?? env.path ?? "", exists });
+  }
+  if (!program) return null;
+  const seconds = String(Math.max(1, Math.ceil(timeoutMs / 1000)));
+  return {
+    file: program,
+    args: [
+      "-fsSL", "--proto", "=https", "--proto-redir", "=https",
+      "--max-time", seconds, "--max-filesize", String(INSTALL_SCRIPT_MAX),
+      "-o", file, url,
+    ],
+  };
 }
+
+/**
+ * Whether the deck's own resolver finds `claude` now. It lives beside that
+ * resolver in claude-identity.mjs, which the sign-in asks too, and is
+ * re-exported here, where the install and its tests reach for it.
+ */
+export { deckFindsClaude };
 
 const ESCAPES = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-Z\\-_]/g;
 const CONTROLS = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
@@ -141,16 +173,33 @@ class InstallFailure extends Error {
 }
 
 /** The script's text, under the deadline and the cap, from an https address
- *  that stayed https. */
-async function download(url, { fetchImpl, timeoutMs }) {
+ *  that stayed https: fetched, or, when fetch cannot reach it at all, saved
+ *  into the job's folder `dir` by the system's curl. Either way it must then
+ *  look like a script. */
+async function download(url, { fetchImpl, spawnImpl, platform, env, exists, dir, timeoutMs }) {
   if (new URL(url).protocol !== "https:") throw new InstallFailure("download-failed");
+  const body = (await viaFetch(url, { fetchImpl, timeoutMs }))
+    ?? (await viaCurl(url, { spawnImpl, platform, env, exists, dir, timeoutMs }));
+  // An empty answer, or a web page where the script should be (a sign-in or
+  // a challenge in front of it), is not a script to run.
+  const head = body.subarray(0, 512).toString("utf8").trimStart().toLowerCase();
+  if (body.byteLength === 0 || body.byteLength > INSTALL_SCRIPT_MAX
+    || head.startsWith("<!doctype") || head.startsWith("<html")) throw new InstallFailure("download-failed");
+  return body;
+}
+
+/** Fetch's answer, or null when it could not reach the script at all (an
+ *  error on the way, its deadline, or an answer that is not ok), which is
+ *  what curl is then asked to try. An answer that came but broke a rule fails
+ *  here and now. */
+async function viaFetch(url, { fetchImpl, timeoutMs }) {
   let res;
   try {
     res = await fetchImpl(url, { redirect: "follow", signal: AbortSignal.timeout(timeoutMs) });
   } catch {
-    throw new InstallFailure("download-failed");
+    return null;
   }
-  if (!res?.ok) throw new InstallFailure("download-failed");
+  if (!res?.ok) return null;
   // A redirect may not leave https.
   if (res.url && new URL(res.url).protocol !== "https:") throw new InstallFailure("download-failed");
   const declared = Number(res.headers?.get?.("content-length"));
@@ -178,14 +227,49 @@ async function download(url, { fetchImpl, timeoutMs }) {
     }
   } catch (err) {
     if (err instanceof InstallFailure) throw err;
+    return null; // the connection broke, or the deadline came, mid-answer
+  }
+  return Buffer.concat(chunks);
+}
+
+/** What the system's curl saved, or a download failure when there is no curl,
+ *  it cannot start, it fails, or it outlives the deadline (it is then
+ *  stopped). Nothing it prints is read: its output goes nowhere. */
+async function viaCurl(url, { spawnImpl, platform, env, exists, dir, timeoutMs }) {
+  const part = join(dir, "download.part");
+  const argv = downloaderArgv(platform, url, part, { env, exists, timeoutMs });
+  if (!argv) throw new InstallFailure("download-failed");
+  const saved = await new Promise((resolve) => {
+    let child;
+    try {
+      child = spawnImpl(argv.file, argv.args, { cwd: dir, env, shell: false, windowsHide: true, stdio: "ignore" });
+    } catch {
+      resolve(false);
+      return;
+    }
+    watchChild(child);
+    let timedOut = false;
+    let settled = false;
+    const timer = setTimeout(() => { timedOut = true; killTree(child, "SIGKILL"); }, timeoutMs);
+    timer.unref?.();
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(ok && !timedOut);
+    };
+    child.on("error", () => finish(false));
+    child.on("close", (code) => finish(code === 0));
+  });
+  if (!saved) throw new InstallFailure("download-failed");
+  try {
+    // Read only what can be a script; a file past the cap is not opened.
+    if ((await fs.stat(part)).size > INSTALL_SCRIPT_MAX) throw new InstallFailure("download-failed");
+    return await fs.readFile(part);
+  } catch {
+    // Nothing saved at all, or nothing readable.
     throw new InstallFailure("download-failed");
   }
-  const body = Buffer.concat(chunks);
-  // An empty answer, or a web page where the script should be (a sign-in or
-  // a challenge in front of it), is not a script to run.
-  const head = body.subarray(0, 512).toString("utf8").trimStart().toLowerCase();
-  if (size === 0 || head.startsWith("<!doctype") || head.startsWith("<html")) throw new InstallFailure("download-failed");
-  return body;
 }
 
 /** Runs the installer to its end, its deadline, or a failure to start. */
@@ -248,7 +332,9 @@ export function createClaudeInstaller({
       dir = await fs.mkdtemp(join(tmp(), "ccdeck-claude-install-"));
       if (platform !== "win32") await fs.chmod(dir, 0o700);
       const url = platform === "win32" ? INSTALL_SCRIPTS.win32 : INSTALL_SCRIPTS.posix;
-      const script = await download(url, { fetchImpl, timeoutMs: downloadTimeoutMs });
+      const script = await download(url, {
+        fetchImpl, spawnImpl, platform, env, exists, dir, timeoutMs: downloadTimeoutMs,
+      });
       const file = join(dir, platform === "win32" ? "install.ps1" : "install.sh");
       await fs.writeFile(file, script, { mode: 0o600, flag: "wx" });
       const out = await runInstaller({

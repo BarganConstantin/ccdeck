@@ -155,8 +155,8 @@ describe("the register of conditionally-skipped cases", () => {
     expect(expectedSkips("darwin")).toEqual(expected);
   });
 
-  it("expects the two hundred and thirty-eight platform-gated cases to skip on Windows, file by file", () => {
-    // One hundred and ten behind `process.platform === "win32"`, twenty-nine behind
+  it("expects the two hundred and forty-one platform-gated cases to skip on Windows, file by file", () => {
+    // One hundred and twelve behind `process.platform === "win32"`, twenty-nine behind
     // development's Codex probes (the same gate written with single quotes),
     // eighty-six behind the optional engine's macOS-and-Linux gate, eight
     // behind the posix runIf family, three behind the non-root posix
@@ -169,7 +169,7 @@ describe("the register of conditionally-skipped cases", () => {
     // than as a total, so a change that moves a case from one gate to another is
     // a mismatch rather than an arithmetic coincidence.
     expect(expectedSkips("win32")).toEqual({
-      total: 239,
+      total: 241,
       byFile: {
         "append-deadline.test.ts": 1,
         "backup-root-shared.test.ts": 1,
@@ -198,6 +198,7 @@ describe("the register of conditionally-skipped cases", () => {
         "hangup-shuts-down.test.ts": 5,
         "hook-command-node-fallback.test.ts": 3,
         "integrations-store-quarantine.test.ts": 2,
+        "login-shell-path.test.ts": 2,
         "no-shell-hook-commands.test.ts": 2,
         "prefs-corrupt-1002.test.ts": 2,
         "pro-engine-client.test.ts": 21,
@@ -433,7 +434,7 @@ describe("the workflow the register is enforced from", () => {
     const win32Sites = gates()
       .filter((g) => g.condition === 'process.platform === "win32"')
       .reduce((n, g) => n + g.sites, 0);
-    expect(win32Sites).toBe(44);
+    expect(win32Sites).toBe(45);
 
     const stated = publishYml().match(/the (\d+) sites gated `skipIf\(process\.platform === "win32"\)`/);
     expect(stated, "publish.yml no longer states the win32 gate count in the form this reads").not.toBeNull();
