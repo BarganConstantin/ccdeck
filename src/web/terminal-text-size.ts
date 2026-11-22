@@ -29,6 +29,7 @@
 import { useSyncExternalStore } from "react";
 import { readStored, writeStored } from "./storage";
 import { isApplePlatform, platformName } from "./platform";
+import { noteFeature } from "./feature-use";
 
 export const TERM_TEXT_SIZE_KEY = "agent-dag.term-text-size";
 
@@ -106,8 +107,10 @@ export function setTerminalTextStep(step: number): void {
   for (const l of [...listeners]) l();
 }
 
-/** One press of −, + or reset, from the header or the keyboard. */
+/** One press of −, + or reset, from the header or the keyboard: a feature the
+ *  usage reports name (feature-use.ts), the press and never the size. */
 export function stepTerminalText(direction: TextStepDirection): void {
+  noteFeature("terminal-text-size");
   setTerminalTextStep(nextTextStep(terminalTextStep(), direction));
 }
 

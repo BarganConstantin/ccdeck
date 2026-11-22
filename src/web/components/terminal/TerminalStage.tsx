@@ -73,6 +73,7 @@ import { chatSessionFor, useSessionTranscript } from "../../use-session-transcri
 import { isEventOnly } from "../../../server/provider-ids.mjs";
 import { askSteps } from "../../ask-keys";
 import { stopSteps } from "../../chat-stop";
+import { noteFeature, useFeatureUse } from "../../feature-use";
 import type { ChatAsk, ChatTurn } from "../chat/chat-model";
 import { usePromptDecision } from "../../use-prompt-decision";
 import { DialogPresence } from "../Dialog";
@@ -397,6 +398,10 @@ export default function TerminalStage(p: TerminalStageProps) {
   const chatDraftKey = `${chatProvider}:${chatSession}`;
   const [view, setView] = useState<"chat" | "term">("term");
   const chatOn = chatSession !== null && view === "chat";
+  // A session's terminal pane shown, and its Chat view: features the usage
+  // reports name (feature-use.ts). An empty Workspace pane is neither.
+  useFeatureUse("terminal-pane", p.show.kind !== "empty");
+  useFeatureUse("chat", chatOn);
   // Drafts belong to session IDs, so switching panes or Chat/Term cannot
   // send one session's draft to another. They stay in this stage's memory.
   const [chatDrafts, setChatDrafts] = useState<Record<string, string>>({});
@@ -594,7 +599,10 @@ export default function TerminalStage(p: TerminalStageProps) {
       const steps = askSteps(questions, picks);
       if (!steps) return "unavailable";
       const result = await session.sendAsk(steps, key);
-      if (result === "sent" || result === "partial") setChatSent(sent => sent + 1);
+      if (result === "sent" || result === "partial") {
+        setChatSent(sent => sent + 1);
+        noteFeature("chat-answer");
+      }
       return result;
     },
   };
@@ -608,7 +616,7 @@ export default function TerminalStage(p: TerminalStageProps) {
     subject: key,
     readScreen: session.readScreen,
     sendAsk: session.sendAsk,
-    onSent: () => setChatSent(sent => sent + 1),
+    onSent: () => { setChatSent(sent => sent + 1); noteFeature("chat-decision"); },
     onShowTerm: () => showView("term"),
   });
 
@@ -739,7 +747,10 @@ export default function TerminalStage(p: TerminalStageProps) {
     onSend={text => {
       if (chatUnavailable) return "unavailable";
       const result = session.sendPrompt(text, key);
-      if (result === "sent") setChatSent(sent => sent + 1);
+      if (result === "sent") {
+        setChatSent(sent => sent + 1);
+        noteFeature("chat-reply");
+      }
       return result;
     }}
     // Stop is Claude Code's Esc, offered while the board says it works and
@@ -747,7 +758,10 @@ export default function TerminalStage(p: TerminalStageProps) {
     canStop={chatProvider === "claude" && chatCannotSend === undefined && board?.state === "working"}
     onStop={async () => {
       const result = await session.sendAsk(stopSteps(), key);
-      if (result === "sent" || result === "partial") setChatSent(sent => sent + 1);
+      if (result === "sent" || result === "partial") {
+        setChatSent(sent => sent + 1);
+        noteFeature("chat-stop");
+      }
       return result;
     }}
   /> : undefined;

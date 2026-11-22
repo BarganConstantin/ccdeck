@@ -22,6 +22,7 @@ import { useT } from "../i18n";
 import { isApplePlatform, platformName } from "../platform";
 import { SearchGlyph } from "./rail-glyphs";
 import { KitStateGlyph } from "./kit-icons";
+import { useFeatureUse } from "../feature-use";
 
 /** The groups that hold more than one kind of row, where the kind tag is
  *  drawn. Not the pinned row (Settings): its title and its chord say what it
@@ -49,6 +50,9 @@ export default function QuickOpen({ items, onClose, onRun }: {
   /** A row was chosen: the caller shuts the field and runs it in one go. */
   onRun: (item: QuickItem) => void;
 }) {
+  // Opened: one of the features the usage reports name (feature-use.ts). Only
+  // mounted while the field is up, as a dialog is.
+  useFeatureUse("quick-open");
   const t = useT();
   const [query, setQuery] = useState("");
   const [recent] = useState(readRecent);

@@ -197,7 +197,11 @@ describe("Tour", () => {
     expect(guide).toContain("if (finish) finish.act(); else onClose();");
     expect(guide).toContain("useModalDismiss(onClose,");
     // One flag: the welcome hook stores tourSeen when the tour closes, whichever way.
-    expect(src("../components/DeckDialogs.tsx")).toContain("onClose={closeTour}");
+    // Done (the tour's `finish`) and every other close each end in closeTour; they
+    // differ only in the feature name the usage reports get (feature-use.ts).
+    const dialogs = src("../components/DeckDialogs.tsx");
+    expect(dialogs).toContain('act: () => { noteFeature("tour-done"); closeTour(); }');
+    expect(dialogs).toContain('onClose={() => { noteFeature("tour-skipped"); closeTour(); }}');
   });
 });
 

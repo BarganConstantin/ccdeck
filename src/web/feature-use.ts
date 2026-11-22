@@ -1,6 +1,8 @@
-// Telling the deck which of its panels and dialogs this page showed today, for
-// the usage reports' `features` (src/server/feature-use.mjs). A name and nothing
-// else: never which account, which session or what was typed.
+// Telling the deck which of its panels and dialogs this page showed today, and
+// the few things done here that never pass a route of the deck's (an answer
+// sent from Chat goes into the session's terminal), for the usage reports'
+// `features` (src/server/feature-use.mjs). A name and nothing else: never which
+// account, which session or what was typed.
 //
 // Once per name per UTC day per tab, as a beacon: fire and forget, never
 // awaited, and never mixed into the fetches a panel makes for its own work. A
@@ -15,7 +17,11 @@ export type PageFeature =
   | "usage-panel" | "machine-panel" | "detail-panel" | "accounts-panel"
   | "tool-detail" | "session-summary" | "context-window" | "usage-history" | "browser-watch"
   | "feedback" | "keyboard-help" | "share-accounts" | "account-projects" | "add-account"
-  | "process-list" | "lan-setup" | "claude-fm" | "skill-activity" | "jira" | "github" | "gitlab";
+  | "process-list" | "lan-setup" | "claude-fm" | "skill-activity" | "jira" | "github" | "gitlab"
+  | "quick-open" | "workspace" | "workspace-split" | "terminal-pane" | "chat" | "codex-accounts-panel"
+  // What somebody did here that reaches the session through its terminal, not
+  // through a route the server could count: still a name and nothing else.
+  | "chat-reply" | "chat-answer" | "chat-decision" | "chat-stop" | "terminal-text-size" | "tour-done" | "tour-skipped";
 
 const said = new Set<string>();
 let saidDay = "";

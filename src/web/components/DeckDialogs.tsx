@@ -40,6 +40,7 @@ import { DialogPresence } from "./Dialog";
 import FeedbackDialog from "./FeedbackDialog";
 import GuideModal from "./GuideModal";
 import { WELCOME_STEPS } from "./guide-art";
+import { noteFeature } from "../feature-use";
 import KeyboardHelp from "./KeyboardHelp";
 import { lazyDialog } from "./LazyDialog";
 import { usePairRequestDialog } from "./LanPairRequestModal";
@@ -271,8 +272,13 @@ export default function DeckDialogs({
           workspace={offersWorkspace(terminal)}
         />
       )}</DialogPresence>
+      {/* How the tour ended is a feature the usage reports name (feature-use.ts):
+          Done on its last step, or closed before it (Skip, ×, Esc, a click
+          outside). Either way it closes through closeTour, which stores it seen. */}
       <DialogPresence when={tourOpen}>{() => (
-        <GuideModal title={t("shell.guide.welcome.title")} steps={WELCOME_STEPS} onClose={closeTour} />
+        <GuideModal title={t("shell.guide.welcome.title")} steps={WELCOME_STEPS}
+          finish={{ label: t("shell.done"), act: () => { noteFeature("tour-done"); closeTour(); } }}
+          onClose={() => { noteFeature("tour-skipped"); closeTour(); }} />
       )}</DialogPresence>
       {/* Last, so it sits above a session summary that pops in from a Stop
           hook while the user is still deciding. The gate keeps it from opening

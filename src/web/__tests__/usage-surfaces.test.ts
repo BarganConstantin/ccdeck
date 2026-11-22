@@ -140,6 +140,14 @@ describe("a terminal client saying what it is", () => {
     expect(t.today()).toEqual(["tui"]);
   });
 
+  it("counts `ccdeck tui`'s Network tab as the tab and the screen, with the token only", () => {
+    const t = tally();
+    noteClientFeature({ "x-ccdeck-client": "tui-network" }, false, t.usage);
+    expect(t.today()).toEqual([]);
+    noteClientFeature({ "x-ccdeck-client": "tui-network" }, true, t.usage);
+    expect(t.today()).toEqual(["tui", "tui-network"]);
+  });
+
   it("ignores the header without the token, and any value but tui", () => {
     const t = tally();
     noteClientFeature({ "x-ccdeck-client": "tui" }, false, t.usage);
@@ -192,5 +200,12 @@ describe("what a terminal command sends", () => {
     const r = await deckSource(null).ask(deck(), { path: "/api/sessions", timeoutMs: 3_000 });
     expect(r.ok).toBe(true);
     expect(seen[0]["x-ccdeck-client"]).toBe("tui");
+  });
+
+  it("is `tui-network` when the screen reads from its Network tab, and `tui` for any other value it is handed", async () => {
+    seen.length = 0;
+    await deckSource(null).ask(deck(), { path: "/api/lan", client: "tui-network", timeoutMs: 3_000 });
+    await deckSource(null).ask(deck(), { path: "/api/lan", client: "usage-history", timeoutMs: 3_000 });
+    expect(seen.map(h => h["x-ccdeck-client"])).toEqual(["tui-network", "tui"]);
   });
 });
