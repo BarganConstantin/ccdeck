@@ -37,6 +37,8 @@ import { injectedPrompt } from "./injected-prompt";
 import { stopNoteSource, stopNoteText } from "./stop-failure-copy";
 import type { AgentNodeData, AgentPlan, BackgroundJob, PromptEntry } from "./types";
 import type { StopFacts } from "../server/stop-failure.mjs";
+import { isEventOnly, type EventOnlyProvider } from "../server/provider-ids.mjs";
+import { providerLabel } from "./provider-copy";
 
 /** What a note can be saying. `recap` is Claude Code's recap; `now` a running
  *  turn; `last` the last thing a finished interactive turn did; `needs`, `done`
@@ -64,6 +66,9 @@ export interface SessionNote {
    *  session keeps its prompt as the note for the whole turn, and its tooltip
    *  cannot say the model has not answered. */
   codex?: true;
+  /** The same, on an opencode or Copilot session, whose replies the deck does
+   *  not read at all: the CLI, so the tooltip can name it. */
+  eventsOnly?: EventOnlyProvider;
   /** The note's identity for putting it away (recap-note.ts). A recap is its
    *  own sentence, so it keys by when it was written, as it always has. Any
    *  other note keys by the TURN and what kind of thing it says: a "now" line
@@ -72,7 +77,7 @@ export interface SessionNote {
   key: string;
 }
 
-type NoteLine = Pick<SessionNote, "kind" | "text" | "reply" | "at" | "source" | "codex">;
+type NoteLine = Pick<SessionNote, "kind" | "text" | "reply" | "at" | "source" | "codex" | "eventsOnly">;
 
 /** The word in front of the note. Words and not a colour alone: the session
  *  list's row is a button whose name is its contents, so this is heard where it
@@ -178,6 +183,7 @@ function statusNote(a: NoteBearing): SessionNote | null {
     if (text) {
       const line: NoteLine = { kind: "now", text, at: prompt.at, source: "prompt" };
       if (a.provider === "codex") line.codex = true;
+      else if (isEventOnly(a.provider)) line.eventsOnly = a.provider;
       return keyed(line);
     }
   }
@@ -246,7 +252,9 @@ export function noteSource(note: SessionNote): string {
     case "recap": return t("insights.note.src.recap");
     case "job": return t("insights.note.src.job");
     case "stop": return stopNoteSource(note.stop);
-    case "prompt": return note.codex ? t("insights.note.src.promptCodex") : t("insights.note.src.prompt");
+    case "prompt": return note.codex ? t("insights.note.src.promptCodex")
+      : note.eventsOnly ? t("insights.note.src.promptEventsOnly", { agent: providerLabel(note.eventsOnly) })
+      : t("insights.note.src.prompt");
     default: return note.kind === "last" ? t("insights.note.src.last") : t("insights.note.src.reply");
   }
 }

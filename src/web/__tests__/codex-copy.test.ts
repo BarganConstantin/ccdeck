@@ -311,7 +311,11 @@ describe("the provider a node carries", () => {
     // "Codex" is no longer a fallback but the provider's own mark, on every
     // Codex card with or without a model, from the name the usage panels print
     // (provider-copy.ts agentLabel). The Inspector's chip shows the model.
-    expect(nodeCode).toContain('data.provider === "codex" && <span className="provider-word">{agentLabel("codex")}</span>');
+    // CHANGED ON PURPOSE (opencode and Copilot): the word is every non-Claude
+    // CLI's now, so an OpenCode or GitHub Copilot card says which it is rather
+    // than passing for a Claude one; a Codex card still says "Codex"
+    // (providerLabel is agentLabel with Claude for a missing provider).
+    expect(nodeCode).toContain('data.provider && data.provider !== "claude" && <span className="provider-word">{providerLabel(data.provider)}</span>');
     expect(nodeCode).not.toContain("model-text");
     expect(readme).toContain("The card names a Codex session, and the Inspector shows each session's model");
     expect(readme).not.toContain("The model chip (`Opus 5`, `GPT-5.5`) tells them apart.");

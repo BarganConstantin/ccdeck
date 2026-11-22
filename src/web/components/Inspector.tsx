@@ -21,6 +21,7 @@ import { INSPECTOR_REGION_ID } from "../inspector-corner";
 import { modelChipText } from "../model-label";
 import { tabStripMove } from "../tablist-keys";
 import { contextFigure, contextFill } from "../context-figure";
+import { isEventOnly } from "../../server/provider-ids.mjs";
 import type { AgentNodeData } from "../types";
 import { AgentCard } from "./AgentNode";
 import { ContextView } from "./ContextModal";
@@ -296,7 +297,9 @@ function ContextTab({ agent }: { agent: AgentNodeData }) {
       <InspectorHead
         title={tr("board.stage.contextWindow")}
         qualifier={agent.model ? modelChipText(agent.model) : null}
-        figure={contextFigure(used, limit)}
+        // No figure for opencode or Copilot: the deck has neither number, and
+        // "0 / 200k · 0%" would be Claude's window over a session it never read.
+        figure={isEventOnly(agent.provider) ? null : contextFigure(used, limit)}
       />
       {/* Figma's treemap and its legend need a token count per category (tool
           results, files read, system prompt…), which the deck does not have: it

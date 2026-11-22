@@ -240,6 +240,11 @@ export const GATES = [
   // argv. Windows keeps the direct command and has no /bin/sh to run it with;
   // its quoting is executed through cmd.exe by no-shell-hook-commands.
   { file: "hook-command-node-fallback.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 3 },
+  // The Copilot CLI hooks file's POSIX entry, run through the real /bin/sh it
+  // names: hostile paths stay data, and a missing hook.js or node ends with 0
+  // rather than denying the tool call. Windows entries start node directly,
+  // with no shell, and the same file runs that argv on every leg.
+  { file: "copilot-hooks.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 4 },
   { file: "exec-timeout.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
   { file: "exec-descendants.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 7 },
   { file: "exec-windows.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 3, cases: 3 },

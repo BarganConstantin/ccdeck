@@ -34,6 +34,98 @@ function parseProvider(argv) {
 }
 const PROVIDER = parseProvider(process.argv.slice(2));
 
+// ── GitHub Copilot CLI ───────────────────────────────────────────────────────
+//
+// src/server/copilot-hooks.mjs registers this script under Copilot's PascalCase
+// event names, which make Copilot send Claude-compatible fields. What still
+// differs is put right here, once, before anything else reads the payload.
+// Every observation below is from Copilot CLI 1.0.114.
+
+/** The event the Copilot entry was registered for (`--event <Name>`), when it
+ *  is one of the deck's. SubagentStart's payload names no event at all. */
+const COPILOT_EVENT_NAMES = new Set([
+  "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure",
+  "SubagentStart", "SubagentStop", "Stop", "SessionEnd", "Notification",
+]);
+function parseEvent(argv) {
+  const at = argv.indexOf("--event");
+  const name = at >= 0 ? argv[at + 1] : undefined;
+  return COPILOT_EVENT_NAMES.has(name) ? name : null;
+}
+
+/**
+ * A Copilot payload in the deck's shape, or null when the event is not one the
+ * deck should see. Pure, and exported for the tests.
+ *
+ *  - SubagentStart arrives half camelCase (sessionId, transcriptPath,
+ *    agentName) with no hook_event_name; the camel fields fill the snake ones
+ *    when those are missing, and the name comes from the entry.
+ *  - Inside a subagent Copilot reports the SUBAGENT as the session (session_id
+ *    === agent_id) and its parent as parent_agent_id. The deck keys sessions on
+ *    the root, so the parent becomes session_id. That is the root for a
+ *    subagent the main agent started; for one started by another subagent it
+ *    is that subagent, the nearest id Copilot gives.
+ *  - A subagent's own UserPromptSubmit and Stop are its task starting and
+ *    ending. Passed on they would read as a new turn of the root and the end of
+ *    it; SubagentStart and SubagentStop already say both, so they are dropped.
+ *  - PostToolUse carries the result as tool_result; the deck reads
+ *    tool_response.
+ *  - Notification: Copilot's "permission_prompt" and "elicitation_dialog" (it
+ *    asked a question) are both the session waiting for its human, said in
+ *    Claude Code's words for each: "permission_prompt" stays, a question is
+ *    "agent_needs_input". Its other kinds — a background shell or agent
+ *    finishing — are not a wait and are dropped.
+ */
+function fromCopilot(payload, event) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return payload;
+  const p = { ...payload };
+  const str = v => typeof v === "string" && v !== "";
+  if (!str(p.hook_event_name) && event) p.hook_event_name = event;
+  for (const [snake, camel] of [
+    ["session_id", "sessionId"], ["transcript_path", "transcriptPath"], ["agent_id", "agentId"],
+    ["agent_type", "agentType"], ["parent_agent_id", "parentAgentId"],
+  ]) {
+    if (!str(p[snake]) && str(p[camel])) p[snake] = p[camel];
+  }
+  if (p.hook_event_name === "SubagentStart" && !str(p.agent_type)) {
+    if (str(p.agent_name)) p.agent_type = p.agent_name;
+    else if (str(p.agentName)) p.agent_type = p.agentName;
+  }
+  if (str(p.agent_id)) {
+    if (p.hook_event_name === "UserPromptSubmit" || p.hook_event_name === "Stop") return null;
+    if (str(p.parent_agent_id)) p.session_id = p.parent_agent_id;
+  }
+  if (p.hook_event_name === "PostToolUse" && p.tool_response === undefined && p.tool_result !== undefined) {
+    p.tool_response = p.tool_result;
+    delete p.tool_result;
+  }
+  if (p.hook_event_name === "Notification") {
+    const asked = p.notification_type === "elicitation_dialog";
+    if (!asked && p.notification_type !== "permission_prompt") return null;
+    p.notification_type = asked ? "agent_needs_input" : "permission_prompt";
+    if (!str(p.message)) p.message = asked ? "Copilot has a question for you" : "Copilot needs your permission";
+  }
+  return p;
+}
+
+/**
+ * Whether Copilot CLI started this process as one of its hooks. It sets
+ * COPILOT_HOOK_DEPTH in every hook's environment (seen as "1"), and not in the
+ * commands its tools run, so a Claude Code started from a Copilot shell is not
+ * mistaken for this.
+ *
+ * Why it matters: Copilot also runs the hooks in a repository's
+ * `.claude/settings.json`. It never reads the user's own ~/.claude/settings.json
+ * (its help text says so, and 1.0.114 skipped it even with $HOME a git
+ * repository and the session inside it), but a CLAUDE_CONFIG_DIR inside a
+ * repository makes the deck's Claude entries that repository's — and Copilot
+ * would run the Claude forwarder too, posting the same session a second time
+ * as a Claude one. Copilot's own entries already carry it as `copilot`.
+ */
+function startedByCopilot(env) {
+  return typeof env.COPILOT_HOOK_DEPTH === "string" && env.COPILOT_HOOK_DEPTH.trim() !== "";
+}
+
 /**
  * The one spelling of a directory, so that a path this process reports and a
  * path bin/deck.js published can be compared as strings.
@@ -1090,12 +1182,20 @@ function main() {
   // probe sets this in the environment and hooks inherit it.
   if (process.env.AGENTS_DECK_INTERNAL === "1") process.exit(0);
 
+  // A Claude entry that Copilot CLI is running: its own entries report this
+  // session already. See startedByCopilot.
+  if (PROVIDER === "claude" && startedByCopilot(process.env)) process.exit(0);
+
   let input = "";
   process.stdin.setEncoding("utf8");
   process.stdin.on("data", c => { input += c; });
   process.stdin.on("end", () => {
     let parsed;
     try { parsed = JSON.parse(input); } catch { return process.exit(0); }
+    if (PROVIDER === "copilot") {
+      parsed = fromCopilot(parsed, parseEvent(process.argv.slice(2)));
+      if (!parsed) return process.exit(0);
+    }
     const tooDeepToSerialize = exceedsJsonDepth(input);
     const cwd = parsed && parsed.cwd;
     if (!cwd) return process.exit(0);
@@ -1271,5 +1371,8 @@ function main() {
 // require() it exports the rules it decides by — matching, election, the
 // handshake — and starts nothing, which is what lets them be tested without a
 // 1.5s exit timer in the test runner.
-module.exports = { capturesSession, cwdInWorkspace, foldsCase, normPath, electWriters, challengeProof, requiresProof };
+module.exports = {
+  capturesSession, cwdInWorkspace, foldsCase, normPath, electWriters, challengeProof, requiresProof,
+  fromCopilot, parseEvent, startedByCopilot,
+};
 if (require.main === module) main();

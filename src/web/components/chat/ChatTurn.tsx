@@ -17,6 +17,7 @@ import { t as tNow, useT, type TFunction } from "../../i18n";
 import type { ChatAsk, ChatDiff, ChatQuestion, ChatSince, ChatTodo, ChatTurn as Turn } from "./chat-model";
 import type { Provider } from "../../types";
 import ProviderAvatar from "../ProviderAvatar";
+import { providerLabel } from "../../provider-copy";
 import ChatMarkdown from "./ChatMarkdown";
 import { useEffect, useId, useState } from "react";
 import { answerable, MAX_ASK_TEXT, picksComplete, type AskPick } from "../../ask-keys";
@@ -221,7 +222,9 @@ export type LiveAsk = ChatAsk & { at: number };
 /** Identify each response once. `todoAt` is which of the block's turns is the
  *  conversation's last task list, drawn whole; none when it is elsewhere. */
 export function AssistantBlock({ turns, provider = "claude", ask, todoAt }: { turns: Turn[]; provider?: Provider; ask?: LiveAsk; todoAt?: number }) {
-  const author = provider === "codex" ? "Codex" : "Claude Code";
+  // Never drawn for opencode or Copilot today (Chat reads no transcript of
+  // theirs), and named by provider-copy.ts so it never says Claude Code if it is.
+  const author = providerLabel(provider);
   const t = useT();
   const [copied, setCopied] = useState(false);
   const answer = turns.filter((turn): turn is Extract<Turn, { kind: "assistant" }> => turn.kind === "assistant").map(turn => turn.text).join("\n\n");

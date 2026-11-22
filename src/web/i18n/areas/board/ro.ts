@@ -1072,6 +1072,8 @@ const catalog: Catalog = {
   "board.inspector.subagents.one": "{count} subagent",
   "board.inspector.subagents.few": "{count} subagenți",
   "board.inspector.subagents.other": "{count} de subagenți",
+  "board.chat.noTranscript": "ccdeck nu citește conversațiile {agent}, așa că aici nu există un chat de afișat. Prompturile și apelurile de instrumente sunt pe tablă.",
+  "board.stage.eventsOnly": "{agent} rulează în propriul terminal, pe care ccdeck nu îl poate deschide aici. Prompturile, apelurile de instrumente și întrebările pentru tine apar pe tablă.",
 };
 
 export default catalog;

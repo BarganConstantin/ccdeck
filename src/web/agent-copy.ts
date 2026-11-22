@@ -18,6 +18,7 @@ import { stopSpoken } from "./stop-failure-copy";
 // The card names its state with the word it shows (cardState).
 import { cardState } from "./node-face";
 import { t, type TFunction } from "./i18n";
+import { providerLabel } from "./provider-copy";
 
 /** A Codex child remains its own session, wherever its kind is displayed. */
 export function agentKindLabel(a: Pick<AgentNodeData, "provider" | "parentId" | "kind">, tr: TFunction = t): string {
@@ -72,8 +73,8 @@ export function spawnBadgeTitle(count: number, tr: TFunction = t): string {
  *  gets there: "subagent · shop-api-auth" filled it and cut the model chip
  *  away entirely, with no tooltip to read it back from. A session's folder is
  *  the name on the row above, so the row leaves it out and so does this; a
- *  Codex session with no model yet says Codex, as its chip does, and a Claude
- *  one says nothing about a model it has not reported. */
+ *  Codex, OpenCode or Copilot session with no model yet says its CLI, as its
+ *  card does, and a Claude one says nothing about a model it has not reported. */
 export function subRowTitle(a: AgentNodeData, tr: TFunction = t): string {
   const parts = [agentKindLabel(a, tr)];
   if (a.childCount > 0) parts.push(`→ ${a.childCount}`);
@@ -81,8 +82,8 @@ export function subRowTitle(a: AgentNodeData, tr: TFunction = t): string {
   if (a.model) {
     const others = otherModelIds(a).length;
     parts.push(`${shortModel(a.model)}${others > 0 ? ` +${others}` : ""}`);
-  } else if (a.provider === "codex") {
-    parts.push("Codex");
+  } else if (a.provider && a.provider !== "claude") {
+    parts.push(providerLabel(a.provider));
   }
   return parts.join(" · ");
 }

@@ -373,7 +373,7 @@ export async function runTui(flags, out, deps = {}) {
       // Who follows the switch: every running Claude session, from its next
       // message — the whole effect, and nowhere else on screen (? says when).
       const live = Array.isArray(state.sessions)
-        ? state.sessions.filter(s => s.provider !== "codex" && s.state !== "ended").length
+        ? state.sessions.filter(s => (s.provider ?? "claude") === "claude" && s.state !== "ended").length
         : 0;
       const follows = live > 0
         ? ` ${g.bullet} ${live} Claude session${live === 1 ? " moves" : "s move"} with it`

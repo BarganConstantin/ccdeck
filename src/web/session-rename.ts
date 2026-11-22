@@ -9,6 +9,7 @@
 // keys are named here rather than in a component.
 import type { AgentNodeData } from "./types";
 import { sessionListName } from "./session-display";
+import { isEventOnly } from "../server/provider-ids.mjs";
 
 /** The longest name kept, in characters: the server cuts there too
  *  (session-deck-names.mjs DECK_NAME_MAX). */
@@ -31,9 +32,15 @@ type Renameable = Pick<AgentNodeData,
   "kind" | "sessionId" | "provider" | "deckName" | "providerSessionName" | "sessionName" | "sessionTitle" | "label" | "cwdBasename">;
 
 /** The facts for a session the deck can name: a root with an id. A subagent is
- *  named by its task, and is left alone. */
+ *  named by its task, and is left alone.
+ *
+ *  Claude and Codex only. A save renames the provider's own conversation
+ *  first, which the deck can do for no other CLI, and sent as a Claude
+ *  session's, an opencode or Copilot id would be looked up among Claude's
+ *  files. So those sessions offer no Rename and keep the board's name. */
 export function renameFacts(a: Renameable | null | undefined): RenameFacts | null {
   if (!a || a.kind !== "root" || typeof a.sessionId !== "string" || !a.sessionId) return null;
+  if (isEventOnly(a.provider)) return null;
   const fallback = sessionListName({
     sessionName: a.providerSessionName ?? (a.deckName ? undefined : a.sessionName),
     sessionTitle: a.sessionTitle,

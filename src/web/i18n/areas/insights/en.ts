@@ -715,6 +715,8 @@ const catalog: Catalog = {
   "insights.srv.busy": "Usage reports are already being read. Try again in a moment.",
   "insights.srv.invalidLookup": "Invalid session lookup.",
   "insights.context.cacheReads": "Cache reads",
+  "insights.note.src.promptEventsOnly": "The prompt this turn began with — the deck takes no line from {agent}’s replies",
+  "insights.context.eventsOnly": "ccdeck doesn’t read {agent}’s context window or token use, so there is nothing to show here.",
 };
 
 export default catalog;

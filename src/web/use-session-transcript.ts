@@ -24,6 +24,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChatSource, ChatTurn } from "./components/chat/chat-model";
 import type { Provider } from "./types";
 import { useT } from "./i18n";
+import { isEventOnly } from "../server/provider-ids.mjs";
+import { providerLabel } from "./provider-copy";
 
 /** How often a working session's conversation is asked for again. */
 export const POLL_MS = 5000;
@@ -46,9 +48,13 @@ export const TRANSCRIPT_ROUTE = "/api/session/transcript";
 /** The shape the route accepts for a session id (the server's own test, spelled again). */
 export const TRANSCRIPT_SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 
-/** A supported session ID when Chat is enabled in this pane. */
+/** A supported session ID when Chat is enabled in this pane. An opencode or
+ *  Copilot session has Chat too, which says the deck reads no conversation of
+ *  theirs (useSessionTranscript): its id is never sent, so any id will do. */
 export function chatSessionFor(chatFlag: boolean, ref: { sessionId: string; provider: string } | null): string | null {
-  if (!chatFlag || !ref || (ref.provider !== "claude" && ref.provider !== "codex")) return null;
+  if (!chatFlag || !ref) return null;
+  if (isEventOnly(ref.provider)) return ref.sessionId || null;
+  if (ref.provider !== "claude" && ref.provider !== "codex") return null;
   return TRANSCRIPT_SESSION_ID.test(ref.sessionId) ? ref.sessionId : null;
 }
 
@@ -76,6 +82,9 @@ export async function readTranscript(
   provider: Provider = "claude",
   page: TranscriptPage = {},
 ): Promise<TranscriptRead> {
+  // Never for opencode or Copilot: unnamed, the route would look the id up
+  // as a Claude session's, and a Copilot id is a UUID like Claude's.
+  if (isEventOnly(provider)) return { kind: "unknown" };
   try {
     const query = new URLSearchParams({ session });
     if (provider === "codex") query.set("provider", provider);
@@ -188,7 +197,11 @@ function withRead(held: Held | null, session: string, provider: Provider, read: 
 
 export function useSessionTranscript(input: SessionTranscriptInput, deps: SessionTranscriptDeps = {}): ChatSource {
   const t = useT();
-  const { session, provider = "claude", shown, working, change, ended, heard } = input;
+  const { session: shownSession, provider = "claude", shown, working, change, ended, heard } = input;
+  // opencode and Copilot: the deck reads no transcript of theirs, so nothing
+  // is ever asked for — every ask below waits on `session` — and Chat says so.
+  const absent = shownSession !== null && isEventOnly(provider);
+  const session = absent ? null : shownSession;
   const [held, setHeld] = useState<Held | null>(null);
   const [again, setAgain] = useState(0);
   const [paging, setPaging] = useState<"idle" | "loading" | "failed">("idle");
@@ -335,6 +348,7 @@ export function useSessionTranscript(input: SessionTranscriptInput, deps: Sessio
   }, [fill, commit, life]);
 
   return useMemo<ChatSource>(() => {
+    if (absent) return { state: "absent", message: t("board.chat.noTranscript", { agent: providerLabel(provider) }) };
     if (!held || held.session !== session || held.provider !== provider) return { state: "loading" };
     const read = held.read;
     if (read.kind === "unknown") return { state: "error", message: t(ended ? "board.chat.unavailable" : "board.chat.notYet") };
@@ -346,5 +360,5 @@ export function useSessionTranscript(input: SessionTranscriptInput, deps: Sessio
       return { state: "ready", turns, older: { load: loadOlder, loading: paging === "loading", failed: paging === "failed" }, ...head };
     }
     return { state: "ready", turns: oldest.complete ? turns : [{ kind: "record", text: t("board.chat.earlier") }, ...turns], ...head };
-  }, [held, session, provider, ended, t, onRetry, loadOlder, paging]);
+  }, [absent, held, session, provider, ended, t, onRetry, loadOlder, paging]);
 }

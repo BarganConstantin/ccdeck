@@ -51,3 +51,22 @@ process.env.AGENTS_DECK_NO_CODEX_LIVE = "1";
 // AGENTS_DECK_CLAUDE points at nothing. login-shell-path.test.ts hands its
 // functions an env of its own and a fake shell instead.
 process.env.AGENTS_DECK_NO_LOGIN_SHELL = "1";
+
+// A booted deck writes ccdeck's plugin into opencode's global plugins folder
+// when it finds opencode — on PATH, or under XDG_CONFIG_HOME, both of which a
+// test deck inherits from the developer's own shell. Off here, and the off
+// switch takes an earlier plugin of ours back out, so the folder must be the
+// suite's too: XDG_CONFIG_HOME goes, and opencode's folder follows each deck's
+// temp HOME, as Copilot's does below. The plugin's own suite hands the
+// installer its own env.
+process.env.AGENTS_DECK_NO_OPENCODE = "1";
+delete process.env.XDG_CONFIG_HOME;
+
+// Every deck boot writes GitHub Copilot CLI's hooks file (copilot-hooks.mjs)
+// where Copilot is installed, which depends on the machine running the suite,
+// and a developer's own COPILOT_HOME would point it at their real Copilot
+// config instead of the suite's temp home. Off, and Copilot's home back under
+// HOME, every deck a suite boots does the same on every machine; the hooks
+// file's own suites hand the installer an env of their own.
+delete process.env.COPILOT_HOME;
+process.env.AGENTS_DECK_NO_COPILOT = "1";

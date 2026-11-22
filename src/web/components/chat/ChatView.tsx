@@ -129,6 +129,8 @@ export default function ChatView({ source, provider, decision, ask }: ChatViewPr
       >
         <div className="chat-col">
           {source.state === "loading" && <IntegrationSkeleton label={t("board.chat.loading")} rows={5} variant="lines" />}
+          {/* The empty conversation's own line and look: nothing went wrong. */}
+          {source.state === "absent" && <p className="chat-empty">{source.message}</p>}
           {source.state === "error" && (
             <div className="chat-error" role="alert">
               <span>{source.message}</span>

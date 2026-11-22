@@ -156,7 +156,9 @@ export function stageShowFor(
   }
   const subs = subagentsOf(agents.values(), id);
   const facts = boardFactsFor(root, subs);
-  const provider = root.provider === "codex" ? "codex" : "claude";
+  // The board's provider, opencode and Copilot included: the pane draws their
+  // own card for those and asks the engine nothing (use-terminal-session.ts).
+  const provider = root.provider ?? "claude";
   // What a person last typed: a background task's notice is not a prompt.
   const lastPrompt = lastTypedPrompt(root);
   const signal = faceSignal(root, undefined, FACE_WORDS);

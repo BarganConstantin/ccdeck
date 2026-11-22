@@ -189,7 +189,9 @@ export function buildRows(state: GraphState, now: number, watching?: ReadonlySet
       recap,
       status,
       modelId: a.model,
-      provider: a.provider === "codex" ? "codex" : "claude",
+      // The board's provider, so an opencode or Copilot row wears its own
+      // avatar and name, never Claude's.
+      provider: a.provider ?? "claude",
       effort: a.effort,
       // The ROOT's plan: the Task tools' list is the session's, shared with its
       // subagents, and a row is a session (agent-plan.ts).
