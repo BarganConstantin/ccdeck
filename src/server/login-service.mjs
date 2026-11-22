@@ -459,6 +459,9 @@ export const SETTING_VARS = Object.freeze([
   "AGENTS_DECK_NO_RADAR",
   // Keep native Codex account control disabled after a login-service restart.
   "AGENTS_DECK_NO_CODEX_LIVE",
+  // The opencode plugin's off switch (opencode-plugin.mjs). A deck started at
+  // login without it would write the plugin back.
+  "AGENTS_DECK_NO_OPENCODE",
   // The account's veto (account-flag.mjs), carried because a veto is always
   // safe to pass on — and the one name here the README's table does not list:
   // the account it vetoes is hidden, so documenting the veto would announce

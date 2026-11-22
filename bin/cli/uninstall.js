@@ -112,6 +112,16 @@ export async function uninstall(flags) {
   if (await hasCodexInstalled()) {
     report(await uninstallHooks({ provider: "codex" }), "Codex");
   }
+  // ccdeck's opencode plugin, ours by its marker; a ccdeck.js without it stays.
+  {
+    const { uninstallOpencodePlugin } = await import(pathToFileURL(join(PKG_ROOT, "src/server/opencode-plugin.mjs")).href);
+    const oc = await uninstallOpencodePlugin();
+    if (oc.state === "removed") console.log(`${PRODUCT}: opencode plugin removed from ${oc.path}`);
+    if (oc.state === "failed") {
+      refused = true;
+      console.error(`${PRODUCT}: opencode plugin NOT removed from ${oc.path} ${gDash} ${oc.why}`);
+    }
+  }
   // Codex's terminal selection, whether or not Codex is still installed: the
   // block sits in the person's own shell profile, and with ccdeck gone the
   // `codex` it defines runs a helper that may not be there any more.
