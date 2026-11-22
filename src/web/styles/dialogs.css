@@ -937,8 +937,10 @@
   line-height: 14px;
   font-weight: 500;
 }
-/* The footer: the note on the left, the tour's link on the right. */
+/* The footer: the note on the left, Send feedback and the tour's links on the
+   right, the two 16 apart. */
 .kh-bottom { justify-content: space-between; gap: 16px; }
+.kh-feedback + .kh-tour { margin-left: 0; }
 .kh-foot { margin: 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; }
 .kh-tour {
   flex: none;

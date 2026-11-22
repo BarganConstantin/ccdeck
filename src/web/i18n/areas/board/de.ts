@@ -392,6 +392,7 @@ const catalog: Catalog = {
   "board.rail.search.detail": "Panels, Sitzungen, Einstellungen, Aktionen und Farbschemata",
   "board.rail.feedback": "Feedback",
   "board.rail.feedback.menu": "Feedback senden",
+  "board.rail.feedback.detail": "Einen Fehler melden oder eine Idee teilen",
   "board.rail.tools.activity": "Tool-Aktivität",
   "board.rail.tools.short": "Tools",
   "board.rail.tools.detail": "Welche Tools deine Agents ausführen, wie lange sie dauern und was fehlschlägt",

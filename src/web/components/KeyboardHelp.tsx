@@ -43,6 +43,9 @@ interface Props {
   /** Close this and open the tour — `?` is the help key, and the tour is the
    *  other half of help. */
   onTour?: () => void;
+  /** Close this and open the feedback dialog: whoever opened the help sheet
+   *  looking for a way to say something finds it beside the tour. */
+  onFeedback?: () => void;
   /** Close this and open Settings at Keyboard, where the single-key switch is. */
   onSettings?: () => void;
   /** The Command Panel is on, so Workspace and Terminal have their groups
@@ -85,7 +88,7 @@ export function capChips(cap: string): string[] {
   if (/^[⌘⌃⌥⇧] /.test(cap)) return cap.split(" ");
   return [cap];
 }
-export default function KeyboardHelp({ onClose, onTour, onSettings, workspace = false, extraGroups }: Props) {
+export default function KeyboardHelp({ onClose, onTour, onFeedback, onSettings, workspace = false, extraGroups }: Props) {
   const t = useT();
   const dialogRef = useModalDismiss(onClose);
   const scrimPress = useScrimDismiss(onClose);
@@ -176,6 +179,7 @@ export default function KeyboardHelp({ onClose, onTour, onSettings, workspace = 
               when Esc is no answer to a letter doing nothing and the note
               above has said why. */}
           {singleKeys && <p className="kh-foot">{t("settings.key.note")} {t("settings.key.switchNote", { place: t("settings.key.place") })}</p>}
+          {onFeedback && <button type="button" className="kh-tour kh-feedback" aria-haspopup="dialog" onClick={onFeedback}>{t("board.rail.feedback.menu")}</button>}
           {onTour && <button type="button" className="kh-tour" onClick={onTour}>{t("settings.key.tour")}</button>}
         </footer>
     </Dialog>

@@ -392,6 +392,7 @@ const catalog: Catalog = {
   "board.rail.search.detail": "패널, 세션, 설정, 동작, 테마",
   "board.rail.feedback": "피드백",
   "board.rail.feedback.menu": "피드백 보내기",
+  "board.rail.feedback.detail": "버그를 신고하거나 아이디어를 공유하세요",
   "board.rail.tools.activity": "도구 활동",
   "board.rail.tools.short": "도구",
   "board.rail.tools.detail": "에이전트가 실행하는 도구, 소요 시간, 실패하는 항목",

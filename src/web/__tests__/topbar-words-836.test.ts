@@ -124,7 +124,7 @@ describe("every control in the chrome says its name (#836)", () => {
     // CHANGED ON PURPOSE (V4): Search above a phone's width, and Feedback in
     // its corner cell at every width.
     expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search\]\} \/><\/div>\}/);
-    expect(app).toMatch(/<div className="tb-corner"><UtilityRun items=\{\[rails\.corner\]\} \/><\/div>/);
+    expect(app).toMatch(/<div className="tb-corner"><CornerRun item=\{rails\.corner\} \/><\/div>/);
     expect(app).toMatch(/: <EdgeRail side="left" label=\{t\("board\.rail\.tools"\)\} groups=\{rails\.leftStripe\} foot=\{rails\.leftFoot\} \/>\}/);
     expect(app).toMatch(/\{!phone && <EdgeRail side="right" label=\{t\("shell\.rail\.right"\)\} groups=\{rails\.rightStripe\} \/>\}/);
   });

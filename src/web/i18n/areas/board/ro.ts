@@ -409,6 +409,7 @@ const catalog: Catalog = {
   "board.rail.search.detail": "Panouri, sesiuni, setări, acțiuni și teme",
   "board.rail.feedback": "Feedback",
   "board.rail.feedback.menu": "Trimite feedback",
+  "board.rail.feedback.detail": "Raportează un bug sau împărtășește o idee",
   "board.rail.tools.activity": "Activitatea uneltelor",
   "board.rail.tools.short": "Unelte",
   "board.rail.tools.detail": "Ce unelte rulează agenții tăi, cât durează și ce eșuează",

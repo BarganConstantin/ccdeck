@@ -101,7 +101,7 @@ describe("the topbar at a phone's width", () => {
     expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search\]\} \/><\/div>\}/);
     // The comment between the two is gone from the source as read (sourceOf),
     // which leaves its braces.
-    expect(app).toMatch(/<\/ReadoutGroup>\s*(?:\{\s*\}\s*)?<div className="tb-corner"><UtilityRun items=\{\[rails\.corner\]\} \/><\/div>\s*<\/header>/);
+    expect(app).toMatch(/<\/ReadoutGroup>\s*(?:\{\s*\}\s*)?<div className="tb-corner"><CornerRun item=\{rails\.corner\} \/><\/div>\s*<\/header>/);
     expect(app).not.toContain("WaitingNames");
     // The queue is the waiting pill's popover now; on a phone the working and
     // done pills and the pill at 0 (the spans) stay off the bar.
