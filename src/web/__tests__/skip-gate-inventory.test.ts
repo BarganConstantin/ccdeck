@@ -155,8 +155,8 @@ describe("the register of conditionally-skipped cases", () => {
     expect(expectedSkips("darwin")).toEqual(expected);
   });
 
-  it("expects the two hundred and forty-one platform-gated cases to skip on Windows, file by file", () => {
-    // One hundred and twelve behind `process.platform === "win32"`, twenty-nine behind
+  it("expects the two hundred and forty-five platform-gated cases to skip on Windows, file by file", () => {
+    // One hundred and sixteen behind `process.platform === "win32"`, twenty-nine behind
     // development's Codex probes (the same gate written with single quotes),
     // eighty-six behind the optional engine's macOS-and-Linux gate, eight
     // behind the posix runIf family, three behind the non-root posix
@@ -169,7 +169,7 @@ describe("the register of conditionally-skipped cases", () => {
     // than as a total, so a change that moves a case from one gate to another is
     // a mismatch rather than an arithmetic coincidence.
     expect(expectedSkips("win32")).toEqual({
-      total: 241,
+      total: 245,
       byFile: {
         "append-deadline.test.ts": 1,
         "backup-root-shared.test.ts": 1,
@@ -182,6 +182,7 @@ describe("the register of conditionally-skipped cases", () => {
         "codex-auth-temp-collision.test.ts": 3,
         "command-panel-windows-preview.test.ts": 1,
         "codex-terminal-selection.test.ts": 1,
+        "copilot-hooks.test.ts": 4,
         "desktop-appimage-relaunch-1630.test.ts": 2,
         "desktop-release-prerelease-1756.test.ts": 2,
         "desktop-shell-env.test.ts": 3,
@@ -434,7 +435,7 @@ describe("the workflow the register is enforced from", () => {
     const win32Sites = gates()
       .filter((g) => g.condition === 'process.platform === "win32"')
       .reduce((n, g) => n + g.sites, 0);
-    expect(win32Sites).toBe(45);
+    expect(win32Sites).toBe(46);
 
     const stated = publishYml().match(/the (\d+) sites gated `skipIf\(process\.platform === "win32"\)`/);
     expect(stated, "publish.yml no longer states the win32 gate count in the form this reads").not.toBeNull();

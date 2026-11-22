@@ -22,6 +22,7 @@ vi.mock("react", async () => (await import("./fake-react")).react);
 import { flush, mount, one, type Drawn } from "./fake-react";
 import TerminalStage, { type StageShow, type TerminalStageProps } from "../components/terminal/TerminalStage";
 import KeysBar, { type KeysBarProps } from "../components/terminal/KeysBar";
+import StageHeader, { type StageHeaderProps } from "../components/terminal/StageHeader";
 import StageBody, { type StageBodyProps } from "../components/terminal/StageBody";
 import { ASSUMED_CELL, stageGeometry } from "../stage-geometry";
 import type { ConnectOptions, TerminalConnection } from "../terminal-protocol";
@@ -44,9 +45,14 @@ const doc = () => (globalThis as unknown as { document: Doc }).document;
 afterEach(() => { delete (globalThis as Record<string, unknown>).document; });
 
 /** The stage on a fake deck. `open` is what opening the session answers. */
-function stageOn(open: unknown) {
+function stageOn(open: unknown, { statusBar = false } = {}) {
   const body = { id: "body" };
-  (globalThis as Record<string, unknown>).document = { body, activeElement: body };
+  // `statusBar`: the window's status bar the keys bar is drawn in beside a
+  // mouse (KeysBar's placement); without one, a phone's stage.
+  const slot = { id: "ccdeck-stage-status" };
+  (globalThis as Record<string, unknown>).document = statusBar
+    ? { body, activeElement: body, getElementById: (id: string) => (id === slot.id ? slot : null) }
+    : { body, activeElement: body };
   /** The control the reader pressed: the stage's own, and where a press
    *  leaves the focus. */
   const pressed = { tagName: "BUTTON", focus: vi.fn(() => { doc().activeElement = pressed; }) };
@@ -105,9 +111,10 @@ function stageOn(open: unknown) {
     },
   });
   const bar = () => one(view.tree, el => el.type === KeysBar)!.props as unknown as KeysBarProps;
+  const header = () => one(view.tree, el => el.type === StageHeader)!.props as unknown as StageHeaderProps;
   const card = () => one(view.tree, el => el.type === StageBody)!.props as unknown as StageBodyProps;
   const live = (i: number) => conns[i].onReset?.({ cols: 80, rows: 24, seed: new Uint8Array(0) });
-  return { view, body, pressed, term, textarea, conns, adopt, onWantKeys, takeTypeAhead, bar, card, live, requests: () => request };
+  return { view, body, pressed, term, textarea, conns, adopt, onWantKeys, takeTypeAhead, bar, header, card, live, requests: () => request };
 }
 
 describe("Reopen here", () => {
@@ -136,6 +143,35 @@ describe("Reopen here", () => {
     expect(doc().activeElement).toBe(s.textarea);
     expect(s.bar().owner).toBe("pane");
     expect(s.takeTypeAhead, "what was typed meanwhile goes to the pane").toHaveBeenCalledWith(s.requests());
+    s.view.unmount();
+  });
+
+  it("in the pane's header, where the keys bar is out in the status bar, does the same", async () => {
+    // Beside a mouse the keys bar is drawn in the window's status bar, far
+    // from the pane (and not at all for a split's other pane): the end action
+    // is the header's, after "ended", and the bar carries none.
+    const s = stageOn(OPENED, { statusBar: true });
+    await flush();
+    s.live(0);
+    expect(s.card().phase.kind).toBe("live");
+    expect(s.header().end ?? null, "a live pane has no way back to offer").toBeNull();
+    s.conns[0].onExit?.({ reason: "ended" });
+    expect(s.header().end?.action).toBe("Reopen here");
+    expect(s.bar().end ?? null, "never both").toBeNull();
+
+    s.pressed.focus();
+    s.header().end!.onAction();
+    expect(s.adopt).toHaveBeenCalledTimes(1);
+    expect(s.onWantKeys, "the press asks for the keys, as Try again does").toHaveBeenCalledTimes(1);
+    expect(s.header().end, "the header's button is gone with the end").toBeNull();
+    doc().activeElement = s.body;
+
+    await flush();
+    expect(s.conns).toHaveLength(2);
+    s.live(1);
+    expect(s.term.focus, "the resumed pane took the keys").toHaveBeenCalledTimes(1);
+    expect(doc().activeElement).toBe(s.textarea);
+    expect(s.bar().owner).toBe("pane");
     s.view.unmount();
   });
 

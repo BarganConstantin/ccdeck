@@ -190,7 +190,9 @@ export function continueView(
   a: Pick<AgentNodeData, "kind" | "sessionId" | "stopFailure" | "job" | "provider">,
   s: ContinueSnapshot,
 ): ContinueView | null {
-  if (a.kind !== "root" || a.provider === "codex") return null;
+  // Claude Code's own stops only: Continue runs Claude Code's background
+  // commands, which no Codex, opencode or Copilot session has.
+  if (a.kind !== "root" || (a.provider ?? "claude") !== "claude") return null;
   const rec = s.answer?.sessions[a.sessionId] ?? null;
   const mine = s.pressed[a.sessionId] ?? null;
   const last = [rec?.last ?? null, mine].filter((o): o is ContinueOutcome => o != null).sort((x, y) => y.at - x.at)[0] ?? null;

@@ -24,6 +24,7 @@
 // that matters most is the one nobody exercises by hand — a Codex-only machine.
 import { t } from "./i18n";
 import type { Providers } from "./providers";
+import type { Provider } from "./types";
 import { ownRow } from "./own-row";
 
 /**
@@ -81,6 +82,13 @@ export function agentLabel(id: string): string {
   const own = ownRow(AGENT_NAMES, key);
   if (own !== undefined) return own;
   return key ? key[0].toUpperCase() + key.slice(1) : "";
+}
+
+/** A session's CLI by name — "Claude Code", "Codex", "OpenCode", "GitHub
+ *  Copilot" — the same table ccusage's ids are named from. A session with no
+ *  provider is Claude's, as the reducer stamps it. */
+export function providerLabel(provider: Provider | undefined): string {
+  return agentLabel(provider ?? "claude");
 }
 
 /** A list of names for the middle of a sentence: "A", "A and B", "A, B and C".

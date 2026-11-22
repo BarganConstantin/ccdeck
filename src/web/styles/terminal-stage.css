@@ -107,6 +107,19 @@
 }
 .ts-meta-state { flex: none; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .ts-meta[data-state="waiting"] .ts-meta-state { color: var(--warn); }
+/* An ended session's Reopen here, after "ended" (StageHeader `end`): the kit's
+   Quiet button at the header controls' 24, with the state word's 12/16, so the
+   one-row header keeps its measured height. It does not shrink: the name is
+   what a short header cuts, never the way back. A fingertip gets its 32
+   (touch-and-forced-colours.css). */
+button.btn.ts-end-act {
+  flex: none;
+  min-height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+}
 
 /* How full the session's context window is (StageHeader): the cards' ring and
    its percent, "◔ 17%", in sans --muted with tabular figures, 24 tall like the
@@ -142,6 +155,10 @@
      Other state words may give way before drawing over the context chip. */
   .ts-meta:not([data-state="waiting"]) { flex: 0 1 auto; overflow: hidden; }
   .ts-meta:not([data-state="waiting"]) .ts-meta-state { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* Beside an ended session's Reopen here the word was cut to a letter: it
+     gives way whole, as .vis-hidden does, so a screen reader still hears it;
+     the button's tooltip says the sentence. */
+  .ts-meta:has(+ .ts-end-act) { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); }
 }
 
 .ts-ctl { flex: none; display: flex; align-items: center; gap: 4px; }

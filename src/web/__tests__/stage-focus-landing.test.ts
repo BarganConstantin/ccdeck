@@ -10,6 +10,7 @@ import { landFocus, settlesFocus } from "../components/terminal/TerminalStage";
 import { CAUGHT_KEYS_ATTR } from "../shortcuts";
 import StageBody, { type StageBodyProps } from "../components/terminal/StageBody";
 import KeysBar, { type KeysBarProps } from "../components/terminal/KeysBar";
+import StageHeader, { type StageHeaderProps } from "../components/terminal/StageHeader";
 import type { StagePhase } from "../components/terminal/stage-model";
 
 const body = { id: "body" };
@@ -127,13 +128,27 @@ describe("the action each card lands on", () => {
     const html = renderToStaticMarkup(createElement(KeysBar, { end: { sentence: "The session ended.", action: "Reopen here", onAction() {} } } as unknown as KeysBarProps));
     expect(landed(html)).toEqual(["Reopen here"]);
   });
+
+  it("is the header's own action where the keys bar is out in the status bar", () => {
+    const header = (end: StageHeaderProps["end"]) => renderToStaticMarkup(createElement(StageHeader, {
+      identity: "session:a", name: "paycore", provider: "codex", status: { state: "ended", phrase: "ended" },
+      keysOwner: "board", chordLabel: "Ctrl+Shift+X", canType: false, expanded: false, takeover: false,
+      onKeys() {}, onExpand() {}, onClose() {}, end,
+    } as StageHeaderProps));
+    expect(landed(header({ sentence: "The session ended.", action: "Reopen here", onAction() {} }))).toEqual(["Reopen here"]);
+    expect(landed(header(null)), "no end, nothing to land on in the header").toEqual([]);
+  });
 });
 
 // #2591 draws the pane's keys bar in the shared status bar, outside the stage
-// root, so an ended session's action is looked for there too — by the pane
-// with the keys only; a split's other pane never takes it.
-describe("landing on the keys bar's action in the status bar", () => {
-  const withSlot = (action: ReturnType<typeof el>) => {
+// root, and an ended session's action was looked for there too, by the pane
+// with the keys only; a split's other pane had none to take and landed on ✕.
+// CHANGED ON PURPOSE: the end action moved into the pane's header (StageHeader
+// `end`, TerminalStage endPlacement) wherever the keys bar is out in the status
+// bar, so it is the root's own [data-stage-land] for every pane, a split's
+// other pane included, and the status bar is no longer looked into.
+describe("landing on the end action in the pane's header", () => {
+  const withSlot = (action: ReturnType<typeof el> | null) => {
     const slot = { querySelector: (sel: string) => (sel === "[data-stage-land]" ? action : null) };
     (globalThis as Record<string, unknown>).document = {
       body, activeElement: body,
@@ -143,19 +158,29 @@ describe("landing on the keys bar's action in the status bar", () => {
   const root = (found: Record<string, ReturnType<typeof el> | undefined>, dataset: Record<string, string> = {}) =>
     Object.assign(stage(found), { dataset }) as unknown as HTMLElement;
 
-  it("puts the keys on the shared bar's Reopen here, not on ✕", () => {
+  it("puts the keys on the header's Reopen here, not on ✕", () => {
     const action = el("Reopen here"), close = el("✕");
-    withSlot(action);
-    expect(landFocus(root({ ".ts-head button[data-stage-close]": close }))).toBe(true);
+    withSlot(null);
+    expect(landFocus(root({ "[data-stage-land]": action, ".ts-head button[data-stage-close]": close }))).toBe(true);
     expect(action.focus).toHaveBeenCalledTimes(1);
     expect(close.focus).not.toHaveBeenCalled();
   });
 
-  it("leaves the shared action to the pane with the keys", () => {
+  it("puts them on a split's other pane's own Reopen here too, which had none before", () => {
     const action = el("Reopen here"), close = el("✕");
-    withSlot(action);
-    expect(landFocus(root({ ".ts-head button[data-stage-close]": close }, { secondary: "true" }))).toBe(true);
-    expect(action.focus).not.toHaveBeenCalled();
+    withSlot(null);
+    expect(landFocus(root({ "[data-stage-land]": action, ".ts-head button[data-stage-close]": close }, { secondary: "true" }))).toBe(true);
+    expect(action.focus).toHaveBeenCalledTimes(1);
+    expect(close.focus).not.toHaveBeenCalled();
+  });
+
+  it("never reaches into the status bar for an action that is not the pane's", () => {
+    // Whatever the shared bar holds is the focused pane's bar, never this
+    // pane's way back: with nothing of its own to land on, ✕ is where it goes.
+    const stray = el("Something in the status bar"), close = el("✕");
+    withSlot(stray);
+    expect(landFocus(root({ ".ts-head button[data-stage-close]": close }))).toBe(true);
+    expect(stray.focus).not.toHaveBeenCalled();
     expect(close.focus).toHaveBeenCalledTimes(1);
   });
 });

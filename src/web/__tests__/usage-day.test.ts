@@ -150,7 +150,16 @@ describe("what counts as use", () => {
     expect(codex).toBeGreaterThan(project);
     expect(src.indexOf("usageDay.noteUse(raw);", codex)).toBeGreaterThan(codex);
     expect(src.indexOf("usageDay.noteFolder(raw?.cwd);", codex)).toBeGreaterThan(codex);
-    expect(src.match(/usageDay\.note/g)?.length).toBe(4);
+    // opencode and Copilot post through the same hook and have no transcript:
+    // their project is their cwd, counted inside the live-hook gate, in their
+    // own branch ahead of the Claude scanners. That is the fifth call.
+    const eventOnly = src.indexOf("} else if (isEventOnly(raw?.provider)) {");
+    expect(eventOnly).toBeGreaterThan(use);
+    expect(eventOnly).toBeLessThan(accepted);
+    const folder = src.indexOf("usageDay.noteFolder(raw?.cwd);", eventOnly);
+    expect(folder).toBeGreaterThan(eventOnly);
+    expect(folder).toBeLessThan(accepted);
+    expect(src.match(/usageDay\.note/g)?.length).toBe(5);
   });
 
   it("counts a Codex session's working directory as its project", () => {

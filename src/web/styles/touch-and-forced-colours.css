@@ -93,6 +93,8 @@
      neighbours 2px apart never share a pixel of target. */
   .ts-stage .glyph-btn { min-width: 32px; min-height: 32px; }
   .ts-stage .glyph-btn::after { inset: -4px 0; }
+  /* And an ended session's Reopen here beside them (StageHeader `end`). */
+  .ts-head button.btn.ts-end-act { min-height: 32px; }
   /* The divider is 32px wide: 8px over the navigator and 24px over the
      stage's inset before its first column, so it covers no cell. Its line
      and grip stay on the stage's edge. */

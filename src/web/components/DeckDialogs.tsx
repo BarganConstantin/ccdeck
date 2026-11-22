@@ -148,7 +148,8 @@ export default function DeckDialogs({
       )}</DialogPresence>
       <DialogPresence when={contextAgent}>{agent => <ContextModal agent={agent} onClose={() => setContextFor(null)} />}</DialogPresence>
       <DialogPresence when={trafficRadarOpen}>{() => <Suspense fallback={null}>
-        <TrafficRadar sessions={[...stateRef.current.agents.values()].filter(agent => agent.kind === "root" && agent.provider !== "codex").map(agent => ({ id: agent.sessionId, label: sessionDisplay(agent.sessionName, agent.sessionTitle).face ?? agent.cwdBasename ?? agent.label, project: agent.cwdBasename ?? agent.label, workspace: agent.cwd }))} onClose={() => setTrafficRadarOpen(false)} />
+        {/* Radar watches Claude Code's own traffic: it lists Claude sessions only. */}
+        <TrafficRadar sessions={[...stateRef.current.agents.values()].filter(agent => agent.kind === "root" && (agent.provider ?? "claude") === "claude").map(agent => ({ id: agent.sessionId, label: sessionDisplay(agent.sessionName, agent.sessionTitle).face ?? agent.cwdBasename ?? agent.label, project: agent.cwdBasename ?? agent.label, workspace: agent.cwd }))} onClose={() => setTrafficRadarOpen(false)} />
       </Suspense>}</DialogPresence>
       <DialogPresence when={feedbackOpen}>{() => (
         <FeedbackDialog

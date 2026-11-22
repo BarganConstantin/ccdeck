@@ -715,6 +715,8 @@ const catalog: Catalog = {
   "insights.srv.busy": "Nutzungsberichte werden bereits gelesen. Versuche es gleich noch einmal.",
   "insights.srv.invalidLookup": "Ungültige Sitzungsabfrage.",
   "insights.context.cacheReads": "Cache gelesen",
+  "insights.note.src.promptEventsOnly": "Der Prompt, mit dem dieser Durchgang begann – ccdeck übernimmt keine Zeile aus den Antworten von {agent}",
+  "insights.context.eventsOnly": "ccdeck liest weder das Kontextfenster noch den Tokenverbrauch von {agent}, daher gibt es hier nichts anzuzeigen.",
 };
 
 export default catalog;

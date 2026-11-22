@@ -1037,6 +1037,8 @@ const catalog: Catalog = {
   "board.inspector.noSubagents": "沒有子代理",
   "board.inspector.subagents.one": "{count} 個子代理",
   "board.inspector.subagents.other": "{count} 個子代理",
+  "board.chat.noTranscript": "ccdeck 不會讀取 {agent} 的對話，因此這裡沒有可顯示的聊天。它的提示詞和工具呼叫會顯示在畫布上。",
+  "board.stage.eventsOnly": "{agent} 在自己的終端機中執行，ccdeck 無法在這裡開啟它。它的提示詞、工具呼叫和向你提出的問題都會顯示在畫布上。",
 };
 
 export default catalog;

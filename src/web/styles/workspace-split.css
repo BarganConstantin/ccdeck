@@ -46,6 +46,24 @@
 /* Codex fills its square; Claude's wide mark has transparent headroom.
    Balance the visible shapes inside the same slot, without altering artwork. */
 .provider-avatar[data-provider="codex"]::before { width: 16px; height: 16px; }
+/* opencode and Copilot (ProviderAvatar's monogram): one letter in a control's
+   rounded square, the size of Codex's visible mark, in the metadata ink. One
+   letter because the type scale's floor is 11px and two do not fit 16px at
+   it. No logo of theirs, and no mask, so no ::before. */
+.provider-avatar.provider-monogram { color: var(--muted); }
+.provider-avatar.provider-monogram::before { content: none; }
+.provider-monogram > span {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid currentColor;
+  border-radius: var(--r-ctl);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
 /* A reference shared with the session row, including panes hidden by Zoom.
    Active means this pane is selected; the keyboard button still owns typing. */
 .pane-badge {

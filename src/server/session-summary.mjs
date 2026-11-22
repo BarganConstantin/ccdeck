@@ -15,6 +15,8 @@
 //
 // Pure: envelopes in, rows out. The route that serves it is in index.mjs.
 
+import { payloadProvider } from "./provider-ids.mjs";
+
 /** How long a session may be silent before it is taken to be gone — the
  *  canvas's own STALE_SESSION_MS (src/web/board-sweeps.ts), for its reasons:
  *  long enough for a permission prompt left standing through a meeting, short
@@ -227,7 +229,8 @@ export function summarizeSessions(envelopes, { now = Date.now(), staleMs = STALE
     if (name !== "JobObserved" && at > s.lastEventAt) s.lastEventAt = at;
     if (!SCANS.has(name)) {
       // The provider, from the session's first own event; a scan stamps none.
-      s.provider ??= p.provider === "codex" ? "codex" : "claude";
+      // Missing or unknown is Claude, as the reducer reads it (provider-ids.mjs).
+      s.provider ??= payloadProvider(p);
       if (at >= (s.recoveryLiveAt ?? 0)) s.recoveryLiveAt = at;
     }
     enrichSummary(s, p, name);

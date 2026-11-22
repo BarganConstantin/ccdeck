@@ -17,6 +17,7 @@ import { KitIcon } from "./kit-icons";
 import { WaitingLoader } from "./Loader";
 import PathText from "./PathText";
 import { useT } from "../i18n";
+import { isEventOnly } from "../../server/provider-ids.mjs";
 
 interface Reading { session: string; turn: SessionTurn | null; readAt: number }
 
@@ -69,8 +70,10 @@ export default function InspectorTime({ selected, agents, revision }: {
 }) {
   const t = useT();
   const root = sessionRoot(agents, selected.sessionId) ?? selected;
-  // Codex rollouts name no prompt, so there is no turn to cut and nothing to ask for.
-  if (root.provider === "codex") return <p className="insp-note">{t("board.insTime.codexOnly")}</p>;
+  // Codex rollouts name no prompt, so there is no turn to cut and nothing to ask
+  // for; opencode and Copilot calls are not recorded at all (tool-audit.mjs).
+  // The note says which sessions it is recorded for, which is true of all three.
+  if (root.provider === "codex" || isEventOnly(root.provider)) return <p className="insp-note">{t("board.insTime.codexOnly")}</p>;
   return <TimeTab root={root} agents={agents} revision={revision} />;
 }
 

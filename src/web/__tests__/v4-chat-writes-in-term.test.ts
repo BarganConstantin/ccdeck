@@ -218,6 +218,9 @@ describe("internal #99: the stage shows Term before it gives the pane the keys",
   it("going back to Chat takes the keys out of the pane, and a card's phase is the bar's to say", () => {
     const show = /const showView = \(next: "chat" \| "term"\) => \{([\s\S]*?)\n  \};/.exec(ts)?.[1] ?? "";
     expect(show).toMatch(/if \(next === "chat" && session\.keysOwner === "pane"\) session\.release\(\);/);
-    expect(ts).toMatch(/const chatCannotType = chatOn && p\.show\.kind === "session" && PANELESS\.has\(phase\.kind\);/);
+    // CHANGED ON PURPOSE (opencode and Copilot): not for a session the deck
+    // only hears events from. Its Term card says it cannot be opened here, so
+    // "reply in Term" would send the reader to a pane that takes no keys.
+    expect(ts).toMatch(/const chatCannotType = chatOn && !chatReadOnly && p\.show\.kind === "session" && PANELESS\.has\(phase\.kind\);/);
   });
 });
