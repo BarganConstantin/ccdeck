@@ -98,6 +98,35 @@ export function adminClaudeBin(platform = process.platform, env = process.env,
 }
 
 /**
+ * Whether `bin`, an answer adminClaudeBin gave, is something the deck can
+ * start: a path that is there on disk, or a bare name PATH holds.
+ *
+ * The last resort above is the bare name whether or not anything answers to
+ * it, so the answer alone does not say whether a `claude` was found. This is
+ * the question asked of it, and it sits here, beside the resolver, because two
+ * modules ask it: the installer, whose install counts only once the deck can
+ * run what it installed (claude-install.mjs), and the sign-in, which adopts
+ * the login shell's PATH when the answer is no (cswap-admin.mjs's claudeBin).
+ */
+export function claudeRunnable(bin, { platform = process.platform, env = process.env, exists = existsSync } = {}) {
+  if (typeof bin !== "string" || !bin) return false;
+  if (/[\\/]/.test(bin)) return Boolean(exists(bin));
+  return pathLookup(bin, platform, { pathEnv: env.PATH ?? env.Path ?? env.path ?? "", exists }) !== null;
+}
+
+/**
+ * Whether the deck's own resolver finds `claude` now: the path the sign-in
+ * and the quota read run (adminClaudeBin, over claude-dir.mjs's list), there
+ * on disk, or a bare name PATH holds. Re-exported from claude-install.mjs,
+ * where it was written.
+ */
+export function deckFindsClaude({
+  platform = process.platform, env = process.env, home = homedir(), exists = existsSync,
+} = {}) {
+  return claudeRunnable(adminClaudeBin(platform, env, home, exists), { platform, env, exists });
+}
+
+/**
  * Anthropic's own view of who is signed in. Null when it cannot be read.
  *
  * Exported for its test rather than for a caller (#383). Both callers are inside

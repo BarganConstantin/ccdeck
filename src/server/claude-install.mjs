@@ -42,7 +42,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync, promises as fs } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, win32 as winPath } from "node:path";
-import { adminClaudeBin } from "./claude-identity.mjs";
+import { deckFindsClaude } from "./claude-identity.mjs";
 import { killTree, watchChild } from "./exec-children.mjs";
 import { pathLookup } from "./exec-spec.mjs";
 import { readBody, send } from "./http-io.mjs";
@@ -131,17 +131,11 @@ export function downloaderArgv(platform, url, file, {
 }
 
 /**
- * Whether the deck's own resolver finds `claude` now: the path the sign-in
- * and the quota read run (adminClaudeBin, over claude-dir.mjs's list), there
- * on disk, or a bare name PATH holds.
+ * Whether the deck's own resolver finds `claude` now. It lives beside that
+ * resolver in claude-identity.mjs, which the sign-in asks too, and is
+ * re-exported here, where the install and its tests reach for it.
  */
-export function deckFindsClaude({
-  platform = process.platform, env = process.env, home = homedir(), exists = existsSync,
-} = {}) {
-  const bin = adminClaudeBin(platform, env, home, exists);
-  if (/[\\/]/.test(bin)) return Boolean(exists(bin));
-  return pathLookup(bin, platform, { pathEnv: env.PATH ?? env.Path ?? env.path ?? "", exists }) !== null;
-}
+export { deckFindsClaude };
 
 const ESCAPES = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-Z\\-_]/g;
 const CONTROLS = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
