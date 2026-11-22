@@ -226,6 +226,12 @@ export const GATES = [
   // The app never asks a shell on Windows, where a GUI app gets the user's own
   // environment; that branch, the parse and the merge are un-gated beside it.
   { file: "desktop-shell-env.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 3 },
+  // The deck's own read of the login shell's PATH, end to end: a stand-in
+  // shell script in a temp folder prints the markers around a PATH holding an
+  // nvm-style `claude`, and the deck's resolver finds it only after adopting
+  // that PATH. The deck never asks a shell on Windows; that branch, the parse,
+  // the merge and the fake-spawn cases are un-gated beside it.
+  { file: "login-shell-path.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   { file: "exec-shim-callers.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 5, cases: 5 },
   // The hook command's fallback to the node on PATH once the recorded one is
   // gone, run through a real /bin/sh with stand-in nodes that write down their

@@ -43,3 +43,11 @@ delete process.env.CCDECK_ACCOUNT_API;
 // A test deck must never change authentication in the developer's existing
 // Codex daemon. Live-account suites construct controllers with fake peers.
 process.env.AGENTS_DECK_NO_CODEX_LIVE = "1";
+
+// A deck or a sign-in that cannot find `claude` asks the login shell for its
+// PATH (login-shell-path.mjs). Under the suite that would be the developer's
+// own shell reading the developer's own rc files, from every deck a suite
+// boots with no claude on its PATH and from every sign-in test whose
+// AGENTS_DECK_CLAUDE points at nothing. login-shell-path.test.ts hands its
+// functions an env of its own and a fake shell instead.
+process.env.AGENTS_DECK_NO_LOGIN_SHELL = "1";

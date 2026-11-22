@@ -371,6 +371,22 @@ bootLock = await takeBootLock({ dir: deckRegistryDir() }).catch(() => null);
   if (ended !== null) process.exit(ended);
 }
 
+// The login shell's PATH, for a deck started where PATH never read the shell's
+// startup files — the desktop app, a service — on a machine whose `claude` is
+// put on PATH only there (nvm, mise, volta…). See login-shell-path.mjs.
+//
+// HERE, below the second start, because only a deck that is staying asks: an
+// attach exits above and starts nothing. Above startServer, so the quota read
+// and the terminal engine it starts find the merged PATH once it lands. FIRED,
+// NOT AWAITED: it is a shell's startup under a deadline, and the boot waits on
+// nothing of it. A Claude machine whose `claude` is found today, a Codex-only
+// one, AGENTS_DECK_CLAUDE and Windows start no shell at all.
+if (wantClaude) {
+  const { adoptLoginShellPathAtBoot } = await import(pathToFileURL(join(PKG_ROOT, "src/server/login-shell-path.mjs")).href);
+  const { deckFindsClaude } = await import(pathToFileURL(join(PKG_ROOT, "src/server/claude-identity.mjs")).href);
+  adoptLoginShellPathAtBoot({ findsClaude: () => deckFindsClaude() });
+}
+
 // The one fact the auto-switch has to wait for and the server cannot see for
 // itself: that the claude-swap it drives is not being installed or upgraded
 // underneath it (#1043). startupWork is what knows, and it has not run yet — it

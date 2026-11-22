@@ -27,8 +27,9 @@ import { looksMissing, pathLookup, run, runDetached, runInteractive } from "./ex
 import { backupRoot, invalidateClaudeAccountsCache, verdictNow, verdictsNow } from "./claude-accounts.mjs";
 import { HERE } from "./lan-sync.mjs";
 import { withStoreLock } from "./store-lock.mjs";
-import { adminClaudeBin, currentIdentity } from "./claude-identity.mjs";
+import { adminClaudeBin, claudeRunnable, currentIdentity } from "./claude-identity.mjs";
 import { claudeCliCandidates } from "./claude-dir.mjs";
+import { resolveWithLoginShell } from "./login-shell-path.mjs";
 import { activeFrom, readLiveLogin } from "./claude-login.mjs";
 import { cswapBin } from "./cswap-install.mjs";
 import { PRODUCT } from "./brand.mjs";
@@ -246,8 +247,17 @@ export { withStoreLock };
  */
 export { adminClaudeBin, currentIdentity };
 
+/**
+ * The `claude` a sign-in runs: adminClaudeBin's answer, and when that answer is
+ * nothing the deck can start, the answer again after the login shell's PATH is
+ * adopted (login-shell-path.mjs). That is the deck started by the desktop app
+ * or a service, whose PATH never read the shell's startup files, on a machine
+ * whose `claude` is put on PATH only there — nvm, mise, volta and the like —
+ * where the sign-in said Claude Code was not installed beside that user's own
+ * live sessions. A `claude` found the first time starts no shell.
+ */
 async function claudeBin() {
-  return adminClaudeBin();
+  return resolveWithLoginShell({ resolve: () => adminClaudeBin(), runnable: (bin) => claudeRunnable(bin) });
 }
 
 /**
@@ -599,6 +609,10 @@ export async function startLogin({ email } = {}) {
  * concurrently would spawn a sign-in nothing can cancel.
  */
 async function spawnLogin(email) {
+  // Resolved first: when it has to adopt the login shell's PATH, the identity
+  // read below runs the same `claude` through that PATH too, and the account
+  // signed in before the flow is known rather than lost to an ENOENT.
+  const bin = await claudeBin();
   const before = await readStore();
   const identity = await currentIdentity();
 
@@ -608,7 +622,7 @@ async function spawnLogin(email) {
   // ordinary case.
   if (email) args.push("--email", email);
 
-  const child = runInteractive(await claudeBin(), args, { timeout: LOGIN_TIMEOUT_MS });
+  const child = runInteractive(bin, args, { timeout: LOGIN_TIMEOUT_MS });
   // A sign-in outlives the request that started it, so it can also outlive the
   // deck. Nothing else would ever reap it: it is waiting on a stdin that no
   // longer has a writer, and it holds the user's next attempt hostage for five
