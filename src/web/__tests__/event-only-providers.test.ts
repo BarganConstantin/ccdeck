@@ -195,7 +195,7 @@ describe("the note beside the card", () => {
 });
 
 describe("the day's usage tally", () => {
-  it("counts an opencode or Copilot session as use, under no provider feature, with its cwd as the project", () => {
+  it("counts an opencode or Copilot session as use, under its own CLI feature, with its cwd as the project", () => {
     let clock = new Date("2026-09-30T10:00:00Z");
     const t = createUsageDay({ now: () => clock });
     const firsts: unknown[] = [];
@@ -208,7 +208,12 @@ describe("the day's usage tally", () => {
     // itself (reports.mjs sends it on only when it is claude or codex).
     expect(firsts).toEqual([{ at: "2026-09-30T10:00:00.000Z", provider: "opencode" }]);
     clock = new Date("2026-10-01T10:00:00Z");
-    expect(t.finished("2026-10-01")).toEqual({ day: "2026-09-30", sessions: 2, subagents: 0, projects: 2, features: [], events: 2, peakMb: 0 });
+    // Each CLI names itself in the day's features since the release after 4.3.0;
+    // before it, these sessions counted under no CLI feature at all.
+    expect(t.finished("2026-10-01")).toEqual({
+      day: "2026-09-30", sessions: 2, subagents: 0, projects: 2,
+      features: ["opencode-sessions", "copilot-sessions"], events: 2, peakMb: 0,
+    });
   });
 
   it("still counts an unknown provider as a Claude session", () => {

@@ -59,6 +59,24 @@ export const FEATURES = Object.freeze([
   // browser tab, `ccdeck tui` (feature-use.mjs). One left open across midnight
   // counts for the day after too (holdFeature).
   "desktop-window", "browser-tab", "tui",
+  // Added after 4.3.0, at the end so the list's order stays the API's contract.
+  // The rest of the CLIs a day's sessions came from (opencode, GitHub Copilot CLI).
+  "opencode-sessions", "copilot-sessions",
+  // What the page showed: the ⌘K field, Workspace and its side-by-side panes, a
+  // session's terminal pane and its Chat view, Codex's side of Accounts.
+  "quick-open", "workspace", "workspace-split", "terminal-pane", "chat", "codex-accounts-panel",
+  // What somebody did in the page, which reaches the session through its
+  // terminal and so through no route of the deck's own: a message sent from
+  // Chat, a question or a permission answered from it, Stop; the terminal's
+  // text size; the tour finished with Done, or closed before it.
+  "chat-reply", "chat-answer", "chat-decision", "chat-stop", "terminal-text-size", "tour-done", "tour-skipped",
+  // What the server saw done: a session started, reopened or renamed from the
+  // deck, Claude Code installed, one of its settings changed, a Jira issue
+  // moved, commented on or moved to another status, and Codex's accounts.
+  "session-launch", "session-reopen", "session-rename", "claude-install", "claude-settings", "jira-change",
+  "codex-account-switch", "codex-accounts-manage", "codex-auto-switch",
+  // `ccdeck tui` on its Network tab (feature-use.mjs, CLIENT_FEATURES).
+  "tui-network",
 ]);
 const FEATURE_SET = new Set(FEATURES);
 
@@ -196,11 +214,11 @@ export function createUsageDay({ now = () => new Date() } = {}) {
     add(usedThisRun, c.day);
     add(c.sessions, sid);
     if (typeof raw.agent_id === "string" && raw.agent_id) add(c.subagents, `${sid}\u0000${raw.agent_id}`);
-    // Which CLI, for the two FEATURES names one: an opencode or Copilot
-    // session is neither, and counting it as Claude's would say a Claude
-    // session ran that day when none did. It still counts as a session.
+    // Which CLI, by the provider the payload names: each of the four has its
+    // own FEATURES name, so an opencode or Copilot session is never counted as
+    // Claude's — that would say a Claude session ran that day when none did.
     const provider = payloadProvider(raw);
-    if (provider === "claude" || provider === "codex") add(c.features, `${provider}-sessions`);
+    add(c.features, `${provider}-sessions`);
     if (!first) {
       // The provider as the payload named it: reports.mjs sends only the two
       // it knows, and leaves the field out for the others.

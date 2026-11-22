@@ -1920,6 +1920,29 @@ describe("the loop", () => {
     expect(await done).toBe(0);
   });
 
+  it("reads Local network as its Network tab while the tab is on screen, so the deck counts the tab as used", async () => {
+    const term = fakeTerminal();
+    const deck = lanDeck();
+    const lanReads: (string | undefined)[] = [];
+    const ask = deck.source.ask;
+    deck.source.ask = async (d: unknown, o: { method?: string; path: string; body?: unknown; client?: string }) => {
+      if (o.path === "/api/lan") lanReads.push(o.client);
+      return ask(d, o);
+    };
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes(" Network "));
+    await until(() => lanReads.length > 0);
+    // Off the tab, the reading says nothing more than the screen does.
+    expect(lanReads.every(c => c === undefined)).toBe(true);
+    const before = lanReads.length;
+    term.input.write("l");
+    await until(() => lanReads.length > before);
+    expect(lanReads.slice(before)[0]).toBe("tui-network");
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
   it("space turns Local network off with the deck's settings POST, and a write it refuses says why", async () => {
     const term = fakeTerminal();
     const deck = lanDeck();

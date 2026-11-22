@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { SharedMark } from "../account-lan";
+import { useFeatureUse } from "../feature-use";
 import { useT } from "../i18n";
 import type { LanAccount } from "../lan-types";
 import { withKey } from "../single-key-shortcuts";
@@ -42,6 +43,9 @@ export default function CodexAccountsPanel({
   // Claude's side, so a row and the setup dialog's ticks never disagree.
   const [shared, setShared] = useState<ReadonlyMap<string, SharedMark>>(() => new Map());
   const shown = side !== "hidden";
+  // Shown: one of the features the usage reports name (feature-use.ts), apart
+  // from Claude's side, whose panel says "accounts-panel".
+  useFeatureUse("codex-accounts-panel", shown);
   // Shown again by the Claude | Codex switch after being hidden: a phone's
   // sheet does not rise again for it (phone-sheet.css).
   const wasHidden = useRef(false);

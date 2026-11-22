@@ -124,7 +124,8 @@ import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import { useRailPanel, useStage, useStageAsks } from "./use-stage";
 import { stageClaimsKeys, targetSession } from "./stage-shell";
-import { sessionPaneLinks } from "./workspace-split";
+import { paneCount, sessionPaneLinks } from "./workspace-split";
+import { useFeatureUse } from "./feature-use";
 import { StageDockSlot, StageNavigatorSlot } from "./components/StageSlots";
 import ViewSwitch from "./components/ViewSwitch";
 import { EmptyInspector } from "./components/Inspector";
@@ -752,6 +753,12 @@ function Inner() {
     view: viewState.stored, phone, clearSelection, ready: historyReplayed,
   });
   const inWorkspace = stage.workspace;
+  // Workspace in use, and two or more sessions side by side in it: features
+  // the usage reports name (feature-use.ts). Only once the Command Panel's
+  // gate has answered, so a view the browser remembers from before it was
+  // switched off says nothing while the prefs are read.
+  useFeatureUse("workspace", inWorkspace && stage.workspaceOffered);
+  useFeatureUse("workspace-split", inWorkspace && stage.workspaceOffered && paneCount(stage.split) > 1);
   // Zoom's fold and unfold: the panels slide, the grid follows at the end
   // (use-zoom-phase.ts).
   const zoomPhase = useZoomPhase(inWorkspace && stage.expanded);

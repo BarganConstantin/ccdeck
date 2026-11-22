@@ -734,7 +734,9 @@ export async function runTui(flags, out, deps = {}) {
     if (!deck) return;
     const tab = view.onLan(state);
     const [r, p] = await Promise.all([
-      src.ask(deck, { path: "/api/lan" }),
+      // Read from the tab, said as the tab, so the deck counts the Network
+      // tab as used today (feature-use.mjs); the reading off it says `tui`.
+      src.ask(deck, { path: "/api/lan", ...(tab ? { client: "tui-network" } : {}) }),
       tab ? src.ask(deck, { path: "/api/prefs" }) : null,
     ]);
     if (r.status === 0) return lost();
@@ -982,8 +984,9 @@ export function deckSource(port) {
     },
     silent: () => silentDecks(port).catch(() => []),
     // Said as this screen, so the deck counts `ccdeck tui` as used today
-    // (feature-use.mjs); the one-shot commands say nothing.
-    ask: (deck, opts) => ask(deck, { ...opts, client: "tui" }),
+    // (feature-use.mjs); the one-shot commands say nothing. The Network tab's
+    // own reading says so, and nothing else can be said from here.
+    ask: (deck, opts) => ask(deck, { ...opts, client: opts?.client === "tui-network" ? "tui-network" : "tui" }),
     localRoster: async () => {
       const { fetchClaudeAccounts } = await load("src/server/claude-accounts.mjs");
       return fetchClaudeAccounts({ force: true });
