@@ -323,9 +323,9 @@ describe("the rows the deck offers", () => {
     expect(byId(items, "door:settings")?.keyCap).toBe("Ctrl+,");
   });
 
-  it("pin Settings, and only Settings, for an empty field", () => {
+  it("pin Settings and Send feedback, and only those, for an empty field", () => {
     const { items } = sources();
-    expect(items.filter(i => i.pinned).map(i => i.id)).toEqual(["door:settings"]);
+    expect(items.filter(i => i.pinned).map(i => i.id)).toEqual(["door:settings", "door:feedback"]);
   });
 
   it("open Settings at a section, or land on the one setting that was asked for", () => {

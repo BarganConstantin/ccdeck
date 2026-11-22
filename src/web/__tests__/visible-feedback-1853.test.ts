@@ -217,7 +217,7 @@ describe("the topbar's Feedback button", () => {
     expect(items).toMatch(/utilities: \[settings, feedback\]/);
     expect(items).toMatch(/corner: feedback,/);
     expect(app).toMatch(/\{!phone && <div className="actions"><UtilityRun items=\{\[rails\.search\]\} \/><\/div>\}/);
-    expect(app).toMatch(/<div className="tb-corner"><UtilityRun items=\{\[rails\.corner\]\} \/><\/div>/);
+    expect(app).toMatch(/<div className="tb-corner"><CornerRun item=\{rails\.corner\} \/><\/div>/);
   });
 
   it("draws its glyph on the chrome's one icon spec (#837), and is named and hinted by its word at every desktop width (V4's Figma draws the bar button icon-only)", () => {

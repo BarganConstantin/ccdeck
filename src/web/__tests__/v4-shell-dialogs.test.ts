@@ -149,6 +149,12 @@ describe("Keyboard shortcuts", () => {
     expect(decl(".kh-foot", "color")).toBe("var(--muted)");
     expect(sheet).toContain("settings.key.switchNote");
   });
+  it("puts Send feedback beside Take the tour, the same link, closing the sheet as it opens the dialog", () => {
+    expect(sheet).toContain("{onFeedback && <button type=\"button\" className=\"kh-tour kh-feedback\" aria-haspopup=\"dialog\" onClick={onFeedback}>{t(\"board.rail.feedback.menu\")}</button>}");
+    expect(sheet.indexOf("kh-feedback")).toBeLessThan(sheet.indexOf("className=\"kh-tour\" onClick={onTour}"));
+    expect(decl(".kh-feedback + .kh-tour", "margin-left")).toBe("0");
+    expect(src("../components/DeckDialogs.tsx")).toContain("onFeedback={() => { setKeyHelpOpen(false); openFeedback(); }}");
+  });
 });
 
 describe("Tour", () => {
