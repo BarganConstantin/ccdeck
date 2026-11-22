@@ -26,7 +26,12 @@
 //
 // WHEN THE SESSION HAS ENDED the bar becomes the end bar: the sentence that
 // says the frame is frozen, and "Reopen here". A pane someone
-// else took away gets the same bar with "Attach again".
+// else took away gets the same bar with "Attach again". That is the phone's
+// (640 and under), where the bar stays in the pane. Wider, the bar is drawn in
+// the window's status bar, far from the pane and not at all for a split's
+// other pane, so the stage hands the end action to the pane's own header
+// instead (StageHeader `end`, TerminalStage endPlacement) and this bar gets
+// none.
 //
 // NO PANE, NO BAR. The empty pane and the cards that say why there is nothing
 // to type into (an error, a session that cannot be attached, tmux missing)
@@ -202,16 +207,29 @@ export function ArrivalNote({ arrival, onAnswer }: { arrival: ArrivalView; onAns
   );
 }
 
-function KeysBarPlacement({ children, visible }: { children: ReactElement; visible: boolean }) {
+/** The window's status bar slot the keys bar is drawn in
+ *  (#ccdeck-stage-status), or null where the shell has none (a phone, 640 and
+ *  under) and the bar stays in the pane. The stage asks it too: with the bar
+ *  out in the status bar, an ended session's action goes to the pane's header. */
+export function useStageStatusSlot(): HTMLElement | null {
   const [statusSlot, setStatusSlot] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
-    const read = () => setStatusSlot(document.getElementById("ccdeck-stage-status"));
+    // Guarded: the suite runs the stage with no document, or one that knows
+    // only its focus, and there is no slot there (the phone's answer).
+    if (typeof document === "undefined") return;
+    const read = () => setStatusSlot(document.getElementById?.("ccdeck-stage-status") ?? null);
     read();
+    if (typeof MutationObserver === "undefined") return;
     const observer = new MutationObserver(read);
     // The shell adds/removes its footer at phone widths. Ignore terminal DOM.
     observer.observe(document.querySelector(".app") ?? document.body, { childList: true });
     return () => observer.disconnect();
   }, []);
+  return statusSlot;
+}
+
+function KeysBarPlacement({ children, visible }: { children: ReactElement; visible: boolean }) {
+  const statusSlot = useStageStatusSlot();
   if (!statusSlot) return children;
   return visible ? createPortal(<div {...children.props} />, statusSlot) : null;
 }

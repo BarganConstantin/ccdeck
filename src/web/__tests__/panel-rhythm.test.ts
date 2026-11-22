@@ -415,7 +415,11 @@ describe("the height of a button", () => {
   // The terminal stage's keys bar is a one-line strip under the pane, like
   // Radar's body: its few verbs sit at the strip's 26px, not a panel's 30.
   // The hosts line (Review) is the same strip's verb, at the same height.
-  const KNOWN_SECOND_HEIGHTS = new Set([".btn.nm-open", ".desktop-menu.btn", ".tr-body .btn", ".ts-keys .btn", ".ts-hosts .btn"]);
+  // CHANGED ON PURPOSE: an ended session's Reopen here moved from the keys bar
+  // into the pane's one-row header (StageHeader `end`), where it stands beside
+  // the header's own 24px controls and 24px context chip, at their height, so
+  // the measured header row (36 at Compact) keeps its height.
+  const KNOWN_SECOND_HEIGHTS = new Set([".btn.nm-open", ".desktop-menu.btn", ".tr-body .btn", ".ts-keys .btn", ".ts-hosts .btn", "button.btn.ts-end-act"]);
 
   it("cannot be overridden into a second height by a rule further down", () => {
     // The height has to be unreachable, not merely stated. Any rule that sizes
