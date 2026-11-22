@@ -53,6 +53,7 @@ import { isForeignSession } from "./event-log.mjs";
 import { pushEvent } from "./event-sink.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { MAX_BUFFER, isEnrichment } from "./ring-bounds.mjs";
+import { payloadProvider } from "./provider-ids.mjs";
 
 /** The deck's own event name for these records. Reserved: see isReservedEventName. */
 export const PANEL_LAUNCH = "__panel_launch";
@@ -84,7 +85,9 @@ const isId = (v) => typeof v === "string" && SESSION_ID.test(v);
 const isKey = (v) => typeof v === "string" && LAUNCH_KEY.test(v);
 const isTime = (v) => Number.isFinite(v) && v > 0;
 const slot = (provider, id) => `${provider}:${id.toLowerCase()}`;
-const providerOf = (raw) => (raw?.provider === "codex" ? "codex" : "claude");
+// The provider as the payload names it: an opencode or Copilot start is kept
+// under its own name, so it can never stand for a Claude launch of the panel.
+const providerOf = (raw) => payloadProvider(raw);
 
 /** Drop a Map's oldest entries until it holds `max`, handing each to `gone`. */
 function trim(map, max, gone = () => {}) {

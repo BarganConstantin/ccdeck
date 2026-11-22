@@ -201,6 +201,11 @@ export function handleEventIngest(req, res, persist = true) {
     // write the log hands it on to the next deck instead of losing the line.
     // Read off the provider every Claude hook has stamped since Codex support
     // arrived, so it is the payload saying whose it is.
+    //
+    // opencode and Copilot are not Claude and pass, on a --no-claude deck too:
+    // what decides whether a deck hears them is whether their plugin or hooks
+    // were installed (AGENTS_DECK_NO_OPENCODE / AGENTS_DECK_NO_COPILOT), and
+    // hook.js likewise refuses only a Claude event to a --no-claude deck.
     if (!deckProviders().claude && parsed?.provider === "claude") {
       return send(res, 409, { error: "this deck is not watching Claude" });
     }

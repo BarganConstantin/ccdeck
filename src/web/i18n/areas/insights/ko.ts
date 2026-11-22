@@ -715,6 +715,8 @@ const catalog: Catalog = {
   "insights.srv.busy": "사용량 보고서를 이미 읽는 중입니다. 잠시 후 다시 시도하세요.",
   "insights.srv.invalidLookup": "잘못된 세션 조회입니다.",
   "insights.context.cacheReads": "캐시 읽기",
+  "insights.note.src.promptEventsOnly": "이 턴을 시작한 프롬프트 — ccdeck는 {agent} 응답에서 줄을 가져오지 않습니다",
+  "insights.context.eventsOnly": "ccdeck는 {agent}의 컨텍스트 창이나 토큰 사용량을 읽지 않으므로 여기에 표시할 내용이 없습니다.",
 };
 
 export default catalog;

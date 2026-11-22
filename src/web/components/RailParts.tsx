@@ -16,6 +16,14 @@ import { isRenameKey, type RenameFacts } from "../session-rename";
 import { beginDrag, endDrag } from "../split-drag";
 import ProviderAvatar from "./ProviderAvatar";
 import type { PaneLink } from "../workspace-split";
+import { providerLabel } from "../provider-copy";
+import type { Provider } from "../types";
+
+/** The CLI on a row's meta line: "Claude", as the row has always said it, and
+ *  provider-copy.ts's name for every other one. */
+function railProviderWord(provider: Provider): string {
+  return provider === "claude" ? "Claude" : providerLabel(provider);
+}
 
 /** The 14px status glyph. Working turns steadily (pulses with reduced motion);
  *  nothing else moves on its own. Waiting is the alert mark and holds still, because
@@ -268,7 +276,7 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
                 </span>)}
             {!compact && (r.provider || r.modelId || time) && <span className="sl-meta">
               <span className="sl-model" title={r.modelId ? modelChipTitle(r.modelId, r.effort) : undefined}>
-                {r.provider && <>{r.provider === "codex" ? "Codex" : "Claude"}{r.modelId ? " · " : ""}</>}
+                {r.provider && <>{railProviderWord(r.provider)}{r.modelId ? " · " : ""}</>}
                 {r.modelId && modelChipText(r.modelId, r.effort)}
               </span>
               {time && <span className={`sl-time ${time.tone}`}><span className="vis-hidden">{time.spoken}</span>{time.text}</span>}

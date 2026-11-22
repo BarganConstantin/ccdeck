@@ -151,10 +151,14 @@ export interface TerminalTarget {
   provenance?: TerminalProvenance;
 }
 
-/** A session on the board, as the routes that act on one want it named. */
+/** A session on the board, as the routes that act on one want it named.
+ *  `provider` is the board's (types.ts Provider, spelled out so this module
+ *  keeps to its one import): an opencode or Copilot session is named so too,
+ *  and the stage asks the engine nothing about one (use-terminal-session.ts),
+ *  which knows Claude and Codex only. */
 export interface SessionRef {
   sessionId: string;
-  provider: TerminalProvider;
+  provider: TerminalProvider | "opencode" | "copilot";
   /** The session's working directory, absolute. */
   cwd: string;
 }

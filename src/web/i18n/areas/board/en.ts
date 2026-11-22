@@ -1037,6 +1037,8 @@ const catalog: Catalog = {
   "board.inspector.noSubagents": "no subagents",
   "board.inspector.subagents.one": "{count} subagent",
   "board.inspector.subagents.other": "{count} subagents",
+  "board.chat.noTranscript": "ccdeck doesn’t read {agent} conversations, so there is no chat to show here. Its prompts and tool calls are on the board.",
+  "board.stage.eventsOnly": "{agent} runs in its own terminal, and ccdeck can’t open it here. Its prompts, tool calls and questions for you show on the board.",
 };
 
 export default catalog;

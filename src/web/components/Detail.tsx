@@ -37,6 +37,7 @@ import { agentCost, otherModelIds } from "../usage-models";
 import { withKey } from "../single-key-shortcuts";
 // Continue, for a turn that stopped on a login or a usage limit (#2193).
 import { StopContinueSection } from "./StopContinue";
+import { isEventOnly } from "../../server/provider-ids.mjs";
 
 /** The title, with the Rename beside it for a session the deck can name
  *  (internal #101). Its own component, holding the renaming, because Detail
@@ -85,14 +86,18 @@ function HeroTitle({ agent, now }: { agent: AgentNodeData; now: number }) {
  *    the keys, which is the stage's own "↵ type here".
  *  - "open": any other state (working, ready, done, failed). Not for the
  *    session the stage already shows, which is beside the Inspector with its
- *    "↵ type here" in its bar; a second way to the same pane is clutter. */
+ *    "↵ type here" in its bar; a second way to the same pane is clutter.
+ *
+ *  An opencode or Copilot session is never "answer": its question is in a
+ *  terminal of its own the deck cannot open (use-terminal-session.ts,
+ *  eventsOnlyPhase), so it is "open" like any other, to the pane that says so. */
 export type NextStep = "answer" | "open";
 export function inspectorNextStep(
-  agent: Pick<AgentNodeData, "kind" | "sessionId" | "waiting">,
+  agent: Pick<AgentNodeData, "kind" | "sessionId" | "waiting" | "provider">,
   deck: { canOpen: boolean; stageSession: string | null },
 ): NextStep | null {
   if (agent.kind !== "root" || !deck.canOpen) return null;
-  if (isAlarming(agent.waiting)) return "answer";
+  if (isAlarming(agent.waiting) && !isEventOnly(agent.provider)) return "answer";
   return deck.stageSession === agent.sessionId ? null : "open";
 }
 

@@ -7,7 +7,7 @@ import { fmtCost } from "../pricing";
 import { costChip } from "../card-cost";
 import { codexApprovalTell } from "../codex-approval";
 // The provider's printed name, the one the usage panels already print.
-import { agentLabel } from "../provider-copy";
+import { providerLabel } from "../provider-copy";
 import { footDropped, footDroppable, footNotchOnResize, nextFootNotch } from "../card-row-squeeze";
 // The card's words — its state, a block's sentence and label — which the
 // session list, the peek and the topbar say too. See agent-copy.ts.
@@ -209,13 +209,14 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
       <div className="head">
         <div className="title">
           <span className="label" title={cardTooltip}>{headName}</span>
-          {/* WHICH CLI, FOR CODEX ONLY (V4 top-10 #2). With the model text gone
-              this word is the board's one way to tell a Codex card from a
-              Claude one, in the place the model sat: muted, no pill. A Claude
-              card, the default provider, says nothing: the reducer stamps
-              "claude" on any event that names no provider, so a word for it
-              would print an assumption as an observation. */}
-          {data.provider === "codex" && <span className="provider-word">{agentLabel("codex")}</span>}
+          {/* WHICH CLI, FOR EVERY CLI BUT CLAUDE (V4 top-10 #2). With the
+              model text gone this word is the board's one way to tell a Codex,
+              OpenCode or GitHub Copilot card from a Claude one, in the place
+              the model sat: muted, no pill. A Claude card, the default
+              provider, says nothing: the reducer stamps "claude" on any event
+              that names no provider, so a word for it would print an
+              assumption as an observation. */}
+          {data.provider && data.provider !== "claude" && <span className="provider-word">{providerLabel(data.provider)}</span>}
           {data.restoredFromLog &&<span className="synth-tag" title={data.provider === "claude" ? t("board.node.restoredRegistry") : t("board.node.restoredLog")}>{t("board.node.restored")}</span>}
           {data.synthetic && <span className="synth-tag" title={t("board.node.synthesised")}>?</span>}
         </div>

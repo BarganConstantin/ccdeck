@@ -20,7 +20,7 @@
 // reaches, and in plain ASCII on a console that cannot draw a box.
 import { accountName, switchable } from "./account-pick.mjs";
 import {
-  accountTrouble, clip, fitPainted, meter, oneLine, pctTone, shortModel, sliceCells, textWidth, untilReset,
+  accountTrouble, agentWord, clip, fitPainted, meter, oneLine, pctTone, shortModel, sliceCells, textWidth, untilReset,
 } from "./cli-lines.mjs";
 import { accountKey } from "./lan-copies.mjs";
 import { fg, link, sinceLabel, spinnerFrames, stripAnsi } from "./term.mjs";
@@ -1242,7 +1242,7 @@ function waitingRows(list, { asks, width, now }, { tone, g }) {
   const ages = list.map(s => sinceLabel(now - (s.since ?? s.lastEventAt ?? now)));
   const ageW = Math.max(...ages.map(a => a.length));
   const lead = textWidth(g.warn) + 2 + ageW + 2;
-  const agentOf = (s) => (s.provider === "codex" ? "Codex" : "Claude");
+  const agentOf = (s) => agentWord(s.provider);
   // The agent column gives way first — the model, then the agent — so the
   // name, which is how a person tells two sessions apart, keeps its room.
   const tails = [

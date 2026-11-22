@@ -12,6 +12,7 @@ import { PRODUCT } from "./brand.mjs";
 import { codexCwdInWorkspace } from "./log-election.mjs";
 import { linesFromEnd, linesFromStart } from "./log-tail.mjs";
 import { ENVELOPE_CHARS, MAX_BUFFER, MAX_BUFFER_CHARS, MAX_RING_ENTRIES, isEnrichment, isReservedEventName, payloadChars } from "./ring-bounds.mjs";
+import { isEventOnly } from "./provider-ids.mjs";
 // event-pipeline.mjs's pushEvent, reached without importing it — see
 // event-sink.mjs.
 import { pushEvent } from "./event-sink.mjs";
@@ -98,7 +99,8 @@ export function replayScope(workspace, platform = process.platform, providers = 
   //
   // It costs one comparison per line. `provider: "codex"` is stamped on every
   // payload the Codex watcher emits, its cwd-less enrichment included, and the
-  // Claude side is the complement — which is what types.ts already says
+  // Claude side is the complement, less opencode and Copilot, which hook.js
+  // stamps by name and neither flag covers — which is what types.ts already says
   // `provider` means ("defaults to claude for replay events written before
   // multi-provider support"). So this needs no per-session memory of its own and
   // leaves `orderDependent` alone.
@@ -142,7 +144,11 @@ export function replayScope(workspace, platform = process.platform, providers = 
     // The provider gate, ahead of the workspace one and exempting `__clear` for
     // the same reason it does: the marker carries no provider, and a deck that
     // dropped it would replay a canvas the user had explicitly cleared.
-    if (!(payload.provider === "codex" ? codexOn : claudeOn)) return false;
+    // opencode and Copilot pass it, as the ingest route passes them, on a
+    // --no-claude or --no-codex deck alike: neither flag is about them, and
+    // reading them as Claude's here would drop on replay what that deck drew
+    // live (event-routes.mjs).
+    if (!isEventOnly(payload.provider) && !(payload.provider === "codex" ? codexOn : claudeOn)) return false;
     if (!scoped) return true;
     const sid = typeof payload.session_id === "string" ? payload.session_id : null;
     const cwd = typeof payload.cwd === "string" && payload.cwd !== "" ? payload.cwd : null;

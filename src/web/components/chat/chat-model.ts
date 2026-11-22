@@ -149,6 +149,10 @@ export interface ChatOlder {
 export type ChatSource =
   | { state: "loading" }
   | { state: "error"; message: string; onRetry?(): void }
+  /** A session whose conversation the deck does not read at all (opencode,
+   *  Copilot): a fact about the session, said as calmly as an empty
+   *  conversation is, never as an error, and never retried. */
+  | { state: "absent"; message: string }
   | {
       state: "ready";
       turns: ChatTurn[];
