@@ -132,14 +132,18 @@ describe("fromCopilot, per event", () => {
     expect(fromCopilot(inSubagent(stop), "Stop")).toBeNull();
   });
 
-  it("says permission_prompt for a permission wait and for a question, with a message", () => {
+  // The two kinds Claude Code tells apart, and the deck words differently
+  // (waiting-block.ts: "permission", "asked").
+  it("says permission_prompt for a permission wait and agent_needs_input for a question, with a message", () => {
     const base = { hook_event_name: "Notification", session_id: ROOT_ID, cwd: CWD };
     expect(fromCopilot({ ...base, notification_type: "permission_prompt", message: "Allow bash?" }, "Notification"))
       .toEqual({ ...base, notification_type: "permission_prompt", message: "Allow bash?" });
     expect(fromCopilot({ ...base, notification_type: "permission_prompt" }, "Notification"))
       .toEqual({ ...base, notification_type: "permission_prompt", message: "Copilot needs your permission" });
     expect(fromCopilot({ ...base, notification_type: "elicitation_dialog" }, "Notification"))
-      .toEqual({ ...base, notification_type: "permission_prompt", message: "Copilot has a question for you" });
+      .toEqual({ ...base, notification_type: "agent_needs_input", message: "Copilot has a question for you" });
+    expect(fromCopilot({ ...base, notification_type: "elicitation_dialog", message: "Which branch?" }, "Notification"))
+      .toEqual({ ...base, notification_type: "agent_needs_input", message: "Which branch?" });
   });
 
   it("drops the notifications that are not a wait", () => {

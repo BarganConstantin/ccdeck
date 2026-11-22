@@ -1,5 +1,5 @@
 // ccdeck's plugin in opencode's global plugins folder, put there at deck start
-// and taken out by `--uninstall`.
+// and taken out by `--uninstall`, or by a start with its off switch set.
 //
 // opencode — both lines, OpenCode 1 (`opencode-ai`) and OpenCode 2
 // (`@opencode/cli`), whichever account or model it runs on — loads every
@@ -27,7 +27,8 @@ import { ccdeckOpencodePlugin } from "./opencode-plugin-body.mjs";
 
 export const OPENCODE_PLUGIN_FILE = "ccdeck.js";
 
-/** Off switch of its own, read at deck start. */
+/** Off switch of its own, read at deck start; a start with it set takes the
+ *  plugin out. */
 export const NO_OPENCODE_ENV = "AGENTS_DECK_NO_OPENCODE";
 
 /**
@@ -104,16 +105,21 @@ async function installedForwarder() {
 
 /**
  * Put the plugin in place, or say why not. Never throws: the answer is one of
- *  - `{ state: "off", reason }`      AGENTS_DECK_NO_OPENCODE=1 or AGENTS_DECK_NO_INSTALL=1
+ *  - `{ state: "off", removed }`     AGENTS_DECK_NO_OPENCODE=1: an earlier start's
+ *                                    plugin is taken out (ours by its marker; a
+ *                                    foreign ccdeck.js stays), so opencode's
+ *                                    sessions do leave the board
  *  - `{ state: "absent" }`           no opencode on this machine
  *  - `{ state: "conflict", path }`   a ccdeck.js that is not ours is there; left alone
  *  - `{ state: "unchanged", path }`  already in place, byte for byte
  *  - `{ state: "installed", path }`  written
  *  - `{ state: "failed", path, why }`
  *
- * An off switch leaves a plugin already there where it is, as `--no-claude`
- * leaves the Claude hooks: removing is `--uninstall`'s job. The options are the
- * suite's.
+ * The off switch removes, as Copilot's does (copilot-hooks.mjs): a plugin left
+ * behind would go on feeding the board the switch was meant to keep it off.
+ * AGENTS_DECK_NO_INSTALL=1 does not stop it, as it does not stop the Claude
+ * hooks: the plugin is how the sessions reach the board, not a managed tool and
+ * not network traffic. The options are the suite's.
  */
 export async function installOpencodePlugin({
   env = process.env,
@@ -122,8 +128,10 @@ export async function installOpencodePlugin({
   exists = existsSync,
   forwarder = installedForwarder,
 } = {}) {
-  if (env[NO_OPENCODE_ENV] === "1") return { state: "off", reason: NO_OPENCODE_ENV };
-  if (env.AGENTS_DECK_NO_INSTALL === "1") return { state: "off", reason: "AGENTS_DECK_NO_INSTALL" };
+  if (env[NO_OPENCODE_ENV] === "1") {
+    const gone = await uninstallOpencodePlugin({ env, home });
+    return { state: "off", removed: gone.state === "removed" };
+  }
   if (!hasOpencode({ env, home, platform, exists })) return { state: "absent" };
   const path = opencodePluginPath({ env, home });
   try {

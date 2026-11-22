@@ -102,6 +102,25 @@ export function hasCopilotInstalled({
   return pathLookup("copilot", platform, { pathEnv, exists }) !== null;
 }
 
+/**
+ * The program Copilot is to start for hook.js on Windows, or null when there is
+ * none it can start.
+ *
+ * Copilot starts `exec` without a shell, and Node, which Copilot runs on,
+ * refuses to spawn a .cmd or .bat without one. preToolUse is fail-closed, so an
+ * exec that does not start DENIES every Copilot tool call. The desktop app's
+ * hook runtime is exactly such a file, its ccdeck-node.cmd launcher
+ * (desktop/deck-host.mjs). A launcher, or a runtime that is not there, gives way
+ * to the absolute node.exe on PATH, asked for by that name so a node.cmd on
+ * PATH is never the answer either; with none there, no file at all.
+ */
+export function windowsHookExec(runtime, { env = process.env, exists = existsSync } = {}) {
+  const there = (p) => { try { return exists(p); } catch { return false; } };
+  if (typeof runtime === "string" && runtime && !/\.(cmd|bat)$/i.test(runtime) && there(runtime)) return runtime;
+  const pathEnv = env.PATH ?? env.Path ?? env.path ?? "";
+  return pathLookup("node.exe", "win32", { pathEnv, exists });
+}
+
 /** One entry: hook.js for `event`, as an argv Copilot starts without a shell. */
 export function copilotHookEntry(node, hookPath, event, platform = process.platform) {
   const args = [hookPath, "--provider", "copilot", "--event", event];
@@ -148,33 +167,43 @@ function installForwarder() {
  *
  *   { state: "off", removed }  AGENTS_DECK_NO_COPILOT=1: an earlier boot's file
  *                              is taken out, so the sessions do leave the board
- *   { state: "skipped" }       AGENTS_DECK_NO_INSTALL=1, as the shared contract
- *                              for these integrations asks; nothing is touched
  *   { state: "absent" }        no Copilot CLI on this machine
+ *   { state: "no-node", removed }  Windows only: no node Copilot can start
+ *                              (windowsHookExec); an earlier boot's file is taken
+ *                              out rather than left to deny every tool call
  *   { state: "foreign", path } a ccdeck.json the deck did not write is in the way
  *   { state: "installed" | "unchanged", path }
  *   { state: "failed", path, reason }
  *
+ * AGENTS_DECK_NO_INSTALL=1 does not stop it, as it does not stop the Claude
+ * hooks: this file is how the sessions reach the board, not a managed tool and
+ * not network traffic. AGENTS_DECK_NO_COPILOT is its off switch.
+ *
  * Every boot rewrites it with this boot's node and hook path, and writes only
  * when the bytes differ, through a temp file and a rename, so Copilot never
- * reads half a file.
+ * reads half a file. `path` is the suite's, so a Windows install can be checked
+ * on a machine whose filesystem is not Windows.
  */
 export async function installCopilotHooks({
   env = process.env, home = homedir(), platform = process.platform, exists = existsSync,
   runtime = () => hookRuntime(env), installHook = installForwarder,
+  path = copilotHooksPath({ env, home, platform }),
 } = {}) {
   if (env.AGENTS_DECK_NO_COPILOT === "1") {
-    const gone = await uninstallCopilotHooks({ env, home, platform });
+    const gone = await uninstallCopilotHooks({ env, home, platform, path });
     return { state: "off", removed: gone.removed === true };
   }
-  if (env.AGENTS_DECK_NO_INSTALL === "1") return { state: "skipped" };
   if (!hasCopilotInstalled({ env, home, platform, exists })) return { state: "absent" };
-  const path = copilotHooksPath({ env, home, platform });
   try {
+    const node = platform === "win32" ? windowsHookExec(runtime(), { env, exists }) : runtime();
+    if (node === null) {
+      const gone = await uninstallCopilotHooks({ env, home, platform, path });
+      return { state: "no-node", removed: gone.removed === true };
+    }
     const current = await readFile(path, "utf8").catch(err => (err?.code === "ENOENT" ? null : Promise.reject(err)));
     if (current !== null && !isOurHooksFile(current)) return { state: "foreign", path };
     const hookPath = await installHook();
-    const next = copilotHooksText(runtime(), hookPath, platform);
+    const next = copilotHooksText(node, hookPath, platform);
     if (current === next) return { state: "unchanged", path };
     // Copilot's own directories are its user's alone; one made here is too.
     await mkdir(pathFor(platform).dirname(path), { recursive: true, mode: 0o700 });
@@ -193,8 +222,8 @@ export async function installCopilotHooks({
  */
 export async function uninstallCopilotHooks({
   env = process.env, home = homedir(), platform = process.platform,
+  path = copilotHooksPath({ env, home, platform }),
 } = {}) {
-  const path = copilotHooksPath({ env, home, platform });
   let text;
   try {
     text = await readFile(path, "utf8");

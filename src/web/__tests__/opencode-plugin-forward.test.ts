@@ -138,18 +138,23 @@ describe("OpenCode 1: hooks and bus events become the deck's events", () => {
     });
   });
 
-  it("announces each permission or question once, under its own wording", async () => {
+  // A permission and a question are the two kinds Claude Code tells apart, and
+  // the deck words them differently (waiting-block.ts: "permission", "asked").
+  it("announces each permission or question once, as the kind it is, under its own wording", async () => {
     const f = fakeSpawn();
     const hooks = await plugin(f.spawn).server(v1Input());
     await hooks.event(created({ id: "ses_a", directory: "/p" }));
     await hooks.event(bus("permission.asked", { id: "per_1", sessionID: "ses_a" }));
     await hooks.event(bus("permission.v2.asked", { id: "per_1", sessionID: "ses_a" }));
     await hooks.event(bus("question.asked", { id: "que_1", sessionID: "ses_a", questions: [] }));
+    await hooks.event(bus("question.v2.asked", { id: "que_1", sessionID: "ses_a", questions: [] }));
     await new Promise(r => setTimeout(r, 30));
     const ps = f.payloads();
     expect(names(ps)).toEqual(["SessionStart", "Notification", "Notification"]);
-    expect(ps.map(p => p.message).slice(1)).toEqual(["opencode needs your permission", "opencode has a question"]);
-    expect(ps.every(p => p.hook_event_name !== "Notification" || p.notification_type === "permission_prompt")).toBe(true);
+    expect(ps.slice(1).map(p => [p.notification_type, p.message])).toEqual([
+      ["permission_prompt", "opencode needs your permission"],
+      ["agent_needs_input", "opencode has a question"],
+    ]);
   });
 
   it("reports a child session as a subagent of its root", async () => {
@@ -353,8 +358,8 @@ describe("OpenCode 2: hook registrations and the event stream become the deck's 
     expect(ps[2]).toMatchObject({ tool_name: "Edit", tool_input: { file_path: "/v2/repo/a.ts", old_string: "x", new_string: "y" }, tool_use_id: "call_1" });
     expect(ps[3]).toMatchObject({ hook_event_name: "PostToolUse", tool_response: "edited", tool_use_id: "call_1" });
     expect(ps[5]).toMatchObject({ hook_event_name: "PostToolUseFailure", tool_name: "Bash", tool_response: "exit 1", error: "exit 1" });
-    expect(ps[6].message).toBe("opencode needs your permission");
-    expect(ps[7].message).toBe("opencode has a question");
+    expect(ps[6]).toMatchObject({ notification_type: "permission_prompt", message: "opencode needs your permission" });
+    expect(ps[7]).toMatchObject({ notification_type: "agent_needs_input", message: "opencode has a question" });
     expect(ps[8]).toEqual({ hook_event_name: "SubagentStart", session_id: "ses_1", agent_id: "ses_2", agent_type: "explore", cwd: "/v2/repo" });
     expect(ps[9]).toMatchObject({ session_id: "ses_1", agent_id: "ses_2", tool_name: "Grep" });
     expect(ps[10]).toMatchObject({ hook_event_name: "SubagentStop", session_id: "ses_1", agent_id: "ses_2" });

@@ -4,7 +4,8 @@
 // Two halves. The installer (src/server/opencode-plugin.mjs) writes
 // `<XDG_CONFIG_HOME or ~/.config>/opencode/plugins/ccdeck.js` on a machine with
 // opencode, atomically and only when it changed, never over a ccdeck.js that is
-// not ours, and honours its off switches; `--uninstall` removes only ours. The
+// not ours, and takes ours out under its off switch; `--uninstall` removes only
+// ours too. The
 // generated file must stand alone — opencode loads it on Bun with nothing of
 // ccdeck reachable — so it is imported here from a temp folder and made to run
 // a real forwarder, with paths chosen to break any config that was spliced into
@@ -140,17 +141,45 @@ describe("installOpencodePlugin", () => {
     expect(asked).toBe(false);
   });
 
-  it("is off under AGENTS_DECK_NO_OPENCODE=1 and AGENTS_DECK_NO_INSTALL=1, and leaves a plugin already there", async () => {
+  it("is off under AGENTS_DECK_NO_OPENCODE=1, and takes an earlier start's plugin back out", async () => {
     const m = machine();
     mkdirSync(join(m.home, ".config", "opencode"), { recursive: true });
-    expect(await installOpencodePlugin({ env: { ...m.env, AGENTS_DECK_NO_OPENCODE: "1" }, home: m.home, forwarder: FORWARDER }))
-      .toEqual({ state: "off", reason: "AGENTS_DECK_NO_OPENCODE" });
-    expect(await installOpencodePlugin({ env: { ...m.env, AGENTS_DECK_NO_INSTALL: "1" }, home: m.home, forwarder: FORWARDER }))
-      .toEqual({ state: "off", reason: "AGENTS_DECK_NO_INSTALL" });
+    const off = { ...m.env, AGENTS_DECK_NO_OPENCODE: "1" };
+    let asked = false;
+    const counting = async () => { asked = true; return FORWARDER(); };
+    expect(await installOpencodePlugin({ env: off, home: m.home, forwarder: counting })).toEqual({ state: "off", removed: false });
     expect(existsSync(pluginAt(m.home))).toBe(false);
     await installOpencodePlugin({ env: m.env, home: m.home, forwarder: FORWARDER });
-    expect((await installOpencodePlugin({ env: { ...m.env, AGENTS_DECK_NO_OPENCODE: "1" }, home: m.home, forwarder: FORWARDER })).state).toBe("off");
     expect(existsSync(pluginAt(m.home))).toBe(true);
+    asked = false;
+    expect(await installOpencodePlugin({ env: off, home: m.home, forwarder: counting })).toEqual({ state: "off", removed: true });
+    expect(existsSync(pluginAt(m.home))).toBe(false);
+    expect(existsSync(join(m.home, ".config", "opencode", "plugins")), "the folder is opencode's and stays").toBe(true);
+    expect(asked).toBe(false);
+  });
+
+  it("leaves a ccdeck.js that is not ours under the off switch too", async () => {
+    const m = machine();
+    mkdirSync(join(m.home, ".config", "opencode", "plugins"), { recursive: true });
+    const theirs = "// my own ccdeck forwarder\nexport const MyPlugin = async () => ({})\n";
+    writeFileSync(pluginAt(m.home), theirs);
+    expect(await installOpencodePlugin({ env: { ...m.env, AGENTS_DECK_NO_OPENCODE: "1" }, home: m.home, forwarder: FORWARDER }))
+      .toEqual({ state: "off", removed: false });
+    expect(readFileSync(pluginAt(m.home), "utf8")).toBe(theirs);
+  });
+
+  // AGENTS_DECK_NO_INSTALL=1 is about managed tools and network traffic. The
+  // Claude hooks ignore it, and the plugin follows them: it is how the sessions
+  // reach the board, and AGENTS_DECK_NO_OPENCODE is its own switch.
+  it("installs under AGENTS_DECK_NO_INSTALL=1 when opencode is here, which is not its switch", async () => {
+    const m = machine();
+    writeFileSync(join(m.bin, "opencode"), "");
+    const res = await installOpencodePlugin({ env: { ...m.env, AGENTS_DECK_NO_INSTALL: "1" }, home: m.home, forwarder: FORWARDER });
+    expect(res).toEqual({ state: "installed", path: pluginAt(m.home) });
+    expect(readFileSync(pluginAt(m.home), "utf8").startsWith(PLUGIN_MARKER)).toBe(true);
+    // And nothing at all where opencode is absent, with it or without it.
+    const n = machine();
+    expect(await installOpencodePlugin({ env: { ...n.env, AGENTS_DECK_NO_INSTALL: "1" }, home: n.home, forwarder: FORWARDER })).toEqual({ state: "absent" });
   });
 
   it("answers a failure rather than throwing it", async () => {

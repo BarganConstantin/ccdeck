@@ -21,6 +21,8 @@ import { createUsageDay } from "../../server/usage-day.mjs";
 import { createToolAudit } from "../../server/tool-audit.mjs";
 // @ts-expect-error — plain JS module, no types
 import { agentWord } from "../../server/cli-lines.mjs";
+// @ts-expect-error — plain JS module, no types
+import { blockNotice } from "../../server/block-notify.mjs";
 import { EVENT_ONLY_PROVIDERS, PROVIDERS, isEventOnly, payloadProvider, providerOf } from "../../server/provider-ids.mjs";
 import { applyEvent, initialState, type GraphState } from "../reducer";
 import type { AgentNodeData, HookEnvelope, HookPayload } from "../types";
@@ -143,6 +145,25 @@ describe("the features that stay Claude's and Codex's", () => {
     }
     expect(inspectorNextStep({ kind: "root", sessionId: "s", waiting, provider: "claude" }, deck)).toBe("answer");
     expect(inspectorNextStep({ kind: "root", sessionId: "s", waiting }, deck)).toBe("answer");
+  });
+
+  // The forwarders send a question as agent_needs_input (opencode-plugin-body
+  // waiting, hook.js fromCopilot), Claude Code's own kind for it.
+  it("holds a question as a question, not a permission, with the CLI's sentence on the desktop", () => {
+    const deck = { canOpen: true, stageSession: null };
+    for (const [provider, message] of [["opencode", "opencode has a question"], ["copilot", "Copilot has a question for you"]] as const) {
+      const sid = `q-${provider}`;
+      const asked = { hook_event_name: "Notification", session_id: sid, cwd: "/home/u/billing", provider, notification_type: "agent_needs_input", message };
+      const state = board(
+        { hook_event_name: "SessionStart", session_id: sid, cwd: "/home/u/billing", provider },
+        { hook_event_name: "UserPromptSubmit", session_id: sid, cwd: "/home/u/billing", prompt: "Add a health check endpoint", provider },
+        asked,
+      );
+      const root = state.agents.get(sid)!;
+      expect(root.waiting, provider).toMatchObject({ kind: "asked", message });
+      expect(inspectorNextStep({ kind: "root", sessionId: sid, waiting: root.waiting, provider }, deck), provider).toBe("open");
+      expect(blockNotice(asked, "ccdeck"), provider).toEqual({ title: "billing — ccdeck", body: message });
+    }
   });
 
   it("reads no effort level off a payload that is not Claude's", () => {

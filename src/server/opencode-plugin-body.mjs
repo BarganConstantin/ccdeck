@@ -355,7 +355,9 @@ export function ccdeckOpencodePlugin({
       });
     },
 
-    /** Waiting for the user: a permission prompt, or a question. */
+    /** Waiting for the user: a permission prompt, or a question. They are the
+     *  two kinds Claude Code itself tells apart (`permission_prompt`,
+     *  `agent_needs_input`), and the deck words them differently. */
     waiting(ctx, id, kind, requestID) {
       if (!id) return;
       enqueue(async () => {
@@ -366,10 +368,9 @@ export function ccdeckOpencodePlugin({
         const entry = await resolveSession(ctx, id);
         const out = starts(entry);
         entry.active = true;
-        out.push(payload(entry, "Notification", {
-          notification_type: "permission_prompt",
-          message: kind === "question" ? "opencode has a question" : "opencode needs your permission",
-        }));
+        out.push(payload(entry, "Notification", kind === "question"
+          ? { notification_type: "agent_needs_input", message: "opencode has a question" }
+          : { notification_type: "permission_prompt", message: "opencode needs your permission" }));
         await forwardAll(out);
       });
     },

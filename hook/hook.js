@@ -71,8 +71,9 @@ function parseEvent(argv) {
  *  - PostToolUse carries the result as tool_result; the deck reads
  *    tool_response.
  *  - Notification: Copilot's "permission_prompt" and "elicitation_dialog" (it
- *    asked a question) are both the session waiting for its human, said as
- *    "permission_prompt". Its other kinds — a background shell or agent
+ *    asked a question) are both the session waiting for its human, said in
+ *    Claude Code's words for each: "permission_prompt" stays, a question is
+ *    "agent_needs_input". Its other kinds — a background shell or agent
  *    finishing — are not a wait and are dropped.
  */
 function fromCopilot(payload, event) {
@@ -101,7 +102,7 @@ function fromCopilot(payload, event) {
   if (p.hook_event_name === "Notification") {
     const asked = p.notification_type === "elicitation_dialog";
     if (!asked && p.notification_type !== "permission_prompt") return null;
-    p.notification_type = "permission_prompt";
+    p.notification_type = asked ? "agent_needs_input" : "permission_prompt";
     if (!str(p.message)) p.message = asked ? "Copilot has a question for you" : "Copilot needs your permission";
   }
   return p;

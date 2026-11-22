@@ -2,8 +2,8 @@
 // Copilot's user hooks directory, ccdeck.json (src/server/copilot-hooks.mjs).
 //
 // What is pinned here: where that file goes (COPILOT_HOME, ~/.copilot, the
-// Windows home), when it is written at all (Copilot present, not switched off),
-// its schema against GitHub's hooks reference (version 1, one array per
+// Windows home), when it is written at all (Copilot present, not switched off,
+// and on Windows a node Copilot can start without a shell), its schema against GitHub's hooks reference (version 1, one array per
 // PascalCase event, `exec` + `args`, `timeoutSec`), that every path in it is
 // data — through JSON and through the real /bin/sh that starts it — that a
 // rewrite with nothing new writes nothing, that no other file in that directory
@@ -14,7 +14,7 @@ import {
   chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, symlinkSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, posix } from "node:path";
+import { dirname, join, posix } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 
 // Every directory the installer can reach is under ROOT, set BEFORE the module
@@ -45,7 +45,7 @@ afterAll(() => {
 const mod = await import("../../server/copilot-hooks.mjs");
 const {
   COPILOT_EVENTS, COPILOT_HOOKS_FILE, copilotHome, copilotHooksPath, copilotHookEntry, copilotHooksText,
-  hasCopilotInstalled, installCopilotHooks, isOurHooksFile, uninstallCopilotHooks,
+  hasCopilotInstalled, installCopilotHooks, isOurHooksFile, uninstallCopilotHooks, windowsHookExec,
 } = mod;
 
 type Entry = { type: string; exec: string; args: string[]; timeoutSec: number; [k: string]: unknown };
@@ -63,9 +63,13 @@ function machine(opts: { copilotDir?: boolean } = {}) {
  *  the machine's home is written. On this platform's own paths, so the entries
  *  are the ones this leg's Copilot would run. */
 const PLATFORM = process.platform;
+// The stand-in nodes count as there for the Windows leg's check that the node
+// can be started (windowsHookExec); everything else is asked of the disk.
+const STAND_IN_NODES = new Set(["/opt/node/bin/node", "/usr/local/bin/node"]);
 function install(m: ReturnType<typeof machine>, extra: Record<string, unknown> = {}) {
   return installCopilotHooks({
     env: m.env, home: m.home, platform: PLATFORM,
+    exists: (p: string) => STAND_IN_NODES.has(p) || existsSync(p),
     runtime: () => "/opt/node/bin/node",
     installHook: async () => join(m.home, ".claude", "agent-dag", "hook.js"),
     ...extra,
@@ -375,17 +379,16 @@ describe("installing the hooks file", () => {
     expect(await install(m)).toEqual({ state: "off", removed: false });
   });
 
-  it("is skipped with AGENTS_DECK_NO_INSTALL=1 and touches nothing", async () => {
+  // AGENTS_DECK_NO_INSTALL=1 is about managed tools and network traffic. The
+  // Claude hooks ignore it, and this file follows them: it is how the sessions
+  // reach the board, and AGENTS_DECK_NO_COPILOT is its own switch.
+  it("installs under AGENTS_DECK_NO_INSTALL=1, which is not its switch", async () => {
     const m = machine();
-    await install(m);
-    const bytes = readFileSync(m.file, "utf8");
     m.env.AGENTS_DECK_NO_INSTALL = "1";
-    expect(await install(m, { runtime: () => "/elsewhere/node" })).toEqual({ state: "skipped" });
-    expect(readFileSync(m.file, "utf8")).toBe(bytes);
-    const fresh = machine();
-    fresh.env.AGENTS_DECK_NO_INSTALL = "1";
-    expect(await install(fresh)).toEqual({ state: "skipped" });
-    expect(existsSync(fresh.file)).toBe(false);
+    expect(await install(m)).toEqual({ state: "installed", path: m.file });
+    expect(isOurHooksFile(readFileSync(m.file, "utf8"))).toBe(true);
+    expect(await install(m, { runtime: () => "/usr/local/bin/node" })).toEqual({ state: "installed", path: m.file });
+    expect(readFileSync(m.file, "utf8")).toContain("/usr/local/bin/node");
   });
 
   it("answers a failure rather than throwing", async () => {
@@ -406,6 +409,104 @@ describe("installing the hooks file", () => {
     expect(readFileSync(join(process.env.CLAUDE_CONFIG_DIR!, "agent-dag", "package.json"), "utf8")).toContain("commonjs");
     const file = JSON.parse(readFileSync(m.file, "utf8")) as HooksFile;
     expect(file.hooks.Stop[0].args).toContain(hook);
+  });
+});
+
+// Copilot starts `exec` without a shell, Node refuses a .cmd or .bat without
+// one, and a PreToolUse hook that fails to start DENIES the tool call. In the
+// desktop app the hook runtime is its ccdeck-node.cmd launcher. The Windows
+// answers, on every leg: platform, runtime, Path and `exists` are injected, and
+// the file goes to a real path of this machine's.
+describe("a Windows entry never starts a .cmd", () => {
+  const NODE = "C:\\Program Files\\nodejs\\node.exe";
+  const LAUNCHER = "C:\\Users\\Ana\\AppData\\Local\\ccdeck\\ccdeck-node.cmd";
+  const HOOK = "C:\\Users\\Ana\\.claude\\agent-dag\\hook.js";
+
+  /** A Windows machine with Copilot on its Path, and node.exe there or not. */
+  function windows(opts: { node?: boolean; also?: string[] } = {}) {
+    const m = machine();
+    const seen = new Set(["C:\\npm\\copilot.cmd", ...(opts.node === false ? [] : [NODE]), ...(opts.also ?? [])]);
+    const env = { Path: "C:\\Windows;C:\\npm;C:\\Program Files\\nodejs" };
+    const exists = (p: string) => seen.has(p);
+    const run = (runtime: string, extra: Record<string, unknown> = {}) => installCopilotHooks({
+      env, home: "C:\\Users\\Ana", platform: "win32", path: m.file, exists,
+      runtime: () => runtime, installHook: async () => HOOK, ...extra,
+    });
+    const execs = () => new Set(Object.values((JSON.parse(readFileSync(m.file, "utf8")) as HooksFile).hooks).map(([e]) => e.exec));
+    return { m, env, exists, run, execs };
+  }
+
+  it("starts the node.exe on Path in place of the desktop app's .cmd launcher", async () => {
+    const w = windows();
+    expect(await w.run(LAUNCHER)).toEqual({ state: "installed", path: w.m.file });
+    const file = JSON.parse(readFileSync(w.m.file, "utf8")) as HooksFile;
+    for (const [event, [entry]] of Object.entries(file.hooks)) {
+      expect(entry.exec, event).toBe(NODE);
+      expect(entry.args, event).toEqual([HOOK, "--provider", "copilot", "--event", event]);
+    }
+    // A .bat is the same refusal, in any case.
+    expect(await w.run("C:\\tools\\Node.BAT")).toEqual({ state: "unchanged", path: w.m.file });
+  });
+
+  it("asks Path for node.exe by that name, so a node.cmd ahead of it is never the answer", async () => {
+    const w = windows({ also: ["C:\\npm\\node.cmd"] });
+    await w.run(LAUNCHER);
+    expect(w.execs()).toEqual(new Set([NODE]));
+  });
+
+  it("falls back to the node.exe on Path when the recorded runtime is not there", async () => {
+    const w = windows();
+    await w.run("C:\\Users\\Ana\\.nvm\\v20.0.0\\node.exe");
+    expect(w.execs()).toEqual(new Set([NODE]));
+  });
+
+  it("uses a node.exe runtime that is there unchanged", async () => {
+    const own = "D:\\nvm\\v24.11.0\\node.exe";
+    const w = windows({ also: [own] });
+    expect(await w.run(own)).toEqual({ state: "installed", path: w.m.file });
+    expect(w.execs()).toEqual(new Set([own]));
+  });
+
+  it("writes nothing when no node can be started, and takes an earlier file of ours back out", async () => {
+    const w = windows({ node: false });
+    // An earlier boot's file, written while a node.exe was still on Path.
+    mkdirSync(dirname(w.m.file), { recursive: true });
+    writeFileSync(w.m.file, copilotHooksText(NODE, HOOK, "win32"));
+    let installed = false;
+    const res = await w.run(LAUNCHER, { installHook: async () => { installed = true; return HOOK; } });
+    expect(res).toEqual({ state: "no-node", removed: true });
+    expect(existsSync(w.m.file)).toBe(false);
+    expect(installed).toBe(false);
+    expect(await w.run(LAUNCHER)).toEqual({ state: "no-node", removed: false });
+    expect(existsSync(w.m.file)).toBe(false);
+  });
+
+  it("leaves a ccdeck.json of the user's own where it is when no node can be started", async () => {
+    const w = windows({ node: false });
+    mkdirSync(dirname(w.m.file), { recursive: true });
+    const theirs = JSON.stringify({ version: 1, hooks: { agentStop: [{ type: "command", powershell: "./done.ps1" }] } });
+    writeFileSync(w.m.file, theirs);
+    expect(await w.run(LAUNCHER)).toEqual({ state: "no-node", removed: false });
+    expect(readFileSync(w.m.file, "utf8")).toBe(theirs);
+  });
+
+  it("answers the same through windowsHookExec on its own", () => {
+    const w = windows();
+    for (const launcher of [LAUNCHER, "C:\\x\\ccdeck-node.CMD", "C:\\x\\run.Bat"]) {
+      expect(windowsHookExec(launcher, { env: w.env, exists: () => true }), launcher).toBe("C:\\Windows\\node.exe");
+    }
+    expect(windowsHookExec(NODE, { env: w.env, exists: w.exists })).toBe(NODE);
+    expect(windowsHookExec("", { env: w.env, exists: w.exists })).toBe(NODE);
+    expect(windowsHookExec(LAUNCHER, { env: { Path: "C:\\Windows" }, exists: w.exists })).toBeNull();
+  });
+
+  it("leaves the POSIX entry as it was: the recorded node, through /bin/sh", async () => {
+    const m = machine();
+    const hook = join(m.home, ".claude", "agent-dag", "hook.js");
+    // Made here: on a Windows leg the POSIX dirname of this machine's path is ".".
+    mkdirSync(dirname(m.file), { recursive: true });
+    await installCopilotHooks({ env: m.env, home: m.home, platform: "linux", path: m.file, runtime: () => "/gone/node", installHook: async () => hook });
+    expect(readFileSync(m.file, "utf8")).toBe(copilotHooksText("/gone/node", hook, "linux"));
   });
 });
 
