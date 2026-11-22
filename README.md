@@ -815,6 +815,7 @@ Environment:
 | `AGENTS_DECK_NO_LAN=1` | Keep **Local network** off, whatever its switch in the panel says |
 | `AGENTS_DECK_NO_REPORTS=1` | Never send usage reports, nor the device fingerprint with feedback |
 | `AGENTS_DECK_NO_RADAR=1` | Keep Telemetry Radar from looking for Claude Code's collector or capturing in the background — see [Claude Telemetry Radar](#claude-telemetry-radar-macos-linux-and-windows) |
+| `AGENTS_DECK_NO_OPENCODE=1` | Never write ccdeck's plugin (`ccdeck.js`) into opencode's plugins folder, `~/.config/opencode/plugins`; `AGENTS_DECK_NO_INSTALL=1` leaves it out too. A plugin already there stays until `ccdeck --uninstall` |
 | `AGENTS_DECK_CSWAP` | Full path to `cswap`, when it lives somewhere unusual |
 | `AGENTS_DECK_CLAUDE` | Full path to the `claude` CLI |
 | `AGENTS_DECK_CCUSAGE` | Full path to your own `ccusage`, used ahead of everything else |

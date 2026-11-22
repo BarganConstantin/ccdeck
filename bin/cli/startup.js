@@ -137,7 +137,16 @@ export function startupWork({ wantClaude, installHooks, leftoverCodexHooks }) {
   // watching the rollouts, and one file read is the whole cost.
   const codexHooks = leftoverCodexHooks().catch(() => null);
 
-  return { hooks, cswap, cswapInstalling, cswapQuiet, ccusage, update, codexHooks };
+  // ccdeck's plugin in opencode's plugins folder, on a machine with opencode
+  // (src/server/opencode-plugin.mjs). After the hooks job, because the plugin
+  // runs the hook.js that job installs; it installs that script itself when
+  // there is no Claude Code. Its answer never throws, and nothing here prints.
+  const opencode = hooks
+    .then(() => import(pathToFileURL(join(PKG_ROOT, "src/server/opencode-plugin.mjs")).href))
+    .then(m => m.installOpencodePlugin())
+    .catch(() => null);
+
+  return { hooks, cswap, cswapInstalling, cswapQuiet, ccusage, update, codexHooks, opencode };
 }
 
 /**

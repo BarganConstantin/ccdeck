@@ -277,7 +277,7 @@ async function installText(text, dst) {
  */
 const HOOK_PACKAGE_JSON = '{ "type": "commonjs" }\n';
 
-async function installHookScript(installDir) {
+export async function installHookScript(installDir) {
   await ensureDir(installDir);
   await installText(HOOK_PACKAGE_JSON, join(installDir, "package.json"));
   const src = join(PKG_ROOT, "hook", "hook.js");

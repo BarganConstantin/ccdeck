@@ -43,3 +43,9 @@ delete process.env.CCDECK_ACCOUNT_API;
 // A test deck must never change authentication in the developer's existing
 // Codex daemon. Live-account suites construct controllers with fake peers.
 process.env.AGENTS_DECK_NO_CODEX_LIVE = "1";
+
+// A booted deck writes ccdeck's plugin into opencode's global plugins folder
+// when it finds opencode — on PATH, or under XDG_CONFIG_HOME, both of which a
+// test deck inherits from the developer's own shell. Off here, so no suite can
+// reach that folder; the plugin's own suite hands the installer its own env.
+process.env.AGENTS_DECK_NO_OPENCODE = "1";
