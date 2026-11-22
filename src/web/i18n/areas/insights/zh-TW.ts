@@ -715,6 +715,8 @@ const catalog: Catalog = {
   "insights.srv.busy": "正在讀取用量報告，請稍後再試。",
   "insights.srv.invalidLookup": "工作階段查詢無效。",
   "insights.context.cacheReads": "快取讀取",
+  "insights.note.src.promptEventsOnly": "這個回合開始時的提示詞——ccdeck 不會從 {agent} 的回覆擷取說明",
+  "insights.context.eventsOnly": "ccdeck 不會讀取 {agent} 的上下文視窗或 token 用量，因此這裡沒有可顯示的內容。",
 };
 
 export default catalog;

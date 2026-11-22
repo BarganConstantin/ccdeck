@@ -484,7 +484,7 @@ export async function switchHere(num) {
 async function liveClaudeSessions(deck) {
   const r = await ask(deck, { path: "/api/sessions", timeoutMs: 3_000 });
   if (!r.ok || !Array.isArray(r.body?.sessions)) return null;
-  return r.body.sessions.filter(s => s.provider !== "codex" && s.state !== "ended").length;
+  return r.body.sessions.filter(s => (s.provider ?? "claude") === "claude" && s.state !== "ended").length;
 }
 
 // ── usage ───────────────────────────────────────────────────────────────────

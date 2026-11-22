@@ -68,6 +68,9 @@ import { isApplePlatform, platformName } from "./platform";
 import { screenShows, type AskStep } from "./ask-keys";
 import { prefersReducedMotion } from "./viewport-motion";
 import { t as tr } from "./i18n";
+import { isEventOnly } from "../server/provider-ids.mjs";
+import { providerLabel } from "./provider-copy";
+import type { Provider } from "./types";
 import { endedCleanly, showsFrame, type KeysOwner, type StagePhase } from "./components/terminal/stage-model";
 
 /** The stage's font size. 13.3px is where the deck's mono stack advances a
@@ -640,10 +643,25 @@ const recovering = (f: ApiFailure) => transient(f) && (PANEL_RECOVERING as reado
  *  keeps its code, so the card checks again in place. A Claude session
  *  refused because Claude Code is not installed is said so, and the card
  *  offers to install it; Codex's keeps the engine's sentence. */
-const failed = (f: ApiFailure, agent?: TerminalProvider): StagePhase =>
+const failed = (f: ApiFailure, agent?: Provider): StagePhase =>
   panelUnavailable(f.code) ? { kind: "error", message: f.error, code: f.code, busy: false }
     : f.code === "agent-missing" && agent === "claude" ? { kind: "error", message: f.error, missing: "claude" }
       : { kind: "error", message: f.error };
+
+/**
+ * The card for an opencode or Copilot session. Each runs in a terminal of its
+ * own that the deck neither started nor can reach, and the engine knows no
+ * such provider: a Copilot id is a UUID, and asked as a Claude session's, a
+ * "Reopen here" would start Claude Code on another CLI's conversation. So
+ * nothing is asked of the engine, nothing is offered to reopen, and the card
+ * says what the board does follow. Not running elsewhere, so nothing watches.
+ */
+export const eventsOnlyPhase = (provider: Provider): StagePhase => ({
+  kind: "not-attachable",
+  target: { kind: "unsupported", label: tr(EVENTS_ONLY_MSG, { agent: providerLabel(provider) }), adoptable: false },
+  stillRunning: false,
+  busy: false,
+});
 
 /** Whether two answers about the deck's tmux download say the same thing, so
  *  a poll that learned nothing new draws nothing. */
@@ -659,6 +677,7 @@ export const ENGINE_NO_RETURN_MSG = "board.session.engineNoReturn";
 export const NO_RETURN_WINDOWS_MSG = "board.session.noReturnWindows";
 export const ENGINE_NO_RETURN_WINDOWS_MSG = "board.session.engineNoReturnWindows";
 const NOT_REOPENABLE_MSG = "board.session.notReopenable";
+export const EVENTS_ONLY_MSG = "board.stage.eventsOnly";
 const TMUX_SETUP_SLOW_MSG = "board.session.tmuxSetupSlow";
 
 /**
@@ -972,6 +991,8 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   };
 
   const openFlow = async (ref: SessionRef, my: number, reconnecting: boolean) => {
+    // Every open goes through here — the first, Check again, a reconnect.
+    if (isEventOnly(ref.provider)) { setPhase(eventsOnlyPhase(ref.provider)); return; }
     // At the pane's size and in its colours, as an adopt: an open the engine
     // answers by starting a client (a managed Codex) starts it in both.
     const answer = await deps.api.open(ref, {}, { ...want }, paneColours());
@@ -1067,6 +1088,8 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     }
     const ref = refOf();
     if (!ref) { setPhase({ kind: "error", message: tr(NOT_REOPENABLE_MSG) }); return; }
+    // Its card at once, with no "attaching" before it: there is nothing to attach to.
+    if (isEventOnly(ref.provider)) { setPhase(eventsOnlyPhase(ref.provider)); return; }
     setPhase({ kind: "attaching", reconnect: reconnecting });
     void openFlow(ref, my, reconnecting);
   };
@@ -1240,7 +1263,9 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     adopt() {
       const ref = refOf();
       const phase = snap.phase;
-      if (!ref || disposed) return;
+      // Never for opencode or Copilot (eventsOnlyPhase): its card offers no
+      // Reopen here, and no key or menu may reach one either.
+      if (!ref || disposed || isEventOnly(ref.provider)) return;
       if (phase.kind !== "not-attachable" && phase.kind !== "ended" && phase.kind !== "detached") return;
       // The button stays enabled while it works (#620: a press never
       // disables its own control), so a second press is refused here.

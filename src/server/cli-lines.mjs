@@ -217,6 +217,10 @@ export function shortModel(model) {
 }
 
 const STATE_WORDS = { waiting: "waiting", working: "working", idle: "your turn", ended: "ended" };
+/** Each CLI by the name a session row gives it. A summary with no provider,
+ *  or one this build does not know, is Claude's, as the summary reads it. */
+const AGENT_WORDS = { claude: "Claude", codex: "Codex", opencode: "OpenCode", copilot: "Copilot" };
+export const agentWord = (provider) => (Object.hasOwn(AGENT_WORDS, provider) ? AGENT_WORDS[provider] : "Claude");
 
 /**
  * The sessions, one per line, the ones waiting on a human first and their
@@ -226,7 +230,7 @@ export function sessionLines(sessions, { tone, g, columns = 80, now = Date.now()
   const rows = Array.isArray(sessions) ? sessions : [];
   if (!rows.length) return [`  ${tone.muted}${g.dash}  no sessions right now${tone.reset}`];
   const label = (s) => oneLine(s.name) || oneLine(s.project) || oneLine(s.id).slice(0, 8);
-  const agentOf = (s) => (s.provider === "codex" ? "Codex" : "Claude");
+  const agentOf = (s) => agentWord(s.provider);
   // The mark, the state word and the age take 23 columns; the label gets what
   // the agent column leaves, and on a narrow terminal the agent column gives
   // way first — the model, then the agent — so the label, which is how a person

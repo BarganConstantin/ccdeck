@@ -58,7 +58,7 @@
 // deck has none, so the deck's header is the one it always was, and a control
 // that would have nothing behind it is not drawn.
 import { contextFigure, contextPct, contextPercent, contextTokens } from "../../context-figure";
-import type { TerminalProvider } from "../../terminal-api";
+import type { Provider } from "../../types";
 import { agentName, type KeysOwner, type StageState, type StageStatus } from "./stage-model";
 import { ContextRing } from "../ContextModal";
 import { type DragEvent, type RefObject, useId, useState } from "react";
@@ -177,7 +177,7 @@ export interface StageHeaderProps {
    *  name is only drawn. The stage holds the renaming (useRenaming), so this
    *  header calls no hook and stays drawable by calling it. */
   rename?: StageRename | null;
-  provider?: TerminalProvider | null;
+  provider?: Provider | null;
   status: StageStatus;
   keysOwner: KeysOwner;
   /** The release chord as the reader's keyboard labels it (terminal-keys.ts). */

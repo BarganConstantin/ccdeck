@@ -23,6 +23,8 @@ import { shortAgo } from "../../relative-time";
 import { elapsed } from "../../duration";
 import { clockShort } from "../../elapsed-short";
 import { t } from "../../i18n";
+import { providerLabel } from "../../provider-copy";
+import type { Provider } from "../../types";
 
 // ---------------------------------------------------------------------------
 // The stage's own phase — what the terminal under the header is doing.
@@ -479,9 +481,10 @@ export function elidePath(p: string, max = 24): string {
   return `…/${last.slice(0, Math.max(1, max - 3))}…`;
 }
 
-/** The product name the stage uses for an agent. */
-export function agentName(agent: TerminalProvider): string {
-  return agent === "codex" ? "Codex" : "Claude Code";
+/** The product name the stage uses for an agent: provider-copy.ts's, so an
+ *  opencode or Copilot session on stage is never called Claude Code. */
+export function agentName(agent: Provider): string {
+  return providerLabel(agent);
 }
 
 /** The agent's short name, for a line that already says what it runs in: the

@@ -24,6 +24,8 @@ import { agentCost } from "../usage-models";
 import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import PathText from "./PathText";
+import { isEventOnly } from "../../server/provider-ids.mjs";
+import { providerLabel } from "../provider-copy";
 
 /** Every line in this modal whose truth depends on which CLI the session is.
  *
@@ -127,6 +129,17 @@ export function ContextView({ agent, meta = false }: {
   meta?: boolean;
 }) {
   const t = useT();
+  // opencode and Copilot send the deck events and nothing else: no token
+  // count, no window, no transcript to scan, no memory file it looks for. Every
+  // section below would print a zero or Claude's CLAUDE.md line as if it had
+  // been read, so the panel says that once instead.
+  if (isEventOnly(agent.provider)) {
+    return (
+      <div className="ctx-view" data-inspector={!meta || undefined}>
+        <p className="ctx-empty">{t("insights.context.eventsOnly", { agent: providerLabel(agent.provider) })}</p>
+      </div>
+    );
+  }
   const ctx = agent.context;
   const usage = agent.usage;
   const { used: current, limit: window, pct } = contextFill(agent);

@@ -19,6 +19,7 @@
 // Codex is not read here: its effort is a fact of the session, read off the
 // rollout's `turn_context` and stamped on the root (stampSessionFacts).
 import type { HookPayload } from "./types";
+import { payloadProvider } from "../server/provider-ids.mjs";
 
 const EFFORT_EVENTS = new Set(["PreToolUse", "PostToolUse", "PostToolUseFailure", "Stop", "SubagentStop"]);
 
@@ -32,7 +33,8 @@ export const EFFORT_LEVEL_RE = /^[a-z][a-z0-9_-]{0,23}$/i;
  * the event says nothing about effort at all.
  */
 export function claudeEffort(name: string, p: HookPayload): string | null | undefined {
-  if (p.provider === "codex") return undefined;
+  // Claude Code's payloads only: Codex, opencode and Copilot say nothing here.
+  if (payloadProvider(p) !== "claude") return undefined;
   const level = p.effort && typeof p.effort === "object" ? p.effort.level : undefined;
   if (typeof level === "string" && EFFORT_LEVEL_RE.test(level)) return level;
   return EFFORT_EVENTS.has(name) ? null : undefined;

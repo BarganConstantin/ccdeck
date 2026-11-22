@@ -715,6 +715,8 @@ const catalog: Catalog = {
   "insights.srv.busy": "使用量レポートはすでに読み取り中です。しばらくしてからもう一度お試しください。",
   "insights.srv.invalidLookup": "セッションの検索が無効です。",
   "insights.context.cacheReads": "キャッシュ読み取り",
+  "insights.note.src.promptEventsOnly": "このターンの最初のプロンプトです。ccdeck は {agent} の返信から一文を取り出しません",
+  "insights.context.eventsOnly": "ccdeck は {agent} のコンテキストウィンドウやトークン使用量を読み取らないため、ここに表示するものはありません。",
 };
 
 export default catalog;

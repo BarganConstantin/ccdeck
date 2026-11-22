@@ -33,6 +33,8 @@
 // watches (its first scan skips every file's history). Replayed lines and the
 // deck's own synthetic events are not use.
 
+import { payloadProvider } from "./provider-ids.mjs";
+
 /**
  * The features a day can say were used — fixed tokens, never anything a caller
  * makes up. The page names the ones it sees opened (POST /api/feature, through
@@ -194,9 +196,15 @@ export function createUsageDay({ now = () => new Date() } = {}) {
     add(usedThisRun, c.day);
     add(c.sessions, sid);
     if (typeof raw.agent_id === "string" && raw.agent_id) add(c.subagents, `${sid}\u0000${raw.agent_id}`);
-    add(c.features, raw.provider === "codex" ? "codex-sessions" : "claude-sessions");
+    // Which CLI, for the two FEATURES names one: an opencode or Copilot
+    // session is neither, and counting it as Claude's would say a Claude
+    // session ran that day when none did. It still counts as a session.
+    const provider = payloadProvider(raw);
+    if (provider === "claude" || provider === "codex") add(c.features, `${provider}-sessions`);
     if (!first) {
-      first = { at: now().toISOString(), provider: raw.provider === "codex" ? "codex" : "claude" };
+      // The provider as the payload named it: reports.mjs sends only the two
+      // it knows, and leaves the field out for the others.
+      first = { at: now().toISOString(), provider };
       for (const fn of firstListeners) {
         try { fn(first); } catch { /* a listener's failure is its own */ }
       }
