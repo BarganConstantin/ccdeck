@@ -656,7 +656,6 @@ const catalog: Catalog = {
   "settings.account.copy.vetoed": "此电脑上已关闭：ccdeck 以 AGENTS_DECK_NO_ACCOUNT=1 或 AGENTS_DECK_NO_INSTALL=1 启动，不会连接任何账号。",
   "settings.account.copy.loading": "正在读取此 ccdeck 的账号…",
   "settings.account.copy.unreachable": "ccdeck 没有响应，可能正在重启。",
-  "settings.account.copy.explain": "将此 ccdeck 连接到您的 ccdeck 账号，即可在 app.ccdeck.dev 的“电脑”中看到它，并与您其他 ccdeck 保持所选设置同步。",
   "settings.account.copy.sent": "连接后，它每 15 秒发送一次：名称、版本和系统、CPU 与内存使用情况，以及正在运行或等您处理的会话数量。绝不发送会话内容、会话名称、您的文件或 Claude 账号。发送的内容和您同步的设置保存在 ccdeck 的服务器上，服务器可以读取。",
   "settings.account.copy.nameNote": "此 ccdeck 在您账号中的显示名称。如果不想使用这台电脑的名称，请在连接前修改。",
   "settings.account.copy.connecting": "请在浏览器中批准此 ccdeck，并确认那里的代码与这里一致。",
