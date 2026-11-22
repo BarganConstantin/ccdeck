@@ -11,7 +11,7 @@
 // a real forwarder, with paths chosen to break any config that was spliced into
 // code rather than written as JSON.
 import { describe, it, expect, afterAll } from "vitest";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -20,7 +20,11 @@ import { rmTempDir } from "./rm-temp-dir";
 // installer.mjs resolves the Claude config dir when it is first imported, and
 // the default forwarder installs hook.js there — so HOME, USERPROFILE and
 // CLAUDE_CONFIG_DIR point into a temp directory before anything is loaded.
-const ROOT = mkdtempSync(join(tmpdir(), "ccdeck-opencode-"));
+// The long form of the temp path: on Windows runners os.tmpdir() answers with
+// the 8.3 short name (C:\Users\RUNNER~1\...), whose "~" a file URL spells
+// %7E, and the test runner then cannot load the generated plugin by that URL.
+// codex-auth-temp-collision.test.ts takes the same call for the same reason.
+const ROOT = realpathSync.native(mkdtempSync(join(tmpdir(), "ccdeck-opencode-")));
 const prev = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR };
 process.env.HOME = join(ROOT, "home");
 process.env.USERPROFILE = join(ROOT, "home");
