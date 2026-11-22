@@ -149,7 +149,8 @@ export async function installOpencodePlugin({
       claudeDir,
     });
     if (current === text) return { state: "unchanged", path };
-    await mkdir(join(opencodeConfigDir({ env, home }), "plugins"), { recursive: true });
+    // opencode's folders are its user's alone; one made here is too, as Copilot's.
+    await mkdir(join(opencodeConfigDir({ env, home }), "plugins"), { recursive: true, mode: 0o700 });
     await writeFileAtomic(path, text);
     return { state: "installed", path };
   } catch (err) {
