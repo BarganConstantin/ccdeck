@@ -815,6 +815,8 @@ Environment:
 | `AGENTS_DECK_NO_LAN=1` | Keep **Local network** off, whatever its switch in the panel says |
 | `AGENTS_DECK_NO_REPORTS=1` | Never send usage reports, nor the device fingerprint with feedback |
 | `AGENTS_DECK_NO_RADAR=1` | Keep Telemetry Radar from looking for Claude Code's collector or capturing in the background — see [Claude Telemetry Radar](#claude-telemetry-radar-macos-linux-and-windows) |
+| `AGENTS_DECK_NO_COPILOT=1` | Leave GitHub Copilot CLI alone: no `ccdeck.json` in its hooks directory (one an earlier start wrote is taken out), so its sessions stay off the board. `AGENTS_DECK_NO_INSTALL=1` does not write that file either, and leaves one already there as it is |
+| `COPILOT_HOME` | Where GitHub Copilot CLI keeps its settings, as Copilot reads it; the deck's hooks file goes in its `hooks` directory |
 | `AGENTS_DECK_CSWAP` | Full path to `cswap`, when it lives somewhere unusual |
 | `AGENTS_DECK_CLAUDE` | Full path to the `claude` CLI |
 | `AGENTS_DECK_CCUSAGE` | Full path to your own `ccusage`, used ahead of everything else |

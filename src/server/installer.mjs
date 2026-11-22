@@ -277,7 +277,9 @@ async function installText(text, dst) {
  */
 const HOOK_PACKAGE_JSON = '{ "type": "commonjs" }\n';
 
-async function installHookScript(installDir) {
+// Exported for copilot-hooks.mjs, whose entries run this same installed copy —
+// on a machine without Claude Code too, where nothing else puts it there.
+export async function installHookScript(installDir) {
   await ensureDir(installDir);
   await installText(HOOK_PACKAGE_JSON, join(installDir, "package.json"));
   const src = join(PKG_ROOT, "hook", "hook.js");

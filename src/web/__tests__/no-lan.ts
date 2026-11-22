@@ -43,3 +43,12 @@ delete process.env.CCDECK_ACCOUNT_API;
 // A test deck must never change authentication in the developer's existing
 // Codex daemon. Live-account suites construct controllers with fake peers.
 process.env.AGENTS_DECK_NO_CODEX_LIVE = "1";
+
+// Every deck boot writes GitHub Copilot CLI's hooks file (copilot-hooks.mjs)
+// where Copilot is installed, which depends on the machine running the suite,
+// and a developer's own COPILOT_HOME would point it at their real Copilot
+// config instead of the suite's temp home. Off, and Copilot's home back under
+// HOME, every deck a suite boots does the same on every machine; the hooks
+// file's own suites hand the installer an env of their own.
+delete process.env.COPILOT_HOME;
+process.env.AGENTS_DECK_NO_COPILOT = "1";
