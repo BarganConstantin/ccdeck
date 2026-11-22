@@ -63,6 +63,12 @@ export function startupWork({ wantClaude, installHooks, leftoverCodexHooks }) {
     ? installHooks({ provider: "claude" }).then(v => ({ ok: true, v }), err => ({ ok: false, err }))
     : Promise.resolve(null);
 
+  // GitHub Copilot CLI's hooks file, once the job above has put hook.js in
+  // place — with or without Claude Code. It never rejects, and does nothing
+  // where Copilot is absent or turned off (src/server/copilot-hooks.mjs).
+  hooks.then(() => import(pathToFileURL(join(PKG_ROOT, "src/server/copilot-hooks.mjs")).href))
+    .then(m => m.installCopilotHooks()).catch(() => {});
+
   // claude-swap backs the multi-account panel, and an empty store leaves that
   // panel useless even when the tool is there — so the account already signed
   // in is registered once. Bounded inside seedFirstAccount: empty store only,

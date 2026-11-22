@@ -53,6 +53,17 @@ export async function uninstall(flags) {
       : `${PRODUCT}: no ${label} hooks to remove`);
   };
   report(await uninstallHooks({ provider: "claude" }), "Claude");
+  // GitHub Copilot CLI: our one file in its hooks directory, and nothing else
+  // there. One that could not be read or removed is named, and fails the run.
+  {
+    const { uninstallCopilotHooks } = await import(pathToFileURL(join(PKG_ROOT, "src/server/copilot-hooks.mjs")).href);
+    const copilot = await uninstallCopilotHooks();
+    if (copilot.removed) console.log(`${PRODUCT}: Copilot CLI hooks removed (${copilot.path})`);
+    else if (!copilot.ok) {
+      refused = true;
+      console.error(`${PRODUCT}: Copilot CLI hooks NOT removed ${gDash} ${copilot.path} (${copilot.reason}).`);
+    }
+  }
   // The old finish sound was a second entry in the same file, marked
   // __agent-dag-sound rather than __agent-dag, and uninstallHooks does not know
   // that mark — so it used to be left behind, playing on every turn after the
