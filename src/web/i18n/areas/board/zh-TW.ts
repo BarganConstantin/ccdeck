@@ -392,6 +392,7 @@ const catalog: Catalog = {
   "board.rail.search.detail": "面板、工作階段、設定、動作與主題",
   "board.rail.feedback": "意見回饋",
   "board.rail.feedback.menu": "傳送意見回饋",
+  "board.rail.feedback.detail": "回報錯誤或分享構想",
   "board.rail.tools.activity": "工具活動",
   "board.rail.tools.short": "工具",
   "board.rail.tools.detail": "您的代理執行了哪些工具、耗時多久、哪些失敗",

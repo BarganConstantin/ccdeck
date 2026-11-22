@@ -52,7 +52,7 @@ import { useNodeDrag } from "./use-node-drag";
 import { EmptyHero, TabCapHero } from "./components/EmptyHero";
 import DetailAside from "./components/DetailAside";
 import { inspectorDoorOpen, inspectorDoorPress, inspectorIsSheet } from "./inspector-corner";
-import { EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
+import { CornerRun, EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
 import { commandPanelMore, railItems } from "./rail-items";
 import { unreadOf, useFeedbackAccount } from "./feedback-unread";
 import { focusAfterFold } from "./fold-focus";
@@ -1465,8 +1465,9 @@ function Inner() {
         {/* Feedback's own cell, the bar's top-right corner, on every size: over
             the right stripe with the stripe's line beside it, just before the
             OS's window buttons in the desktop app, at the end of the phone's
-            bar. Next after Search in the Tab order. */}
-        <div className="tb-corner"><UtilityRun items={[rails.corner]} /></div>
+            bar. Next after Search in the Tab order. With its word while the
+            stripes show theirs (CornerRun). */}
+        <div className="tb-corner"><CornerRun item={rails.corner} /></div>
       </header>
 
       {/* The left stripe, ahead of the column it opens so Tab reaches the

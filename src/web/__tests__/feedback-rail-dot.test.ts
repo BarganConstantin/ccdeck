@@ -83,7 +83,7 @@ describe("a dot behind the phone's More", () => {
   it("is not Feedback's: More has no Feedback row, its corner on the bar is its one entry", () => {
     const app = read("../App.tsx");
     expect(app).toMatch(/\.\.\.rails\.utilities\.filter\(item => item !== rails\.corner\)\]\}/);
-    expect(app).toContain('<div className="tb-corner"><UtilityRun items={[rails.corner]} /></div>');
+    expect(app).toContain('<div className="tb-corner"><CornerRun item={rails.corner} /></div>');
   });
 
   it("puts the dot on More while no count does, and says the count on the door's row", () => {
