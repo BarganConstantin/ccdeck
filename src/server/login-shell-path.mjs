@@ -64,20 +64,38 @@ export function loginShellArgv(shell) {
 }
 
 /**
+ * The text of the LAST complete marked block in `text`, untrimmed, or null.
+ *
+ * Complete means the way the command prints it: BEGIN ending its line, END
+ * starting one. Text that merely names both markers — the command itself,
+ * echoed back by an rc file — is not a block, so it can neither be taken for
+ * the answer nor end the read early. Whatever precedes BEGIN on its line is
+ * allowed: an rc file can leave a title escape there without a newline.
+ */
+function lastBlock(text) {
+  let found = null;
+  let from = 0;
+  for (;;) {
+    const at = text.indexOf(BEGIN, from);
+    if (at === -1) return found;
+    let eol = at + BEGIN.length;
+    if (text[eol] === "\r") eol += 1;
+    if (text[eol] !== "\n") { from = at + BEGIN.length; continue; }
+    const end = text.indexOf(`\n${END}`, eol);
+    if (end === -1) return found;
+    // Empty when END follows BEGIN's own newline: printenv printed nothing.
+    found = text.slice(eol + 1, end);
+    from = end + 1 + END.length;
+  }
+}
+
+/**
  * The PATH the shell printed: the text of the LAST marked block, trimmed, or
- * null when there is none or it is empty. An rc file that echoes commands
- * could print the markers a second time inside its own noise; the block the
- * command itself printed comes last.
+ * null when there is none or it is empty. rc files may print anything around
+ * it, and a second block can only come after the first.
  */
 export function parseShellPath(stdout) {
-  const text = String(stdout ?? "");
-  let found = null;
-  for (let at = text.indexOf(BEGIN); at !== -1; at = text.indexOf(BEGIN, at + BEGIN.length)) {
-    const end = text.indexOf(END, at + BEGIN.length);
-    if (end === -1) break;
-    found = text.slice(at + BEGIN.length, end);
-  }
-  const path = found?.trim();
+  const path = lastBlock(String(stdout ?? ""))?.trim();
   return path ? path : null;
 }
 
@@ -124,6 +142,14 @@ export function mergePath(deckPath, shellPath) {
  *
  * The answer counts even after a non-zero exit: an rc file whose last command
  * failed is still an rc file that set PATH.
+ *
+ * SETTLED ON THE MARKERS, NOT ONLY ON 'close'. 'close' waits for every holder
+ * of the stdout pipe, and an rc file that starts something in the background
+ * (`some-tool &`, a lazy loader) hands that process the pipe: the shell exits,
+ * the pipe stays open, and the read would sit out the whole deadline with the
+ * answer already in hand. So the first complete block ends it, and the group
+ * is killed, since nothing else is wanted from it. 'close' and the deadline
+ * still end the reads that never print one.
  */
 export function readLoginShellPath({
   env = process.env,
@@ -159,7 +185,13 @@ export function readLoginShellPath({
     }
     if (!child) { settle(null); return; }
     child.stdout?.setEncoding?.("utf8");
-    child.stdout?.on?.("data", (chunk) => { out = (out + chunk).slice(-STDOUT_MAX); });
+    child.stdout?.on?.("data", (chunk) => {
+      if (settled) return;
+      out = (out + chunk).slice(-STDOUT_MAX);
+      if (lastBlock(out) === null) return;
+      killTree(child, "SIGKILL");
+      settle(parseShellPath(out));
+    });
     // Read and dropped, so a chatty rc file can never fill the pipe and stall.
     child.stderr?.resume?.();
     child.once?.("error", () => settle(null));

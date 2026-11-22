@@ -13,8 +13,8 @@
 //
 // WHY THE TESTS ARE SHAPED LIKE THIS. Nothing here starts the developer's own
 // shell or reads their rc files: every function is handed an env of its own,
-// the spawn is a fake, and the one end-to-end case runs a stand-in shell
-// script in a temp folder with a scratch HOME. The suite's setup file sets
+// the spawn is a fake, and the two end-to-end cases run stand-in shell
+// scripts in a temp folder with a scratch HOME. The suite's setup file sets
 // AGENTS_DECK_NO_LOGIN_SHELL=1 in process.env for every other suite; none of
 // these cases reads process.env.
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -48,12 +48,23 @@ beforeEach(() => resetLoginShellPathAdoption());
 
 type Call = { file: string; args: string[]; options: any };
 
+type FakeOptions = {
+  stdout?: string | string[];
+  exit?: number;
+  fail?: boolean;
+  hang?: boolean;
+  throws?: boolean;
+  holdOpen?: boolean;
+};
+
 /**
- * A spawn that starts nothing: each child prints `stdout` and closes with
- * `exit`, or fails to start, or never ends. The children carry no pid, so a
+ * A spawn that starts nothing: each child prints `stdout` (one chunk per array
+ * item) and closes with `exit`, or fails to start, or never ends (`hang`, which
+ * leaves the test to emit), or exits with something it started still holding
+ * stdout (`holdOpen`: 'exit' without 'close'). The children carry no pid, so a
  * kill reaches only the fake's own `kill` and never a real process group.
  */
-function fakeSpawn({ stdout = "", exit = 0, fail = false, hang = false, throws = false } = {}) {
+function fakeSpawn({ stdout = "", exit = 0, fail = false, hang = false, throws = false, holdOpen = false }: FakeOptions = {}) {
   const calls: Call[] = [];
   const children: any[] = [];
   const spawn = (file: string, args: string[], options: any) => {
@@ -67,9 +78,9 @@ function fakeSpawn({ stdout = "", exit = 0, fail = false, hang = false, throws =
     setImmediate(() => {
       if (fail) { child.emit("error", Object.assign(new Error("spawn ENOENT"), { code: "ENOENT" })); return; }
       if (hang) return;
-      if (stdout) child.stdout.emit("data", stdout);
+      for (const chunk of [stdout].flat()) if (chunk) child.stdout.emit("data", chunk);
       child.emit("exit", exit, null);
-      child.emit("close", exit, null);
+      if (!holdOpen) child.emit("close", exit, null);
     });
     return child;
   };
@@ -91,10 +102,16 @@ describe("reading the PATH out of what the shell printed", () => {
   });
 
   it("takes the last block when there are two", () => {
-    // An rc file that echoes what it runs prints the command, markers and all,
-    // before the command prints the real block.
     const out = `${COMMAND}\n${block("/stale/bin")}noise\n${block("/real/bin:/usr/bin")}`;
     expect(parseShellPath(out)).toBe("/real/bin:/usr/bin");
+  });
+
+  it("does not take the command echoed back for a block: BEGIN ends its line, END starts one", () => {
+    // An rc file that echoes what it runs prints the command, markers and all.
+    expect(parseShellPath(`${COMMAND}\n`)).toBeNull();
+    expect(parseShellPath(`${COMMAND}\n${block("/real/bin")}`)).toBe("/real/bin");
+    // Whatever precedes BEGIN on its line is allowed: a title escape with no newline.
+    expect(parseShellPath(`\x1b]0;alice@mac\x07${block("/opt/a")}`)).toBe("/opt/a");
   });
 
   it("is null without the markers, with only one of them, or with nothing between them", () => {
@@ -177,6 +194,35 @@ describe("asking the login shell", () => {
   it("answers it after a non-zero exit too: an rc file whose last command failed still set PATH", async () => {
     const fake = fakeSpawn({ stdout: block("/opt/a:/usr/bin"), exit: 1 });
     expect(await readLoginShellPath({ env, platform: "linux", spawn: fake.spawn })).toBe("/opt/a:/usr/bin");
+  });
+
+  it("answers as soon as the markers are in, though something the rc file started still holds stdout, and kills the group", async () => {
+    // 'exit' without 'close': a background job inherited the pipe. Waiting for
+    // 'close' would sit out the whole deadline with the answer in hand.
+    const fake = fakeSpawn({ stdout: block("/opt/lazy/bin:/usr/bin"), holdOpen: true });
+    const started = Date.now();
+    expect(await readLoginShellPath({ env, platform: "linux", spawn: fake.spawn, timeoutMs: 5_000 })).toBe("/opt/lazy/bin:/usr/bin");
+    expect(Date.now() - started).toBeLessThan(1_000);
+    expect(fake.children[0].kill).toHaveBeenCalledWith("SIGKILL");
+  });
+
+  it("ends early only on a complete block: END across chunks, and not on the command echoed back", async () => {
+    const fake = fakeSpawn({ hang: true });
+    let got: unknown = "pending";
+    const read = readLoginShellPath({ env, platform: "linux", spawn: fake.spawn, timeoutMs: 5_000 });
+    read.then((v: unknown) => { got = v; });
+    const tick = () => new Promise(r => setImmediate(r));
+    await tick();
+    const child = fake.children[0];
+    for (const chunk of [`${COMMAND}\n`, `Welcome!\n${BEGIN}\n/opt/a:`, "/usr/bin\n", `${END.slice(0, 5)}`]) {
+      child.stdout.emit("data", chunk);
+      await tick();
+      expect(got, JSON.stringify(chunk)).toBe("pending");
+    }
+    expect(child.kill).not.toHaveBeenCalled();
+    child.stdout.emit("data", `${END.slice(5)}\n`);
+    expect(await read).toBe("/opt/a:/usr/bin");
+    expect(child.kill).toHaveBeenCalledWith("SIGKILL");
   });
 
   it("is null when the markers never came", async () => {
@@ -334,8 +380,57 @@ describe("the boot's half", () => {
   });
 });
 
-describe("a deck whose PATH never read the shell's startup files (the reported bug)", () => {
-  it.skipIf(process.platform === "win32")("finds the nvm claude the login shell puts on PATH, and only after asking it", async () => {
+/** Whether `pid` is gone: no such process, or (Linux) a zombie nobody has reaped yet. */
+function processGone(pid: number): boolean {
+  try { process.kill(pid, 0); } catch { return true; }
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+    return stat.slice(stat.lastIndexOf(")") + 2).startsWith("Z");
+  } catch {
+    return false;
+  }
+}
+
+// The two cases that run a real stand-in shell script. The deck never asks a
+// shell on Windows; everything else above runs on all three legs.
+describe.skipIf(process.platform === "win32")("a deck whose PATH never read the shell's startup files (the reported bug)", () => {
+  it("answers as soon as the PATH is printed though a background job holds stdout, and kills that job", async () => {
+    const root = mkdtempSync(join(ROOT, "lazy-"));
+    const pidFile = join(root, "sleeper.pid");
+    mkdirSync(join(root, "shells"));
+    const shell = join(root, "shells", "zsh");
+    // An rc file that starts a lazy loader in the background: it inherits
+    // stdout and outlives the shell, so the pipe never closes on its own.
+    writeFileSync(shell, [
+      "#!/bin/sh",
+      "sleep 30 &",
+      `echo $! > '${pidFile}'`,
+      `echo ${BEGIN}`,
+      "printf '%s\\n' '/opt/lazy/bin:/usr/bin:/bin'",
+      `echo ${END}`,
+      "exit 0",
+      "",
+    ].join("\n"));
+    chmodSync(shell, 0o755);
+
+    const started = Date.now();
+    const path = await readLoginShellPath({ env: { SHELL: shell, PATH: "/usr/bin:/bin", HOME: root }, timeoutMs: 5_000 });
+    const took = Date.now() - started;
+    const pid = Number(readFileSync(pidFile, "utf8").trim());
+    try {
+      expect(path).toBe("/opt/lazy/bin:/usr/bin:/bin");
+      expect(took).toBeLessThan(2_000);
+      expect(pid).toBeGreaterThan(1);
+      // Killed with the shell's group; whoever adopted it reaps it a moment later.
+      const deadline = Date.now() + 2_000;
+      while (!processGone(pid) && Date.now() < deadline) await new Promise(r => setTimeout(r, 25));
+      expect(processGone(pid), "the background job outlived the read").toBe(true);
+    } finally {
+      if (pid > 1 && !processGone(pid)) { try { process.kill(pid, "SIGKILL"); } catch { /* gone */ } }
+    }
+  });
+
+  it("finds the nvm claude the login shell puts on PATH, and only after asking it", async () => {
     const root = mkdtempSync(join(ROOT, "machine-"));
     // The install the user's terminal finds: an nvm-style folder no list knows.
     // A stand-in that is never run.
