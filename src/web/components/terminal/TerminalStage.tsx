@@ -62,7 +62,7 @@ import { isKeptKeysNotice, keptKeysNotice } from "../../tab-keys";
 import { useFullStage } from "./use-full-stage";
 import { WORKSPACE_PANE_ID } from "../../workspace-pane";
 import { usePaneRoom } from "./use-pane-room";
-import KeysBar, { type ArrivalView, type AsksView, type EndView } from "./KeysBar";
+import KeysBar, { useStageStatusSlot, type ArrivalView, type AsksView, type EndView } from "./KeysBar";
 import PhoneKeys from "./PhoneKeys";
 import Divider from "./Divider";
 import HostsDialog from "./HostsDialog";
@@ -104,8 +104,9 @@ export function settlesFocus(phase: StagePhase): boolean {
 }
 
 /**
- * Focus onto the stage's own answer: the card's action (`data-stage-land`),
- * else the header's ⌨, else ✕, which every stage draws. Only from where a
+ * Focus onto the stage's own answer: the card's action or an ended session's
+ * Reopen here (`data-stage-land`), else the header's ⌨, else ✕, which every
+ * stage draws. Only from where a
  * press that opened the stage leaves it — the body, or the board going inert
  * under the stage. Focus already in the stage, or that the reader has taken
  * anywhere else, stays where it is, and the request is done either way.
@@ -141,14 +142,12 @@ export function landFocus(root: HTMLElement | null, held: HeldKeys | null = null
   // The header's ⌨ is the one pressed button there is, but for Workspace's Zoom,
   // which reports its state the same way and is not where the keys go.
   const keys = root.querySelector<HTMLElement>(".ts-head button[aria-pressed]");
-  // The keys bar of the pane with the keys is drawn in the shared status bar
-  // (KeysBar's placement), so an ended session's Resume is found there; a
-  // split's other pane has no bar of its own and never takes it.
-  const shared = root.dataset?.secondary === undefined
-    ? document.getElementById?.("ccdeck-stage-status")?.querySelector<HTMLElement>("[data-stage-land]") ?? null
-    : null;
+  // An ended session's Reopen here (or Attach again) is the pane's own: in its
+  // header where the keys bar is out in the window's status bar, in the keys
+  // bar inside the pane on a phone (endPlacement). Either way it is under the
+  // root, so the shared status bar never holds an action to land on, and a
+  // split's other pane, which draws no keys bar, finds its own in its header.
   const target = root.querySelector<HTMLElement>("[data-stage-land]")
-    ?? shared
     ?? (keys && keys.dataset?.zoom === undefined ? keys : null)
     ?? root.querySelector<HTMLElement>(".ts-head button[data-stage-close]");
   if (!target) return false;
@@ -334,6 +333,17 @@ export function endView(
     return { sentence: tNow("board.stage.tookOver"), action: tNow("board.stage.attachAgain"), onAction: act.attachAgain };
   }
   return null;
+}
+
+/**
+ * Where the end action is drawn. Beside a mouse the keys bar is out in the
+ * window's status bar (KeysBar's placement, `slotPresent`), far from the pane
+ * and not drawn at all for a split's other pane: the action goes to the pane's
+ * own header, after its state word. On a phone (no status bar) the keys bar is
+ * inside the pane and keeps it, as it always has. Never both.
+ */
+export function endPlacement(slotPresent: boolean, end: EndView | null): { header: EndView | null; bar: EndView | null } {
+  return slotPresent ? { header: end, bar: null } : { header: null, bar: end };
 }
 
 /**
@@ -710,6 +720,10 @@ export default function TerminalStage(p: TerminalStageProps) {
   };
 
   const end = endView(phase, p.show, { reopen, launchAgain: p.onLaunchAgain, attachAgain: retry });
+  // Beside a mouse the keys bar is out in the window's status bar, so the end
+  // action is drawn in this pane's header instead; on a phone, in the bar.
+  const statusSlot = useStageStatusSlot();
+  const endAt = endPlacement(statusSlot !== null, end);
   const hosts = useOlderHosts(p.windows === true, key, s => onAnnounce.current?.(s), p.hostsApi);
 
   const composer = chatOn && chatSession !== null ? <ChatComposerSlot
@@ -801,6 +815,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         }}
         onExpand={p.split ? p.split.onMax : fullStage.toggle}
         onClose={p.onClose}
+        end={endAt.header}
       />
       <StageBody
         hostRef={session.hostRef}
@@ -839,7 +854,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         chatCannotType={chatCannotType}
         onShowTerm={() => showView("term")}
         onTypeHere={() => intoPane()}
-        end={end}
+        end={endAt.bar}
         asks={p.asks}
         arrival={p.arrival}
         onNextAsk={p.onNextAsk}

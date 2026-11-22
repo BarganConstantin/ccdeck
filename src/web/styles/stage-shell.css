@@ -185,6 +185,7 @@
    all, on stage-morph.ts's `chip` ramp. */
 .stage-dock[data-rider] .ts-head .ts-glyph,
 .stage-dock[data-rider] .ts-meta,
+.stage-dock[data-rider] .ts-end-act,
 .stage-dock[data-rider] .ts-ctl { opacity: var(--stage-late, 1); }
 .stage-dock[data-rider] .ts-ctxchip { opacity: var(--stage-chip, 1); }
 

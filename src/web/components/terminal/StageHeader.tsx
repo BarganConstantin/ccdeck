@@ -22,6 +22,12 @@
 // does; the whole sentence is its tooltip, and a screen reader hears it all,
 // the normal states too. Sans, as prose is, with tabular figures.
 //
+// AN ENDED SESSION'S WAY BACK follows that word: "ended 14m ago [Reopen here]".
+// Beside a mouse the keys bar that carried it is drawn in the window's status
+// bar, far from the pane, and a split's other pane draws none, so a frozen
+// frame read as a pane nothing could be done with. The stage hands it here
+// (`end`) only then; on a phone the keys bar is inside the pane and keeps it.
+//
 // THE MODEL CHIP IS GONE from this header: the rail's row and the agent card
 // carry the model, and Figma's Term header draws none. What its accessible name
 // said is not lost — the provider is still named, in words, after the session's
@@ -73,6 +79,7 @@ import PaneBadge from "../PaneBadge";
 import ProviderAvatar from "../ProviderAvatar";
 import type { PaneLink } from "../../workspace-split";
 import { canGoLarger, canGoSmaller } from "../../terminal-text-size";
+import type { EndView } from "./KeysBar";
 
 /** A menu row's words. The full-screen item's label carries the shortcut hint
  *  after " — " (it stays on the desktop button's tooltip); the menu shows the
@@ -214,6 +221,12 @@ export interface StageHeaderProps {
   /** A drag from the header moves the pane (internal #102). Not while the
    *  name is being edited, nor from a button. */
   onDragHead?(e: DragEvent<HTMLElement>): void;
+  /** An ended session's one action, Reopen here (or Attach again, Start
+   *  again), after the state word, with the end bar's sentence as its tooltip.
+   *  Handed in only where the keys bar is out in the window's status bar
+   *  (TerminalStage endPlacement); on a phone the keys bar inside the pane
+   *  carries it. Left out, nothing is drawn. */
+  end?: EndView | null;
   /** Ask the session for keys, or give them back. */
   onKeys(): void;
   onExpand(): void;
@@ -339,6 +352,16 @@ export default function StageHeader(p: StageHeaderProps) {
             {rest && <span className="vis-hidden"> · {rest}</span>}
           </div>
         ) : status.phrase ? <span className="vis-hidden">{stateSentence(status)}</span> : null}
+        {/* An ended session's way back, beside the word that says it ended:
+            the keys bar that carried it is out in the status bar, far from
+            this pane (KeysBar's placement), and a split's other pane has
+            none. The stage's focus lands on it (landFocus). */}
+        {p.end && (
+          <button type="button" className="btn ts-end-act" data-stage-land aria-busy={p.end.busy || undefined}
+            title={p.end.sentence} onClick={p.end.onAction}>
+            {p.end.action}
+          </button>
+        )}
       </div>
       {used && (
         <span className="ts-ctxchip" role="img" aria-label={ctxName} title={ctxName}>

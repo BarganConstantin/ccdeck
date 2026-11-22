@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 import { all, one, textOf, type Drawn } from "./fake-react";
 import { withoutComments } from "./tsx-scan";
 import { sheetText } from "./sheet-source";
-import TerminalStage, { endView, stageName, subjectOf, type StageShow, type TerminalStageProps } from "../components/terminal/TerminalStage";
+import TerminalStage, { endPlacement, endView, stageName, subjectOf, type StageShow, type TerminalStageProps } from "../components/terminal/TerminalStage";
 import StageHeader, { BACK_EMPTY_LABEL_MSG, BACK_LABEL_MSG, CLOSE_EMPTY_LABEL_MSG, CLOSE_LABEL_MSG, FULL_LABEL_MSG, FULL_LEAVE_LABEL_MSG, type StageHeaderProps } from "../components/terminal/StageHeader";
 import StageBody, { EMPTY_NEW_SESSION_ID, StateCard, downloadNote, setupLine, setupShare, tmuxFact, type StageBodyProps } from "../components/terminal/StageBody";
 import EngineCard from "../components/terminal/EngineCard";
@@ -112,6 +112,26 @@ describe("the header", () => {
     expect(out).toContain('data-glyph="waiting"');
     expect(out).not.toContain("ap-pulse");
     expect(out).not.toMatch(/blocked/i);
+  });
+
+  it("draws an ended session's way back after its state word, one button with the end bar's sentence as its tooltip", () => {
+    // The keys bar that carried it is out in the window's status bar beside a
+    // mouse, far from the pane, and a split's other pane has none: a frozen
+    // Codex frame ("Please restart Codex") read as a pane nothing could be done with.
+    const ended: StageStatus = { state: "ended", phrase: "ended", emphasis: "14m ago" };
+    const onAction = vi.fn();
+    const end = { sentence: "The session ended 14m ago. This is its last frame.", action: "Reopen here", onAction };
+    const out = html(createElement(StageHeader, headerProps({ status: ended, canType: false, end })));
+    expect(out).toMatch(/<span class="ts-meta-state">ended 14m ago<\/span><\/div><button type="button" class="btn ts-end-act" data-stage-land="true" title="The session ended 14m ago. This is its last frame.">Reopen here<\/button><\/div>/);
+    expect(out, "never disabled: busy is said, not a dead control").not.toContain("disabled");
+    press(button(StageHeader(headerProps({ status: ended, end })), "Reopen here"));
+    expect(onAction).toHaveBeenCalledTimes(1);
+    expect(html(createElement(StageHeader, headerProps({ status: ended, end: { ...end, busy: true } })))).toContain('aria-busy="true"');
+    for (const none of [undefined, null]) {
+      const plain = html(createElement(StageHeader, headerProps({ status: ended, end: none })));
+      expect(plain, "no end handed in: nothing drawn").not.toContain("ts-end-act");
+      expect(plain).not.toContain("data-stage-land");
+    }
   });
 
   it("names the provider in words for a screen reader, where the model chip used to say it", () => {
@@ -763,6 +783,20 @@ describe("the stage as a whole", () => {
     expect(act.reopen).toHaveBeenCalledTimes(1);
     expect(endView({ kind: "detached" }, session, act)).toMatchObject({ action: "Attach again" });
     expect(endView({ kind: "live", sizeOwner: "panel", readOnly: false } as StagePhase, session, act)).toBeNull();
+  });
+
+  it("draws the end action in the pane's header where the keys bar is out in the status bar, in the bar on a phone, never both", () => {
+    const end = { sentence: "The session ended.", action: "Reopen here", onAction: vi.fn() };
+    expect(endPlacement(true, end), "beside a mouse: the status bar is far from the pane").toEqual({ header: end, bar: null });
+    expect(endPlacement(false, end), "a phone: the bar is in the pane").toEqual({ header: null, bar: end });
+    expect(endPlacement(true, null)).toEqual({ header: null, bar: null });
+    expect(endPlacement(false, null)).toEqual({ header: null, bar: null });
+    // And the stage wires it so: the slot the keys bar is portalled into decides.
+    const stage = withoutComments(readFileSync(fileURLToPath(new URL("../components/terminal/TerminalStage.tsx", import.meta.url)), "utf8"));
+    expect(stage).toMatch(/const statusSlot = useStageStatusSlot\(\);\s*const endAt = endPlacement\(statusSlot !== null, end\);/);
+    expect(stage).toContain("end={endAt.header}");
+    expect(stage).toContain("end={endAt.bar}");
+    expect(stage).not.toMatch(/\bend=\{end\}/);
   });
 
   it("hands the session hook a subject that names the session, or the launch, and nothing else", () => {
