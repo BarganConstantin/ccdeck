@@ -79,8 +79,10 @@ function doorItem(door: RailItem, singleKeys: boolean): QuickItem {
     // Settings is listed on its own in an empty field, after the sessions,
     // with its chord beside it: V4 keeps it as a cog at the foot of the left
     // stripe, and this is where it is found by name without a word added to
-    // the top bar.
-    ...(door.id === "settings" ? { pinned: true as const } : {}),
+    // the top bar. Send feedback is pinned beside it: listed last among the
+    // doors, below the fold of an empty field, it was found by nobody who did
+    // not already type its name.
+    ...(door.id === "settings" || door.id === "feedback" ? { pinned: true as const } : {}),
     run: door.onPress,
   };
 }

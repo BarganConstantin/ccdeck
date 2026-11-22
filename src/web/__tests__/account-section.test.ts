@@ -9,7 +9,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AccountPanel, ACCOUNT_MSGS, expiresIn, PROBLEM_MSGS, STORAGE_MSGS, statusLine } from "../components/AccountSection";
 import { en } from "../i18n/en";
-import { resetLanguageForTest, setLanguage } from "../i18n";
+import { resetLanguageForTest, setLanguage, t } from "../i18n";
+import { shownValue } from "../components/AccountSyncPreview";
 import { catalogFor } from "../i18n/catalogs";
 import SettingsModal, { type SettingsModalProps } from "../components/SettingsModal";
 import type { AccountView, SyncView } from "../account-bridge";
@@ -116,9 +117,12 @@ describe("each state says its own sentences", () => {
     expect(text(draw(null))).toContain(ACCOUNT_COPY.loading);
   });
 
-  it("not connected: what connecting does, what is sent, the name to appear as, and Connect", () => {
+  it("not connected: what is sent, the name to appear as, and Connect, under the section's note on what connecting does", () => {
     const t = text(draw(view()));
-    expect(t).toContain(ACCOUNT_COPY.explain);
+    // The section's own note, drawn right above the group, says what
+    // connecting does; the group no longer says it a second time.
+    expect(en["settings.section.account.note"]).toMatch(/^Connect this deck to your ccdeck account/);
+    expect(t).not.toContain("Connect this deck to your ccdeck account");
     expect(t).toContain(ACCOUNT_COPY.sent);
     expect(t).toContain("This deck will appear as");
     expect(draw(view())).toContain('value="laptop-a"');
@@ -239,7 +243,6 @@ describe("the section's words read through keys, so they follow the language", (
       vetoed: "Off on this machine: the deck was started with AGENTS_DECK_NO_ACCOUNT=1 or AGENTS_DECK_NO_INSTALL=1, which keep it away from any account.",
       loading: "Reading this deck's account…",
       unreachable: "The deck did not answer. It may be restarting.",
-      explain: "Connect this deck to your ccdeck account to see it in Machines at app.ccdeck.dev, and to keep the settings you choose in step with your other decks.",
       sent: "While connected it sends, every 15 seconds: its name, version and system, CPU and memory use, and how many sessions are running or waiting on you. Never what your sessions do, their names, your files or your Claude accounts. What it sends, and the settings you sync, are kept on ccdeck's server, which can read them.",
       nameNote: "How this deck is listed in your account. Change it before connecting if you would rather not use this computer's name.",
       connecting: "Approve this deck in the browser. Check that the code there matches this one.",
@@ -295,6 +298,27 @@ describe("the section's words read through keys, so they follow the language", (
       expect(statusLine(v)).toBe(inLanguage("de", clock("de")));
       expect(statusLine(v)).toContain(clock("de"));
       expect(clock("en")).not.toBe(clock("de"));
+    } finally {
+      setLanguage("en");
+      resetLanguageForTest();
+    }
+  });
+});
+
+describe("a setting's value in the join and conflict tables", () => {
+  it("a theme reads as Appearance names it, in the language on show; an unknown one keeps its id", () => {
+    // Found in the browser: the join table said "matrix | rider-black".
+    try {
+      setLanguage("en");
+      expect(shownValue(t, "theme", "rider-black")).toBe("Rider Black");
+      expect(shownValue(t, "theme", "dark")).toBe("Dark");
+      setLanguage("de");
+      expect(shownValue(t, "theme", "dark")).toBe(catalogFor("de")["settings.theme.name.dark"]);
+      expect(shownValue(t, "theme", "rider-black")).toBe("Rider Black");
+      // A theme a newer deck shared, which this one does not know yet.
+      expect(shownValue(t, "theme", "from-a-newer-deck")).toBe("from-a-newer-deck");
+      // Only the theme key reads a theme's name.
+      expect(shownValue(t, "language", "dark")).toBe("dark");
     } finally {
       setLanguage("en");
       resetLanguageForTest();

@@ -268,6 +268,7 @@ export default function DeckDialogs({
         <KeyboardHelp
           onClose={() => setKeyHelpOpen(false)}
           onTour={() => { setKeyHelpOpen(false); openTour(); }}
+          onFeedback={() => { setKeyHelpOpen(false); openFeedback(); }}
           onSettings={() => { setKeyHelpOpen(false); openSettings("keyboard"); }}
           workspace={offersWorkspace(terminal)}
         />

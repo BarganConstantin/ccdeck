@@ -34,11 +34,10 @@ import { SettingRow, SettingsGroup } from "./SettingsParts";
 import { currentLanguage, t as say, useT, type MessageKey } from "../i18n";
 
 /** The section's sentences, as keys read with `t` where each is drawn. */
-export const ACCOUNT_MSGS: Record<"vetoed" | "loading" | "unreachable" | "explain" | "sent" | "nameNote" | "connecting" | "revoked" | "accountGone" | "disconnectNote" | "tokenMissing", MessageKey> = {
+export const ACCOUNT_MSGS: Record<"vetoed" | "loading" | "unreachable" | "sent" | "nameNote" | "connecting" | "revoked" | "accountGone" | "disconnectNote" | "tokenMissing", MessageKey> = {
   vetoed: "settings.account.copy.vetoed",
   loading: "settings.account.copy.loading",
   unreachable: "settings.account.copy.unreachable",
-  explain: "settings.account.copy.explain",
   sent: "settings.account.copy.sent",
   nameNote: "settings.account.copy.nameNote",
   connecting: "settings.account.copy.connecting",
@@ -275,13 +274,15 @@ export function AccountPanel({ view, failed = false, vetoed, now = Date.now() }:
   }
 
   // Not connected: never connected, disconnected, removed, or a sign-in lost.
+  // What connecting does is the section's own note, right above; the group
+  // says something only when there is more to say (removed, a sign-in lost).
   const removed = view.state === "revoked";
   const lead = removed
     ? (view.revokedReason === "account_gone" ? ACCOUNT_MSGS.accountGone : ACCOUNT_MSGS.revoked)
-    : view.state === "error" ? ACCOUNT_MSGS.tokenMissing : ACCOUNT_MSGS.explain;
+    : view.state === "error" ? ACCOUNT_MSGS.tokenMissing : null;
   const signInMsg = SIGN_IN_MSGS[view.tokenStorage ?? ""];
   return (
-    <SettingsGroup id="settings-account-caption" title={t("settings.account.title")} note={t(lead)}>
+    <SettingsGroup id="settings-account-caption" title={t("settings.account.title")} note={lead ? t(lead) : undefined}>
       <SettingRow as="div" name={t("settings.account.whatIsSent")} note={t(ACCOUNT_MSGS.sent)} />
       <SettingRow name={t("settings.account.appearAs")} nameId="settings-account-name-label"
         note={t(ACCOUNT_MSGS.nameNote)} noteId="settings-account-name-note"

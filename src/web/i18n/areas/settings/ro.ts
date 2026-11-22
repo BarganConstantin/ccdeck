@@ -666,7 +666,6 @@ const catalog: Catalog = {
   "settings.account.copy.vetoed": "Dezactivat pe acest computer: ccdeck a fost pornit cu AGENTS_DECK_NO_ACCOUNT=1 sau AGENTS_DECK_NO_INSTALL=1, care îl țin departe de orice cont.",
   "settings.account.copy.loading": "Se citește contul acestui ccdeck…",
   "settings.account.copy.unreachable": "ccdeck nu a răspuns. Poate se repornește.",
-  "settings.account.copy.explain": "Conectează acest ccdeck la contul tău ccdeck ca să-l vezi în Machines pe app.ccdeck.dev și ca să păstrezi setările alese în pas cu celelalte ccdeck-uri ale tale.",
   "settings.account.copy.sent": "Cât timp e conectat, trimite la fiecare 15 secunde: numele, versiunea și sistemul, utilizarea procesorului și a memoriei și câte sesiuni rulează sau te așteaptă. Niciodată ce fac sesiunile tale, numele lor, fișierele tale sau conturile tale Claude. Ce trimite și setările pe care le sincronizezi sunt păstrate pe serverul ccdeck, care le poate citi.",
   "settings.account.copy.nameNote": "Cum apare acest ccdeck în contul tău. Schimbă-l înainte de conectare dacă nu vrei să folosești numele acestui computer.",
   "settings.account.copy.connecting": "Aprobă acest ccdeck în browser. Verifică dacă codul de acolo se potrivește cu cel de aici.",

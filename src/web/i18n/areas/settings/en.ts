@@ -656,7 +656,6 @@ const catalog: Catalog = {
   "settings.account.copy.vetoed": "Off on this machine: the deck was started with AGENTS_DECK_NO_ACCOUNT=1 or AGENTS_DECK_NO_INSTALL=1, which keep it away from any account.",
   "settings.account.copy.loading": "Reading this deck's account…",
   "settings.account.copy.unreachable": "The deck did not answer. It may be restarting.",
-  "settings.account.copy.explain": "Connect this deck to your ccdeck account to see it in Machines at app.ccdeck.dev, and to keep the settings you choose in step with your other decks.",
   "settings.account.copy.sent": "While connected it sends, every 15 seconds: its name, version and system, CPU and memory use, and how many sessions are running or waiting on you. Never what your sessions do, their names, your files or your Claude accounts. What it sends, and the settings you sync, are kept on ccdeck's server, which can read them.",
   "settings.account.copy.nameNote": "How this deck is listed in your account. Change it before connecting if you would rather not use this computer's name.",
   "settings.account.copy.connecting": "Approve this deck in the browser. Check that the code there matches this one.",

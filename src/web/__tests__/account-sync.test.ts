@@ -122,6 +122,101 @@ describe("conflicts", () => {
     await sync.pull();
     expect(sync.view()).toMatchObject({ apply: null, conflict: { latest: { values: { theme: "nord" } } }, pending: { keys: ["theme"] } });
   });
+
+  it("a save the API wrote though its answer never came back is not a conflict, on the next pull", async () => {
+    // Found in the browser, on a slow API: the PUT outran the deck's timeout
+    // but was written, and the next pull asked "VS Code Black or VS Code
+    // Black?" — the account already held the very edit this deck was keeping.
+    const { sync, own } = await device();
+    api.override("PUT /v1/device/settings", () => ({ status: 503 }));
+    await sync.reportUi({ theme: "paper" }, "user");
+    api.override("PUT /v1/device/settings", null);
+    const rev = changeElsewhere(own().id, { theme: "paper" });
+    await sync.pull();
+    expect(sync.view()).toMatchObject({ conflict: null, pending: null, savedRevision: rev });
+    // The next edit saves on top of it, with no 409.
+    await sync.reportUi({ density: "compact" }, "user");
+    expect(sync.view()).toMatchObject({ conflict: null, pending: null, savedRevision: rev + 1 });
+    expect(own().values).toEqual({ theme: "paper", density: "compact" });
+  });
+
+  it("a save the API wrote though its answer never came back is not a conflict, on the retry's 409", async () => {
+    const { sync, own } = await device();
+    api.override("PUT /v1/device/settings", () => ({ status: 503 }));
+    await sync.reportUi({ theme: "paper" }, "user");
+    api.override("PUT /v1/device/settings", null);
+    const rev = changeElsewhere(own().id, { theme: "paper" });
+    // The retry goes out on the old base revision and comes back 409 with the latest.
+    await sync.onControl({ profileId: own().id, revision: 0 });
+    expect(sync.view()).toMatchObject({ conflict: null, pending: null, savedRevision: rev });
+    expect(own().revision, "nothing written a second time").toBe(rev);
+  });
+
+  it("a conflict already raised ends on the pull that finds the account holding the edit", async () => {
+    // A conflict raised before (kept across a restart too), and then the
+    // account comes to hold this deck's edit: nothing is left to choose.
+    const { sync, own } = await device();
+    api.override("PUT /v1/device/settings", () => ({ status: 503 }));
+    await sync.reportUi({ theme: "paper" }, "user");
+    api.override("PUT /v1/device/settings", null);
+    changeElsewhere(own().id, { theme: "nord" });
+    await sync.pull();
+    expect(sync.view().conflict).not.toBeNull();
+    const rev = changeElsewhere(own().id, { theme: "paper" });
+    await sync.onControl({ profileId: own().id, revision: rev });
+    expect(sync.view()).toMatchObject({ conflict: null, pending: null, savedRevision: rev });
+    // And saving works again.
+    await sync.reportUi({ density: "compact" }, "user");
+    expect(sync.view()).toMatchObject({ conflict: null, pending: null, savedRevision: rev + 1 });
+  });
+
+  it("an unanswered conflict asks the API again only when the account moves on", async () => {
+    // Found in the browser: a deck in a conflict pulled on every frame, every
+    // five seconds, until the API answered 429.
+    const gets = () => api.requests.filter(r => r.method === "GET" && r.path.startsWith("/v1/device/settings")).length;
+    const { sync, own } = await device();
+    api.override("PUT /v1/device/settings", () => ({ status: 503 }));
+    await sync.reportUi({ theme: "paper" }, "user");
+    api.override("PUT /v1/device/settings", null);
+    const rev = changeElsewhere(own().id, { theme: "nord" });
+    await sync.pull();
+    expect(sync.view().conflict).not.toBeNull();
+    const before = gets();
+    for (let i = 0; i < 3; i++) await sync.onControl({ profileId: own().id, revision: rev });
+    expect(gets(), "the conflict already shows this revision").toBe(before);
+    const next = changeElsewhere(own().id, { density: "compact" });
+    await sync.onControl({ profileId: own().id, revision: next });
+    expect(gets()).toBe(before + 1);
+    expect(sync.view().conflict).toMatchObject({ latest: { revision: next } });
+  });
+
+  it("a conflict whose latest holds every edit by now ends on the next frame, without asking the API", async () => {
+    // The person sets the edit back to the account's value while the choice
+    // is on show (a deck that kept such a conflict across a restart is the same).
+    const gets = () => api.requests.filter(r => r.method === "GET" && r.path.startsWith("/v1/device/settings")).length;
+    const { sync, own } = await device();
+    api.override("PUT /v1/device/settings", () => ({ status: 503 }));
+    await sync.reportUi({ theme: "paper" }, "user");
+    api.override("PUT /v1/device/settings", null);
+    const rev = changeElsewhere(own().id, { theme: "nord" });
+    await sync.pull();
+    await sync.reportUi({ theme: "nord" }, "user");
+    expect(sync.view().conflict).toMatchObject({ mine: { theme: "nord" } });
+    const before = gets();
+    await sync.onControl({ profileId: own().id, revision: rev });
+    expect(sync.view()).toMatchObject({ conflict: null, pending: null, savedRevision: rev });
+    expect(gets()).toBe(before);
+  });
+
+  it("an edit the account holds only in part is still a conflict, over the part it does not hold", async () => {
+    const { sync, own } = await device();
+    api.override("PUT /v1/device/settings", () => ({ status: 503 }));
+    await sync.reportUi({ theme: "paper", density: "compact" }, "user");
+    api.override("PUT /v1/device/settings", null);
+    changeElsewhere(own().id, { theme: "paper", density: "comfortable" });
+    await sync.pull();
+    expect(sync.view()).toMatchObject({ conflict: { mine: { density: "compact" } }, pending: { keys: ["density"] } });
+  });
 });
 
 describe("pulling and applying", () => {
@@ -238,6 +333,27 @@ describe("shared settings", () => {
     expect(b.own().values).toMatchObject({ theme: "paper", density: "compact", textSize: "larger", sound: false });
   });
 
+  it("previews only what joining would change: never the keys a deck keeps for itself", async () => {
+    // Found in the browser: a deck about to join was shown "Sound: On / not
+    // set", as if joining would take its sound away, though sound stays on
+    // each deck in shared mode.
+    const accountId = randomUUID();
+    const a = await device({ accountId });
+    await a.sync.reportUi({ theme: "paper", sound: true }, "initial");
+    expect(await a.sync.setMode({ mode: "shared", join: "publish", previewRevision: 0 })).toEqual({ ok: true });
+
+    const b = await device({ accountId });
+    await b.sync.reportUi({ theme: "dark", sound: false }, "initial");
+    const preview = await b.sync.preview();
+    expect(preview.differences.map(d => d.key)).toEqual(["theme"]);
+    expect(preview.differences[0]).toMatchObject({ local: "dark", shared: "paper" });
+
+    // With nothing but sound apart, the two decks already agree.
+    const c = await device({ accountId });
+    await c.sync.reportUi({ theme: "paper", sound: false }, "initial");
+    expect((await c.sync.preview()).differences).toEqual([]);
+  });
+
   it("sends each profile only its own keys in shared mode, whatever the profiles still hold", async () => {
     // Found by ccdeck-api's end-to-end run against B's real endpoints: a deck
     // that had been independent echoed its own profile's theme, density and
@@ -266,6 +382,30 @@ describe("shared settings", () => {
     expect(b.sync.view()).toMatchObject({ saving: "idle", pending: null });
     expect(b.own().values.sound).toBe(true);
     expect(api.sharedOf(accountId)!.values).toMatchObject({ density: "compact", sound: false });
+  });
+
+  it("after joining, follows the shared profile's next change, whatever revision its own profile had reached", async () => {
+    // Found in the browser: a deck whose own profile was at r2 joined shared
+    // settings at r1 and said "Saved r1 · Applied r2"; the shared profile's r2
+    // would then have looked applied already and never reached its screen.
+    const accountId = randomUUID();
+    const a = await device({ accountId });
+    await a.sync.reportUi({ theme: "paper" }, "initial");
+    await a.sync.setMode({ mode: "shared", join: "publish", previewRevision: 0 });
+    const b = await device({ accountId });
+    await b.sync.reportUi({ theme: "nord" }, "initial");
+    await b.sync.reportUi({ theme: "dark" }, "user");
+    await b.sync.reportUi({ theme: "matrix" }, "user");
+    expect(b.sync.view().savedRevision).toBeGreaterThan(api.sharedOf(accountId)!.revision);
+
+    expect(await b.sync.setMode({ mode: "shared", join: "use-shared" })).toEqual({ ok: true });
+    const joined = api.sharedOf(accountId)!.revision;
+    await b.sync.applied(joined);
+    expect(b.sync.view()).toMatchObject({ savedRevision: joined, appliedRevision: joined });
+
+    const edited = api.editShared(accountId, { theme: "vscode-black" });
+    await b.sync.onControl({ profileId: edited.id, revision: edited.revision });
+    expect(b.sync.view().apply).toMatchObject({ revision: edited.revision, values: { theme: "vscode-black" } });
   });
 
   it("pulls the console's change to the shared profile on the frame that says so", async () => {

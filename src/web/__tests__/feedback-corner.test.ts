@@ -6,17 +6,20 @@
 // window buttons own the corner, so the cell stands just before them; on a
 // phone the cell is the end of the phone's bar and More drops its Feedback row,
 // so there is one entry on every size. The button is the one it was: its name,
-// its hint, its unread count and its press.
+// its hint, its unread count and its press. As a bare glyph it was rarely
+// found, so its hint says what it is for under its name, and while the stripes
+// under it show their words the corner shows Feedback's (CornerRun).
 //
 // Read from the sources and the sheet, the way the suite reads them; the
 // cascade is sheet-cascade.ts's, at the widths the frames use.
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { cascade, el, selects, type El } from "./sheet-cascade";
 import { sourceOf } from "./client-source";
 import { railItems } from "../rail-items";
-import { UtilityRun, railHint } from "../components/EdgeRails";
+import { CornerRun, UtilityRun, railHint } from "../components/EdgeRails";
+import { setStripeWorkspace, stripeWordsOn } from "../stripe-words";
 
 const noop = () => {};
 const ref = () => ({ current: null });
@@ -55,7 +58,7 @@ const side = (v: string | null, i: 0 | 1 | 2 | 3) => {
 describe("where App draws it", () => {
   it("is its own cell after the end group, on every size, and the next stop after Search", () => {
     const search = header.indexOf("<UtilityRun items={[rails.search]} />");
-    const corner = header.indexOf('<div className="tb-corner"><UtilityRun items={[rails.corner]} /></div>');
+    const corner = header.indexOf('<div className="tb-corner"><CornerRun item={rails.corner} /></div>');
     expect(search).toBeGreaterThan(-1);
     expect(corner).toBeGreaterThan(search);
     // Outside the group and outside any phone guard: the phone's bar holds it too.
@@ -74,6 +77,8 @@ describe("where App draws it", () => {
     expect(html).toContain('aria-haspopup="dialog"');
     expect(html).not.toContain("rail-word");
     expect(railHint(r.corner, true, false)?.label).toBe("Feedback");
+    // What it is for, under its name: a glyph alone did not say.
+    expect(railHint(r.corner, true, false)?.detail).toBe("Report a bug or share an idea");
     // Its unread replies: the count on the button, and in its name.
     const unread = renderToStaticMarkup(createElement(UtilityRun, { items: [rails(2).corner] }));
     expect(unread).toContain('aria-label="Feedback, 2 unread conversations"');
@@ -85,6 +90,33 @@ describe("where App draws it", () => {
     // Quick open still lists it, by name, as it lists every door.
     expect(sourceOf("quick-open-items.tsx")).toContain("...src.rails.utilities,");
     expect(rails().utilities.map(i => i.id)).toEqual(["settings", "feedback"]);
+  });
+});
+
+describe("its word", () => {
+  afterEach(() => setStripeWorkspace(false));
+
+  it("says Feedback beside its glyph while the stripes under it say theirs", () => {
+    expect(stripeWordsOn()).toBe(true);
+    const html = renderToStaticMarkup(createElement(CornerRun, { item: rails().corner }));
+    expect(html).toContain('class="rail-btn rail-btn-bar"');
+    expect(html).not.toContain("rail-btn-icon");
+    expect(html).toContain(">Feedback</span>");
+    expect(html).toContain('aria-label="Send feedback"');
+    expect(html).toContain('aria-haspopup="dialog"');
+    // Its unread count stays on the button, and in its name.
+    const unread = renderToStaticMarkup(createElement(CornerRun, { item: rails(2).corner }));
+    expect(unread).toContain('aria-label="Feedback, 2 unread conversations"');
+    expect(unread).toContain('<span class="rail-badge" aria-hidden="true">2</span>');
+  });
+
+  it("is V4's bare glyph while the stripes are icons: Workspace, under 1100px, or words hidden", () => {
+    setStripeWorkspace(true);
+    expect(stripeWordsOn()).toBe(false);
+    const html = renderToStaticMarkup(createElement(CornerRun, { item: rails().corner }));
+    expect(html).toBe(renderToStaticMarkup(createElement(UtilityRun, { items: [rails().corner] })));
+    expect(html).toContain('class="rail-btn rail-btn-bar rail-btn-icon"');
+    expect(html).not.toContain(">Feedback</span>");
   });
 });
 

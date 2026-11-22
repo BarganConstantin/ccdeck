@@ -80,7 +80,7 @@ describe("the stripes' doors, in V4's order", () => {
     expect(rails.corner.id).toBe("feedback");
     const app = source("../App.tsx");
     expect(app).toContain("<UtilityRun items={[rails.search]} />");
-    expect(app).toContain('<div className="tb-corner"><UtilityRun items={[rails.corner]} /></div>');
+    expect(app).toContain('<div className="tb-corner"><CornerRun item={rails.corner} /></div>');
   });
 
   it("keeps a door the frame does not draw: Codex's own button, beside Sessions, where Codex is all there is", () => {
