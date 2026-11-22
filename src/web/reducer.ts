@@ -29,6 +29,7 @@ import { adoptParkedEnrichment, parkEnrichment } from "./parked-enrichment";
 import { adoptPanelLaunch } from "./panel-launch";
 import { applySessionStart, applyTurnEnd, applyUserPromptSubmit, clearStopFailure, noteSessionHeard } from "./session-lifecycle";
 import { stopFailureOf } from "../server/stop-failure.mjs";
+import { payloadProvider } from "../server/provider-ids.mjs";
 import { applySubagentStart, applySubagentStop } from "./subagent-lifecycle";
 import { applyPreToolUse, applyToolOutcome, returnLentCalls } from "./tool-calls";
 import {
@@ -178,9 +179,10 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
   if (noteKeyedSubagent(state, name, p, sessionId)) returnLentCalls(state, sessionId);
 
   // Stamp provider on first observation. Defaults to "claude" for legacy
-  // events recorded before multi-provider support.
+  // events recorded before multi-provider support, and for a name this build
+  // does not know; opencode and Copilot keep their own (provider-ids.mjs).
   if (!owner.provider) {
-    owner.provider = p.provider === "codex" ? "codex" : "claude";
+    owner.provider = payloadProvider(p);
   }
 
   if (owner.provider === "codex") {

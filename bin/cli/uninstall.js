@@ -53,6 +53,17 @@ export async function uninstall(flags) {
       : `${PRODUCT}: no ${label} hooks to remove`);
   };
   report(await uninstallHooks({ provider: "claude" }), "Claude");
+  // GitHub Copilot CLI: our one file in its hooks directory, and nothing else
+  // there. One that could not be read or removed is named, and fails the run.
+  {
+    const { uninstallCopilotHooks } = await import(pathToFileURL(join(PKG_ROOT, "src/server/copilot-hooks.mjs")).href);
+    const copilot = await uninstallCopilotHooks();
+    if (copilot.removed) console.log(`${PRODUCT}: Copilot CLI hooks removed (${copilot.path})`);
+    else if (!copilot.ok) {
+      refused = true;
+      console.error(`${PRODUCT}: Copilot CLI hooks NOT removed ${gDash} ${copilot.path} (${copilot.reason}).`);
+    }
+  }
   // The old finish sound was a second entry in the same file, marked
   // __agent-dag-sound rather than __agent-dag, and uninstallHooks does not know
   // that mark — so it used to be left behind, playing on every turn after the
@@ -111,6 +122,16 @@ export async function uninstall(flags) {
   }
   if (await hasCodexInstalled()) {
     report(await uninstallHooks({ provider: "codex" }), "Codex");
+  }
+  // ccdeck's opencode plugin, ours by its marker; a ccdeck.js without it stays.
+  {
+    const { uninstallOpencodePlugin } = await import(pathToFileURL(join(PKG_ROOT, "src/server/opencode-plugin.mjs")).href);
+    const oc = await uninstallOpencodePlugin();
+    if (oc.state === "removed") console.log(`${PRODUCT}: opencode plugin removed from ${oc.path}`);
+    if (oc.state === "failed") {
+      refused = true;
+      console.error(`${PRODUCT}: opencode plugin NOT removed from ${oc.path} ${gDash} ${oc.why}`);
+    }
   }
   // Codex's terminal selection, whether or not Codex is still installed: the
   // block sits in the person's own shell profile, and with ccdeck gone the

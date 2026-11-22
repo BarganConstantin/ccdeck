@@ -566,7 +566,10 @@ describe("the wiring", () => {
   const src = (p: string) => readFileSync(new URL(`../../server/${p}`, import.meta.url), "utf8");
 
   it("hears only a hook's own live post, the way the early tick does", () => {
-    expect(src("event-pipeline.mjs")).toMatch(/if \(source === "hook" && !opts\.replay\) \{\n\s*noteHookStop\(raw, evt\.receivedAt\);\n\s*noteStopContinue\(raw, evt\.receivedAt\);/);
+    // And only a Claude or Codex one: the gate grew `!isEventOnly(...)` when
+    // opencode and Copilot began posting through the same hook, because a stop
+    // of theirs says nothing about a Claude account or a Claude resume.
+    expect(src("event-pipeline.mjs")).toMatch(/if \(source === "hook" && !opts\.replay && !isEventOnly\(raw\?\.provider\)\) \{\n\s*noteHookStop\(raw, evt\.receivedAt\);\n\s*noteStopContinue\(raw, evt\.receivedAt\);/);
   });
 
   it("is told about every auto-switch tick", () => {

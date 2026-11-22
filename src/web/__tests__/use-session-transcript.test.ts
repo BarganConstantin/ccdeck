@@ -529,3 +529,42 @@ describe("which pane has Chat on offer", () => {
     expect(stage).toContain("shown: chatOn,");
   });
 });
+
+describe("opencode and Copilot, whose conversations the deck does not read", () => {
+  const OC = "ses_4b2f9c1a7e3dXk2mQp8R";
+  const CP = "9a8b7c6d-1111-4222-8333-444455556666";
+
+  it("have Chat on offer, so it can say so, whatever shape their id has", () => {
+    expect(chatSessionFor(true, { sessionId: OC, provider: "opencode" })).toBe(OC);
+    expect(chatSessionFor(true, { sessionId: CP, provider: "copilot" })).toBe(CP);
+    expect(chatSessionFor(false, { sessionId: OC, provider: "opencode" })).toBeNull();
+    expect(chatSessionFor(true, { sessionId: "", provider: "copilot" })).toBeNull();
+  });
+
+  it("are never fetched: a Copilot id is a UUID, and the route would look it up as Claude's", async () => {
+    const fetchFn = vi.fn(async () => ready());
+    expect(await readTranscript(CP, fetchFn as never, undefined, "copilot")).toEqual({ kind: "unknown" });
+    expect(await readTranscript(OC, fetchFn as never, undefined, "opencode")).toEqual({ kind: "unknown" });
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("show the calm line, asked for nothing, however long the pane stays open", async () => {
+    for (const [provider, session, name] of [["opencode", OC, "OpenCode"], ["copilot", CP, "GitHub Copilot"]] as const) {
+      const fetchFn = vi.fn(async () => ready());
+      const h = setup({ ...on, session, provider, working: true, heard: 1 }, fetchFn);
+      await flush();
+      await vi.advanceTimersByTimeAsync(IDLE_POLL_MS * 3);
+      expect(fetchFn, provider).not.toHaveBeenCalled();
+      expect(h.source).toEqual({ state: "absent", message: `ccdeck doesn’t read ${name} conversations, so there is no chat to show here. Its prompts and tool calls are on the board.` });
+      h.view.unmount();
+    }
+  });
+
+  it("leave a Claude session's Chat asking as before", async () => {
+    const fetchFn = vi.fn(async () => ready());
+    const h = setup({ ...on, provider: "claude" }, fetchFn);
+    await flush();
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(h.source).toMatchObject({ state: "ready" });
+  });
+});

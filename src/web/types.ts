@@ -3,8 +3,10 @@ import type { StopFacts } from "../server/stop-failure.mjs";
 
 export type AgentState = "active" | "done" | "err";
 
-/** Which CLI emitted the events for this agent. */
-export type Provider = "claude" | "codex";
+/** Which CLI emitted the events for this agent. opencode and Copilot are
+ *  heard through forwarded events only: no transcript, accounts or terminal of
+ *  theirs (src/server/provider-ids.mjs). */
+export type Provider = "claude" | "codex" | "opencode" | "copilot";
 
 export interface ToolCall {
   id: string;                 // tool_use_id when available, else generated
@@ -406,7 +408,8 @@ export interface AgentNodeData {
   effort?: string;
   /** Which CLI ecosystem this agent belongs to. Set from the hook payload's
    *  `provider` field on first event; defaults to "claude" for back-compat
-   *  with replay events written before multi-provider support. */
+   *  with replay events written before multi-provider support, and for a
+   *  provider name this build does not know. */
   provider?: Provider;
   /** The context window the CLI itself reports, which takes precedence over the
    *  static table in context-window.ts when present.

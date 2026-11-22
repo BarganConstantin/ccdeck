@@ -806,7 +806,7 @@ Environment:
 | `CODEX_HOME` | Override `~/.codex` |
 | `AGENTS_DECK_NO_CODEX_LIVE` | Set to `1` to disable switching an existing native shared Codex app-server |
 | `CCDECK_CODEX_HOMES` | JSON array of additional absolute Codex home directories to monitor and list in Accounts; restart ccdeck after changing it |
-| `AGENTS_DECK_NO_INSTALL=1` | Never install or update claude-swap / ccusage or the terminal's `ccdeck`, never download the terminal engine, never ask npm about releases, never read the status pages, and never send reports or feedback |
+| `AGENTS_DECK_NO_INSTALL=1` | Never install or update claude-swap / ccusage or the terminal's `ccdeck`, never download the terminal engine, never ask npm about releases, never read the status pages, and never send reports or feedback. The Claude Code hooks, opencode's plugin and Copilot's hooks file still go in: they are how sessions reach the board, and each has its own switch |
 | `AGENTS_DECK_NO_DOWNLOAD=1` | Never download the `uv` binary, `macmon` or the terminal engine, but keep the managed installs |
 | `AGENTS_DECK_NO_UPDATE_CHECK=1` | Don't ask npm about releases, but keep everything else |
 | `AGENTS_DECK_NO_STATUS=1` | Don't read Anthropic's and OpenAI's status pages, so no incident chip appears |
@@ -815,6 +815,9 @@ Environment:
 | `AGENTS_DECK_NO_LAN=1` | Keep **Local network** off, whatever its switch in the panel says |
 | `AGENTS_DECK_NO_REPORTS=1` | Never send usage reports, nor the device fingerprint with feedback |
 | `AGENTS_DECK_NO_RADAR=1` | Keep Telemetry Radar from looking for Claude Code's collector or capturing in the background — see [Claude Telemetry Radar](#claude-telemetry-radar-macos-linux-and-windows) |
+| `AGENTS_DECK_NO_OPENCODE=1` | Leave opencode alone: no ccdeck plugin (`ccdeck.js`) in its plugins folder, `~/.config/opencode/plugins` (one an earlier start wrote is taken out), so its sessions stay off the board. `ccdeck --uninstall` removes it too |
+| `AGENTS_DECK_NO_COPILOT=1` | Leave GitHub Copilot CLI alone: no `ccdeck.json` in its hooks directory (one an earlier start wrote is taken out), so its sessions stay off the board. `ccdeck --uninstall` removes it too |
+| `COPILOT_HOME` | Where GitHub Copilot CLI keeps its settings, as Copilot reads it; the deck's hooks file goes in its `hooks` directory |
 | `AGENTS_DECK_CSWAP` | Full path to `cswap`, when it lives somewhere unusual |
 | `AGENTS_DECK_CLAUDE` | Full path to the `claude` CLI |
 | `AGENTS_DECK_CCUSAGE` | Full path to your own `ccusage`, used ahead of everything else |

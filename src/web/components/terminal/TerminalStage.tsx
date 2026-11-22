@@ -70,6 +70,7 @@ import { t as tNow, useT } from "../../i18n";
 import { ChatComposerSlot, useScreenFlags } from "../../use-screens";
 import { fontSizeFor, stepTerminalText, useTerminalTextStep } from "../../terminal-text-size";
 import { chatSessionFor, useSessionTranscript } from "../../use-session-transcript";
+import { isEventOnly } from "../../../server/provider-ids.mjs";
 import { askSteps } from "../../ask-keys";
 import { stopSteps } from "../../chat-stop";
 import type { ChatAsk, ChatTurn } from "../chat/chat-model";
@@ -390,6 +391,9 @@ export default function TerminalStage(p: TerminalStageProps) {
   const chatRef = p.show.kind === "session" ? p.show.session.ref : null;
   const chatSession = chatSessionFor(screenFlags.chat, chatRef);
   const chatProvider = chatRef?.provider ?? "claude";
+  // opencode and Copilot: Chat says the deck reads no conversation of theirs,
+  // and there is no terminal behind it to write to, so it has no composer.
+  const chatReadOnly = isEventOnly(chatProvider);
   const chatDraftKey = `${chatProvider}:${chatSession}`;
   const [view, setView] = useState<"chat" | "term">("term");
   const chatOn = chatSession !== null && view === "chat";
@@ -573,7 +577,7 @@ export default function TerminalStage(p: TerminalStageProps) {
     if (next === "chat" && session.keysOwner === "pane") session.release();
     setView(next);
   };
-  const chatCannotType = chatOn && p.show.kind === "session" && PANELESS.has(phase.kind);
+  const chatCannotType = chatOn && !chatReadOnly && p.show.kind === "session" && PANELESS.has(phase.kind);
   // Why nothing can be sent to the session from Chat: not yet or no longer
   // attached, or read only. A question it asked is answered all the same.
   const chatCannotSend = session.subject !== key ? t("board.chat.connecting") : phase.kind === "live"
@@ -726,7 +730,7 @@ export default function TerminalStage(p: TerminalStageProps) {
   const endAt = endPlacement(statusSlot !== null, end);
   const hosts = useOlderHosts(p.windows === true, key, s => onAnnounce.current?.(s), p.hostsApi);
 
-  const composer = chatOn && chatSession !== null ? <ChatComposerSlot
+  const composer = chatOn && chatSession !== null && !chatReadOnly ? <ChatComposerSlot
     key={chatDraftKey}
     value={chatDrafts[chatDraftKey] ?? ""}
     onChange={value => setChatDrafts(drafts => ({ ...drafts, [chatDraftKey]: value }))}

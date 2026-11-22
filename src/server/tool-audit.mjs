@@ -10,6 +10,7 @@ import { buildToolAuditReport } from './tool-audit-report.mjs';
 import { buildSkillReport } from './tool-audit-skills.mjs';
 import { auditOperations } from './tool-audit-operations.mjs';
 import { stopError } from './stop-failure.mjs';
+import { isEventOnly } from './provider-ids.mjs';
 const DAY = 86400000;
 const digest = text => createHash('sha256').update(text).digest('hex');
 const date = t => new Date(t).toISOString().slice(0, 10);
@@ -138,6 +139,10 @@ export function createToolAudit({ dir, now = Date.now, runReport = workerReport 
   return {
     async start() { await ready(); },
     observe(raw, source, opts = {}) {
+      // Tool and Skill activity count Claude Code's and Codex's calls, and
+      // every row is filed under one of those two. An opencode or Copilot call
+      // is neither, so it is left out rather than added to Claude's numbers.
+      if (isEventOnly(raw?.provider)) return;
       // The boot replay writes nothing, but it tells a restarted deck which prompt each
       // session began last, so the Time tab can find that turn again (memory only).
       if (opts.replay && source === 'hook' && raw?.hook_event_name === 'UserPromptSubmit' && raw.provider !== 'codex' && typeof raw.session_id === 'string' && raw.session_id.length <= 256) {

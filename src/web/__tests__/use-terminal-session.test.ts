@@ -48,6 +48,8 @@ import {
   TMUX_SETUP_GIVE_UP_MS,
   TMUX_SETUP_POLL_MS,
   createTerminalSession,
+  EVENTS_ONLY_MSG,
+  eventsOnlyPhase,
   forgetKeyInFlight,
   pasteHoldsImage,
   showCursorFromTheStart,
@@ -2341,5 +2343,60 @@ describe("the pane's own text size (terminal-text-size.ts)", () => {
     ctl.dispose();
     ctl.setFontSize(20);
     expect(r.terminal().fontSizes).toEqual([]);
+  });
+});
+
+describe("an opencode or Copilot session on the stage", () => {
+  // Each runs in a terminal of its own the deck did not start and cannot
+  // reach, and the engine knows no such provider: asked as Claude's, a Copilot
+  // UUID could reopen Claude Code on another CLI's conversation.
+  const OC: SessionRef = { sessionId: "ses_4b2f9c1a7e3dXk2mQp8R", provider: "opencode", cwd: "/home/u/billing" };
+  const CP: SessionRef = { sessionId: "9a8b7c6d-1111-4222-8333-444455556666", provider: "copilot", cwd: "/home/u/docs" };
+
+  it("asks the engine nothing and shows the card at once, with nothing to reopen", async () => {
+    for (const [ref, name] of [[OC, "OpenCode"], [CP, "GitHub Copilot"]] as const) {
+      const { r, ctl } = rig();
+      ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+      ctl.show({ kind: "session", ref });
+      await flush();
+      expect(r.open, name).not.toHaveBeenCalled();
+      expect(r.sockets).toHaveLength(0);
+      expect(r.snaps.some(s => s.phase.kind === "attaching"), "no attaching before the card").toBe(false);
+      expect(r.last().phase).toEqual({
+        kind: "not-attachable",
+        target: { kind: "unsupported", label: en[EVENTS_ONLY_MSG].replace("{agent}", name), adoptable: false },
+        stillRunning: false,
+        busy: false,
+      });
+      expect(eventsOnlyPhase(ref.provider)).toEqual(r.last().phase);
+      ctl.dispose();
+    }
+  });
+
+  it("neither Reopen here nor Check again reaches the engine", async () => {
+    const { r, ctl } = rig();
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    ctl.show({ kind: "session", ref: CP });
+    await flush();
+    ctl.adopt();
+    ctl.retry();
+    await flush();
+    expect(r.adopt).not.toHaveBeenCalled();
+    expect(r.open).not.toHaveBeenCalled();
+    expect(r.launch).not.toHaveBeenCalled();
+    expect(r.last().phase.kind).toBe("not-attachable");
+    ctl.dispose();
+  });
+
+  it("a Claude session shown after it attaches as before", async () => {
+    const { r, ctl } = rig();
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    ctl.show({ kind: "session", ref: OC });
+    await flush();
+    await attach(r, ctl, REF);
+    expect(r.open).toHaveBeenCalledTimes(1);
+    expect(r.open.mock.calls[0][0]).toEqual(REF);
+    expect(r.last().phase.kind).toBe("live");
+    ctl.dispose();
   });
 });

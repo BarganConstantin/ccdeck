@@ -11,6 +11,7 @@ import type { GraphState } from "../reducer";
 import type { AgentNodeData } from "../types";
 import { shortModel, modelFamily } from "../model-label";
 import { typedPrompts } from "../injected-prompt";
+import { isEventOnly } from "../../server/provider-ids.mjs";
 // The breakdown bar used to be a third copy of one component, `SsCostBar`,
 // which differed from the other two by its name and the one class that makes it
 // taller (#374). That class is the `size` prop now.
@@ -71,13 +72,16 @@ export default function SessionSummary({ state, sessionId, onClose }: Props) {
                 on the board, which is a scope and not a total. The session it
                 belongs to is named on the line above, so the scope needs no
                 more words than that. */}
-            <Stat label={t("insights.summary.spend")} value={fmtCost(summary.cost.total)} title={sessionSpendLabel()} />
+            {!summary.eventsOnly && <Stat label={t("insights.summary.spend")} value={fmtCost(summary.cost.total)} title={sessionSpendLabel()} />}
             <Stat label={t("insights.summary.agents")} value={summary.agentCount} />
             <Stat label={t("insights.summary.subagents")} value={summary.subagentCount} />
             <Stat label={t("insights.summary.toolCalls")} value={summary.toolCount} />
             <Stat label={t("insights.summary.prompts")} value={summary.promptCount} />
             <Stat label={t("insights.summary.errors")} value={summary.errCount} tone={summary.errCount > 0 ? "err" : undefined} />
-            <Stat label={t("insights.usage.tokens")} value={summary.tokensSum.toLocaleString(currentLanguage())} />
+            {/* opencode and Copilot report no tokens to the deck, so their spend
+                and token count are unknown, not zero: the two are left out
+                rather than printed as "$0.00" and "0". */}
+            {!summary.eventsOnly && <Stat label={t("insights.usage.tokens")} value={summary.tokensSum.toLocaleString(currentLanguage())} />}
           </section>
 
           {(summary.modelChips.length > 0 || summary.cost.total > 0) && (
@@ -154,6 +158,8 @@ interface Summary {
   firstPrompt?: string;
   /** The mark the session's card and row draw (node-face.ts sessionMark). */
   mark: StateMarkKind;
+  /** An opencode or Copilot session: no spend or token count to show. */
+  eventsOnly: boolean;
 }
 
 function buildSummary(state: GraphState, sessionId: string): Summary | null {
@@ -233,5 +239,6 @@ function buildSummary(state: GraphState, sessionId: string): Summary | null {
     topTools,
     firstPrompt,
     mark: sessionMark(root),
+    eventsOnly: isEventOnly(root.provider),
   };
 }

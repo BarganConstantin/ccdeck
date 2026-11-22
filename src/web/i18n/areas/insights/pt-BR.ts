@@ -715,6 +715,8 @@ const catalog: Catalog = {
   "insights.srv.badSession": "Escolha uma sessão do Claude ou do Codex e um modo de preço compatível.",
   "insights.srv.busy": "Os relatórios de uso já estão sendo lidos. Tente de novo em instantes.",
   "insights.srv.invalidLookup": "Consulta de sessão inválida.",
+  "insights.note.src.promptEventsOnly": "O prompt com que este turno começou — o ccdeck não tira nenhuma linha das respostas do {agent}",
+  "insights.context.eventsOnly": "O ccdeck não lê a janela de contexto nem o uso de tokens do {agent}, então não há nada para mostrar aqui.",
 };
 
 export default catalog;

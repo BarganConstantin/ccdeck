@@ -735,6 +735,8 @@ const catalog: Catalog = {
   "insights.srv.badSession": "Alege o sesiune Claude sau Codex și un mod de preț acceptat.",
   "insights.srv.busy": "Rapoartele de utilizare se citesc deja. Încearcă din nou peste puțin timp.",
   "insights.srv.invalidLookup": "Căutare de sesiune invalidă.",
+  "insights.note.src.promptEventsOnly": "Promptul cu care a început acest tur — ccdeck nu preia nicio linie din răspunsurile {agent}",
+  "insights.context.eventsOnly": "ccdeck nu citește fereastra de context sau consumul de tokeni al {agent}, așa că aici nu este nimic de afișat.",
 };
 
 export default catalog;

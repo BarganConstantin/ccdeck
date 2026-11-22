@@ -1037,6 +1037,8 @@ const catalog: Catalog = {
   "board.inspector.noSubagents": "서브에이전트 없음",
   "board.inspector.subagents.one": "서브에이전트 {count}개",
   "board.inspector.subagents.other": "서브에이전트 {count}개",
+  "board.chat.noTranscript": "ccdeck는 {agent} 대화를 읽지 않으므로 여기에 표시할 채팅이 없습니다. 프롬프트와 도구 호출은 보드에 표시됩니다.",
+  "board.stage.eventsOnly": "{agent}는 자체 터미널에서 실행되며 ccdeck는 여기에서 열 수 없습니다. 프롬프트, 도구 호출, 사용자에게 묻는 질문은 보드에 표시됩니다.",
 };
 
 export default catalog;

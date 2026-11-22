@@ -50,6 +50,9 @@ import { maybeResolveCodex } from "./codex-enrichment.mjs";
 // The gate pushEvent asks before a transcript path is followed — see
 // transcript-gate.mjs.
 import { isClaudeTranscriptPath, noteRefusedTranscript } from "./transcript-gate.mjs";
+// opencode and Copilot, which the deck hears through events alone — see
+// provider-ids.mjs.
+import { isEventOnly } from "./provider-ids.mjs";
 // How the enrichment reaches pushEvent without importing this file — see
 // event-sink.mjs. Connected below, as this module loads.
 import { connectEventSink } from "./event-sink.mjs";
@@ -231,7 +234,10 @@ export function pushEvent(raw, source, opts = {}) {
   // limit: one notification for the incident, and an auto-switch tick now
   // rather than at the next interval (account-watch.mjs). A hook's own post
   // only — a replay is history, and the scanners never send one.
-  if (source === "hook" && !opts.replay) {
+  //
+  // Never for opencode or Copilot: both act on Claude accounts and Claude's
+  // resume, and their stop is neither, whatever its payload says.
+  if (source === "hook" && !opts.replay && !isEventOnly(raw?.provider)) {
     noteHookStop(raw, evt.receivedAt);
     noteStopContinue(raw, evt.receivedAt);
   }
@@ -270,7 +276,10 @@ export function pushEvent(raw, source, opts = {}) {
   // A session the reader named in the deck is told its name once per run, on
   // the first live word from it (internal #101, session-enrichment.mjs). Its
   // own traffic only: a hook, or the rollout watcher's line.
-  if (!opts.replay && (source === "hook" || source === "codex") && raw && typeof raw === "object") {
+  // The deck names Claude and Codex sessions only (session-deck-names.mjs), so
+  // an opencode or Copilot session has no name to be told and is never looked
+  // up as a Claude one that might.
+  if (!opts.replay && (source === "hook" || source === "codex") && raw && typeof raw === "object" && !isEventOnly(raw.provider)) {
     maybeAnnounceDeckName(raw, source === "codex" || raw.provider === "codex" ? "codex" : "claude");
   }
 
@@ -290,6 +299,13 @@ export function pushEvent(raw, source, opts = {}) {
     usageDay.noteUse(raw);
     if (raw && raw.provider === "codex") {
       maybeResolveCodex(raw);
+    } else if (isEventOnly(raw?.provider)) {
+      // opencode and Copilot: nothing to read. Their events are the whole of
+      // what the deck knows, and a `transcript_path` one of them carries
+      // (Copilot's hooks may send one) names a file in that CLI's own format,
+      // which no Claude scanner below may parse, and which the output watch
+      // must not follow either. The project is its cwd, as Codex's is.
+      usageDay.noteFolder(raw?.cwd);
     } else if (!raw?.transcript_path || isClaudeTranscriptPath(raw.transcript_path)) {
       // The gate is here, once, rather than repeated in the four scanners
       // below it: this is the single door a caller-chosen path comes through,
