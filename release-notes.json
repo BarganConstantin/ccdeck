@@ -1,4 +1,14 @@
 {
+  "4.3.0": [
+    {
+      "title": "🧩 opencode and GitHub Copilot CLI sessions on the board",
+      "body": "Sessions you run in opencode or GitHub Copilot CLI now show on the board under their own name, with whether they are working, waiting for you or done, and the tools they run. When one of them asks you a question, the card and the notification say so. ccdeck sets this up by itself when either CLI is on your machine. Chat and spend figures stay with Claude Code and Codex for now."
+    },
+    {
+      "title": "↩️ Reopen here sits at the top of an ended session",
+      "body": "When a session ends, for example after Codex updates itself and asks to be restarted, Reopen here now sits next to “ended” at the top of its pane instead of at the far edge of the status bar. Each pane of a split gets its own, and Attach again and Start again move there too."
+    }
+  ],
   "4.2.1": [
     {
       "title": "🔑 Add account finds Claude Code installed with nvm, mise or Volta",
@@ -284,6 +294,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.3.0": "opencode and GitHub Copilot CLI sessions on the board",
     "4.2.1": "Add account finds and installs Claude Code on more machines",
     "4.2.0": "Chat shows every step, gets Stop and keeps up with the session",
     "4.1.0": "Answer Claude Code's questions, commands and plans from Chat",
