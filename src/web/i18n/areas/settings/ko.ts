@@ -657,7 +657,6 @@ const catalog: Catalog = {
   "settings.account.copy.vetoed": "이 컴퓨터에서는 꺼져 있음: ccdeck가 AGENTS_DECK_NO_ACCOUNT=1 또는 AGENTS_DECK_NO_INSTALL=1로 시작되어 어떤 계정과도 연결되지 않습니다.",
   "settings.account.copy.loading": "이 ccdeck의 계정을 읽는 중…",
   "settings.account.copy.unreachable": "ccdeck가 응답하지 않습니다. 다시 시작하는 중일 수 있습니다.",
-  "settings.account.copy.explain": "이 ccdeck를 ccdeck 계정에 연결하면 app.ccdeck.dev의 컴퓨터에서 볼 수 있고, 선택한 설정을 다른 ccdeck와 맞춰 유지할 수 있습니다.",
   "settings.account.copy.sent": "연결된 동안 15초마다 이름, 버전, 시스템, CPU와 메모리 사용량, 실행 중이거나 응답을 기다리는 세션 수를 보냅니다. 세션이 하는 일, 세션 이름, 파일, Claude 계정은 절대 보내지 않습니다. 보낸 내용과 동기화한 설정은 ccdeck 서버에 저장되며, 서버에서 읽을 수 있습니다.",
   "settings.account.copy.nameNote": "계정에 표시되는 이 ccdeck의 이름입니다. 이 컴퓨터의 이름을 쓰고 싶지 않다면 연결 전에 바꾸세요.",
   "settings.account.copy.connecting": "브라우저에서 이 ccdeck를 승인하세요. 그곳의 코드가 여기 코드와 같은지 확인하세요.",
