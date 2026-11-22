@@ -1,4 +1,14 @@
 {
+  "4.2.1": [
+    {
+      "title": "🔑 Add account finds Claude Code installed with nvm, mise or Volta",
+      "body": "When ccdeck runs from the desktop app or starts at login, Add account no longer says Claude Code is not installed when you installed it with nvm, mise, Volta, fnm, asdf, pnpm or bun. It now looks in the same places your terminal does."
+    },
+    {
+      "title": "📥 Install Claude Code works behind a company proxy",
+      "body": "Installing Claude Code from Add account no longer stops at “The installer could not be downloaded” behind a company proxy or a network that inspects secure connections. When that download fails, ccdeck tries once more with your system's curl, which follows your proxy settings."
+    }
+  ],
   "4.2.0": [
     {
       "title": "📋 Chat shows each step Claude Code takes",
@@ -274,6 +284,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.2.1": "Add account finds and installs Claude Code on more machines",
     "4.2.0": "Chat shows every step, gets Stop and keeps up with the session",
     "4.1.0": "Answer Claude Code's questions, commands and plans from Chat",
     "4.0.4": "Install Claude Code from the deck, sign in again to the same account, and easier account cards",
