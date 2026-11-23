@@ -106,10 +106,16 @@ describe("entering under 1100 (review E)", () => {
   it("takes a list that was open away too, and gives it back", () => {
     store.set("agent-dag.sessionListOpen", "1");
     const { col, go } = setup({ workspace: false, wide: false });
+    // The list and Accounts both stored open: one under the other on the Board.
+    expect(col().sessionListOpen && col().accountsPanelOpen).toBe(true);
     go({ workspace: true });
     expect(col().panel).toBeNull();
+    expect(col().accountsPanelOpen).toBe(false);
     go({ workspace: false });
     expect(col().panel).toBe("session-list");
+    expect(col().accountsPanelOpen, "and Accounts back under it").toBe(true);
+    expect(store.get("agent-dag.sessionListOpen")).toBe("1");
+    expect(store.get("agent-dag.accountsPanelOpen")).toBe("1");
   });
 
   it("forgets it when the reader opens accounts inside Workspace", () => {
@@ -122,15 +128,24 @@ describe("entering under 1100 (review E)", () => {
 });
 
 describe("the doors in Workspace work as on the Board", () => {
-  it("opening accounts inside Workspace sticks after leaving", () => {
+  // CHANGED ON PURPOSE (the owner, 2026-11-23): was "opening accounts inside
+  // Workspace sticks after leaving", from Accounts evicted by the list entering
+  // put there. Accounts stays open under that list now, so its door inside
+  // Workspace closes it, and that close is what sticks; the open's own case is
+  // the next one, from a column with no Accounts in it.
+  it("closing accounts inside Workspace sticks after leaving, and the list Workspace put there still goes", () => {
     const { col, go } = setup({ workspace: false, wide: true });
     go({ workspace: true });
     expect(col().panel).toBe("session-list");
+    expect(col().accountsPanelOpen, "Accounts stays, under the list").toBe(true);
     col().toggleAccountsPanel();
-    expect(col().panel).toBe("accounts");
+    expect(col().accountsPanelOpen).toBe(false);
+    expect(col().sessionListOpen, "the list is left as it is").toBe(true);
+    expect(store.get("agent-dag.accountsPanelOpen"), "the reader's close, stored").toBe("0");
     go({ workspace: false });
-    expect(col().panel).toBe("accounts");
+    expect(col().panel).toBeNull();
     expect(col().sessionListOpen).toBe(false);
+    expect(col().accountsPanelOpen).toBe(false);
   });
 
   it("opening accounts and leaving from an empty column keeps the reader's accounts", () => {
@@ -138,6 +153,9 @@ describe("the doors in Workspace work as on the Board", () => {
     const { col, go } = setup({ workspace: false, wide: true });
     go({ workspace: true });
     col().toggleAccountsPanel();
+    // Opened under the list Workspace put there, and stored as the reader's.
+    expect(col().sessionListOpen && col().accountsPanelOpen).toBe(true);
+    expect(store.get("agent-dag.accountsPanelOpen")).toBe("1");
     go({ workspace: false });
     expect(col().panel).toBe("accounts");
   });
@@ -185,12 +203,15 @@ describe("what Workspace does to the column is not stored", () => {
   // own doing: written, a reload in Workspace (or a crash) came back to a list
   // the reader never opened, or to no column at all.
   it("keeps the reader's column in storage while the list is put in it, and gives it back", () => {
-    const { go } = setup({ workspace: false, wide: true });
+    const { col, go } = setup({ workspace: false, wide: true });
     expect(store.get("agent-dag.accountsPanelOpen")).toBe("1");
     expect(store.get("agent-dag.sessionListOpen")).toBe("0");
     go({ workspace: true });
     expect(store.get("agent-dag.sessionListOpen"), "the list is Workspace's, not stored open").toBe("0");
-    expect(store.get("agent-dag.accountsPanelOpen"), "accounts are evicted, not closed").toBe("1");
+    // CHANGED ON PURPOSE (the owner, 2026-11-23): was "accounts are evicted,
+    // not closed". They are neither now: open under the list.
+    expect(col().accountsPanelOpen, "accounts stay open under the list").toBe(true);
+    expect(store.get("agent-dag.accountsPanelOpen")).toBe("1");
     go({ workspace: false });
     expect(store.get("agent-dag.sessionListOpen")).toBe("0");
     expect(store.get("agent-dag.accountsPanelOpen")).toBe("1");

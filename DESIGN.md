@@ -375,8 +375,10 @@ columns:  1fr 360px                   default (canvas + detail rail)
           1fr · 240px 1fr · auto 1fr  the same three with no detail open
 ```
 
-Sessions and Accounts share the left slot and are mutually exclusive; accounts
-takes `auto` because it has to fit bars and email addresses.
+Sessions and Accounts share the left column and one width. Each door toggles
+its own panel; with both open Sessions is on top and Accounts under it, a 1px
+`--line` between them, the way Usage stands over This machine in the right
+column (`left-column.css`).
 
 **The panel buttons live on the window's edges** (`edge-rails.css`): a stripe
 `--edge-w` wide (one control height), with upright icon buttons; `.app` keeps

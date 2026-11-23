@@ -193,14 +193,13 @@ function Inner() {
   const stateRef = useRef(initialGraph);
   const [, force] = useState(0);
   const rerender = useCallback(() => force(x => x + 1), []);
-  // The left column: the session list and the accounts panel share one slot,
-  // and opening one evicts the other (#824). Both panels' state, persistence and
-  // the eviction live in use-left-column.ts; only its toggles can open either.
-  // Restored first, because the right-hand panels' room depends on its width.
+  // The left column: the session list and the accounts panel, each opened by
+  // its own door, and one under the other when both are open. Both panels'
+  // state and persistence live in use-left-column.ts. Restored first, because
+  // the right-hand panels' room depends on its width.
   const leftColumn = useLeftColumn();
   const { sessionListOpen, accountsPanelOpen, panel: leftPanel, toggleSessionList, toggleAccountsPanel,
-          openAccountsPanel, closeSessionList, closeSessionListToCanvas, closeAccountsPanel,
-          leavePhone: leaveColumnPhone, holdAccounts } = leftColumn;
+          openAccountsPanel, closeSessionList, closeSessionListToCanvas, closeAccountsPanel, holdAccounts } = leftColumn;
   // The rail's width at the density in force (--rail-w), which the column and
   // the right-hand panels' room both follow.
   const railWidth = useRailWidth();
@@ -226,14 +225,15 @@ function Inner() {
   /** The detail panel's setter as the doors, D and a selection reach it: an open
    *  while the right column is folded brings the column back. */
   const setDetailOpen = useMemo(() => foldAwareSet(setDetailStored, rightFolded, raiseRight), [setDetailStored, rightFolded, raiseRight]);
-  // The left column's doors and keys the same way: folded, a press opens it.
-  const leftPanelRef = useMirroredRef(leftPanel);
+  // The left column's doors and keys the same way: folded, a press opens it,
+  // and opens the door's panel in it when that one is not open already.
+  const leftOpenRef = useMirroredRef({ list: sessionListOpen, accounts: accountsPanelOpen });
   const pressSessionList = useMemo(() => foldAwarePress(toggleSessionList, {
-    folded: () => sideFoldRef.current.left, holds: () => leftPanelRef.current === "session-list", raise: () => raiseSide("left"),
-  }), [toggleSessionList, sideFoldRef, leftPanelRef, raiseSide]);
+    folded: () => sideFoldRef.current.left, holds: () => leftOpenRef.current.list, raise: () => raiseSide("left"),
+  }), [toggleSessionList, sideFoldRef, leftOpenRef, raiseSide]);
   const pressAccounts = useMemo(() => foldAwarePress(toggleAccountsPanel, {
-    folded: () => sideFoldRef.current.left, holds: () => leftPanelRef.current === "accounts", raise: () => raiseSide("left"),
-  }), [toggleAccountsPanel, sideFoldRef, leftPanelRef, raiseSide]);
+    folded: () => sideFoldRef.current.left, holds: () => leftOpenRef.current.accounts, raise: () => raiseSide("left"),
+  }), [toggleAccountsPanel, sideFoldRef, leftOpenRef, raiseSide]);
   /** Each left panel open on screen: open, and its column not folded. */
   const listOnScreen = sessionListOpen && !sideFold.left;
   const accountsOnScreen = accountsPanelOpen && !sideFold.left;
@@ -1344,10 +1344,8 @@ function Inner() {
         : null),
     },
     modalOpenRef,
-    // The window grew past a phone's width: Accounts and the list in one
-    // column become the list, Accounts waiting behind it (an eviction, which
-    // is not stored).
-    onLeavePhone: leaveColumnPhone,
+    // The window growing past a phone's width asks nothing of the left column:
+    // Accounts, a sheet over the list there, is drawn under it in the column.
     // A window narrowed to a phone's width with several panels open draws the
     // one on top; the rest wait shut, in memory, not stored.
     hold: { accounts: holdAccounts, usage: holdRight.usage, machine: holdRight.machine },
@@ -1514,8 +1512,9 @@ function Inner() {
       />
 
       {/* The left column, one element both panels are drawn in: its width is
-          the open panel's, eased from the last one, and a switch cross-fades
-          the two inside it — components/LeftColumn.tsx. */}
+          the panels' one width, eased from the last one, and with both open
+          Sessions is on top and Accounts under it, top to bottom in the
+          document as on screen — components/LeftColumn.tsx. */}
       {/* On a phone Accounts is a sheet over Sessions, so it is drawn outside the
           column (a sheet inside the column's stacking layer would sit under the
           scrim) and the column holds the list alone. */}
@@ -1523,7 +1522,6 @@ function Inner() {
       {(sessionListDrawn || accountsDrawn) && (
         <LeftColumn width={leftColumnTarget} listWidth={phone ? undefined : listWidth}
           edge={phone ? undefined : <RailEdge width={listWidth} cap={railCapNow} onWidth={railChoice.choose} onReset={railChoice.reset} />}>
-          {!phone && accountsNodes}
           {sessionListDrawn && (
             <SessionList
               historyReady={historyReplayed}
@@ -1545,6 +1543,7 @@ function Inner() {
               emptyNotice={heroInList ? emptyHero(0) : undefined}
             />
           )}
+          {!phone && accountsNodes}
         </LeftColumn>
       )}
       {/* WORKSPACE: the cell the canvas would have, measured for the pane while

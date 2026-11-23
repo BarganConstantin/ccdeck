@@ -594,7 +594,12 @@ describe("crossing 640 keeps one sheet, the one on top, closes nothing and write
     expect(r.left).toHaveBeenCalledTimes(1);
   });
 
-  it("writes nothing of the panels' stored state either way, and the evicted Accounts comes back with the list gone", () => {
+  // CHANGED ON PURPOSE (the owner, 2026-11-23): was "…and the evicted Accounts
+  // comes back with the list gone". A widening with the list and Accounts both
+  // open used to evict Accounts (the column held one panel); the column holds
+  // the two one under the other now, so a widening changes neither, and App
+  // passes the left column no onLeavePhone.
+  it("writes nothing of the panels' stored state either way, and a widening keeps Accounts under the list", () => {
     width = 1600;
     stored = { "agent-dag.sessionListOpen": "1", "agent-dag.accountsPanelOpen": "1", "agent-dag.usagePanelOpen": "1", "agent-dag.systemPanelOpen": "1" };
     let left!: ReturnType<typeof useLeftColumn>;
@@ -609,7 +614,6 @@ describe("crossing 640 keeps one sheet, the one on top, closes nothing and write
           accounts: left.closeAccountsPanel, usage: () => right.setUsagePanelOpen(false),
           machine: () => right.setMachinePanelOpen(false), inspector: () => right.setDetailOpen(false),
         },
-        onLeavePhone: left.leavePhone,
       });
       return null;
     }, { phone: false });
@@ -638,11 +642,13 @@ describe("crossing 640 keeps one sheet, the one on top, closes nothing and write
     width = 1600;
     m.rerender({ phone: false });
     expect(left.sessionListOpen, "the list keeps the column").toBe(true);
-    expect(left.accountsPanelOpen, "Accounts waits behind it").toBe(false);
-    expect(writes.length, "waiting is not the reader closing it: nothing is stored").toBe(before);
+    expect(left.accountsPanelOpen, "Accounts stands under it").toBe(true);
+    expect(left.panel, "the list on top").toBe("session-list");
+    expect(writes.length, "a widening is not the reader's: nothing is stored").toBe(before);
     expect(stored).toEqual(stored1);
     left.toggleSessionList();
-    expect(left.accountsPanelOpen, "the list goes and Accounts is back").toBe(true);
+    expect(left.accountsPanelOpen, "the list goes and Accounts stays").toBe(true);
+    expect(left.panel).toBe("accounts");
   });
 });
 
@@ -665,7 +671,6 @@ describe("a window narrowed with several panels open draws one sheet, the one on
           accounts: left.closeAccountsPanel, usage: () => right.setUsagePanelOpen(false),
           machine: () => right.setMachinePanelOpen(false), inspector: () => right.setDetailOpen(false),
         },
-        onLeavePhone: left.leavePhone,
         hold: { accounts: left.holdAccounts, usage: right.hold.usage, machine: right.hold.machine },
       });
       return null;

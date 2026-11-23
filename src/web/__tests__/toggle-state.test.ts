@@ -556,7 +556,9 @@ describe("what each of the four toggles announces", () => {
     // between them would produce.
     const client = clientText();
     const body = client.slice(client.indexOf("const toggleSessionList"), client.indexOf("const toggleAccountsPanel"));
-    expect(body).toMatch(/setSessionListOpen\(open => \{[\s\S]*?return !open;/);
+    // CHANGED ON PURPOSE (the owner, 2026-11-23): the toggle is the inversion
+    // alone now, with no eviction of Accounts in its body; it still inverts.
+    expect(body).toMatch(/setSessionListOpen\(open => !open\)/);
     // Drawn from the flag's own render, and held while it leaves (panel-exit.ts,
     // isDrawn) since the left column animates (2026-10-08).
     // CHANGED ON PURPOSE (one side column between 641 and 839): from the list

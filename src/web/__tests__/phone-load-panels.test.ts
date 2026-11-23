@@ -204,12 +204,18 @@ describe("a wider window loads as it always did", () => {
     expect(kept("machine")).toBe("1");
   });
 
-  it("keeps the list's eviction of the accounts panel at 1440px", () => {
+  // CHANGED ON PURPOSE (the owner, 2026-11-23): was "keeps the list's eviction
+  // of the accounts panel at 1440px" — the list loaded alone, Accounts waiting
+  // behind it until the list closed. Both open now load one under the other.
+  it("opens the list and Accounts both at 1440px, one under the other, and closing the list leaves Accounts", () => {
     windowAt(1440, { sessionList: "1", accounts: "1" });
     const deck = load();
-    expect(deck.open).toMatchObject({ sessionList: true, accounts: false });
+    expect(deck.open).toMatchObject({ sessionList: true, accounts: true });
+    expect(deck.left.panel, "the list is on top").toBe("session-list");
     deck.left.closeSessionList();
     expect(deck.open.accounts).toBe(true);
+    expect(deck.left.panel).toBe("accounts");
+    expect(kept("accounts")).toBe("1");
   });
 
   it("is a wide window where the browser cannot be asked", () => {
