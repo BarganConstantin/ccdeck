@@ -380,14 +380,17 @@ describe("the boot's half", () => {
   });
 });
 
-/** Whether `pid` is gone: no such process, or (Linux) a zombie nobody has reaped yet. */
+/** Whether `pid` is gone: no such process, or (Linux) a zombie nobody has reaped yet.
+ *  A zombie can be reaped between the signal check and the stat read; a read
+ *  that fails then means gone, so the signal check is asked once more. */
 function processGone(pid: number): boolean {
-  try { process.kill(pid, 0); } catch { return true; }
+  const exists = () => { try { process.kill(pid, 0); return true; } catch { return false; } };
+  if (!exists()) return true;
   try {
     const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
     return stat.slice(stat.lastIndexOf(")") + 2).startsWith("Z");
   } catch {
-    return false;
+    return !exists();
   }
 }
 
