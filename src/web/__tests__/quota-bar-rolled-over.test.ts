@@ -86,11 +86,13 @@ describe("an open account row whose window has reset since its collection", () =
     onDismissRefusal: () => {}, switchedHere: false, swapped: null, displaced: undefined,
     issueExpanded: false, onOpenIssue: () => {},
   } as never));
-  /** The 5h lane's line, from its name to the end of its value. */
-  // CHANGED ON PURPOSE (V4's Figma): the open row says each window on a line
-  // of text and draws no bar of its own; its inks are classes, not styles.
-  const fiveHour = (html: string) => /<div class="ap-lane"[^>]*><span class="ap-lane-label" title="5h">[^]*?<\/div>/.exec(html)?.[0] ?? "";
-  const meter = (html: string) => /<div class="ap-meter"[^>]*>[^]*?<\/div>(?:<\/div>)?<\/li>/.exec(html)?.[0] ?? "";
+  /** The 5h lane, from its name to its reset. */
+  // CHANGED ON PURPOSE (V4's Figma): the open row said each window on a line
+  // of text and drew no bar of its own; its inks are classes, not styles.
+  // CHANGED ON PURPOSE (#2644): every row draws each window as a lane again —
+  // its short name (the whole one its title), its own bar, its figure and its
+  // reset — and the row has no meter beside them.
+  const fiveHour = (html: string) => /<div class="ap-lane"><span class="ap-lane-label" title="5-hour">5h<\/span>[^]*?<\/div>/.exec(html)?.[0] ?? "";
 
   // Until accounts-open-row-reset the old number stayed on the face, muted,
   // with "reset" in the countdown's slot — and a frozen row printed only the
@@ -103,16 +105,19 @@ describe("an open account row whose window has reset since its collection", () =
     expect(lane).not.toContain("data-level");
     expect(sheetText()).toMatch(/\.ap-account\[data-frozen\] \.ap-lane-pct,\s*\.ap-lane-pct\[data-reset\] \{ color: var\(--muted\); \}/);
     expect(lane).not.toContain(">92%<");
-    // The row's meter draws this window, and draws it empty.
-    expect(meter(html)).not.toContain("ap-meter-fill");
+    // The window's own bar is drawn empty, and the row has no other.
+    expect(lane).toContain('<span class="ap-lane-track" aria-hidden="true"></span>');
+    expect(html).not.toContain("ap-meter");
   });
 
   it("keeps when it reset and what it read on hover and for a screen reader", () => {
     const lane = fiveHour(row(account(NOW - 600)));
     expect(lane).toContain('title="Reported reset time passed 10m ago, 92% when read 10m ago"');
     expect(lane).toContain('<span class="vis-hidden">Reported reset time passed 10m ago, 92% when read 10m ago</span>');
-    // And no countdown to a time that has passed.
-    expect(lane).not.toContain("ap-lane-reset");
+    // And no countdown to a time that has passed: the reset column is drawn,
+    // so the lanes keep their columns, and says nothing.
+    expect(lane).toMatch(/<span class="ap-lane-reset" data-widest="[^"]+"><\/span><\/div>$/);
+    expect(lane).not.toContain("resets in");
   });
 
   it("keeps a window still running in its level's ink, with its countdown", () => {
@@ -125,6 +130,6 @@ describe("an open account row whose window has reset since its collection", () =
     expect(lane).toContain('data-level="err"');
     expect(text(lane)).toContain("resets in 1h");
     expect(text(lane)).not.toMatch(/\breset$/);
-    expect(meter(html)).toContain("width:92%;background:var(--err)");
+    expect(lane).toContain("width:92%;background:var(--err)");
   });
 });

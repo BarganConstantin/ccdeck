@@ -15,17 +15,17 @@
 // the row never reads another account's part of that state. The writes it
 // makes are callbacks the panel spells.
 //
-// Every folded account has two lines and a 3px meter. A problem takes the
-// reset line's place, alongside the weekly figure and its sign-in action.
-// Expanding reveals all windows, resets and the age of the reading, in place of
-// line 2, which would only say the same numbers a second time.
+// Every account, the live one and every other, draws the name and then one bar
+// per window it reports — 5h, 7d, a model's own such as Fable — with how full
+// it is and when it resets, in columns, so accounts compare at a glance
+// (#2644). A problem has its own line under the name. Pressing the row opens
+// when the reading was taken and what the organization sends.
 import { WarnGlyph } from "./AccountIssuePopover";
 import { KitIcon, KitStateGlyph, type KitIconName } from "./kit-icons";
-import { LevelMark, type LevelTone } from "./LevelMark";
+import { type LevelTone } from "./LevelMark";
 import { quotaFill, quotaLevel } from "./QuotaBar";
 import AccountTelemetry from "./AccountTelemetry";
 import AccountHint from "./AccountHint";
-import { richText } from "./settings-rich";
 import { accountIssue, sentence, type AccountIssue } from "../account-issue";
 import { agoLabel as ago, dueLabel as due, resetPhrase } from "../accounts-time";
 import { laneLabel, windowName } from "../lane-label";
@@ -33,7 +33,7 @@ import { useT } from "../i18n";
 import { type Failure } from "../accounts-reload";
 import { type SwapNote } from "../account-move";
 import { type Account, type Lane } from "../claude-accounts";
-import { lapsed, laneSplit } from "../lane-view";
+import { lapsed } from "../lane-view";
 import { resetCountdown } from "../relative-time";
 import { type useRequestSlot } from "../use-request-slot";
 import { resetSinceReading } from "../accounts-usage-report";
@@ -42,30 +42,23 @@ import { telemetryLine } from "../org-telemetry";
 
 type RequestSlot = ReturnType<typeof useRequestSlot>;
 
-/** How full a window is, in the inks its figure and meter use: the Usage
+/** How full a window is, in the inks its figure and bar use: the Usage
  *  panel's level (quotaLevel), the warning from 70% and the error from 90%.
  *  Below that a figure keeps its line's own ink — a quota is not a problem
  *  until it is nearly spent. */
 const fullness = (pct: number): LevelTone | undefined => quotaLevel(pct) ?? undefined;
 
 /** A quota figure painted --warn or --err for its level never says so in
- *  colour alone (WCAG 1.4.1). An open lane has the room for LevelMark's mark
- *  and word, "⚠ 92% · high"; the shut row's figures are packed beside the
- *  name, so they wear the mark alone and give the word to a screen reader and
- *  to the hover. Below its level the figure is drawn as it always was. */
-function QuotaPct({ className, pct, level, compact }: {
-  className: string; pct: number; level: LevelTone | undefined; compact?: boolean;
+ *  colour alone (WCAG 1.4.1). A lane's figure stands in a column beside its
+ *  bar, so it wears the mark alone and gives the word to a screen reader and
+ *  to the hover — "high" beside every hot figure would push the bars apart.
+ *  Below its level the figure is drawn as it always was. */
+function QuotaPct({ className, pct, level }: {
+  className: string; pct: number; level: LevelTone | undefined;
 }) {
   const t = useT();
   const n = `${Math.round(pct)}%`;
   if (!level) return <span className={className}>{n}</span>;
-  if (!compact) {
-    return (
-      <span className={className} data-level={level}>
-        <LevelMark tone={level} word="high">{n}</LevelMark>
-      </span>
-    );
-  }
   const word = t("common.level.high");
   return (
     <span className={className} data-level={level} title={word}>
@@ -82,17 +75,42 @@ function splitAddress(name: string): { local: string; domain: string | null } {
   return at > 0 && at < name.length - 1 ? { local: name.slice(0, at), domain: name.slice(at) } : { local: name, domain: null };
 }
 
+/** What a lane's reset column can print at its widest in the language on show,
+ *  one per line: a minute short of a day ("23h 59m"), a day short of a week
+ *  ("6d 23h") and the word for a window nobody has spent from ("not started").
+ *  Every reset cell is held to the widest of them (accounts-panel.css), so the
+ *  columns of two accounts line up whatever their own resets say — "3 Std. 11
+ *  Min." over "6 Tg. 6 Std.", or an account whose window has not started under
+ *  one whose window has. */
+export function resetFloor(nowSec: number, idle: string): string {
+  const day = resetCountdown(nowSec + 23 * 3600 + 59 * 60, nowSec) ?? "";
+  const week = resetCountdown(nowSec + 6 * 86400 + 23 * 3600, nowSec) ?? "";
+  return [day, week, idle].join("\n");
+}
+
 /**
- * ONE WINDOW OF AN OPEN ROW, as a line: the window's name, then how full it is
- * and when it resets ("Weekly  49%  resets Thu 9:00 AM"). The bars an open
- * row used to draw said the same numbers a second time beside the meter; the
- * line says them once, in words, with the reset beside the number it ends.
+ * ONE WINDOW, AS A BAR (#2644): the window's short name, a bar, how full it is
+ * and how long until it resets ("7d  ▬▬▬▬▬───  79%  2d 17h").
  *
- * THE THREE ARE COLUMNS (user feedback: the lines were hard to read). The
- * lanes are one grid — name, figure with its mark, reset — so the figures
- * stand one under another and scan as a column; the line and its value wrap
- * no box of their own (accounts-panel.css). Where the panel is too narrow for
- * all three, the reset drops under its figure.
+ * A user said the 3.x overview, a bar per window on every account, was clearer
+ * than the lines that replaced it, which read as text: comparing accounts
+ * meant reading each one. So every row draws its windows this way, shut or
+ * open, the live account and the others alike, and every account reads the
+ * same.
+ *
+ * THE FOUR ARE COLUMNS. An account's lanes are one grid (accounts-panel.css),
+ * so its figures and resets stand one under another; the name and the figure
+ * columns have a fixed width and the reset column a floor, so the bars of one
+ * account line up with the next one's too. The window's whole name ("Weekly")
+ * is the label's title; the countdown says "resets in" to a screen reader and,
+ * with the window's name, in its title.
+ *
+ * WHAT THE BAR SAYS IS WHAT THE FIGURE SAYS. The fill is the figure's level
+ * (quotaLevel) in its ink; a record — an old reading, or a login that cannot
+ * be read — is drawn in the quiet ink with no level, a window that has reset
+ * since it was read is an empty track beside "reset", and a window at 0% keeps
+ * a faint sliver, so none of them can pass for another. A window the account
+ * does not report has no lane at all.
  */
 export function LaneBar({ lane, nowSec, readAt, frozen }: {
   lane: Lane; nowSec: number; readAt: number | null; frozen?: boolean;
@@ -105,10 +123,12 @@ export function LaneBar({ lane, nowSec, readAt, frozen }: {
   // A reading that cannot move is drawn as a record rather than a reading: one
   // ink, no warning colours. The row says how old.
   const record = frozen || rolled;
-  // And a reset from a reading that old has most likely happened already. It
-  // wraps in its column, between its words but never inside the time.
-  const reset = lane.resetAt && !record ? resetPhrase(lane.resetAt, nowSec, t, { together: true }) : null;
-  const countdown = lane.resetAt && !record ? resetCountdown(lane.resetAt, nowSec) : null;
+  const level = record ? undefined : fullness(capped);
+  // A reset still ahead is when the window ends, which no later reading moves,
+  // so it is counted down on an old reading too: the shut row used to say it
+  // to a screen reader there, and the comparison needs it on every account. A
+  // reset that has passed is the "reset" in the figure's place instead.
+  const countdown = lane.resetAt && !rolled ? resetCountdown(lane.resetAt, nowSec) : null;
   // RESET, FROZEN OR NOT, where the number was — as the shut row, the Usage
   // panel's bar and the capacity report say it. A row nothing has read for a
   // quarter of an hour is frozen, and it is the row most likely to have reset:
@@ -121,22 +141,33 @@ export function LaneBar({ lane, nowSec, readAt, frozen }: {
   const idle = !record && capped === 0 && !lane.resetAt;
   return (
     <div className="ap-lane">
-      <span className="ap-lane-label" title={laneLabel(lane.label, t)}>{windowName(lane, t)}</span>
-      <span className="ap-lane-value">
-        {/* Whole, as the shut row and the Usage panel print it: claude-swap keeps
-            the utilisation as it came, and 85.555555% beside a shut-row 86% is
-            one window read two ways. */}
-        {rolled
-          ? <span className="ap-lane-pct" data-reset="" title={before ?? undefined}>
-              {before ? <><span aria-hidden>{t("accounts.row.resetWord")}</span><span className="vis-hidden">{before}</span></> : t("accounts.row.resetWord")}
-            </span>
-          : <QuotaPct className="ap-lane-pct" pct={capped} level={record ? undefined : fullness(capped)} />}
-        {reset && (
-          <span className="ap-lane-reset" title={countdown ? t("accounts.row.laneResetsIn", { label: laneLabel(lane.label, t), time: countdown }) : undefined}>
-            {reset}
+      <span className="ap-lane-label" title={windowName(lane, t)}>{laneLabel(lane.label, t)}</span>
+      {/* EMPTY ONCE IT HAS RESET, as the Usage panel draws a window that has:
+          a bar still 96% full beside the word "reset" would say the opposite
+          of the word. A window at 0% keeps a faint sliver, so an empty track
+          is never mistaken for one nobody has spent from. */}
+      <span className="ap-lane-track" aria-hidden>
+        {!rolled && <span className="ap-lane-fill"
+          style={{ width: `${capped === 0 ? 1.5 : capped}%`, background: record ? "var(--muted)" : quotaFill(level ?? null), opacity: capped === 0 ? 0.4 : 1 }} />}
+      </span>
+      {/* Whole, as the Usage panel prints it: claude-swap keeps the utilisation
+          as it came, and 85.555555% beside another surface's 86% is one window
+          read two ways. A high figure wears the warning mark, with the word on
+          hover and for a screen reader. */}
+      {rolled
+        ? <span className="ap-lane-pct" data-reset="" title={before ?? undefined}>
+            {before ? <><span aria-hidden>{t("accounts.row.resetWord")}</span><span className="vis-hidden">{before}</span></> : t("accounts.row.resetWord")}
           </span>
-        )}
-        {idle && <span className="ap-lane-reset">{t("accounts.row.notStarted")}</span>}
+        : <QuotaPct className="ap-lane-pct" pct={capped} level={level} />}
+      {/* Always drawn, empty when there is nothing to count down to, so every
+          lane fills the same four columns, and never narrower than the widest
+          thing the column prints in the language (accounts-panel.css), so the
+          column is one width on every account. */}
+      <span className="ap-lane-reset" data-widest={resetFloor(nowSec, t("accounts.row.notStarted"))}
+        title={countdown ? t("accounts.row.laneResetsIn", { label: laneLabel(lane.label, t), time: countdown }) : undefined}>
+        {countdown
+          ? <><span className="vis-hidden">{t("accounts.row.resetsInSr")}</span>{countdown}</>
+          : idle ? t("accounts.row.notStarted") : null}
       </span>
     </div>
   );
@@ -258,15 +289,11 @@ export default function AccountRow({
   // The windows that have not reset since they were read: the only ones whose
   // numbers say anything about this window (lane-view.ts's lapsed).
   const live = a.lanes.filter(l => !lapsed(l, nowSec));
-  const { shown } = laneSplit(a.lanes);
-  // A folded lane joins the shut row when it is fuller than every window still
-  // running — not measured against one that has reset since.
-  const { fuller } = laneSplit(live);
   const issue = issueOverride !== undefined ? issueOverride : accountIssue(a, nowSec, lan, t);
-  // EVERY ROW IS ONE SHAPE: the name, one figure, one line under it and one
-  // meter. The rest — every window with its reset, when it was read, what its
-  // organization sends — is one press on the row away, the live row's too, and
-  // held by account (#542).
+  // EVERY ROW IS ONE SHAPE: the name, a bar for every window it reports with
+  // its figure and its reset, and a state line only for a state. When it was
+  // read and what its organization sends are one press on the row away, the
+  // live row's too, and held by account (#542).
   const open = opened;
   const name = a.alias ?? a.email ?? t("accounts.accountNLower", { n: a.num });
   // The whole identity, for the door. The head clips the name with an
@@ -280,28 +307,9 @@ export default function AccountRow({
   // screen as the last reading and are drawn as one.
   const frozen = a.stale || issue?.blocksSwitch === true;
   // A login that cannot be used has no numbers worth showing: last week's
-  // quota beside "Login expired" would read as this week's. Its figures are
-  // dashes and its meter is empty.
+  // quota beside "Login expired" would read as this week's. Its bars wait in
+  // the open row, drawn as the record they are.
   const blocked = issue?.blocksSwitch === true;
-  // Whether an open lane draws its figure with the mark and the word — the
-  // same test LaneBar makes: a window still running, on a reading that can
-  // move, at its level.
-  const laneHigh = !frozen && a.lanes.some(l => !lapsed(l, nowSec) && !!fullness(Math.min(100, Math.max(0, l.pct))));
-  // The row leads with the windows; a folded model lane joins them
-  // only when it is the fullest, so two calm numbers never sit over
-  // a hidden hot one. See lane-view.ts.
-  const quick = fuller ? [...shown, fuller] : shown;
-  // THE TWO FIGURES ARE THE FIRST TWO WINDOWS': the first at the end of line 1,
-  // the second under it at the end of line 2. A third — a model lane fuller
-  // than both — rides in line 2 beside the reset, so it is never hidden.
-  const primary = quick[0] ?? null;
-  const second = quick[1] ?? null;
-  const extra = quick.slice(2);
-  const primaryRolled = primary ? lapsed(primary, nowSec) : false;
-  const primaryPct = primary ? Math.min(100, Math.max(0, primary.pct)) : 0;
-  // The reset is said on an old reading too: a countdown to a time that has
-  // passed says nothing, so an old reading whose reset is over has none.
-  const primaryReset = primary?.resetAt && !primaryRolled && !blocked ? resetCountdown(primary.resetAt, nowSec) : null;
   const age = a.fetchedAt ? ago(a.fetchedAt, nowSec, t) : null;
   // Every row says only the age; whose read it was waits in its tooltip.
   const ageTitle = a.sharedFrom
@@ -323,30 +331,17 @@ export default function AccountRow({
     : weekFull ? { tone: "err", glyph: "calendar" }
     : a.stale ? { tone: "quiet", glyph: "info" }
     : null;
-  /** A figure at the end of a line: the window's name, quiet, and its number. */
-  const figure = (lane: Lane | null, fallback: string, cls: string) => {
-    if (!lane || blocked) {
-      return (
-        <span className={`ap-fig ${cls}`} data-none="">
-          <span className="ap-q-label">{lane ? laneLabel(lane.label, t) : fallback}</span>
-          <span className="ap-q-pct">—</span>
-        </span>
-      );
-    }
-    const rolled = lapsed(lane, nowSec);
-    // The head's figure is the row's value, the one the row's acts stand in for.
-    const pct = cls === "ap-fig-1" ? "ap-value ap-q-pct" : "ap-q-pct";
-    return (
-      <span className={`ap-fig ${cls}`}>
-        <span className="ap-q-label">{laneLabel(lane.label, t)}</span>
-        {/* A window that has reset since it was read is said to have, as its
-            open line says it: its number is the old window's. */}
-        {rolled
-          ? <span className={pct} title={t("accounts.row.laneReset", { label: lane.label })}>{t("accounts.row.resetWord")}</span>
-          : <QuotaPct className={pct} pct={lane.pct} level={frozen ? undefined : fullness(lane.pct)} compact />}
-      </span>
-    );
-  };
+  // THE BARS: every window the account reports, on every row a login can be
+  // read for, and on a blocked one only once it is opened. An account with no
+  // reading at all says so where its bars would be, unless its state line
+  // already says it ("Never collected", "Last read 2h ago").
+  const bars = a.lanes.length > 0 && (!blocked || open);
+  const noReading = a.lanes.length === 0 && !blocked && !(a.stale && !issue);
+  // THE PLAN LINE: what only it says — the plan, and that auto-switch skips a
+  // held-out account — under the name, while no state line is there.
+  const planLine = !state && (!!planLabel || a.disabled);
+  const lanesId = `ap-${ids}lanes-${a.num}`;
+  const quotaId = `ap-${ids}quota-${a.num}`;
   return (
     <li className={`ap-account${a.active ? " active" : ""}`}
       aria-current={a.active ? "true" : undefined}
@@ -371,7 +366,8 @@ export default function AccountRow({
             a.alias && a.email ? `ap-${ids}email-${a.num}` : null,
             home ? `ap-${ids}home-${a.num}` : null,
             lan?.sharedTo ? `ap-${ids}shared-${a.num}` : null,
-            !open && !issue?.blocksSwitch ? `ap-${ids}quota-${a.num}` : null,
+            planLine ? quotaId : null,
+            bars ? lanesId : null,
             telemetry ? `ap-${ids}telemetry-${a.num}` : null,
           ].filter(Boolean).join(" ") || undefined}
           onClick={() => onToggleLanes()}>
@@ -460,11 +456,9 @@ export default function AccountRow({
             refused and a control that can never act is worse than
             none (#519). Putting it back is in the ⋯. */}
         {a.disabled && <span className="ap-held ap-value">{t("accounts.heldOut")}</span>}
-        {/* THE FIRST FIGURE, at the right edge: the first window's name and how
-            much of it is used, in the waiting ink from 80% and the error ink at
-            100%. A login that cannot be used shows a dash. */}
-        {!a.disabled && figure(primary, "5h", "ap-fig-1")}
-        {/* The row's two acts take the figure's place under the pointer and the
+        {/* NO FIGURE ON THIS LINE (#2644): every window is a bar under the
+            name, with its figure, so a figure here said the first one twice.
+            The row's two acts stand at the right end under the pointer and the
             keyboard, and are always there on touch (accounts-panel.css). */}
         <span className="ap-acts">
         {/* The one verb a row carries. Not offered where it cannot work — to
@@ -568,7 +562,6 @@ export default function AccountRow({
               aria-label={t("accounts.row.fixAs", { fix: issue.fix, name: a.email ?? name })} title={issue.hint}
               onClick={() => onSignIn(a.email)}>{t("accounts.row.signIn")}</button>
           )}
-          {figure(second, "7d", "ap-fig-2")}
         </div>
       )}
       {!issue && weekFull && state && (
@@ -577,87 +570,51 @@ export default function AccountRow({
           <span className="ap-issue-text">
             {weekReset ? t("accounts.row.weeklyLimitAt", { reset: weekReset }) : t("accounts.row.weeklyLimit")}
           </span>
-          {figure(second, "7d", "ap-fig-2")}
         </p>
       )}
       {/* AN OLD READING: nothing collected for a quarter of an hour. The
-          figures go quiet and this line says how old they are, with whose
-          read it was in its tooltip. */}
+          bars and figures go quiet and this line says how old they are, with
+          whose read it was in its tooltip. */}
       {!issue && !weekFull && a.stale && state && (
         <p className="ap-issue-line" data-tone={state.tone}>
           <KitIcon name="info" className="ap-state-glyph" />
           <span className="ap-issue-text ap-q-age" data-never={age ? undefined : ""} title={ageTitle}>
             {age ? t("accounts.row.lastReadAgo", { ago: age }) : sentence(t("accounts.row.ageNever"))}
           </span>
-          {figure(second, "7d", "ap-fig-2")}
         </p>
       )}
 
-      {/* LINE 2: the plan and when the first window resets, and the second
-          window's figure at the right edge, under the first. A held-out
-          account says what that means for it instead of its reset.
-
-          The reset names its window ("5h resets in 3h 53m"), in the short
-          name the figures use: said bare, beside the 7d figure, it read as
-          the week's reset (user feedback).
-
-          OPEN, THE LANES SAY ALL OF IT. Every window, its figure and its reset
-          are the open row's lines, so line 2 is not drawn twice over them; what
-          only it says — the plan, and that auto-switch skips a held-out
-          account — stays, on a line of its own. */}
-      {open ? (!state && (planLabel || a.disabled) && (
-        <p className="ap-quota" id={`ap-${ids}quota-${a.num}`}>
+      {/* THE PLAN LINE: the plan, and that auto-switch skips a held-out
+          account — what the bars do not say. Every window's figure and reset
+          are the bars', so nothing here says them a second time. */}
+      {planLine && (
+        <p className="ap-quota" id={quotaId}>
           {planLabel && <span className="ap-q-plan">{planLabel}</span>}
           {a.disabled && <span className="ap-q-reset">{t("accounts.row.skipped")}</span>}
         </p>
-      )) : (
-        <p className={state ? "ap-quota vis-hidden" : "ap-quota"} id={`ap-${ids}quota-${a.num}`}>
-          {primary && !blocked && (
-            /* The first figure is in the head, and the head is not what this
-               line is read from: the door is described by this line, so the
-               figure is said here too, with its window, for a screen reader
-               ("5h 31%"). */
-            <span className="vis-hidden">
-              {laneLabel(primary.label, t)}{" "}{primaryRolled ? t("accounts.row.resetWord") : `${Math.round(primary.pct)}%`}{". "}
-            </span>
-          )}
-          {planLabel && <span className="ap-q-plan">{planLabel}</span>}
-          {a.disabled
-            ? <span className="ap-q-reset">{t("accounts.row.skipped")}</span>
-            : primaryReset && primary && (
-              <span className="ap-q-reset">
-                {richText(t("accounts.row.laneResetsIn", { time: primaryReset }), {
-                  label: <span className="ap-q-label">{laneLabel(primary.label, t)}</span>,
-                })}
-              </span>
-            )}
-          {!blocked && extra.map(l => (
-            <span key={l.id} className="ap-q">
-              <span className="ap-q-label">{laneLabel(l.label, t)}</span>{" "}
-              {lapsed(l, nowSec)
-                ? <span className="ap-q-pct" title={t("accounts.row.laneReset", { label: l.label })}>{t("accounts.row.resetWord")}</span>
-                : <QuotaPct className="ap-q-pct" pct={l.pct} level={frozen ? undefined : fullness(l.pct)} compact />}
-            </span>
-          ))}
-          {!primary && !blocked && !a.disabled && <span className="ap-q-reset">{voice.waiting ?? voice.noReading ?? t("accounts.row.noUsageLower")}</span>}
-          {(second || primary || blocked) && figure(second, "7d", "ap-fig-2")}
+      )}
+
+      {/* THE BARS (#2644), one per window, under the name on every row, shut
+          or open: the comparison this column is opened for, read without a
+          press. An account nobody has read says so here instead, quietly,
+          and never as a 0% it never measured. */}
+      {bars && (
+        <div className="ap-lanes" id={lanesId}>
+          {a.lanes.map(l => <LaneBar key={l.id} lane={l} nowSec={nowSec} readAt={a.fetchedAt} frozen={frozen} />)}
+        </div>
+      )}
+      {noReading && (
+        <p className="ap-quota">
+          <span className="ap-q-reset">{voice.waiting ?? voice.noReading ?? t("accounts.row.noUsageLower")}</span>
         </p>
       )}
 
-      {/* OPEN: every window and when it resets, when it was read and when it
-          will be read again, and what its organization sends — the
-          freshness that says whether these numbers are a decision's worth of
-          evidence. The windows in three columns, then one key and one value
-          to a line, under the name and over the meter. `data-high` says a
-          figure wears its mark and word, the widest a figure gets, which is
-          when the reset needs the most room beside it. */}
+      {/* OPEN: when it was read and when it will be read again, and what its
+          organization sends — the freshness that says whether the bars are a
+          decision's worth of evidence — one key and one value to a line. */}
       {open && (
         <div className="ap-detail" id={`ap-${ids}detail-${a.num}`}>
-          <div className="ap-lanes" data-high={laneHigh ? "" : undefined}>
-            {a.lanes.length
-              ? a.lanes.map(l => <LaneBar key={l.id} lane={l} nowSec={nowSec} readAt={a.fetchedAt} frozen={frozen} />)
-              : <div className="ap-hint">{voice.waiting ?? t("accounts.row.noUsage")}</div>}
-          </div>
+          {a.lanes.length === 0 && !noReading && <div className="ap-hint">{voice.waiting ?? t("accounts.row.noUsage")}</div>}
           <div className="ap-meta">
             {/* The address a name stands in for, as text: the head draws one
                 name, and a title is reachable by neither touch nor keyboard.
@@ -690,14 +647,6 @@ export default function AccountRow({
           </div>
         </div>
       )}
-      {/* THE FIRST WINDOW'S METER, 3px, the row's last line: empty for a login
-          that cannot be used and for a window that has reset since it was
-          read. A held-out account keeps its own: it is still spent from by
-          hand. An old reading draws it in the quiet ink. */}
-      <div className="ap-meter" aria-hidden>
-        {primary && !blocked && !primaryRolled && <div className="ap-meter-fill"
-          style={{ width: `${primaryPct === 0 ? 1.5 : primaryPct}%`, background: frozen ? "var(--muted)" : quotaFill(quotaLevel(primaryPct)), opacity: primaryPct === 0 ? 0.4 : 1 }} />}
-      </div>
     </li>
   );
 }
