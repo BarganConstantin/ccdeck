@@ -1,4 +1,10 @@
 {
+  "4.3.6": [
+    {
+      "title": "🪶 A lighter line beside Sessions on sharp screens",
+      "body": "On a Retina or other high-resolution screen, the line between the Sessions list and the board is now half as thick, so it reads as a fine line instead of a heavy bar, most of all in the Contrast themes. You still drag the same edge to resize the list, and it still lights up when you point at it. On other screens it looks as before."
+    }
+  ],
   "4.3.5": [
     {
       "title": "🙈 Hide a finished session from the Sessions list",
@@ -348,6 +354,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.3.6": "A lighter line beside Sessions on sharp screens",
     "4.3.5": "Hide finished sessions from the Sessions list, and Accounts opens under Sessions",
     "4.3.4": "A Codex started in Workspace on Windows connects to Chat, and Reopen here says who holds a conversation",
     "4.3.3": "Reopen here shows it is working, and offers a way on when it can't",
