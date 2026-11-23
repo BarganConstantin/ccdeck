@@ -509,7 +509,10 @@ describe("the state cards: centred in the pane", () => {
     // CHANGED ON PURPOSE (#2621): where ccdeck offers to move the session
     // here, the line says so instead of "quit it in that terminal"; every
     // other case keeps the per-state line.
-    expect(body).toContain('t(handoff ? "board.stage.handoff.offer" : elsewhereLine(p.boardState))');
+    // CHANGED ON PURPOSE: a card this pane's own Reopen here led to (`held`)
+    // says the conversation is still open somewhere, by its agent, instead
+    // (terminal-stage-model.test.ts, terminal-stage-view.test.ts).
+    expect(body).toContain('t(handoff ? "board.stage.handoff.offer" : elsewhereLine(p.boardState, phase.held))');
     expect(en["board.stage.elsewhere.running"]).toBe("It is still running in a terminal outside ccdeck. To continue it here, quit it in that terminal. ccdeck sees that on its own and offers Reopen here, with the same conversation.");
     expect(en).not.toHaveProperty(["board.stage.stillRunning"]);
     expect(body).not.toContain("stopped first —");

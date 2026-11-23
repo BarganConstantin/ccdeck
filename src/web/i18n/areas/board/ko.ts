@@ -665,6 +665,8 @@ const catalog: Catalog = {
   "board.stage.handoff.offer": "ccdeck 밖의 Ghostty 창에서 열려 있습니다. ccdeck이 같은 대화로 여기로 옮길 수 있습니다.",
   "board.stage.elsewhere.working": "ccdeck 밖의 터미널에서 작업 중입니다. 여기서 이어가려면 그 터미널에서 종료하세요. ccdeck이 스스로 알아채고 같은 대화로 '여기서 다시 열기'를 제안합니다.",
   "board.stage.elsewhere.running": "ccdeck 밖의 터미널에서 아직 실행 중입니다. 여기서 이어가려면 그 터미널에서 종료하세요. ccdeck이 스스로 알아채고 같은 대화로 '여기서 다시 열기'를 제안합니다.",
+  "board.stage.held.codex": "Codex가 이 대화를 아직 다른 곳(백그라운드 서비스, Codex 앱, 다른 터미널 등)에서 열어 두고 있어 여기서 아직 다시 열 수 없습니다. ccdeck이 계속 확인하다가 풀리는 즉시 '여기서 다시 열기'를 제안합니다.",
+  "board.stage.held.claude": "Claude Code가 이 대화를 아직 다른 터미널이나 창에서 열어 두고 있어 여기서 아직 다시 열 수 없습니다. ccdeck이 계속 확인하다가 풀리는 즉시 '여기서 다시 열기'를 제안합니다.",
   "board.stage.wsEmptyTitle": "대기 중인 항목이 없습니다",
   "board.stage.wsEmptyLine": "목록에서 세션을 클릭하거나 새 세션을 시작하세요.",
   "board.stage.wsEmptyBeside": "{keys} 또는 드래그로 옆에 하나 더 열 수 있습니다. 창은 최대 4개입니다.",

@@ -695,10 +695,12 @@ describe("checking an external terminal", () => {
     r.adopt.mockResolvedValueOnce(failure(409, "still-running"));
     ctl.adopt();
     await flush();
-    expect(r.last().phase).toMatchObject({ kind: "not-attachable", stillRunning: true, busy: false });
+    // Held after this pane's own press: its card says so (StageBody).
+    expect(r.last().phase).toMatchObject({ kind: "not-attachable", stillRunning: true, busy: false, held: "claude" });
     r.open.mockResolvedValueOnce({ ok: false, target: { kind: "gone", label: "ended", adoptable: true } });
     await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS);
     expect(r.last().phase).toMatchObject({ kind: "not-attachable", target: { kind: "gone" }, stillRunning: false });
+    expect(r.last().phase, "freed, the plain card again").not.toHaveProperty("held");
     expect(r.adopt).toHaveBeenCalledTimes(1);
   });
 });
@@ -912,6 +914,30 @@ describe("reopening an ended pane", () => {
     expect(r.sockets[1].url).toMatch(/ticket=running$/);
     reveal(r, r.sockets[1]);
     expect(r.last().phase.kind).toBe("live");
+  });
+
+  // A Codex whose TUI ended in the pane while its background service keeps
+  // the conversation: the deck says still running, and the open cannot show
+  // it anywhere. The card says it is held, the stage keeps looking, and
+  // nothing is started without a press.
+  it("keeps a conversation still held elsewhere on a held card, then offers Reopen here again once it is free", async () => {
+    const codex: SessionRef = { ...REF, provider: "codex" };
+    const { r, ctl } = await endedPane(codex);
+    const held = { kind: "C" as const, label: "Running in another terminal." };
+    r.adopt.mockResolvedValueOnce(failure(409, "still-running"));
+    r.open.mockResolvedValueOnce({ ok: false, target: held });
+    ctl.adopt();
+    await flush();
+    expect(r.last().phase).toEqual({ kind: "not-attachable", target: held, stillRunning: true, busy: false, held: "codex" });
+    r.open.mockResolvedValueOnce({ ok: false, target: held });
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS);
+    expect(r.last().phase, "still held at the next look").toMatchObject({ stillRunning: true, held: "codex" });
+    const gone = { kind: "gone" as const, label: "ended", adoptable: true };
+    r.open.mockResolvedValueOnce({ ok: false, target: gone });
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS);
+    expect(r.last().phase, "freed: the plain card, Reopen here on offer").toEqual({ kind: "not-attachable", target: gone, stillRunning: false, busy: false });
+    expect(r.adopt, "never reopened by itself").toHaveBeenCalledTimes(1);
+    expect(r.launch, "never a new session by itself").not.toHaveBeenCalled();
   });
 
   it("says the session could not be resumed when its agent ends before, or just after, the reopened pane is live", async () => {

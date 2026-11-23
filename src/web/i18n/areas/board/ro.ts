@@ -685,6 +685,8 @@ const catalog: Catalog = {
   "board.stage.handoff.offer": "E deschisă într-o fereastră Ghostty din afara ccdeck. ccdeck o poate muta aici, cu aceeași conversație.",
   "board.stage.elsewhere.working": "Lucrează într-un terminal din afara ccdeck. Ca s-o continui aici, închide-o în acel terminal. ccdeck observă singur și îți oferă Redeschide aici, cu aceeași conversație.",
   "board.stage.elsewhere.running": "Încă rulează într-un terminal din afara ccdeck. Ca s-o continui aici, închide-o în acel terminal. ccdeck observă singur și îți oferă Redeschide aici, cu aceeași conversație.",
+  "board.stage.held.codex": "Codex ține încă această conversație deschisă în altă parte, de exemplu în serviciul lui de fundal, în aplicația Codex sau în alt terminal, așa că nu poate fi redeschisă aici încă. ccdeck verifică în continuare și îți oferă Redeschide aici imediat ce se eliberează.",
+  "board.stage.held.claude": "Claude Code ține încă această conversație deschisă în alt terminal sau în altă fereastră, așa că nu poate fi redeschisă aici încă. ccdeck verifică în continuare și îți oferă Redeschide aici imediat ce se eliberează.",
   "board.stage.wsEmptyTitle": "Nu așteaptă nimic",
   "board.stage.wsEmptyLine": "Dă clic pe o sesiune din listă sau pornește una nouă.",
   "board.stage.wsEmptyBeside": "{keys} sau o tragere deschide încă una alături, până la patru zone.",
