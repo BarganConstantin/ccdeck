@@ -585,9 +585,14 @@ describe("the accounts lane reads its name before its footnote (#379 §1)", () =
   const ink = (selector: string, theme: "dark" | "light", bed: ReturnType<typeof rgb>) =>
     contrastRatio(rgb(TOKENS[theme][/var\((--[\w-]+)\)/.exec(decl(selector, "color")!)![1]]), bed);
 
+  // CHANGED ON PURPOSE (#2644): every row draws each window as a lane — name,
+  // bar, figure, reset — and the figure is the value: the number the eye runs
+  // down the list, in the text ink (its level's ink from 70%), with the reset
+  // after it in the secondary one. The value no longer wraps the two in a box
+  // of its own (`.ap-lane-value`); the figure is the value's cell.
   it("draws the window's name in the key's ink and its reset in the value's", () => {
     expect(decl(".ap-lane-label", "color")).toBe("var(--muted)");
-    expect(decl(".ap-lane-value", "color")).toBe("var(--text-secondary)");
+    expect(decl(".ap-lane-pct", "color")).toBe("var(--text)");
     expect(decl(".ap-lane-reset", "color")).toBe("var(--text-secondary)");
     // The same pair as the open row's other lines.
     expect(decl(".ap-meta-key", "color")).toBe("var(--muted)");
@@ -596,7 +601,7 @@ describe("the accounts lane reads its name before its footnote (#379 §1)", () =
       expect(ink(".ap-lane-label", theme, bed), `${theme}: the name over --text-dim`)
         .toBeGreaterThanOrEqual(contrastRatio(rgb(TOKENS[theme]["--text-dim"]), bed));
       expect(ink(".ap-lane-reset", theme, bed), `${theme}: the reset no louder than the value`)
-        .toBeLessThanOrEqual(ink(".ap-lane-value", theme, bed));
+        .toBeLessThanOrEqual(ink(".ap-lane-pct", theme, bed));
     }
   });
 
@@ -610,16 +615,21 @@ describe("the accounts lane reads its name before its footnote (#379 §1)", () =
       const bed = over([...rgb(TOKENS[theme]["--text"]), pct], rgb(TOKENS[theme]["--panel"]));
       expect(ink(".ap-lane-label", theme, bed), `${theme} active row`)
         .toBeGreaterThanOrEqual(contrastRatio(rgb(TOKENS[theme]["--text-dim"]), bed));
-      expect(ink(".ap-lane-reset", theme, bed), `${theme} active row`).toBeLessThanOrEqual(ink(".ap-lane-value", theme, bed));
+      expect(ink(".ap-lane-reset", theme, bed), `${theme} active row`).toBeLessThanOrEqual(ink(".ap-lane-pct", theme, bed));
     }
   });
 
-  it("sets the name, the number and the reset at the line's one size", () => {
-    // Nothing on the line sets a size of its own: the line is the kit's
-    // Small, 12, so no part of it can drift under the others.
-    expect(decl(".ap-lane-label", "font-size")).toBeNull();
-    expect(decl(".ap-lane-reset", "font-size")).toBeNull();
+  it("sets the number at the line's size, and the name and the reset one step under it", () => {
+    // CHANGED ON PURPOSE (#2644): the line was one size, 12, when a window was
+    // a line of words. As a bar, the number is what the eye runs down the
+    // list, so the window's name and its reset are its footnotes one ladder
+    // step under it, as the 3.x bars set them — both at the panel's 11 floor
+    // and one size with each other, so neither drifts under the other. The
+    // number sets no size of its own: it is the line's, the kit's Small, 12.
     expect(decl(".ap-lane-pct", "font-size")).toBeNull();
     expect(parseFloat(decl(".ap-lane", "font-size")!)).toBe(12);
+    expect(parseFloat(decl(".ap-lane-label", "font-size")!)).toBe(11);
+    expect(decl(".ap-lane-reset", "font-size")).toBe(decl(".ap-lane-label", "font-size"));
+    expect(decl(".ap-lane-reset", "line-height")).toBe(decl(".ap-lane-label", "line-height"));
   });
 });

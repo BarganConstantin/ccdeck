@@ -207,10 +207,10 @@
   color: var(--muted);
 }
 /* THE ACCOUNT ROW HAS ROOM TO READ: 14 between above and below (6 over the
-   name and 8 under the meter, the spacing ladder's two steps round the
-   design's 7 and 7), 8 in on each side, two lines and a 3px meter on a 2 gap
-   — 63 high — and a third line, 87, only for a state. The kit's panel radius.
-   The text starts 22px in: the 14px mark and an 8 gap. */
+   name and 8 under the last bar, the spacing ladder's two steps round the
+   design's 7 and 7), 8 in on each side, the name and a bar per window under
+   it (#2644), and a line more only for a state or a plan. The kit's panel
+   radius. The text starts 22px in: the 14px mark and an 8 gap. */
 .ap-account {
   /* The box the row's door is laid over, and a stacking context of its own so
      the row's controls can sit above the door without climbing over the
@@ -242,7 +242,7 @@
    it, and --muted clears 4.5:1 only against --panel, so on a lit row it is
    mixed toward the foreground — the rule the LAN rows already write down. */
 @media (hover: hover) and (pointer: fine) {
-.ap-account:has(> .ap-row-open):hover :is(.ap-num, .ap-q-label, .ap-issue-age, .ap-alias + .ap-email, .ap-shared, .ap-home, .ap-alias-domain, .ap-q-plan, .ap-marks, .ap-meta-key) {
+.ap-account:has(> .ap-row-open):hover :is(.ap-num, .ap-lane-label, .ap-issue-age, .ap-alias + .ap-email, .ap-shared, .ap-home, .ap-alias-domain, .ap-q-plan, .ap-marks, .ap-meta-key) {
   color: color-mix(in srgb, var(--muted) 65%, var(--text));
 }
 }
@@ -318,9 +318,9 @@
 .ap-account.active :where(.ap-plan, .ap-lane-label, .ap-lane-reset, .ap-meta, .ap-age:not(.ap-stale), .ap-more) {
   color: var(--text-secondary);
 }
-/* And the row's other quiet parts — the domain, a figure's window, the plan,
-   the marks and the open row's keys — on the same terms. */
-.ap-account.active :where(.ap-alias-domain, .ap-q-label, .ap-q-plan, .ap-marks, .ap-meta-key) {
+/* And the row's other quiet parts — the domain, the plan, the marks and the
+   open row's keys — on the same terms. */
+.ap-account.active :where(.ap-alias-domain, .ap-q-plan, .ap-marks, .ap-meta-key) {
   color: var(--text-secondary);
 }
 
@@ -463,7 +463,7 @@
   color: var(--muted);
   white-space: nowrap;
 }
-/* Held out, in the figure's place and face: 12 on a 16 line, tabular. */
+/* Held out, at the head's right end: 12 on a 16 line, tabular. */
 .ap-value {
   flex: none;
   margin-left: auto;
@@ -473,51 +473,18 @@
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
-/* THE TWO FIGURES, at the right end of lines 1 and 2, one column down the
-   list: the window's name at 11 on 14, muted, then 3, then how much of it
-   is used at 12 on 16, in the sans with tabular figures — the text ink on line
-   1, the secondary on line 2,
-   the waiting ink from 80% and the error ink at 100%. An old reading draws
-   both quiet, and a login that cannot be used a dash. */
-.ap-fig {
-  flex: none;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 3px;
-  margin-left: auto;
-  font-family: var(--font-sans);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.ap-fig .ap-q-label {
-  font-size: calc(11px + var(--ui-text-increase, 0px));
-  line-height: calc(14px + var(--ui-text-increase, 0px));
-  color: var(--muted);
-}
-.ap-fig .ap-q-pct {
-  margin: 0;
-  font-size: calc(12px + var(--ui-text-increase, 0px));
-  line-height: calc(16px + var(--ui-text-increase, 0px));
-  color: var(--text);
-}
-.ap-fig-2 .ap-q-pct { color: var(--text-secondary); }
-.ap-fig .ap-q-pct[data-level="warn"] { color: var(--warn); }
-.ap-fig .ap-q-pct[data-level="err"] { color: var(--err); }
-.ap-account[data-frozen] .ap-fig .ap-q-pct,
-.ap-fig[data-none] .ap-q-pct { color: var(--muted); }
-/* A state, said in a word and not in a pill. Held out stands where the figure
-   stands; putting the account back is in its ⋯. */
+/* A state, said in a word and not in a pill. Held out stands at the head's
+   right end; putting the account back is in its ⋯. */
 .ap-held { flex: none; font-size: calc(11px + var(--ui-text-increase, 0px)); color: var(--muted); }
 .ap-held.ap-value { font-size: calc(12px + var(--ui-text-increase, 0px)); }
-/* The row's two acts: the one verb and the ⋯. Under a fine pointer they take the
-   figure's place while the row is hovered or focused, so the row never grows a
-   column of buttons it does not need at rest; on touch, where there is no hover,
-   they stand beside the figure. They take its place in the line, not over it:
-   the name gives up its domain to make room, and the marks after it — the
+/* The row's two acts: the one verb and the ⋯, at the head's right end. Under a
+   fine pointer they show while the row is hovered or focused, so the row never
+   grows a column of buttons it does not need at rest; on touch, where there is
+   no hover, they are always there. They take their place in the line, not over
+   it: the name gives up its domain to make room, and the marks after it — the
    telemetry mark is a button — are never covered by the Switch. */
 .ap-acts { display: inline-flex; align-items: center; gap: 4px; flex: none; margin-left: auto; }
-.ap-value + .ap-acts,
-.ap-fig + .ap-acts { margin-left: 4px; }
+.ap-value + .ap-acts { margin-left: 4px; }
 @media (hover: hover) and (pointer: fine) {
   .ap-acts {
     position: absolute;
@@ -528,10 +495,9 @@
     opacity: 0;
     pointer-events: none;
   }
-  .ap-value + .ap-acts,
-  .ap-fig + .ap-acts { margin-left: 0; }
+  .ap-value + .ap-acts { margin-left: 0; }
   .ap-account:hover .ap-acts { position: static; margin-left: auto; opacity: 1; pointer-events: auto; }
-  .ap-account:hover .ap-account-head > :is(.ap-value, .ap-fig) { display: none; }
+  .ap-account:hover .ap-account-head > .ap-value { display: none; }
 }
 /* The same for the keyboard and for an open menu, outside the mouse query so
    focus never depends on a pointer. The telemetry mark's own popover is not
@@ -539,8 +505,8 @@
 @media (pointer: fine) {
   .ap-account:has(:focus-visible) .ap-acts,
   .ap-account:has(.ap-acts .ap-more[aria-expanded="true"]) .ap-acts { position: static; margin-left: auto; opacity: 1; pointer-events: auto; }
-  .ap-account:has(:focus-visible) .ap-account-head > :is(.ap-value, .ap-fig),
-  .ap-account:has(.ap-acts .ap-more[aria-expanded="true"]) .ap-account-head > :is(.ap-value, .ap-fig) { display: none; }
+  .ap-account:has(:focus-visible) .ap-account-head > .ap-value,
+  .ap-account:has(.ap-acts .ap-more[aria-expanded="true"]) .ap-account-head > .ap-value { display: none; }
 }
 /* Shared on Local network (#2170): a 12px mark in the muted ink of the row's
    other secondary marks, at the 24px row's middle. It is a state, not a
@@ -584,57 +550,98 @@
 /* EVERYTHING UNDER THE HEAD STARTS UNDER THE NAME. The mark's column and the
    head's gap are 22px, and the lines below are indented by them, so the eye
    reads down from the account rather than from the row's edge. */
-/* OPEN: the windows, then one key and one value to a line, 16 high, 4 under
-   the line over them — every window with its reset, when it was read, what its
-   organization sends. Keys are muted and values in the secondary ink, all 12
-   on 16.
-
-   The detail is the container the lanes measure themselves against (below),
-   and a container may paint over the door the row lies under. It takes no
-   pointer, so a press on an open row's lines still shuts it, as it always
-   has; what is raised over the door for its title takes one back. */
+/* OPEN: one key and one value to a line, 16 high, 4 under the bars — when the
+   account was read and what its organization sends. Keys are muted and values
+   in the secondary ink, all 12 on 16. It takes no pointer, so a press on an
+   open row's lines still shuts it, as it always has; what is raised over the
+   door for its title takes one back. */
 .ap-detail {
-  container: ap-detail / inline-size;
   margin: 4px 0 0 var(--ap-indent);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   pointer-events: none;
 }
 .ap-detail :is(.ap-age, .ap-lane-pct[data-reset]) { pointer-events: auto; }
-/* THE WINDOWS ARE THREE COLUMNS (user feedback: the lines were hard to read):
-   the window's name, how full it is with its mark, and when it resets
-   ("Weekly  ⚠ 99% · high  resets Mon 7:00 PM"). Each column is as wide as its
-   widest cell, so the figures stand one under another and scan as a column,
-   and so do the resets. A lane and its value draw no box of their own; their
-   cells are the grid's. */
+/* THE WINDOWS, A BAR EACH, ON EVERY ROW (#2644): the window's short name, its
+   bar, how full it is with its mark, and how long until it resets ("7d
+   ▬▬▬▬── 79%  2d 17h"), under the name, 4 below the line over them. A user
+   said the 3.x overview, a bar per window, was clearer than the lines that
+   replaced it; these are its columns, on V4's tokens.
+
+   FOUR COLUMNS THAT LINE UP DOWN THE LIST. An account's lanes are one grid, so
+   its figures and resets stand one under another; the name column has a floor
+   that holds "Fable", the figure column one that holds "⚠ 100%", and the reset
+   column one that holds the widest thing it prints in the language (below), so
+   one account's bars line up with the next one's and the eye runs down a
+   column of figures. A longer name ("Sonnet (7d)", "Sonnet (7 Tage)") takes
+   up to 4.5em and then ends in an ellipsis, its whole name in its title; a
+   longer figure widens that account's column rather than being cut. The bar
+   gives way first, down to 16px. A lane draws no box of its own; its cells are
+   the grid's. */
 .ap-lanes {
   display: grid;
-  grid-template-columns: max-content max-content minmax(0, 1fr);
-  align-items: baseline;
-  column-gap: 8px;
+  grid-template-columns: fit-content(4.5em) minmax(16px, 1fr) minmax(3.5em, max-content) minmax(7ch, max-content);
+  align-items: center;
+  column-gap: 6px;
+  row-gap: 2px;
+  margin: 4px 0 0 var(--ap-indent);
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
-.ap-lanes > .ap-hint { grid-column: 1 / -1; }
-.ap-lane,
-.ap-lane-value { display: contents; }
+/* The lane is the kit's Small, 12 on 16, and its figure takes that size. The
+   window's name and its reset are the figure's footnotes, one step under it at
+   the panel's 11 floor, as the 3.x bars set them: the number is what the eye
+   runs down, and a German countdown ("23 Std. 59 Min.") fits beside a bar in
+   the panel at its narrowest. */
 .ap-lane {
+  display: contents;
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
 }
-.ap-lane-label { grid-column: 1; }
-.ap-lane-pct { grid-column: 2; white-space: nowrap; }
-/* A reset wraps inside its column rather than run past the panel, between its
-   words and never inside its time (the phrase keeps "Sun 12:00 PM" or
-   "2 h 00 min" whole, resetPhrase's `together`), and where
-   the panel is too narrow for the three, it drops under its figure: from
-   16em for figures without a mark, and from 19em when one wears "⚠ … · high",
-   the widest a figure gets. */
-.ap-lane-reset { grid-column: 3; min-width: 0; overflow-wrap: anywhere; }
-@container ap-detail (max-width: 16em) {
-  .ap-lane-reset { grid-column: 2 / -1; }
+.ap-lane-label {
+  grid-column: 1;
+  min-width: 2.75em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
 }
-@container ap-detail (max-width: 19em) {
-  .ap-lanes[data-high] .ap-lane-reset { grid-column: 2 / -1; }
+/* The bar: 4 high on the control fill, the fill in the figure's level ink
+   (the accent under 70%). A window at 0% keeps a faint sliver; an old reading
+   is drawn in the quiet ink; a window that has reset is an empty track. */
+.ap-lane-track {
+  grid-column: 2;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--ctl-fill);
+  overflow: hidden;
+}
+.ap-lane-fill { display: block; height: 100%; border-radius: var(--r-pill); }
+.ap-lane-pct { grid-column: 3; text-align: right; white-space: nowrap; color: var(--text); }
+/* When the window resets, as a countdown at the row's right edge ("2d 17h"),
+   in the secondary ink: "resets in" is said to a screen reader and, with the
+   window, in the title. A window nobody has spent from yet says "not started"
+   here. Where the panel is at its narrowest and the words are longer than the
+   column ("nicht begonnen"), they wrap inside it rather than run past the
+   panel's edge. */
+.ap-lane-reset {
+  grid-column: 4;
+  text-align: right;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: calc(14px + var(--ui-text-increase, 0px));
+  font-variant-numeric: tabular-nums;
+}
+/* The column's floor in any language: an invisible copy of the widest things
+   the column prints, one to a line (data-widest, AccountRow's resetFloor), as
+   wide as the widest of them, with no height and out of the accessibility
+   tree — so "3 Std. 11 Min." on one account, "6 Tg. 6 Std." on the next and
+   "not started" on a third sit in one column of one width. */
+.ap-lane-reset::after {
+  content: attr(data-widest);
+  display: block;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  white-space: pre;
 }
 .ap-meta-line {
   display: flex;
@@ -651,7 +658,6 @@
   color: var(--muted);
   white-space: nowrap;
 }
-.ap-lane-value,
 .ap-meta-value {
   min-width: 0;
   color: var(--text-secondary);
@@ -662,9 +668,9 @@
    under its own first. */
 .ap-meta-value { overflow-wrap: anywhere; }
 .ap-lane-pct { font-variant-numeric: tabular-nums; }
-/* The warning mark a high figure wears on the shut row (AccountRow QuotaPct):
-   the figure's own ink, a hair before the number. */
-.ap-account .ap-q-pct > .level-mark-glyph {
+/* The warning mark a high figure wears (AccountRow QuotaPct): the figure's own
+   ink, a hair before the number. */
+.ap-account .ap-lane-pct > .level-mark-glyph {
   display: inline-block;
   width: 10px;
   height: 10px;
@@ -680,12 +686,13 @@
 .ap-lane-reset { color: var(--text-secondary); }
 
 /* The open row's reading: when claude-swap last read the account and when it
-   plans to again, and what its organization sends. */
+   plans to again, and what its organization sends. The detail's own 4 sets it
+   under the bars. */
 .ap-meta {
   display: flex;
   flex-direction: column;
   gap: 0;
-  margin-top: 4px;
+  margin-top: 0;
   font-size: calc(12px + var(--ui-text-increase, 0px));
   line-height: calc(16px + var(--ui-text-increase, 0px));
   color: var(--text-secondary);
@@ -706,11 +713,11 @@
   cursor: help;
 }
 
-/* LINE 2: the plan in the muted ink and the first window's reset in the
-   secondary one, joined by a middle dot ("Max 5× · Resets in 4h 18m"), with
-   the second window's figure at the right end under the first. 12 on 16, on
-   an 18 line, 2 under line 1; the words end in an ellipsis before the figure
-   is ever cut. */
+/* THE PLAN LINE: the plan in the muted ink and, for a held-out account, that
+   auto-switch skips it, in the secondary one, joined by a middle dot ("Max 5× ·
+   Skipped by auto-switch"); an account nobody has read says so on it. 12 on
+   16, on an 18 line, 2 under the line over it; the words end in an ellipsis.
+   The windows are the bars', so none of their figures is said here. */
 .ap-quota {
   display: flex;
   align-items: center;
@@ -725,31 +732,10 @@
   font-variant-numeric: tabular-nums;
 }
 .ap-q-plan { flex: none; color: var(--muted); }
-.ap-quota > :is(.ap-q-reset, .ap-q) { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ap-quota > .ap-q-reset { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ap-q-reset { color: var(--text-secondary); }
-/* The dot goes before a part that has a visible part before it: the
-   screen-reader copy of the figure leads the line and is not one, and the
-   figure at the end stands apart on its own. */
-.ap-quota > :not(.vis-hidden) ~ :is(.ap-q-reset, .ap-q)::before { content: "·"; margin-right: 6px; color: var(--muted); }
-.ap-q { white-space: nowrap; }
-.ap-q-label { color: var(--muted); }
-/* A figure is in its line's ink, then in its level's (quotaLevel, the Usage
-   panel's): the warning ink from 70% and the error ink from 90%. */
-.ap-q-pct { color: var(--text-secondary); }
-.ap-q-pct[data-level="warn"] { color: var(--warn); }
-.ap-q-pct[data-level="err"] { color: var(--err); }
-/* The first window's meter, the row's last line: 3 high, the row's 2 gap and
-   4 more under the line over it, on the text's own column, the control fill
-   for a track and the fill's ink by fullness. */
-.ap-meter {
-  height: 3px;
-  margin: 6px 0 0 var(--ap-indent);
-  border-radius: var(--r-pill);
-  background: var(--ctl-fill);
-  overflow: hidden;
-}
-.ap-meter-fill { height: 100%; border-radius: var(--r-pill); }
-.ap-account[data-frozen] .ap-q-pct { color: var(--muted); }
+/* The dot goes before a part that has a visible part before it. */
+.ap-quota > :not(.vis-hidden) ~ .ap-q-reset::before { content: "·"; margin-right: 6px; color: var(--muted); }
 .ap-q-age { margin-left: auto; color: var(--warn); white-space: nowrap; flex: none; }
 /* An account nobody has read yet is usually one added a minute ago: news, not
    a warning. */
@@ -827,8 +813,8 @@
 }
 .ap-issue-line .ap-sign-in { margin-left: 6px; }
 
-/* A folded account always has two lines and a meter. Its state takes the
-   reset line's place; expanding the row reveals the resets and read time. */
+/* A state line is one 18 line under the name, over the bars; expanding the row
+   reveals the read time. */
 .ap-account .ap-issue-line {
   min-height: calc(18px + var(--ui-text-increase, 0px));
   height: calc(18px + var(--ui-text-increase, 0px));
@@ -839,7 +825,6 @@
   margin-left: 0;
 }
 .ap-account .ap-issue-line .ap-q-age { flex: 0 1 auto; }
-.ap-quota.vis-hidden { height: 1px; margin: -1px; }
 
 /* Organization telemetry is one of the row's grey marks; what goes out, and to
    where, is its tooltip, its popover and the open row's Telemetry line. */
