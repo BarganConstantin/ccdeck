@@ -225,10 +225,14 @@ describe("what is drawn with the flags off", () => {
   // hands the Decision card too, only in Chat on a Claude session it can write to,
   // with the card's flag effective (use-prompt-decision.ts, prompt-decision.test.ts).
   // The card itself is still not imported here: the stage hands its props only.
+  // CHANGED ON PURPOSE (Chat says where a sent message stands): the stage also
+  // hands the session's key, the message on its way, what the session is doing
+  // and the way to Term (chat-progress.ts, chat-progress.test.ts); still only
+  // for a supported session.
   it("the stage hands Chat only for a supported session with the flag effective, and the Decision card only in Chat", () => {
     const stage = code("components/terminal/TerminalStage.tsx");
     expect(stage).toContain('chatSessionFor(screenFlags.chat, chatRef)');
-    expect(stage).toContain("screens={chatSession !== null ? { view, source: chatSource, provider: chatProvider, ask: chatAsk, decision: promptCard } : undefined}");
+    expect(stage).toContain("screens={chatSession !== null ? {\n          view, source: chatSource, provider: chatProvider, ask: chatAsk, decision: promptCard,\n          session: chatDraftKey, outgoing: chatProgress.outgoing, activity: chatProgress.activity, onShowTerm: () => showView(\"term\"),\n        } : undefined}");
     expect(stage).toContain("const chatAsk: ChatAsk | undefined = chatSession === null ? undefined : {");
     expect(stage).toContain("view={chatSession !== null ? { current: view, onChange: showView } : undefined}");
     expect(stage).toContain('on: chatOn && chatProvider === "claude" && screenFlags.decision && chatCannotSend === undefined,');
