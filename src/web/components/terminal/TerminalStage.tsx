@@ -44,7 +44,11 @@ import {
   canType as phaseTakesKeys,
   frameState,
   headerStatus,
+  NOT_RESUMED_MSG,
   onItsWay,
+  REOPENING_MSG,
+  START_NEW_MSG,
+  START_NEW_TIP_MSG,
   spineLive,
   stageAnnouncement,
   type FrameState,
@@ -99,10 +103,10 @@ const NOTICE_MS = 6000;
  *  lands on: not the ones on their way to a pane. tmux missing while it
  *  checks again is on its way too: Check again asks for the keys, which its
  *  own card would otherwise answer at once, before the check had. So is a
- *  card's Reopen here while it works. */
+ *  card's Reopen here while it works, and an ended pane's. */
 export function settlesFocus(phase: StagePhase): boolean {
   return phase.kind !== "attaching" && phase.kind !== "starting" && phase.kind !== "tmux-installing"
-    && !((phase.kind === "tmux-missing" || phase.kind === "error" || phase.kind === "not-attachable") && phase.busy)
+    && !((phase.kind === "tmux-missing" || phase.kind === "error" || phase.kind === "not-attachable" || phase.kind === "ended") && phase.busy)
     && !(phase.kind === "live" && !phase.readOnly);
 }
 
@@ -260,6 +264,11 @@ export interface TerminalStageProps {
   /** Start the launch on the stage again, in the same folder with the same
    *  options: its agent exited before the board had its session (endView). */
   onLaunchAgain?(): void;
+  /** A new session of the session's agent in its folder, in this pane: the
+   *  explicit way on when Reopen here could not bring the session back
+   *  (endView's `unresumed`, StageBody's refused reopen). Left out where
+   *  there is no agent the deck can start. */
+  onStartNew?(): void;
   /** A sentence for the deck's live region, once per change. */
   onAnnounce?(sentence: string): void;
   /** The deck runs on Windows: sessions live in the session host, not in a
@@ -318,19 +327,34 @@ export const EMPTY_PANE_NAME_MSG = "board.stage.emptyPane";
  * Claude told no at its folder's trust question. There is no conversation to
  * reopen, and for a Codex no id to reopen it by, so Reopen here did nothing.
  * What the reader wants then is the agent again, in the same folder.
+ *
+ * A session's Reopen here says Reopening… while it works (`busy`), and a
+ * second press does nothing. One whose agent ended as soon as it was
+ * reopened could not resume the conversation (`unresumed`): the bar says so,
+ * offers Try again, and beside it a new session in the same folder
+ * (`startNew`) — never started without that press.
  */
 export function endView(
   phase: StagePhase,
   show: StageShow,
-  act: { reopen(): void; launchAgain?: () => void; attachAgain(): void },
+  act: { reopen(): void; launchAgain?: () => void; attachAgain(): void; startNew?: () => void },
 ): EndView | null {
   if (phase.kind === "ended") {
     if (show.kind === "launch" && act.launchAgain) {
       const name = agentName(show.agent);
       return { sentence: tNow("board.stage.launchExited", { name }), action: tNow("board.stage.launchAgain", { name }), onAction: act.launchAgain };
     }
+    if (phase.unresumed && show.kind === "session") {
+      const name = agentName(show.session.ref.provider);
+      return {
+        sentence: tNow(NOT_RESUMED_MSG, { name }), action: tNow("board.stage.tryAgain"), onAction: act.reopen,
+        ...(act.startNew ? { alt: { action: tNow(START_NEW_MSG), title: tNow(START_NEW_TIP_MSG, { name }), onAction: act.startNew } } : {}),
+      };
+    }
     const ago = show.kind === "session" ? show.session.endedAgo : null;
-    return { sentence: ago ? tNow("board.stage.sessionEndedAgo", { ago }) : tNow("board.stage.sessionEnded"), action: tNow("board.stage.reopenHere"), onAction: act.reopen };
+    const sentence = ago ? tNow("board.stage.sessionEndedAgo", { ago }) : tNow("board.stage.sessionEnded");
+    if (phase.busy) return { sentence, action: tNow(REOPENING_MSG), busy: true, onAction: act.reopen };
+    return { sentence, action: tNow("board.stage.reopenHere"), onAction: act.reopen };
   }
   if (phase.kind === "detached") {
     return { sentence: tNow("board.stage.tookOver"), action: tNow("board.stage.attachAgain"), onAction: act.attachAgain };
@@ -683,13 +707,15 @@ export default function TerminalStage(p: TerminalStageProps) {
   // One sentence per change of what the stage shows — never per byte (#372).
   const onAnnounce = useRef(p.onAnnounce);
   onAnnounce.current = p.onAnnounce;
+  const unresumed = phase.kind === "ended" && phase.unresumed === true;
   useEffect(() => {
     const said = stageAnnouncement(name, phase);
     if (said) onAnnounce.current?.(said);
     // Keyed on the kind and the session, not the phase object, which a
-    // re-render may rebuild with the same meaning.
+    // re-render may rebuild with the same meaning. A reopen that could not
+    // resume is said too: it can follow an ended pane without a live one.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase.kind, key]);
+  }, [phase.kind, key, unresumed]);
 
   // AN AGENT THAT ENDED ITSELF closes its pane (internal #104): /exit, Ctrl+D,
   // anything that exited with status 0 while this pane watched it run
@@ -740,7 +766,7 @@ export default function TerminalStage(p: TerminalStageProps) {
   // Not while a check is running: the session refuses that press, and a
   // request made for it would have let go of what the first one held.
   const retry = () => {
-    if (phase.kind === "tmux-missing" && phase.busy) return;
+    if ((phase.kind === "tmux-missing" || (phase.kind === "error" && phase.reopen)) && phase.busy) return;
     session.retry();
     p.onWantKeys?.();
   };
@@ -750,12 +776,12 @@ export default function TerminalStage(p: TerminalStageProps) {
   // reopened pane was live with the keys on the board and the next letters
   // ran the deck's shortcuts. A second press while it works asks for nothing.
   const reopen = () => {
-    if (phase.kind === "not-attachable" && phase.busy) return;
+    if ((phase.kind === "not-attachable" || phase.kind === "ended") && phase.busy) return;
     session.adopt();
     p.onWantKeys?.();
   };
 
-  const end = endView(phase, p.show, { reopen, launchAgain: p.onLaunchAgain, attachAgain: retry });
+  const end = endView(phase, p.show, { reopen, launchAgain: p.onLaunchAgain, startNew: p.onStartNew, attachAgain: retry });
 
   // A CODEX THAT UPDATED ITSELF comes back by itself. Its own "Update now"
   // installs the new version, asks to be restarted and exits; the session
@@ -901,6 +927,8 @@ export default function TerminalStage(p: TerminalStageProps) {
         handoff={canMove ? { moving, failed: handoffFailed, toggle: toggleHandoff } : undefined}
         onNotNow={p.onClose}
         onRetry={retry}
+        onStartNew={p.onStartNew}
+        startNewTip={p.show.kind === "session" ? t(START_NEW_TIP_MSG, { name: agentName(p.show.session.ref.provider) }) : undefined}
         onNewSession={p.onNewSession}
         workspace={workspace && p.show.kind === "empty"}
         waiting={workspace ? p.waiting ?? null : null}

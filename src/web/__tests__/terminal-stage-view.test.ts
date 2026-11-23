@@ -857,7 +857,9 @@ describe("asking for the session again from the stage", () => {
     // The request is the shell's own (use-focus-request.ts): met by the pane,
     // or landed on the card's action again if the retry fails.
     const stage = web("components/terminal/TerminalStage.tsx");
-    expect(stage).toMatch(/const retry = \(\) => \{\s*if \(phase\.kind === "tmux-missing" && phase\.busy\) return;\s*session\.retry\(\);\s*p\.onWantKeys\?\.\(\);\s*\};/);
+    // CHANGED ON PURPOSE (ended-pane restart): a refused Reopen here's Try again
+    // is refused the same way while it reopens (busy), as a running check is.
+    expect(stage).toMatch(/const retry = \(\) => \{\s*if \(\(phase\.kind === "tmux-missing" \|\| \(phase\.kind === "error" && phase\.reopen\)\) && phase\.busy\) return;\s*session\.retry\(\);\s*p\.onWantKeys\?\.\(\);\s*\};/);
     expect(stage).toContain("onRetry={retry}");
     // CHANGED ON PURPOSE (the UI in every language): the button's words are a catalog key now.
     expect(stage).toMatch(/action: tNow\("board\.stage\.attachAgain"\), onAction: act\.attachAgain \}/);
