@@ -14,7 +14,7 @@ import {
   AgentGlyph, ChevronRightGlyph, DoneGlyph, FileGlyph, ImageGlyph, SearchGlyph, TodoActiveGlyph, TodoPendingGlyph, ToolTerminalGlyph,
 } from "./chat-icons";
 import { t as tNow, useT, type TFunction } from "../../i18n";
-import type { ChatAsk, ChatDiff, ChatQuestion, ChatSince, ChatTodo, ChatTurn as Turn } from "./chat-model";
+import type { ChatActivity, ChatAsk, ChatDiff, ChatOutgoing, ChatQuestion, ChatSince, ChatTodo, ChatTurn as Turn } from "./chat-model";
 import type { Provider } from "../../types";
 import ProviderAvatar from "../ProviderAvatar";
 import { providerLabel } from "../../provider-copy";
@@ -36,6 +36,46 @@ export function YourMessage({ text, images }: { text: string; images?: number })
       <span className="chat-author">{t("board.chat.you")}</span>
       {text && <p className="chat-you-text">{text.replace(/\r\n?/g, "\n")}</p>}
       {images ? <span className="chat-you-images"><span className="chat-you-images-mark"><ImageGlyph /></span>{t("board.chat.images", { count: images })}</span> : null}
+    </div>
+  );
+}
+
+/** A message you sent from Chat that the conversation does not show yet, with
+ *  where it stands under it: on its way, or not taken by the agent, which may
+ *  have left it in Term's input. Taken, it is your message as any other until
+ *  the conversation is read again. Never a Retry: the first may still be in
+ *  Term, and a second would be the same message twice. */
+export function OutgoingMessage({ outgoing, provider, onShowTerm }: { outgoing: ChatOutgoing; provider?: Provider; onShowTerm?: () => void }) {
+  const t = useT();
+  const late = outgoing.state === "unconfirmed";
+  return (
+    <div className="chat-you" data-outgoing={outgoing.state}>
+      <span className="chat-author">{t("board.chat.you")}</span>
+      <p className="chat-you-text">{outgoing.text.replace(/\r\n?/g, "\n")}</p>
+      {outgoing.state !== "taken" && (
+        <p className="chat-you-state">
+          <span>{late ? t("board.chat.progress.unconfirmed", { agent: providerLabel(provider) }) : t("board.chat.progress.sending")}</span>
+          {late && onShowTerm && <button type="button" className="chat-ask-term" onClick={onShowTerm}>{t("board.chat.showTerm")}</button>}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** What the session is doing, under the conversation's last line: at work,
+ *  with the header's tool and time, or silent for a while with the way to
+ *  Term; or waiting on you where no card in Chat asks it. A still mark, never
+ *  a spinner: nothing in Chat moves. */
+export function ActivityLine({ activity, provider, onShowTerm }: { activity: ChatActivity; provider?: Provider; onShowTerm?: () => void }) {
+  const t = useT();
+  const words = activity.state === "working" ? t("board.chat.progress.working", { agent: providerLabel(provider) }) : t("board.chat.ask.waiting");
+  const rest = activity.quiet ? t("board.chat.progress.quiet", { time: activity.quiet }) : activity.detail;
+  return (
+    <div className="chat-progress" data-state={activity.state} data-quiet={activity.quiet ? "" : undefined}>
+      <span className="chat-progress-mark" aria-hidden="true" />
+      <span className="chat-progress-text">{words}</span>
+      {rest && <span className="chat-progress-detail" title={rest}>{rest}</span>}
+      {activity.quiet && onShowTerm && <button type="button" className="chat-ask-term" onClick={onShowTerm}>{t("board.chat.showTerm")}</button>}
     </div>
   );
 }

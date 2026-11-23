@@ -59,6 +59,12 @@
    as a question's tag is drawn. The images themselves are never shown. */
 .chat-you-images { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 1px 8px; border-radius: var(--r-tag); background: var(--ctl-fill); color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 20px; }
 .chat-you-images-mark { flex: none; display: inline-flex; color: var(--muted); }
+/* A message sent from here that the conversation does not show yet: its words a
+   step quieter while on its way, where it stands under it, in --warn once it was
+   not taken. Taken, it reads as any message of yours. */
+.chat-you:is([data-outgoing="sending"], [data-outgoing="unconfirmed"]) .chat-you-text { color: var(--text-secondary); }
+.chat-you-state { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; gap: 2px 12px; max-width: min(100%, 640px); margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--muted); text-align: right; overflow-wrap: anywhere; }
+.chat-you[data-outgoing="unconfirmed"] .chat-you-state { color: var(--warn); }
 /* A slash command you ran: as typed, in mono, on your message's surface; what
    it printed under it in a muted block that wraps and scrolls inside itself,
    never the page. Printed on stderr, it is --warn, as a failed call's
@@ -190,6 +196,15 @@
 /* Why the assistant stopped: an interruption muted, an API error in --warn. */
 .chat-notice { margin: 0; padding: 0 8px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
 .chat-notice[data-what="error"] { color: var(--warn); }
+
+/* What the session is doing, under the last line: a still mark, the words, then
+   the header's tool and time cut to the line. Waiting on you, and a long
+   silence, wear --warn on the mark. */
+.chat-progress { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; min-height: 20px; padding: 0 8px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--text-secondary); }
+.chat-progress-mark { flex: none; width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--inflight); }
+.chat-progress:is([data-state="waiting"], [data-quiet]) .chat-progress-mark { background: var(--warn); }
+.chat-progress-text { flex: none; max-width: 100%; overflow-wrap: anywhere; }
+.chat-progress-detail { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 
 .chat-error { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--bg-soft); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--text); }
 .chat-error > span { min-width: 0; overflow-wrap: anywhere; }
