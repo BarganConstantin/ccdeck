@@ -805,16 +805,15 @@ function Inner() {
     detailWasOpen.current = detailOpen;
   }, [detailOpen]);
   // Workspace opens on the pane: entering closes the Inspector, at every
-  // width, and leaving gives the Board the one it had (use-workspace-inspector.ts).
+  // width, and an entry on a session unfolds the column with it. A session
+  // chosen once Workspace is up leaves the Inspector as the reader has it.
+  // Leaving gives the Board the one it had (use-workspace-inspector.ts).
   useWorkspaceInspector({
     active: inWorkspace, detailOpen,
     fold: () => setInspectorFolded(true), hold: holdRight.detail, restore: setDetailStored,
+    pane: inWorkspace && stageClaimsKeys(stage.shell.phase) ? targetSession(stage.shell.target) : undefined,
+    unfold: () => setInspectorFolded(false),
   });
-  const inspectedWorkspaceSession = inWorkspace && inspectorColumn && stage.shell.phase !== "closed"
-    ? targetSession(stage.shell.target) : null;
-  useLayoutEffect(() => {
-    if (inspectedWorkspaceSession) setInspectorFolded(false);
-  }, [inspectedWorkspaceSession]);
   // The stripes are icons while Workspace is up (stripe-words.ts), in the
   // commit that draws it.
   useLayoutEffect(() => { setStripeWorkspace(inWorkspace); }, [inWorkspace]);
@@ -1682,8 +1681,9 @@ function Inner() {
           needed no layout change of its own. */}
       {/* WORKSPACE draws the Inspector as a column whether or not a session is in
           focus (an empty pane means none, and the column says so), down to 1320px,
-          once it is unfolded. Opening a session unfolds the column.
-          Under that it is the detail sheet, opened
+          once it is unfolded. Entering Workspace on a session unfolds the
+          column; a session chosen inside leaves it as it is
+          (use-workspace-inspector.ts). Under that it is the detail sheet, opened
           as on the Board. */}
       {inWorkspace && inspectorColumn && !inspectorFolded && !(detailOpen && selected) ? (
         selected ? (

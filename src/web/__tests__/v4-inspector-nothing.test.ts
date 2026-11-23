@@ -52,6 +52,22 @@ describe("D with nothing selected", () => {
     expect(door).not.toHaveBeenCalled();
   });
 
+  // In Workspace D's focusSession is App's focusSessionOnView, which puts the
+  // waiting session on the pane and selects it without inspecting; the pane
+  // changing no longer opens the Inspector by itself (use-workspace-inspector.ts),
+  // so D, the Inspector's own key, opens it.
+  it("opens the Inspector with the waiting session it picks", () => {
+    const door = vi.fn();
+    const deck = mountDeckKeys({ selected: null, cards: true, inspectorDoor: door });
+    const waiting = { id: "w1", kind: "root", label: "w1", waiting: { kind: "permission", since: 10 } };
+    deck.props.stateRef.current = { ...deck.props.stateRef.current, agents: new Map([["w1", waiting]]) } as typeof deck.props.stateRef.current;
+    deck.press("d");
+    expect(deck.props.focusSession).toHaveBeenCalledWith("w1");
+    expect(deck.props.stepAgent).not.toHaveBeenCalled();
+    expect(deck.detail.value, "D opened it").toBe(true);
+    expect(door).not.toHaveBeenCalled();
+  });
+
   it("with a session selected still toggles that session's Inspector, as before", () => {
     const door = vi.fn();
     const deck = mountDeckKeys({ selected: "s1", cards: false, inspectorDoor: door });

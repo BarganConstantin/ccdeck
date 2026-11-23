@@ -608,9 +608,14 @@ export function useDeckShortcuts({
       // With no session to pick at all (a first run's empty board) that did
       // nothing, so there D is the Inspector door's press, which opens the
       // Inspector on one line saying so (the owner's call, 2026-11-18).
+      // A pick D made opens the panel itself as well: in Workspace the waiting
+      // session goes on the pane, and a session put on the pane there no longer
+      // opens the Inspector by itself (use-workspace-inspector.ts). On the Board
+      // the selection has opened it already, and this changes nothing.
       if (e.key === "d" || e.key === "D") {
         if (primarySelectedIdRef.current) setDetailOpen(o => !o);
         else if (!pickSessionForInspector(stateRef.current, focusSession, stepAgent)) inspectorDoorRef?.current?.();
+        else setDetailOpen(true);
       }
       if (e.key === "h" || e.key === "H") setUsageHistoryOpen(o => !o);
       if (e.key === "u" || e.key === "U") setUsagePanelOpen(o => !o);
