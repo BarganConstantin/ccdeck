@@ -153,8 +153,24 @@ describe("the sentence that goes beside the errno", () => {
     // reads as "it will sort itself out".
     const hint = listenHint("EADDRNOTAVAIL", { host: "10.1.2.3", port: 4317, platform: "linux" });
     expect(hint).toContain("10.1.2.3");
-    expect(hint).toContain("--host");
     expect(hint).toMatch(/no other port can help/);
+    // What the user can actually do. The deck has no `--host` flag on purpose
+    // (lan-socket.mjs), and this hint used to tell people to pass one.
+    expect(hint).toMatch(/network interface is up/);
+    expect(hint).toContain("loopback");
+    expect(hint).not.toContain("--host");
+  });
+
+  it("says that another port cannot help when the name does not resolve", () => {
+    // Same rule for both resolver errnos: name the host, say a port will not
+    // fix it, point at name resolution, and name no flag the deck does not have.
+    for (const code of ["ENOTFOUND", "EAI_AGAIN"]) {
+      const hint = listenHint(code, { host: "deck.invalid", port: 4317, platform: "linux" });
+      expect(hint).toContain("deck.invalid");
+      expect(hint).toMatch(/no other port can help/);
+      expect(hint).toMatch(/hosts file or DNS/);
+      expect(hint).not.toContain("--host");
+    }
   });
 
   it("adds nothing to an errno that already explains itself", () => {
@@ -190,7 +206,8 @@ describe("the error the deck prints when it could not bind at all", () => {
     const err = listenFailure(errno("EADDRNOTAVAIL", "listen EADDRNOTAVAIL: address not available 10.1.2.3:4317"),
       { host: "10.1.2.3", port: 4317, platform: "linux" });
     expect(err.message).toContain("listen EADDRNOTAVAIL: address not available 10.1.2.3:4317");
-    expect(err.message).toContain("--host");
+    expect(err.message).toMatch(/network interface is up/);
+    expect(err.message).not.toContain("--host");
     expect(err.code).toBe("EADDRNOTAVAIL");
   });
 
@@ -249,7 +266,10 @@ describe("startServer against a port nothing will ever give it", () => {
     expect(err!.message).toContain("192.0.2.1");
     expect(err!.message).not.toContain("45999");
     expect(err!.message).not.toMatch(/all ports tried/);
-    // And the sentence that stops the user re-running it with a different port.
-    expect(err!.message).toContain("--host");
+    // And the sentence that stops the user re-running it with a different port,
+    // without sending them to a `--host` flag the deck does not have.
+    expect(err!.message).toMatch(/no other port can help/);
+    expect(err!.message).toMatch(/network interface is up/);
+    expect(err!.message).not.toContain("--host");
   }, 30_000);
 });
