@@ -46,6 +46,11 @@ function acct(num: number, five: [number, number], seven: number, over: Partial<
 }
 
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+/** What markup shows the eye: without what only a screen reader hears. */
+const seen = (html: string) => text(html.replace(/<span class="vis-hidden">[^<]*<\/span>/g, ""));
+/** One window's lane on a row, from its short name to its reset. */
+const laneOf = (html: string, label: string) =>
+  new RegExp(`<div class="ap-lane"><span class="ap-lane-label" title="[^"]*">${label}</span>[^]*?</div>`).exec(html)?.[0] ?? "";
 const shutRow = (a: Account) => renderToStaticMarkup(createElement(AccountRow, {
   a, nowSec: NOW, opened: false, onToggleLanes: () => {}, busy: null, pressProps: () => ({}),
   onSwitch: () => {}, menuOpen: false, onOpenMenu: () => {}, onCloseMenu: () => {}, refusal: null,
@@ -59,28 +64,38 @@ const running = acct(3, [60, NOW + 3600], 10);
 describe("an account whose 5-hour window has reset since it was read", () => {
   it("is not shown at the old window's number on its shut row", () => {
     const html = shutRow(lapsed);
-    // CHANGED ON PURPOSE (V4's Figma): the first window is the row's one figure
-    // beside the name, so "reset" is said there, and the line under the name
-    // carries the other windows.
-    const quick = /<p class="ap-quota"[^]*?<\/p>/.exec(html)?.[0] ?? "";
-    const figure = /<span class="ap-value ap-q-pct"[^]*?<\/span>/.exec(html)?.[0] ?? "";
-    expect(text(html)).not.toContain("95%");
-    expect(text(figure)).toBe("reset");
+    // CHANGED ON PURPOSE (#2644): every window is a bar under the name on the
+    // shut row too, so "reset" is said on the 5-hour window's own lane, where
+    // its number was, and the week still running keeps its lane under it.
+    // What the window read before it reset is the lane's hover and what a
+    // screen reader hears, in the capacity report's words, so the eye's text
+    // is read without it — and the old number is nowhere else.
+    const five = laneOf(html, "5h");
+    expect(five, "the 5h lane was not found").not.toBe("");
+    expect(seen(html)).not.toContain("95%");
+    expect(seen(five)).toBe("5h reset");
+    expect(five).toContain('data-reset=""');
+    expect(five).toContain('title="Reported reset time passed 20m ago, 95% when read 30m ago"');
+    expect(html.match(/95%/g)?.length).toBe(html.match(/95% when read/g)?.length);
+    // Its track is empty: a bar 95% full beside "reset" would say the opposite.
+    expect(five).toContain('<span class="ap-lane-track" aria-hidden="true"></span>');
     // The error level is named "err" since every quota meter shares one level
     // (V4 top-10 #9); "hi" before. Both stay absent, so this cannot pass by the rename.
     expect(html).not.toContain('data-level="err"');
     expect(html).not.toContain('data-level="hi"');
-    expect(figure).toContain("5h has reset since this reading");
-    // The window still running stays the second figure, at the end of the
-    // line under the name.
-    expect(/<span class="ap-fig ap-fig-2"[^]*?<\/span><\/span>/.exec(quick)?.[0]).toContain("7d");
+    // And no countdown to a reset that has passed.
+    expect(five).not.toMatch(/resets in/);
+    // The window still running keeps its own lane, its figure and its reset.
+    expect(seen(laneOf(html, "7d"))).toBe("7d 20% 3d 0h");
   });
 
   it("keeps a window still running as it was", () => {
     const html = shutRow(running);
-    const figure = /<span class="ap-value ap-q-pct"[^]*?<\/span>/.exec(html)?.[0] ?? "";
-    expect(text(figure)).toBe("60%");
-    expect(text(/<p class="ap-quota"[^]*?<\/p>/.exec(html)?.[0] ?? "")).toContain("7d 10%");
+    // CHANGED ON PURPOSE (#2644): each window on its own lane — name, bar,
+    // figure, reset — rather than a figure beside the name and a line under it.
+    expect(seen(laneOf(html, "5h"))).toBe("5h 60% 1h 00m");
+    expect(laneOf(html, "5h")).toContain('<span class="ap-lane-fill" style="width:60%;background:var(--accent);opacity:1"></span>');
+    expect(seen(laneOf(html, "7d"))).toBe("7d 10% 3d 0h");
   });
 
   it("is ordered as unread by that window: below a usable account, whatever the old number", () => {

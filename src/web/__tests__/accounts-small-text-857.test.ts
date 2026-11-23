@@ -40,20 +40,23 @@ const px = (selector: string) => {
 describe("the accounts panel's reading sizes (#857)", () => {
   it("sets what an account is chosen by at the panel's 11px floor", () => {
     // CHANGED ON PURPOSE (V4's Figma): the row's name is the one name (`ap-alias`,
-    // 13), the address it stands for having left the row for its title. The
-    // open row's windows are lines of text (`ap-lane`) whose name and number
-    // take the line's size, and the two figures are mono 12 under an 11 name.
-    for (const sel of [".ap-alias", ".ap-lane", ".ap-fig .ap-q-pct", ".ap-fig .ap-q-label"]) {
+    // 13), the address it stands for having left the row for its title.
+    // CHANGED ON PURPOSE (#2644): every row's windows are lanes (`ap-lane`, 12,
+    // its figure's size) whose window name and reset are set on their own; the
+    // two figures beside the name went with them.
+    for (const sel of [".ap-alias", ".ap-lane", ".ap-lane-label", ".ap-lane-reset"]) {
       expect(px(sel), sel).toBeGreaterThanOrEqual(11);
     }
   });
 
   it("keeps the reset line off the floor, at the key's own size", () => {
-    // CHANGED ON PURPOSE (V4's Figma): the open row says a window's reset on
-    // the window's own line, after its number, so the reset and the key are
-    // one size because neither sets one — the line's 12.
-    expect(decl(".ap-lane-reset", "font-size")).toBeNull();
-    expect(decl(".ap-lane-label", "font-size")).toBeNull();
+    // CHANGED ON PURPOSE (#2644): the reset and the window's name are the
+    // figure's footnotes, one ladder step under it as the 3.x bars set them,
+    // and one size with each other — at the floor, never under it. The figure
+    // sets no size of its own: it is the lane's 12.
+    expect(px(".ap-lane-reset")).toBe(11);
+    expect(px(".ap-lane-label")).toBe(px(".ap-lane-reset"));
+    expect(decl(".ap-lane-pct", "font-size")).toBeNull();
     expect(px(".ap-lane")).toBe(12);
   });
 

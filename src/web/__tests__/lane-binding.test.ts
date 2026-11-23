@@ -171,30 +171,38 @@ describe("what the resting row shows", () => {
 });
 
 // THE DISCLOSURE WORD IS GONE. A shut row used to carry `1 more` / `fewer` in
-// its footer, and "1 more" named nothing a reader could picture. A shut row now
-// shows its windows plus the hot folded lane when there is one, and the whole
-// row is what opens — so what is left to pin is that split and that door.
+// its footer, and "1 more" named nothing a reader could picture. A shut row
+// showed its windows plus the hot folded lane when there was one; since #2644
+// it shows every window it reports, and the whole row is what opens — so what
+// is left to pin is that and that door.
 describe("the row renders the windows, and the panel reads the same function", () => {
   const labelled = (id: string, label: string, pct: number) => ({ id, label, pct });
-  /** What a shut row shows, built the way the panel builds it. */
+  /** The account's own windows plus the hot folded lane, as the pure split
+   *  gives them (the shut row's choice until #2644). */
   const quick = (lanes: Array<{ id: string; label: string; pct: number }>) => {
     const { shown, fuller } = laneSplit(lanes);
     return (fuller ? [...shown, fuller] : shown).map(l => l.label);
   };
 
-  it("shuts a row on its windows, plus a folded lane only when it is the fullest (#647)", () => {
-    // The fuller lane is asked of the windows still running: one that has
-    // reset since it was read is no measure (accounts-lapsed-window.test.ts).
-    expect(clientText()).toMatch(/const \{ shown \} = laneSplit\(a\.lanes\);/);
-    expect(clientText()).toMatch(/const \{ fuller \} = laneSplit\(live\);/);
-    expect(clientText()).toMatch(/const quick = fuller \? \[\.\.\.shown, fuller\] : shown;/);
-    // Two calm windows over a hidden hot one would be the panel lying by
-    // omission, so the hot one joins them; a calm folded lane stays folded.
+  it("shuts a row on every window it reports, a model's own included (#2644)", () => {
+    // CHANGED ON PURPOSE (#2644). The shut row showed the account's own two
+    // windows plus a folded model lane only when it was the fullest (#647), so
+    // a calm one — "Fable 15%" — was a press away on every other account, and
+    // comparing accounts meant opening each. A user asked for the 3.x
+    // overview back: every window the account reports, on every row, as a
+    // bar. The cut by kind still orders them — the account's own windows in
+    // the order the server sends them, `5h` then `7d`, then the models' — so
+    // every account keeps one shape; a model lane only adds a line under them.
+    expect(clientText()).not.toMatch(/laneSplit\(a\.lanes\)|laneSplit\(live\)|const quick = /);
+    expect(clientText()).toMatch(/\{bars && \(\s*<div className="ap-lanes" id=\{lanesId\}>\s*\{a\.lanes\.map\(l => <LaneBar /);
+    expect(clientText()).toMatch(/const bars = a\.lanes\.length > 0 && \(!blocked \|\| open\);/);
+    // The pure split still says which lane is hot among the folded kind, for
+    // what reads it (lane-view.ts): the hot one is fuller, a calm one is not,
+    // and a tie is not fuller.
     expect(quick([labelled("five_hour", "5h", 12), labelled("seven_day", "7d", 44), labelled("scoped-0", "opus", 91)]))
       .toEqual(["5h", "7d", "opus"]);
     expect(quick([labelled("five_hour", "5h", 12), labelled("seven_day", "7d", 88), labelled("scoped-0", "opus", 9)]))
       .toEqual(["5h", "7d"]);
-    // A tie is not fuller: `laneSplit` uses `>`, so the row keeps what it shows.
     expect(quick([labelled("five_hour", "5h", 40), labelled("scoped-0", "opus", 40)])).toEqual(["5h"]);
   });
 

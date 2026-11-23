@@ -185,9 +185,13 @@ describe("what was migrated to the secondary tier", () => {
       // "and N more" under the previews (the sort glyph went with the order
       // menu, internal #94). The head's title moved
       // up to --text, so it left this list.
-      ".ap-account.active :where(.ap-alias-domain, .ap-q-label, .ap-q-plan, .ap-marks, .ap-meta-key)",
-      ".ap-fig-2 .ap-q-pct", ".ap-issue-line", ".ap-lane-reset", ".ap-meta", ".ap-meta-value",
-      ".ap-preview-more", ".ap-q-pct", ".ap-q-reset", ".ap-rest-head > .ap-rest-all", ".ap-rest-ready",
+      // CHANGED ON PURPOSE (#2644): the two figures (`.ap-fig-2 .ap-q-pct`,
+      // `.ap-q-pct`) and a figure's window name (`.ap-q-label`) left the row
+      // for a bar per window, whose figure is in the text ink and whose reset
+      // (`.ap-lane-reset`) stays in this one.
+      ".ap-account.active :where(.ap-alias-domain, .ap-q-plan, .ap-marks, .ap-meta-key)",
+      ".ap-issue-line", ".ap-lane-reset", ".ap-meta", ".ap-meta-value",
+      ".ap-preview-more", ".ap-q-reset", ".ap-rest-head > .ap-rest-all", ".ap-rest-ready",
       ".ap-sum .ap-nav-chev", ".ap-sum-count", ".ap-tag",
       // V4's Agent / Card sets its task line (the session's name or title, or a
       // subagent's kind and folder) in this tier, and its foot — cost · time …

@@ -3,8 +3,8 @@
 // says its window in words ("Sonnet (7 Tage)").
 import type { TFunction } from "./i18n";
 
-/** A window's whole name, for the open row's lines ("5-hour  0%  not
- *  started"): the account's own two windows by their names — the week's as
+/** A window's whole name, the title over its lane's short one ("5h" says
+ *  "5-hour" on hover): the account's own two windows by their names — the week's as
  *  "Weekly", the word for it beside a model lane such as "Fable" that runs a
  *  week too (user feedback) — any other lane as laneLabel says it. Claude's
  *  and Codex's lanes share the two ids. */
