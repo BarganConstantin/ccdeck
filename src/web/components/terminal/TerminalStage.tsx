@@ -741,18 +741,19 @@ export default function TerminalStage(p: TerminalStageProps) {
   // again for a launch that never had one. Once per session: a restarted
   // Codex that updates again keeps its end bar, and a launch started this
   // way counts as the one it replaced. Never closed as an ending would be.
-  const restarts = useRef({ done: new Set<string>(), launching: false });
+  // Built once (a lazy useState, as the #612 rule asks), not on every render.
+  const restarts = useState(() => ({ done: new Set<string>(), launching: false }))[0];
   const restartAction = useRef<(() => void) | null>(null);
   restartAction.current = end?.onAction ?? null;
   useEffect(() => {
-    const r = restarts.current;
+    const r = restarts;
     if (r.launching && p.show.kind === "launch") r.done.add(key);
     r.launching = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   const updatedItself = current && phase.kind === "ended" && phase.updated === true;
   useEffect(() => {
-    const r = restarts.current;
+    const r = restarts;
     if (!updatedItself || r.done.has(key)) return;
     r.done.add(key);
     r.launching = p.show.kind === "launch";
