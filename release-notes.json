@@ -1,4 +1,10 @@
 {
+  "4.3.3": [
+    {
+      "title": "🔁 Reopen here shows it is working, and offers a way on when it can't",
+      "body": "When a Workspace terminal has ended and you press Reopen here, the same button now says Reopening… while the session comes back, with its last screen kept behind it, and pressing it again doesn't start a second reopen. If the agent can't resume the conversation, the pane says so and offers Try again or Start new session here, which starts a new Claude Code or Codex session in the same folder only when you press it. When a reopen is refused, for example because the project folder was moved, the card says Could not reopen this session. and its Try again reopens the session in one step."
+    }
+  ],
   "4.3.2": [
     {
       "title": "💬 Chat shows what the agent is doing after you write",
@@ -318,6 +324,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.3.3": "Reopen here shows it is working, and offers a way on when it can't",
     "4.3.2": "Chat shows what the agent is doing, and every account shows its quota bars again",
     "4.3.1": "Codex starts again after it updates itself, and a closed Inspector stays closed",
     "4.3.0": "opencode and GitHub Copilot CLI sessions on the board",
