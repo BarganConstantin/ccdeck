@@ -1,4 +1,14 @@
 {
+  "4.3.4": [
+    {
+      "title": "🪟 A Codex started in Workspace on Windows connects to Chat",
+      "body": "On Windows, a Codex session you start in a Workspace pane is now bound to that pane even while another Codex runs in the background on your machine, such as Codex's own background service or an editor's. Before, Chat could say Not connected for a session started right there, and its card did not follow the pane. When ccdeck can't tell at first which pane a new Codex is in, it keeps checking for up to ten minutes instead of giving up."
+    },
+    {
+      "title": "🔁 Reopen here says which agent still has the conversation open",
+      "body": "When you press Reopen here and the conversation is still open in another Codex or Claude Code that this pane can't attach to, the card now says which of them holds it, instead of asking you to close it there. It offers Start new session here, which starts a new session in the same pane only when you press it, and ccdeck keeps checking and offers Reopen here as soon as the other one lets the conversation go."
+    }
+  ],
   "4.3.3": [
     {
       "title": "🔁 Reopen here shows it is working, and offers a way on when it can't",
@@ -324,6 +334,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.3.4": "A Codex started in Workspace on Windows connects to Chat, and Reopen here says who holds a conversation",
     "4.3.3": "Reopen here shows it is working, and offers a way on when it can't",
     "4.3.2": "Chat shows what the agent is doing, and every account shows its quota bars again",
     "4.3.1": "Codex starts again after it updates itself, and a closed Inspector stays closed",

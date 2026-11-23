@@ -39,7 +39,10 @@ import type { Provider } from "../../types";
  *  - starting: a new agent is being launched.
  *  - live: the pane is drawn and streaming.
  *  - not-attachable: case C (started outside the deck) or gone (ended), with
- *    the deck's one sentence. `stillRunning` is adopt's 409.
+ *    the deck's one sentence. `stillRunning` is adopt's 409. `held`: this
+ *    pane's own Reopen here led here — the deck said the conversation is
+ *    still open, and it could not be shown where it is — named by its agent,
+ *    whose card then says so and offers a new session in its place.
  *  - tmux-installing: no usable tmux, and the deck is fetching its own
  *    (src/server/tmux-download.mjs); the stage asks again until it lands.
  *    `progress` is how far it has got, once the deck has said.
@@ -70,7 +73,7 @@ export type StagePhase =
   | { kind: "attaching"; reconnect: boolean }
   | { kind: "starting"; agent: TerminalProvider; cwd: string }
   | { kind: "live"; sizeOwner: SizeOwner; readOnly: boolean }
-  | { kind: "not-attachable"; target: TerminalTarget; stillRunning: boolean; busy: boolean }
+  | { kind: "not-attachable"; target: TerminalTarget; stillRunning: boolean; busy: boolean; held?: TerminalProvider }
   | { kind: "tmux-installing"; progress?: TmuxProgress }
   | { kind: "tmux-missing"; reason: string; install?: string; download?: string; busy: boolean }
   | { kind: "ended"; atOpen?: boolean; clean?: boolean; updated?: boolean; busy?: boolean; unresumed?: boolean }
@@ -376,8 +379,13 @@ export function provenanceUnknown(target: TerminalTarget, place: { windows?: boo
 /** The card's paragraph for a session still running in a terminal outside the
  *  deck, by what the board says it is doing there (#97). Done with its reply,
  *  it is waiting, not ended; each says how to bring it here — quit it there,
- *  and the stage, which keeps looking, offers Reopen here. */
-export function elsewhereLine(state: StageState | null | undefined): string {
+ *  and the stage, which keeps looking, offers Reopen here. A card this pane's
+ *  own Reopen here led to (`held`) says instead that the conversation is
+ *  still open somewhere — for Codex often its background service, which
+ *  keeps it after the TUI in the pane ends — not "quit it in
+ *  that terminal", which may name no terminal at all. */
+export function elsewhereLine(state: StageState | null | undefined, held?: TerminalProvider): string {
+  if (held) return held === "codex" ? "board.stage.held.codex" : "board.stage.held.claude";
   switch (state) {
     case "idle": case "ready": return "board.stage.elsewhere.idle";
     case "waiting": return "board.stage.elsewhere.waiting";

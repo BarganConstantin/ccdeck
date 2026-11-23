@@ -665,6 +665,8 @@ const catalog: Catalog = {
   "board.stage.handoff.offer": "ccdeck の外の Ghostty ウィンドウで開いています。ccdeck は同じ会話のままここに移動できます。",
   "board.stage.elsewhere.working": "ccdeck の外のターミナルで作業中です。ここで続けるには、そのターミナルで終了してください。ccdeck が自動で検知し、同じ会話のまま「ここで開き直す」を表示します。",
   "board.stage.elsewhere.running": "ccdeck の外のターミナルでまだ動いています。ここで続けるには、そのターミナルで終了してください。ccdeck が自動で検知し、同じ会話のまま「ここで開き直す」を表示します。",
+  "board.stage.held.codex": "Codex がこの会話をまだ別の場所（バックグラウンドサービス、Codex アプリ、別のターミナルなど）で開いているため、ここではまだ開き直せません。ccdeck は確認を続け、空きしだい「ここで開き直す」を表示します。",
+  "board.stage.held.claude": "Claude Code がこの会話をまだ別のターミナルまたはウィンドウで開いているため、ここではまだ開き直せません。ccdeck は確認を続け、空きしだい「ここで開き直す」を表示します。",
   "board.stage.wsEmptyTitle": "待機中のものはありません",
   "board.stage.wsEmptyLine": "一覧のセッションをクリックするか、新しく起動してください。",
   "board.stage.wsEmptyBeside": "{keys} またはドラッグで、もう一つを横に開けます（ペインは最大4つ）。",
