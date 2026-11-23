@@ -69,6 +69,10 @@ export const portRetryable = (err) =>
  * author cannot run. A raw `listen EACCES: permission denied 127.0.0.1:4317` is
  * true and useless — the thing the user needs is the name of the command that
  * lists the ranges their machine has reserved.
+ *
+ * The address hints name no flag, because there is none to name: bin/deck.js
+ * always binds 127.0.0.1, and the deck has no `--host` on purpose (see
+ * lan-socket.mjs). They used to tell the user to pass one.
  */
 export function listenHint(code, { host = "", port = 0, platform = process.platform } = {}) {
   if (code === "EACCES") {
@@ -79,10 +83,10 @@ export function listenHint(code, { host = "", port = 0, platform = process.platf
     return "the OS refused the bind; a sandbox or a security policy is the usual cause";
   }
   if (code === "EADDRNOTAVAIL") {
-    return `no interface on this machine holds ${host || "that address"}, so no other port can help — pass --host with an address it does hold, or 127.0.0.1 for local only`;
+    return `no interface on this machine holds ${host || "that address"}, so no other port can help — check that its network interface is up (127.0.0.1 is the loopback one), then start the deck again`;
   }
   if (code === "ENOTFOUND" || code === "EAI_AGAIN") {
-    return `${host || "that host"} does not resolve, so no other port can help — pass --host with an address rather than a name`;
+    return `${host || "that host"} does not resolve, so no other port can help — check this machine's name resolution (its hosts file or DNS), then start the deck again`;
   }
   return "";
 }

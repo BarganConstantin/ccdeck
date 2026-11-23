@@ -109,7 +109,7 @@ describe("a press on a folded side", () => {
     expect(raise).toHaveBeenCalledTimes(2);
   });
 
-  it("a left door: drawn, its own press; folded on its panel, back alone; folded on the other, back and switched", () => {
+  it("a left door: drawn, its own press; folded with its panel open, back alone; folded without it, back with it opened", () => {
     const press = vi.fn();
     const raise = vi.fn();
     foldAwarePress(press, { folded: () => false, holds: () => true, raise })();
@@ -192,7 +192,9 @@ function deck(view: { board: boolean } = { board: true }) {
     const folded = (side: Side) => () => sides.foldRef.current[side];
     out = {
       fold: sides.fold, left, right,
-      pressList: foldAwarePress(left.toggleSessionList, { folded: folded("left"), holds: () => left.panel === "session-list", raise: () => sides.raise("left") }),
+      // CHANGED ON PURPOSE (the owner, 2026-11-23): the column holds the list
+      // whenever it is open, Accounts under it or not, as App now asks it.
+      pressList: foldAwarePress(left.toggleSessionList, { folded: folded("left"), holds: () => left.sessionListOpen, raise: () => sides.raise("left") }),
       setUsage: foldAwareSet(right.setUsagePanelOpen, folded("right"), () => sides.raise("right")),
       setDetail: foldAwareSet(right.setDetailOpen, folded("right"), () => sides.raise("right")),
     };

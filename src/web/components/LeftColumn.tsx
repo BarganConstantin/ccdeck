@@ -9,9 +9,10 @@
 // deck, half the window on a busy one — and snapped to 240px when the accounts
 // panel unmounted.
 //
-// Both panels share one persisted width and one resize edge. Switching swaps
-// their content without moving the board or terminal beside the column.
-// Larger text still widens the shared column by --ui-panel-increase.
+// Both panels share one persisted width and one resize edge, and with both open
+// they stand one under the other in it, Sessions on top (left-column.css), so
+// opening the second moves neither the board nor the terminal beside the
+// column. Larger text still widens the shared column by --ui-panel-increase.
 import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
 
 export default function LeftColumn({ width, listWidth, children, edge }: {

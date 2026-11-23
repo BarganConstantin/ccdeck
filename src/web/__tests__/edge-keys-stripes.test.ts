@@ -167,10 +167,11 @@ describe("Accounts, and the left column it shares", () => {
     expect(ids(dock({ claude: true }))).toContain("accounts");
   });
 
-  it("opens through the left column's own toggles, the only two that can open either, and each evicts the other", () => {
-    // The eviction itself is use-left-column.ts's and left-column-824.test.ts
-    // runs it; what this pins is that the stripe reaches the panels through
-    // those toggles and nothing else, so it cannot draw both into one slot.
+  it("opens through the left column's own toggles, the only two that can open either, and each leaves the other as it is", () => {
+    // CHANGED ON PURPOSE (the owner, 2026-11-23): was "each evicts the other".
+    // The two stand one under the other in the column now
+    // (left-column-stack.test.ts runs it); what this pins is that the stripe
+    // reaches the panels through those toggles and nothing else.
     // The one Accounts button opens the panel through the accounts toggle, and
     // Codex's own button (a Codex-only deck) opens its side through the same
     // toggle (openAccountSide), never a second way in.
@@ -184,10 +185,10 @@ describe("Accounts, and the left column it shares", () => {
     expect(app).toMatch(/const pressAccounts = useMemo\(\(\) => foldAwarePress\(toggleAccountsPanel, \{/);
     expect(app).toContain("if (!accountsPanelOpen || shownAccountProvider === side) toggleAccountsPanel();");
     const column = sourceOf("use-left-column.ts");
-    // CHANGED ON PURPOSE (the owner's phone layout): each still evicts the other
-    // beside a canvas; on a phone Accounts is a sheet over the list, so neither
-    // takes the other's place there.
-    expect(column).toMatch(/const toggleSessionList = useCallback\(\(\) => \{\s*setSessionListOpen\(open => \{[\s\S]*?if \(!open && !loadsOnPhone\(\)\) setAccountsPanelOpen\(/);
-    expect(column).toMatch(/const toggleAccountsPanel = useCallback\(\(\) => \{[\s\S]*?if \(!open && !loadsOnPhone\(\)\) setSessionListOpen\(false\);/);
+    // CHANGED ON PURPOSE (the owner, 2026-11-23): each toggles its own panel
+    // and touches the other on no width. Was: each evicted the other beside a
+    // canvas, and neither did on a phone.
+    expect(column).toContain("const toggleSessionList = useCallback(() => setSessionListOpen(open => !open), []);");
+    expect(column).toContain("const toggleAccountsPanel = useCallback(() => setAccountsPanelOpen(open => !open), []);");
   });
 });

@@ -3,48 +3,77 @@
 // close was persisted as "0", so the panel stayed gone across reloads: the
 // reader lost a panel they never closed.
 //
-// The list now EVICTS the panel rather than closing it: the eviction is
-// remembered, never stored as the reader's choice, and undone when the list
-// closes by any of its ways out. A load with the list open keeps the panel
-// waiting behind it. The reader's own toggle of the panel ends an eviction.
+// The first fix made the list EVICT the panel rather than close it: the
+// eviction was remembered, never stored, and undone when the list closed.
+//
+// CHANGED ON PURPOSE (the owner, 2026-11-23): nothing evicts anything now. Each
+// door opens and closes its own panel and leaves the other as it is, and with
+// both open Accounts stands under the list in the same column, as This machine
+// stands under Usage on the right (left-column-stack.test.ts runs it). What
+// #824 asked for holds more simply than before: the list never closes the
+// panel, so there is no close of the reader's to lose and no eviction to undo.
+// These pin that the eviction is gone and that nothing took its place.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { clientText } from "./client-source";
+import { clientText, sourceOf } from "./client-source";
 
-// The left column moved to use-left-column.ts whole — both panels, the eviction
-// and the toggles — so this reads the client. Every match here is positive.
 const app = clientText();
-const between = (from: string, to: string) => app.slice(app.indexOf(from), app.indexOf(to, app.indexOf(from)));
+const column = sourceOf("use-left-column.ts");
+const between = (src: string, from: string, to: string) => {
+  const at = src.indexOf(from);
+  expect(at, `${from} is in the source`).toBeGreaterThanOrEqual(0);
+  return src.slice(at, src.indexOf(to, at));
+};
+/** The bodies of the hook's effects that run on exactly this one dep. */
+const effectsOn = (dep: string) =>
+  [...column.matchAll(new RegExp(`useEffect\\(\\(\\) => \\{((?:(?!useEffect\\()[\\s\\S])*?)\\}, \\[${dep}\\]\\);`, "g"))].map(m => m[1]);
 
-describe("the session list evicts the accounts panel, and gives it back (#824)", () => {
-  it("remembers an eviction when the list takes the column from an open panel", () => {
-    const toggle = between("const toggleSessionList", "const toggleAccountsPanel");
-    expect(toggle).toMatch(/setAccountsPanelOpen\(was => \{ if \(was\) accountsEvictedRef\.current = true; return false; \}\)/);
+describe("the session list leaves the accounts panel as it is (#824)", () => {
+  it("opens and closes the list without touching the panel", () => {
+    // Was: the list's toggle evicted an open panel and remembered it.
+    const toggle = between(column, "const toggleSessionList", "const toggleAccountsPanel");
+    expect(toggle).toMatch(/setSessionListOpen\(open => !open\)/);
+    expect(toggle).not.toMatch(/setAccountsPanelOpen/);
   });
 
-  it("gives the panel back when the list closes, whichever way it closes", () => {
-    expect(app).toMatch(/if \(!sessionListOpen && accountsEvictedRef\.current\) \{\s*accountsEvictedRef\.current = false;\s*setAccountsPanelOpen\(true\);\s*\}\s*\}, \[sessionListOpen\]\);/);
-    // The list's own close and L both reach it, because it reacts to the state.
-    // The close is two links now — the button calls closeSessionList, which is
+  it("closes the list, whichever way it closes, without reopening or closing the panel", () => {
+    // Was: closing the list gave an evicted panel back, by an effect on the
+    // list's state. With no eviction there is nothing to give back, and no
+    // effect on the list's state sets the panel at all.
+    expect(column).not.toMatch(/accountsEvictedRef|accountsWaiting/);
+    const listEffects = effectsOn("sessionListOpen");
+    expect(listEffects.length).toBeGreaterThan(0);
+    for (const body of listEffects) expect(body).not.toMatch(/setAccountsPanelOpen/);
+    // The list's own close and L both reach the list's state alone. The close
+    // is two links — the button calls closeSessionList, which is
     // setSessionListOpen(false) — so both are pinned, and the chain is proved
     // rather than assumed. (It arms the keyboard's hand-off on the way:
     // panel-close-focus.test.ts.)
     expect(app).toMatch(/onClose=\{\(\) => \{ panelReturn\.sessionList\(\); closeSessionList\(\); \}\}/);
-    expect(app).toMatch(/const closeSessionList = useCallback\(\(\) => setSessionListOpen\(false\), \[\]\);/);
+    expect(column).toMatch(/const closeSessionList = useCallback\(\(\) => setSessionListOpen\(false\), \[\]\);/);
   });
 
-  it("never stores an eviction as the reader closing the panel", () => {
-    expect(app).toMatch(/if \(!accountsPanelOpen && accountsEvictedRef\.current\) return;\s*writeStored\(ACCOUNTS_PANEL_OPEN_KEY/);
+  it("stores the panel's own open and close, and nothing the list does", () => {
+    // Was: an eviction skipped the write. Every change of the panel's flag is
+    // the reader's own now (or a hold's, which is not written either way).
+    const write = effectsOn("accountsPanelOpen").join("\n");
+    expect(write).toMatch(/writeStored\(ACCOUNTS_PANEL_OPEN_KEY, accountsPanelOpen \? "1" : "0"\);/);
+    expect(write).not.toMatch(/sessionListOpen/);
   });
 
-  it("keeps the panel waiting behind a list that is open on load", () => {
-    expect(app).toMatch(/if \(wanted && sessionListOpen\) \{ accountsEvictedRef\.current = true; return false; \}/);
+  it("loads the panel as it was left, under a list open on the same load", () => {
+    // Was: a list open on load kept the panel waiting behind it.
+    const load = between(column, "const [accountsPanelOpen, setAccountsPanelOpen]", "useEffect(");
+    expect(load).not.toMatch(/sessionListOpen/);
+    expect(load).toMatch(/return wanted;/);
   });
 
-  it("lets the reader's own toggle of the panel end the eviction", () => {
-    const toggle = between("const toggleAccountsPanel", "// ccusage history modal");
-    expect(toggle).toMatch(/accountsEvictedRef\.current = false;/);
+  it("opens and closes the panel by its own door without touching the list", () => {
+    // Was: the panel's toggle took the column from the list and ended an eviction.
+    const toggle = between(column, "const toggleAccountsPanel", "const closeSessionList");
+    expect(toggle).toMatch(/setAccountsPanelOpen\(open => !open\)/);
+    expect(toggle).not.toMatch(/setSessionListOpen/);
   });
 });
 
@@ -60,11 +89,14 @@ describe("a phone's session list is a drawer, and picking a session closes it", 
     expect(app).toMatch(/onSelect=\{pickSession\}/);
   });
 
-  it("ends the eviction before closing, so the accounts panel does not slide back over the session", () => {
-    const close = between("const closeSessionListToCanvas", "const closeAccountsPanel");
-    expect(close).toMatch(/accountsEvictedRef\.current = false;\s*setSessionListOpen\(false\);/);
+  it("closes the list alone, so the accounts panel neither slides back over the session nor is shut", () => {
+    // Was: it ended the eviction before closing. There is none to end: it is
+    // the list's own close, and Accounts, a sheet of its own on a phone, is
+    // left as it is.
+    expect(column).toMatch(/const closeSessionListToCanvas = closeSessionList;/);
     // And it does not write the reader's stored choice: only the panel's own
     // state change does, and this one leaves that state alone.
+    const close = between(column, "const closeSessionListToCanvas", "const closeAccountsPanel");
     expect(close).not.toMatch(/writeStored|setAccountsPanelOpen/);
   });
 

@@ -375,8 +375,10 @@ columns:  1fr 360px                   default (canvas + detail rail)
           1fr · 240px 1fr · auto 1fr  the same three with no detail open
 ```
 
-Sessions and Accounts share the left slot and are mutually exclusive; accounts
-takes `auto` because it has to fit bars and email addresses.
+Sessions and Accounts share the left column and one width. Each door toggles
+its own panel; with both open Sessions is on top and Accounts under it, a 1px
+`--line` between them, the way Usage stands over This machine in the right
+column (`left-column.css`).
 
 **The panel buttons live on the window's edges** (`edge-rails.css`): a stripe
 `--edge-w` wide (one control height), with upright icon buttons; `.app` keeps
@@ -663,9 +665,11 @@ reinvented. Three rules:
    pill with an `--warn` 85% edge and `--warn` text; `.notify-said-blocked` is
    `--warn`. Nothing else competes at that colour — not even the names of who is
    waiting beside the count, which are neutral (`.wait-entry`).
-2. **The pulse is the only ambient motion a resting card may have.** `.waiting-dot`
-   is a 5px `currentColor` dot borrowing `.ap-pulse`'s motion, so the app keeps one
-   idiom for *still asking* and one reduced-motion answer for it.
+2. **It holds still.** A waiting card says it with its `--warn` edge, the alert
+   mark (the kit's Waiting glyph, a ring with a bang) and the ask line; none of
+   them moves, so reduced motion has nothing to take away. The pulse means
+   *running* (see Motion) and `.ap-pulse`'s ping marks LAN decks — neither
+   belongs here.
 3. **Duration beats description.** On the node the waiting row truncates the
    sentence and never the duration, at weight 700 — it is the number that decides
    whether the user gets up.
@@ -700,8 +704,8 @@ rather than scattered through the sections above.
 | State | Token | Mark | Words | Motion |
 |---|---|---|---|---|
 | Live | session accent | node border, state pill | `live` | in-flight edge animates |
-| In flight | `--inflight` | tool-call edge, burst stripe | tool name | dash animation |
-| **Blocked on you** | `--warn` | topbar chip, `.waiting-dot` | `waiting 6m · Bash` | the pulse, and only here |
+| In flight | `--inflight` | tool-call edge, burst stripe | tool name | dash animation; the pulse on the burst's dot |
+| **Blocked on you** | `--warn` | card edge, alert mark, topbar chip | `waiting 6m · Bash` | none — it holds still |
 | Done | `--ok` | node border, state pill | `done` | edge fades to settled |
 | Error | `--err` | node border, state pill | `err` | none |
 | Switched off / disabled | `--dim-off` | the whole control dims | — | none |
@@ -731,8 +735,12 @@ on a panel this dense:
   and 200ms close, on the page's own frames, where a late frame postpones the
   motion rather than skipping it (`navigator-flip.ts`). Anything that moves a
   few pixels stays on the house curve.
-- **The pulse is the one ambient loop** (`--pulse-live: 1.2s ease-in-out`), reserved
-  for *still asking*.
+- **The pulse means running** (`@keyframes pulse`, opacity 1 → 0.35 → 1 on
+  `--pulse-live: 1.2s ease-in-out`): a Working card's state mark and a tool in
+  flight (the burst's `.tb-spin`, the detail panel's in-flight dot). A session
+  waiting on you holds still. `.ap-pulse`'s ping, a ring every 2.6s that rests as a
+  still ring under reduced motion, marks LAN decks and the auto-switch poll, never
+  a wait.
 - **`prefers-reduced-motion: reduce` is honoured in 25 blocks**, and the motion
   tokens (`--edge-transition`, `--ctx-arc-transition`) are *redefined* inside them
   rather than deleted — so a reduced-motion user still gets the opacity change that
