@@ -732,6 +732,33 @@ export default function TerminalStage(p: TerminalStageProps) {
   };
 
   const end = endView(phase, p.show, { reopen, launchAgain: p.onLaunchAgain, attachAgain: retry });
+
+  // A CODEX THAT UPDATED ITSELF comes back by itself. Its own "Update now"
+  // installs the new version, asks to be restarted and exits; the session
+  // hook saw the codex on disk replaced while the pane ran (`updated`), and
+  // the pane does what its end bar offers, for the reader: Reopen here for a
+  // session, which resumes it here with its folder and account, or Launch
+  // again for a launch that never had one. Once per session: a restarted
+  // Codex that updates again keeps its end bar, and a launch started this
+  // way counts as the one it replaced. Never closed as an ending would be.
+  const restarts = useRef({ done: new Set<string>(), launching: false });
+  const restartAction = useRef<(() => void) | null>(null);
+  restartAction.current = end?.onAction ?? null;
+  useEffect(() => {
+    const r = restarts.current;
+    if (r.launching && p.show.kind === "launch") r.done.add(key);
+    r.launching = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  const updatedItself = current && phase.kind === "ended" && phase.updated === true;
+  useEffect(() => {
+    const r = restarts.current;
+    if (!updatedItself || r.done.has(key)) return;
+    r.done.add(key);
+    r.launching = p.show.kind === "launch";
+    restartAction.current?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [updatedItself, key]);
   // Beside a mouse the keys bar is out in the window's status bar, so the end
   // action is drawn in this pane's header instead; on a phone, in the bar.
   const statusSlot = useStageStatusSlot();

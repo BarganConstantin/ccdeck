@@ -40,6 +40,7 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 
 import type { ITheme } from "@xterm/xterm";
 import {
   adoptTerminal,
+  codexUpdated,
   launchTerminal,
   openTerminal,
   terminalStatus,
@@ -533,6 +534,9 @@ export interface SessionApi {
   open: typeof openTerminal;
   adopt: typeof adoptTerminal;
   launch: typeof launchTerminal;
+  /** Whether a Codex that exited 0 had just updated itself. An API without
+   *  it (a suite's) never asks, and every ending is taken as it comes. */
+  codexUpdated?: typeof codexUpdated;
 }
 
 export interface SessionDeps {
@@ -543,7 +547,7 @@ export interface SessionDeps {
 }
 
 export const DEFAULT_DEPS: SessionDeps = {
-  api: { status: terminalStatus, open: openTerminal, adopt: adoptTerminal, launch: launchTerminal },
+  api: { status: terminalStatus, open: openTerminal, adopt: adoptTerminal, launch: launchTerminal, codexUpdated },
   connect: connectTerminal,
   mount: mountXterm,
   now: () => Date.now(),
@@ -904,9 +908,29 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         // One this pane watched is the agent ending itself when it exited
         // cleanly (endedCleanly): the stage closes the pane then.
         else if (reason === "ended") {
-          setPhase(atOpen || snap.phase.kind !== "live" ? { kind: "ended", atOpen: true }
-            : endedCleanly({ exitStatus, exitSignal }, deps.now() - (liveAt ?? deps.now())) ? { kind: "ended", clean: true }
-              : { kind: "ended" });
+          const unseen = atOpen || snap.phase.kind !== "live";
+          const liveFor = deps.now() - (liveAt ?? deps.now());
+          const ended: StagePhase = unseen ? { kind: "ended", atOpen: true }
+            : endedCleanly({ exitStatus, exitSignal }, liveFor) ? { kind: "ended", clean: true }
+              : { kind: "ended" };
+          // A Codex that exits 0 may be one that just updated itself: its own
+          // "Update now" installs the new version and asks to be restarted.
+          // The deck tells it from /exit by the codex on disk (codex-update.mjs),
+          // and the stage starts the new one in its place (`updated`). While it
+          // asks, the pane is plainly ended, never clean, so the stage does not
+          // close it first. A crash, a kill or an ending it never watched is
+          // not asked about; an answer that comes after the stage moved on, or
+          // none at all, leaves the ending as it would have been.
+          const ask = deps.api.codexUpdated;
+          if (codex && ask && !unseen && exitSignal === undefined && (exitStatus === undefined || exitStatus === 0)) {
+            const asking: StagePhase = { kind: "ended" };
+            setPhase(asking);
+            const settle = (updated: boolean) => {
+              if (my !== gen || disposed || snap.phase !== asking) return;
+              setPhase(updated ? { kind: "ended", updated: true } : ended);
+            };
+            ask(liveFor).then(settle, () => settle(false));
+          } else setPhase(ended);
         }
         else if (reason === "detached") setPhase({ kind: "detached" });
         else setPhase({ kind: "error", message: message || tr(STOPPED_MSG) });

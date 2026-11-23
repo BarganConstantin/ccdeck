@@ -51,7 +51,9 @@ import type { Provider } from "../../types";
  *    must not say it ended "just now". `clean` when its agent ended itself
  *    with status 0 — /exit, Ctrl+D — while this stage watched it run
  *    (endedCleanly): the pane closes then (internal #104), and the session
- *    stays on the board to reopen.
+ *    stays on the board to reopen. `updated` when that agent was a Codex
+ *    that had just updated itself (Codex's own "Update now", which asks to
+ *    be restarted): the stage starts it again in the same pane, once.
  *  - detached: someone else took the pane away; the session runs on.
  *  - error: anything else, said in a sentence, with a way to try again.
  */
@@ -63,7 +65,7 @@ export type StagePhase =
   | { kind: "not-attachable"; target: TerminalTarget; stillRunning: boolean; busy: boolean }
   | { kind: "tmux-installing"; progress?: TmuxProgress }
   | { kind: "tmux-missing"; reason: string; install?: string; download?: string; busy: boolean }
-  | { kind: "ended"; atOpen?: boolean; clean?: boolean }
+  | { kind: "ended"; atOpen?: boolean; clean?: boolean; updated?: boolean }
   | { kind: "detached" }
   /** `code`: the engine's refusal, when it is a state of this machine
    *  (terminal-api's PANEL_UNAVAILABLE). Such a card checks again in place,

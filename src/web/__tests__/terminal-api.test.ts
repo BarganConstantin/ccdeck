@@ -18,9 +18,11 @@ import {
   PANEL_UNAVAILABLE,
   STILL_RUNNING,
   FOLDER_ROUTE,
+  CODEX_UPDATED_ROUTE,
   TERMINAL_ROUTES,
   adoptTerminal,
   checkFolder,
+  codexUpdated,
   discoverProjectFolders,
   claimLaunch,
   endHostSessions,
@@ -465,6 +467,31 @@ describe("the New session picker's folder question (internal #106)", () => {
     expect(await checkFolder("/x", { fetchFn: answering(404, { ok: false, error: "Not found" }).fetchFn })).toEqual({ ok: false, code: "unavailable" });
     expect(await checkFolder("/x", { fetchFn: answering(409, { ok: false, code: "not-installed" }).fetchFn })).toEqual({ ok: false, code: "unavailable" });
     expect(await checkFolder("/x", { fetchFn: answering(200, "<html>").fetchFn })).toEqual({ ok: false, code: "unavailable" });
+  });
+});
+
+describe("asking whether the Codex that just ended updated itself", () => {
+  it("asks the deck's own route with how long the pane was live, never a time", async () => {
+    expect(CODEX_UPDATED_ROUTE).toBe("/api/terminal/codex-updated");
+    expect(Object.values(TERMINAL_ROUTES)).not.toContain(CODEX_UPDATED_ROUTE);
+    const { fetchFn, asked } = answering(200, { ok: true, updated: true });
+    expect(await codexUpdated(61_234.4, { fetchFn })).toBe(true);
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toMatchObject({ url: "/api/terminal/codex-updated", method: "POST", body: { liveForMs: 61_234 } });
+    expect(asked[0].headers["content-type"]).toBe("application/json");
+    await codexUpdated(-5, { fetchFn });
+    expect(asked[1].body, "a clock that stepped back is no time at all").toEqual({ liveForMs: 0 });
+  });
+
+  it("says yes only for the deck's yes, and no for anything else, never throwing", async () => {
+    expect(await codexUpdated(1, { fetchFn: answering(200, { ok: true, updated: false }).fetchFn })).toBe(false);
+    expect(await codexUpdated(1, { fetchFn: answering(200, { ok: true, updated: "yes" }).fetchFn })).toBe(false);
+    expect(await codexUpdated(1, { fetchFn: answering(200, { updated: true }).fetchFn })).toBe(false);
+    expect(await codexUpdated(1, { fetchFn: answering(200, "<html>").fetchFn })).toBe(false);
+    expect(await codexUpdated(1, { fetchFn: answering(400, { ok: false, code: "bad-request" }).fetchFn })).toBe(false);
+    expect(await codexUpdated(1, { fetchFn: answering(404, { ok: false, error: "not found" }).fetchFn })).toBe(false);
+    expect(await codexUpdated(1, { fetchFn: answering(409, { ok: false, code: "not-installed" }).fetchFn })).toBe(false);
+    expect(await codexUpdated(1, { fetchFn: async () => { throw new TypeError("Failed to fetch"); } })).toBe(false);
   });
 });
 

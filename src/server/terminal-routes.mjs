@@ -1,6 +1,7 @@
 // The Command Panel's eight HTTP routes the engine answers, the folder check
-// the deck answers itself (terminal-folder.mjs), and the wiring that hands its socket
-// to the upgrade in terminal-socket.mjs.
+// and the Codex update check the deck answers itself (terminal-folder.mjs,
+// codex-update.mjs), and the wiring that hands its socket to the upgrade in
+// terminal-socket.mjs.
 //
 //   GET  /api/terminal/status     is tmux here, and new enough? No paths.
 //   GET  /api/terminal/target     can this session be attached to, and how?
@@ -11,6 +12,7 @@
 //   POST /api/terminal/claim      is this new Codex the one a launch started?
 //   POST /api/terminal/hosts/end  end the sessions on one older host, as reviewed
 //   POST /api/terminal/folder     can an agent start in this folder? (the deck answers)
+//   POST /api/terminal/codex-updated  did the Codex that just ended update itself? (the deck answers)
 //
 // And the engine's own install, which the page offers where the engine is not
 // here (engine-install.mjs), under the same switch and the same gates:
@@ -79,6 +81,7 @@ import { panelProvenance, withProvenance } from "./panel-provenance.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { engineRefusal } from "./pro-engine-terminal.mjs";
 import { checkFolder } from "./terminal-folder.mjs";
+import { codexReplaced, liveForOf } from "./codex-update.mjs";
 import { discoverProjects } from "./project-discovery.mjs";
 import { createTicketStore } from "./terminal-socket.mjs";
 import {
@@ -350,6 +353,35 @@ export async function handleTerminalFolder(req, res, options) {
   } catch {}
   if (cwd === null) return send(res, 400, { ok: false, code: "bad-request" });
   return send(res, 200, await (d.checkFolder ?? checkFolder)(cwd));
+}
+
+/** POST /api/terminal/codex-updated `{ liveForMs }` → `{ ok: true, updated }`:
+ *  whether the codex the deck starts was replaced while the pane that just
+ *  ended was live, `liveForMs` being how long it was (codex-update.mjs). The
+ *  pane asks when a Codex it watched exits with status 0, to tell Codex's own
+ *  "Update now" from /exit and start the new version in its place. Answered
+ *  here, by the deck, behind the folder check's switch, gates and cap; a body
+ *  with no duration in it is 400 `bad-request`, which the page reads as no. */
+export async function handleTerminalCodexUpdated(req, res, options) {
+  const d = terminalDeps(options);
+  if (!d.enabled()) return notFound(res);
+  let raw;
+  try { raw = await readBody(req, res, BODY_LIMIT); } catch { return; } // answered 413 already
+  if (!d.enabled()) return notFound(res);
+  // A deck with no engine has no pane a Codex ran in, and says nothing new
+  // about this machine: the same words and bytes as every route here.
+  if (!d.jsBackend && d.engine?.enabled !== true) {
+    const { status, body } = engineRefusal("not-installed");
+    return send(res, status, body);
+  }
+  let liveForMs = null;
+  try {
+    const body = JSON.parse(raw);
+    if (body && typeof body === "object") liveForMs = liveForOf(body.liveForMs);
+  } catch {}
+  if (liveForMs === null) return send(res, 400, { ok: false, code: "bad-request" });
+  const updated = await (d.codexReplaced ?? codexReplaced)(liveForMs);
+  return send(res, 200, { ok: true, updated: updated === true });
 }
 
 /** GET /api/terminal/engine → `{ ok: true, engine }`: the engine's install
