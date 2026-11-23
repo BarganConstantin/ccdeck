@@ -73,6 +73,7 @@ import { chatSessionFor, useSessionTranscript } from "../../use-session-transcri
 import { isEventOnly } from "../../../server/provider-ids.mjs";
 import { askSteps } from "../../ask-keys";
 import { stopSteps } from "../../chat-stop";
+import { noteFeature, useFeatureUse } from "../../feature-use";
 import type { ChatAsk, ChatTurn } from "../chat/chat-model";
 import { usePromptDecision } from "../../use-prompt-decision";
 import { DialogPresence } from "../Dialog";
@@ -397,6 +398,10 @@ export default function TerminalStage(p: TerminalStageProps) {
   const chatDraftKey = `${chatProvider}:${chatSession}`;
   const [view, setView] = useState<"chat" | "term">("term");
   const chatOn = chatSession !== null && view === "chat";
+  // A session's terminal pane shown, and its Chat view: features the usage
+  // reports name (feature-use.ts). An empty Workspace pane is neither.
+  useFeatureUse("terminal-pane", p.show.kind !== "empty");
+  useFeatureUse("chat", chatOn);
   // Drafts belong to session IDs, so switching panes or Chat/Term cannot
   // send one session's draft to another. They stay in this stage's memory.
   const [chatDrafts, setChatDrafts] = useState<Record<string, string>>({});
@@ -594,7 +599,10 @@ export default function TerminalStage(p: TerminalStageProps) {
       const steps = askSteps(questions, picks);
       if (!steps) return "unavailable";
       const result = await session.sendAsk(steps, key);
-      if (result === "sent" || result === "partial") setChatSent(sent => sent + 1);
+      if (result === "sent" || result === "partial") {
+        setChatSent(sent => sent + 1);
+        noteFeature("chat-answer");
+      }
       return result;
     },
   };
@@ -608,7 +616,7 @@ export default function TerminalStage(p: TerminalStageProps) {
     subject: key,
     readScreen: session.readScreen,
     sendAsk: session.sendAsk,
-    onSent: () => setChatSent(sent => sent + 1),
+    onSent: () => { setChatSent(sent => sent + 1); noteFeature("chat-decision"); },
     onShowTerm: () => showView("term"),
   });
 
@@ -724,6 +732,34 @@ export default function TerminalStage(p: TerminalStageProps) {
   };
 
   const end = endView(phase, p.show, { reopen, launchAgain: p.onLaunchAgain, attachAgain: retry });
+
+  // A CODEX THAT UPDATED ITSELF comes back by itself. Its own "Update now"
+  // installs the new version, asks to be restarted and exits; the session
+  // hook saw the codex on disk replaced while the pane ran (`updated`), and
+  // the pane does what its end bar offers, for the reader: Reopen here for a
+  // session, which resumes it here with its folder and account, or Launch
+  // again for a launch that never had one. Once per session: a restarted
+  // Codex that updates again keeps its end bar, and a launch started this
+  // way counts as the one it replaced. Never closed as an ending would be.
+  // Built once (a lazy useState, as the #612 rule asks), not on every render.
+  const restarts = useState(() => ({ done: new Set<string>(), launching: false }))[0];
+  const restartAction = useRef<(() => void) | null>(null);
+  restartAction.current = end?.onAction ?? null;
+  useEffect(() => {
+    const r = restarts;
+    if (r.launching && p.show.kind === "launch") r.done.add(key);
+    r.launching = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  const updatedItself = current && phase.kind === "ended" && phase.updated === true;
+  useEffect(() => {
+    const r = restarts;
+    if (!updatedItself || r.done.has(key)) return;
+    r.done.add(key);
+    r.launching = p.show.kind === "launch";
+    restartAction.current?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [updatedItself, key]);
   // Beside a mouse the keys bar is out in the window's status bar, so the end
   // action is drawn in this pane's header instead; on a phone, in the bar.
   const statusSlot = useStageStatusSlot();
@@ -739,7 +775,10 @@ export default function TerminalStage(p: TerminalStageProps) {
     onSend={text => {
       if (chatUnavailable) return "unavailable";
       const result = session.sendPrompt(text, key);
-      if (result === "sent") setChatSent(sent => sent + 1);
+      if (result === "sent") {
+        setChatSent(sent => sent + 1);
+        noteFeature("chat-reply");
+      }
       return result;
     }}
     // Stop is Claude Code's Esc, offered while the board says it works and
@@ -747,7 +786,10 @@ export default function TerminalStage(p: TerminalStageProps) {
     canStop={chatProvider === "claude" && chatCannotSend === undefined && board?.state === "working"}
     onStop={async () => {
       const result = await session.sendAsk(stopSteps(), key);
-      if (result === "sent" || result === "partial") setChatSent(sent => sent + 1);
+      if (result === "sent" || result === "partial") {
+        setChatSent(sent => sent + 1);
+        noteFeature("chat-stop");
+      }
       return result;
     }}
   /> : undefined;

@@ -656,7 +656,6 @@ const catalog: Catalog = {
   "settings.account.copy.vetoed": "Desactivado en este equipo: ccdeck se inició con AGENTS_DECK_NO_ACCOUNT=1 o AGENTS_DECK_NO_INSTALL=1, que lo mantienen alejado de cualquier cuenta.",
   "settings.account.copy.loading": "Leyendo la cuenta de este ccdeck…",
   "settings.account.copy.unreachable": "El ccdeck no respondió. Puede que se esté reiniciando.",
-  "settings.account.copy.explain": "Conecta este ccdeck a tu cuenta de ccdeck para verlo en Machines en app.ccdeck.dev y mantener los ajustes que elijas sincronizados con tus otros ccdeck.",
   "settings.account.copy.sent": "Mientras está conectado, envía cada 15 segundos: su nombre, versión y sistema, el uso de CPU y memoria, y cuántas sesiones están en marcha o esperándote. Nunca lo que hacen tus sesiones, sus nombres, tus archivos ni tus cuentas de Claude. Lo que envía y los ajustes que sincronizas se guardan en el servidor de ccdeck, que puede leerlos.",
   "settings.account.copy.nameNote": "Cómo aparece este ccdeck en tu cuenta. Cámbialo antes de conectar si prefieres no usar el nombre de este ordenador.",
   "settings.account.copy.connecting": "Aprueba este ccdeck en el navegador. Comprueba que el código de allí coincide con este.",

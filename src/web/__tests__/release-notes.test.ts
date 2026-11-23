@@ -1046,8 +1046,10 @@ describe("how App.tsx wires it up", () => {
     expect(effect).not.toMatch(/writeTourSeen/);
     // Two links now, because the close moved out of the markup: the tour calls
     // closeTour, and closeTour closes it and then marks it seen. Both are pinned,
-    // so "marked when closed" is proved end to end rather than assumed.
-    expect(app).toMatch(/steps=\{WELCOME_STEPS\} onClose=\{closeTour\}/);
+    // so "marked when closed" is proved end to end rather than assumed. Done and
+    // every other close each end in closeTour; they differ only in the feature
+    // name the usage report gets.
+    expect(app).toMatch(/steps=\{WELCOME_STEPS\}\s*finish=\{\{ label: t\("shell\.done"\), act: \(\) => \{ noteFeature\("tour-done"\); closeTour\(\); \} \}\}\s*onClose=\{\(\) => \{ noteFeature\("tour-skipped"\); closeTour\(\); \}\}/);
     expect(app).toMatch(/const closeTour = useCallback\(\(\) => \{\s*setTourOpen\(false\);[\s\S]{0,400}?writeTourSeen\(localStore\(\)\);/);
     expect([...app.matchAll(/writeTourSeen\(/g)]).toHaveLength(1);
     // The desktop app's prefs file is told the same thing on the same close,

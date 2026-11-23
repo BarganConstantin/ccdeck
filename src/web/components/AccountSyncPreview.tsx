@@ -8,14 +8,19 @@ import { uiLabelOf } from "../account-ui-fields";
 import { accountActions } from "../use-account";
 import { selfPressAccepted, selfPressProps } from "../panel-press";
 import { useT, type MessageKey, type TFunction } from "../i18n";
+import { THEME_DEFINITIONS, type Theme } from "../theme";
+import { themeName } from "../settings-names";
 
 type Preview = Awaited<ReturnType<typeof accountActions.preview>>;
 
-/** A setting's value as a person reads it, in the language `tr` speaks. */
+/** A setting's value as a person reads it, in the language `tr` speaks. A
+ *  theme reads as Appearance names it (Rider Black, not rider-black); one this
+ *  deck does not know, from a newer deck, keeps the id it came with. */
 export function shownValue(tr: TFunction, key: string, value: unknown): string {
   if (value === null || value === undefined) return tr("settings.account.notSet");
   if (typeof value === "boolean") return tr(value ? "settings.claude.effect.on" : "settings.claude.effect.off");
   if (key === "hideFinishedAfter") return value === 0 ? tr("settings.board.never") : tr("settings.board.minutes", { n: String(value) });
+  if (key === "theme" && typeof value === "string" && Object.hasOwn(THEME_DEFINITIONS, value)) return themeName(value as Theme, tr);
   return String(value);
 }
 

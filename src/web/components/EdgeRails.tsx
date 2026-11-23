@@ -14,10 +14,11 @@
 // the canvas: right from the left stripe, left from the right one. Phone
 // controls and the topbar utilities keep their visible words.
 // The topbar keeps the identity, the stream's state, the waiting queue, Search
-// (UtilityRun) and, in its own corner cell, Feedback. Under 641px the stripes
-// and Search become one dock along the bottom: the four panels one tap away and
-// the rarer doors, Settings among them, behind a More; Feedback stays in the
-// bar's corner, its one entry on every size.
+// (UtilityRun) and, in its own corner cell, Feedback (CornerRun), with its word
+// while the stripes have theirs. Under 641px the stripes and Search become one
+// dock along the bottom: the four panels one tap away and the rarer doors,
+// Settings among them, behind a More; Feedback stays in the bar's corner, its
+// one entry on every size.
 //
 // THESE ARE NOT TABS. A stripe button shows or hides a panel beside the canvas,
 // several can be open at once, and the canvas never leaves the screen: "One
@@ -435,6 +436,16 @@ export function UtilityRun({ items, side = "below" }: { items: RailItem[]; side?
       {hint.node}
     </div>
   );
+}
+
+/** Feedback's corner cell. V4 draws it as a bare glyph, which people rarely
+ *  found; while the stripes under it show their words the cell is as wide as
+ *  they are (156), and Feedback says its word there like every door below it.
+ *  With icons on the stripes, under 1100px and on a phone it is the glyph, its
+ *  name and what it is for in its hint. */
+export function CornerRun({ item }: { item: RailItem }) {
+  const words = useStripeWords();
+  return <UtilityRun items={[words ? { ...item, barLook: undefined } : item]} />;
 }
 
 function noop() {}

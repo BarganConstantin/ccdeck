@@ -52,7 +52,7 @@ import { useNodeDrag } from "./use-node-drag";
 import { EmptyHero, TabCapHero } from "./components/EmptyHero";
 import DetailAside from "./components/DetailAside";
 import { inspectorDoorOpen, inspectorDoorPress, inspectorIsSheet } from "./inspector-corner";
-import { EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
+import { CornerRun, EdgeDock, EdgeRail, PHONE_QUERY, UtilityRun } from "./components/EdgeRails";
 import { commandPanelMore, railItems } from "./rail-items";
 import { unreadOf, useFeedbackAccount } from "./feedback-unread";
 import { focusAfterFold } from "./fold-focus";
@@ -124,7 +124,8 @@ import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import { useRailPanel, useStage, useStageAsks } from "./use-stage";
 import { stageClaimsKeys, targetSession } from "./stage-shell";
-import { sessionPaneLinks } from "./workspace-split";
+import { paneCount, sessionPaneLinks } from "./workspace-split";
+import { useFeatureUse } from "./feature-use";
 import { StageDockSlot, StageNavigatorSlot } from "./components/StageSlots";
 import ViewSwitch from "./components/ViewSwitch";
 import { EmptyInspector } from "./components/Inspector";
@@ -752,6 +753,12 @@ function Inner() {
     view: viewState.stored, phone, clearSelection, ready: historyReplayed,
   });
   const inWorkspace = stage.workspace;
+  // Workspace in use, and two or more sessions side by side in it: features
+  // the usage reports name (feature-use.ts). Only once the Command Panel's
+  // gate has answered, so a view the browser remembers from before it was
+  // switched off says nothing while the prefs are read.
+  useFeatureUse("workspace", inWorkspace && stage.workspaceOffered);
+  useFeatureUse("workspace-split", inWorkspace && stage.workspaceOffered && paneCount(stage.split) > 1);
   // Zoom's fold and unfold: the panels slide, the grid follows at the end
   // (use-zoom-phase.ts).
   const zoomPhase = useZoomPhase(inWorkspace && stage.expanded);
@@ -798,16 +805,15 @@ function Inner() {
     detailWasOpen.current = detailOpen;
   }, [detailOpen]);
   // Workspace opens on the pane: entering closes the Inspector, at every
-  // width, and leaving gives the Board the one it had (use-workspace-inspector.ts).
+  // width, and an entry on a session unfolds the column with it. A session
+  // chosen once Workspace is up leaves the Inspector as the reader has it.
+  // Leaving gives the Board the one it had (use-workspace-inspector.ts).
   useWorkspaceInspector({
     active: inWorkspace, detailOpen,
     fold: () => setInspectorFolded(true), hold: holdRight.detail, restore: setDetailStored,
+    pane: inWorkspace && stageClaimsKeys(stage.shell.phase) ? targetSession(stage.shell.target) : undefined,
+    unfold: () => setInspectorFolded(false),
   });
-  const inspectedWorkspaceSession = inWorkspace && inspectorColumn && stage.shell.phase !== "closed"
-    ? targetSession(stage.shell.target) : null;
-  useLayoutEffect(() => {
-    if (inspectedWorkspaceSession) setInspectorFolded(false);
-  }, [inspectedWorkspaceSession]);
   // The stripes are icons while Workspace is up (stripe-words.ts), in the
   // commit that draws it.
   useLayoutEffect(() => { setStripeWorkspace(inWorkspace); }, [inWorkspace]);
@@ -1465,8 +1471,9 @@ function Inner() {
         {/* Feedback's own cell, the bar's top-right corner, on every size: over
             the right stripe with the stripe's line beside it, just before the
             OS's window buttons in the desktop app, at the end of the phone's
-            bar. Next after Search in the Tab order. */}
-        <div className="tb-corner"><UtilityRun items={[rails.corner]} /></div>
+            bar. Next after Search in the Tab order. With its word while the
+            stripes show theirs (CornerRun). */}
+        <div className="tb-corner"><CornerRun item={rails.corner} /></div>
       </header>
 
       {/* The left stripe, ahead of the column it opens so Tab reaches the
@@ -1674,8 +1681,9 @@ function Inner() {
           needed no layout change of its own. */}
       {/* WORKSPACE draws the Inspector as a column whether or not a session is in
           focus (an empty pane means none, and the column says so), down to 1320px,
-          once it is unfolded. Opening a session unfolds the column.
-          Under that it is the detail sheet, opened
+          once it is unfolded. Entering Workspace on a session unfolds the
+          column; a session chosen inside leaves it as it is
+          (use-workspace-inspector.ts). Under that it is the detail sheet, opened
           as on the Board. */}
       {inWorkspace && inspectorColumn && !inspectorFolded && !(detailOpen && selected) ? (
         selected ? (

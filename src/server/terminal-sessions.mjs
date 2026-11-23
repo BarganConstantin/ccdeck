@@ -28,6 +28,7 @@ import { pathLookup } from "./exec-spec.mjs";
 // The one answer to "which claude" — AGENTS_DECK_CLAUDE first, then PATH, then
 // the places its installers put it (#553, #570). Not decided again here.
 import { adminClaudeBin } from "./claude-identity.mjs";
+import { codexBin } from "./codex-update.mjs";
 import {
   DECK_SOCKET, findTmux, paneArgv, runTmux, serverScope, tmuxFormatLiteral, tmuxHasNoServer, tmuxSequence,
 } from "./tmux.mjs";
@@ -207,10 +208,11 @@ export function launchOptionArgs(agent, kind, options) {
  * looked up there; a path is not looked up at all.
  *
  * Claude comes from adminClaudeBin, the resolver the accounts surface and the
- * boot check share. Codex has no resolver of its own yet: PATH, then the
+ * boot check share. Codex from codexBin (codex-update.mjs): PATH, then the
  * places its npm and Homebrew installs land, the same shape claudeCliCandidates
  * gives Claude and for the same reason — a deck started from a shortcut has a
- * PATH that never sourced the shell rc that put Codex on it.
+ * PATH that never sourced the shell rc that put Codex on it. The deck asks the
+ * same lookup whether Codex just updated itself.
  */
 export function resolveAgentBin(agent, {
   env = process.env, platform = process.platform, home = homedir(), exists = existsSync,
@@ -222,11 +224,7 @@ export function resolveAgentBin(agent, {
     try { return exists(bin) ? bin : null; } catch { return null; }
   };
   if (agent === "claude") return located(adminClaudeBin(platform, env, home, exists));
-  for (const bin of ["codex", posixPath.join(home, ".local", "bin", "codex"), "/opt/homebrew/bin/codex", "/usr/local/bin/codex"]) {
-    const at = located(bin);
-    if (at) return at;
-  }
-  return null;
+  return codexBin({ env, platform, home, exists });
 }
 
 /**

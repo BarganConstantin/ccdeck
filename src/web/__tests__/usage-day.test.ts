@@ -219,6 +219,30 @@ describe("the features a day used", () => {
     expect(t.finished("2026-10-01")?.features).toEqual(["claude-sessions", "codex-sessions"]);
   });
 
+  it("say an opencode or Copilot session as its own CLI, never as Claude's", () => {
+    const { t, later } = tallyAt();
+    t.noteUse({ session_id: "o1", provider: "opencode" });
+    t.noteUse({ session_id: "g1", provider: "copilot" });
+    later(24 * HOUR);
+    // Both are sessions of the day all the same.
+    expect(t.finished("2026-10-01")).toMatchObject({ sessions: 2, features: ["opencode-sessions", "copilot-sessions"] });
+  });
+
+  it("only ever grow at the end, so the list's order stays the contract the reports are read by", () => {
+    // The names added after 4.3.0, after the 33 that came before them, in this
+    // order: the API pins the whole list in order (its FeatureRegistryTests).
+    expect(FEATURES.slice(0, 33).at(-1)).toBe("tui");
+    expect(FEATURES.slice(33)).toEqual([
+      "opencode-sessions", "copilot-sessions",
+      "quick-open", "workspace", "workspace-split", "terminal-pane", "chat", "codex-accounts-panel",
+      "chat-reply", "chat-answer", "chat-decision", "chat-stop", "terminal-text-size", "tour-done", "tour-skipped",
+      "session-launch", "session-reopen", "session-rename", "claude-install", "claude-settings", "jira-change",
+      "codex-account-switch", "codex-accounts-manage", "codex-auto-switch",
+      "tui-network",
+    ]);
+    expect(new Set(FEATURES).size).toBe(FEATURES.length);
+  });
+
   it("survive a restart the same day, and never carry a name off the list back in", () => {
     const { t: before } = tallyAt();
     before.noteFeature("feedback");

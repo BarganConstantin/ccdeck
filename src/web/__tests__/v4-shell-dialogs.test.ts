@@ -149,6 +149,12 @@ describe("Keyboard shortcuts", () => {
     expect(decl(".kh-foot", "color")).toBe("var(--muted)");
     expect(sheet).toContain("settings.key.switchNote");
   });
+  it("puts Send feedback beside Take the tour, the same link, closing the sheet as it opens the dialog", () => {
+    expect(sheet).toContain("{onFeedback && <button type=\"button\" className=\"kh-tour kh-feedback\" aria-haspopup=\"dialog\" onClick={onFeedback}>{t(\"board.rail.feedback.menu\")}</button>}");
+    expect(sheet.indexOf("kh-feedback")).toBeLessThan(sheet.indexOf("className=\"kh-tour\" onClick={onTour}"));
+    expect(decl(".kh-feedback + .kh-tour", "margin-left")).toBe("0");
+    expect(src("../components/DeckDialogs.tsx")).toContain("onFeedback={() => { setKeyHelpOpen(false); openFeedback(); }}");
+  });
 });
 
 describe("Tour", () => {
@@ -197,7 +203,11 @@ describe("Tour", () => {
     expect(guide).toContain("if (finish) finish.act(); else onClose();");
     expect(guide).toContain("useModalDismiss(onClose,");
     // One flag: the welcome hook stores tourSeen when the tour closes, whichever way.
-    expect(src("../components/DeckDialogs.tsx")).toContain("onClose={closeTour}");
+    // Done (the tour's `finish`) and every other close each end in closeTour; they
+    // differ only in the feature name the usage reports get (feature-use.ts).
+    const dialogs = src("../components/DeckDialogs.tsx");
+    expect(dialogs).toContain('act: () => { noteFeature("tour-done"); closeTour(); }');
+    expect(dialogs).toContain('onClose={() => { noteFeature("tour-skipped"); closeTour(); }}');
   });
 });
 

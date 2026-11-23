@@ -656,7 +656,6 @@ const catalog: Catalog = {
   "settings.account.copy.vetoed": "このマシンではオフです。ccdeck が AGENTS_DECK_NO_ACCOUNT=1 または AGENTS_DECK_NO_INSTALL=1 で起動されており、どのアカウントにも接続されません。",
   "settings.account.copy.loading": "この ccdeck のアカウントを読み込み中…",
   "settings.account.copy.unreachable": "ccdeck から応答がありません。再起動中の可能性があります。",
-  "settings.account.copy.explain": "この ccdeck を ccdeck アカウントに接続すると、app.ccdeck.dev のマシンに表示され、選んだ設定を他の ccdeck と同期できます。",
   "settings.account.copy.sent": "接続中は 15 秒ごとに、名前、バージョン、システム、CPU とメモリの使用状況、実行中または対応待ちのセッション数を送信します。セッションの内容や名前、ファイル、Claude アカウントは送信しません。送信内容と同期する設定は ccdeck のサーバーに保存され、サーバー側で読み取れます。",
   "settings.account.copy.nameNote": "アカウントでのこの ccdeck の表示名です。このコンピュータの名前を使いたくない場合は、接続する前に変更してください。",
   "settings.account.copy.connecting": "ブラウザでこの ccdeck を承認してください。表示されるコードがこの画面と一致しているか確認してください。",

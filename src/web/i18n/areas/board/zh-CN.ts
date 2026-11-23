@@ -392,6 +392,7 @@ const catalog: Catalog = {
   "board.rail.search.detail": "面板、会话、设置、操作和主题",
   "board.rail.feedback": "反馈",
   "board.rail.feedback.menu": "发送反馈",
+  "board.rail.feedback.detail": "报告错误或分享建议",
   "board.rail.tools.activity": "工具活动",
   "board.rail.tools.short": "工具",
   "board.rail.tools.detail": "您的代理运行了哪些工具、耗时多久、哪些失败",

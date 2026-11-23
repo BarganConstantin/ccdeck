@@ -142,9 +142,64 @@ export function createSync({ client, token, state: initial, persist = async () =
     if (!profile) return false;
     s.mode = doc.mode === "shared" ? "shared" : "independent";
     s.overrides = Array.isArray(doc.overrides) ? doc.overrides.filter(k => typeof k === "string") : s.overrides;
+    // A revision counts within one profile: joining or leaving shared settings
+    // starts this device's count again, or the shared profile's r2 would look
+    // applied already to a deck whose own profile had reached r2.
+    if (profile.id !== s.profileId) s.appliedRevision = null;
     s.profileId = profile.id;
     s.base = profile;
     s.own = keptProfile(doc.own) ?? (s.mode === "independent" ? profile : s.own);
+    return true;
+  }
+
+  /** The bound profile's revision, for a tab to put on screen — unless this
+   *  device has processed it already. */
+  function applyBase() {
+    const revision = s.base.revision;
+    if (revision <= (s.appliedRevision ?? -1)) return;
+    const values = resolvedBase();
+    // Nothing to apply is still a revision this device has processed.
+    if (Object.keys(values).length) s.apply = { revision, values };
+    else s.appliedRevision = revision;
+  }
+
+  /**
+   * The edits in `edits` that `latest` does not hold yet; the ones it holds
+   * leave the pending set. An edit the account already holds is one this deck
+   * saved without hearing back — the API wrote it after the deck's timeout —
+   * or the same change made elsewhere: either way there is nothing to choose.
+   */
+  function stillOpen(latest, edits) {
+    const open = {};
+    for (const [k, v] of Object.entries(edits ?? {})) {
+      if (Object.hasOwn(latest.values, k) && latest.values[k] === v) {
+        if (s.pending?.values[k] === v) delete s.pending.values[k];
+      } else open[k] = v;
+    }
+    if (s.pending && !Object.keys(s.pending.values).length) s.pending = null;
+    return open;
+  }
+
+  /**
+   * A conflict whose latest revision holds every edit it was raised over has
+   * nothing left to choose — the person set them to the account's values, or
+   * a deck kept such a conflict from before — and ends: the latest is the base.
+   */
+  function settleConflict() {
+    const c = s.conflict;
+    if (!c) return false;
+    const edits = s.mode === "shared"
+      ? splitByOverrides(s.pending?.values, s.overrides)[c.target === "own" ? "own" : "shared"]
+      : (s.pending?.values ?? {});
+    if (Object.keys(stillOpen(c.latest, edits)).length) return false;
+    s.conflict = null;
+    if (c.target === "own") {
+      s.own = c.latest;
+    } else {
+      s.base = c.latest;
+      if (s.mode === "independent") s.own = c.latest;
+      applyBase();
+    }
     return true;
   }
 
@@ -201,7 +256,22 @@ export function createSync({ client, token, state: initial, persist = async () =
           continue;
         }
         if (res.status === 409 && res.error === "revision_conflict" && res.body?.latest) {
-          s.conflict = { latest: keptProfile(res.body.latest), target };
+          const latest = keptProfile(res.body.latest);
+          if (latest && !Object.keys(stillOpen(latest, part)).length) {
+            // The account holds every edit this PUT carried: a retry of a save
+            // whose answer was lost. The latest is the base now, and whatever
+            // else it holds is applied like any pulled revision.
+            if (target === "bound") {
+              s.base = latest;
+              if (s.mode === "independent") s.own = latest;
+              applyBase();
+            } else {
+              s.own = latest;
+            }
+            s.local = { ...s.local, ...part };
+            continue;
+          }
+          s.conflict = { latest, target };
           s.saving = "idle";
           await changed();
           return "conflict";
@@ -246,18 +316,16 @@ export function createSync({ client, token, state: initial, persist = async () =
     // Only an edit bound for THIS profile conflicts with it: in shared mode a
     // pending sound change is the device's own profile's business.
     const boundEdits = s.mode === "shared" ? splitByOverrides(s.pending?.values, s.overrides).shared : (s.pending?.values ?? {});
-    if (Object.keys(boundEdits).length && latest.id === s.base.id && latest.revision > s.base.revision) {
+    if (Object.keys(boundEdits).length && latest.id === s.base.id && latest.revision > s.base.revision
+      && Object.keys(stillOpen(latest, boundEdits)).length) {
       s.conflict = { latest, target: "bound" };
       return "conflict";
     }
+    // No edit of this deck's is left against the bound profile's latest (or
+    // the binding moved): a conflict raised over it has nothing left to choose.
+    if (s.conflict?.target === "bound") s.conflict = null;
     takeDocument(res.body);
-    const revision = s.base.revision;
-    if (revision > (s.appliedRevision ?? -1)) {
-      const values = resolvedBase();
-      // Nothing to apply is still a revision this device has processed.
-      if (Object.keys(values).length) s.apply = { revision, values };
-      else s.appliedRevision = revision;
-    }
+    applyBase();
     return "pulled";
   }
 
@@ -349,7 +417,10 @@ export function createSync({ client, token, state: initial, persist = async () =
     });
   }
 
-  /** The join preview: this device's values against the shared profile's. */
+  /** The join preview: this device's values against the shared profile's.
+   *  The keys this device keeps for itself (sound, unless told otherwise)
+   *  stay as they are whichever way it joins, so they are not differences:
+   *  listing them would say joining changes them. */
   async function preview() {
     const res = await client.get("/v1/device/settings?include=shared", { token: token() });
     if (unauthorized(res)) return { error: "revoked" };
@@ -358,7 +429,9 @@ export function createSync({ client, token, state: initial, persist = async () =
     const local = shownValues();
     const differences = [];
     if (shared) {
+      const kept = new Set(s.overrides);
       for (const key of new Set([...Object.keys(local), ...Object.keys(shared.values)])) {
+        if (kept.has(key)) continue;
         const a = Object.hasOwn(local, key) ? local[key] : null;
         const b = Object.hasOwn(shared.values, key) ? shared.values[key] : null;
         if (a !== b) differences.push({ key, local: a, shared: b });
@@ -463,7 +536,12 @@ export function createSync({ client, token, state: initial, persist = async () =
     /** A frame's answer: a newer revision is pulled, and whatever is pending is
      *  tried again — every successful frame is a sign the API is reachable. */
     async onControl(settings) {
-      const newer = settings && typeof settings.revision === "number"
+      await serial(async () => { if (settleConflict()) await changed(); });
+      // A revision the conflict on show already holds is not news: pulling it
+      // again on every frame only wears the API's patience (429).
+      const known = s.conflict?.target === "bound" && settings?.profileId === s.conflict.latest.id
+        && typeof settings.revision === "number" && settings.revision <= s.conflict.latest.revision;
+      const newer = !known && settings && typeof settings.revision === "number"
         && (settings.profileId !== s.profileId || settings.revision > s.base.revision);
       if (newer) await pull();
       if (s.pending && !s.conflict) await save();
