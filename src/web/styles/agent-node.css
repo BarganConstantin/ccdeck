@@ -410,9 +410,10 @@
 .agent-node .state-line[data-tone="partial"] .state-mark { color: var(--warn); }
 .agent-node .state-line[data-tone="err"] .state-mark { color: var(--err); }
 .agent-node .state-line[data-tone="waiting"] .state-mark { color: var(--warn); }
-/* Working breathes on the deck's one live tempo; Waiting does not pulse — its
-   row below carries the ping. The mark is a shape as well as a colour, so the
-   state never depends on this motion (state-channels). */
+/* Working breathes on the deck's one live tempo; Waiting holds still — its
+   --warn edge, this mark and the ask line say it, and none of them moves. The
+   mark is a shape as well as a colour, so the state never depends on this
+   motion (state-channels). */
 .agent-node .state-line[data-tone="active"] .state-mark {
   color: var(--inflight);
   animation: pulse var(--pulse-live) infinite;
