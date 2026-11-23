@@ -449,7 +449,9 @@ describe("Settings › General › Elsewhere on the deck", () => {
     const column = flat(read("../use-left-column.ts"));
     // CHANGED ON PURPOSE (the owner's phone layout): on a phone the panel is a
     // sheet over the list and does not take its place.
-    expect(column).toContain("const openAccountsPanel = useCallback(() => { accountsEvictedRef.current = false; setAccountsPanelOpen(open => { if (!open && !loadsOnPhone()) setSessionListOpen(false); return true; }); }, []);");
+    // CHANGED ON PURPOSE (the owner, 2026-11-23): nor does it beside a canvas:
+    // it opens under an open list, which stays. The open still only opens.
+    expect(column).toContain("const openAccountsPanel = useCallback(() => setAccountsPanelOpen(true), []);");
     const app = flat(read("../App.tsx"));
     // Both sides of the panel draw Local network (#2472), so the door no
     // longer moves the panel to Claude's side: the side that is up answers it.

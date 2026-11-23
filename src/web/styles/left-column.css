@@ -1,26 +1,33 @@
 /* ---------------- the left column ---------------- */
 /* ONE ELEMENT FOR THE SLOT THE SESSION LIST AND ACCOUNTS SHARE (2026-10-08).
    The two panels were grid items of their own, and the column was whatever the
-   first track made of them. A switch has both in it for the 200ms the leaving
-   one takes to go, and the track then opened to the session list's longest
+   first track made of them. A switch had both in it for the 200ms the leaving
+   one took to go, and the track then opened to the session list's longest
    row, 360px on the demo deck and half the window on a busy one, before it
    snapped to 240px.
 
    Now the column owns the slot, the bed, the edge and the motion. Its width is
-   App's (leftColumnWidth in use-left-column.ts): the open panel's own, or 0.
-   The panels are out of flow inside it, each at its own width from its first
-   frame to its last, so neither can size the column and neither ever reflows.
+   App's (leftColumnWidth in use-left-column.ts): the panels' one width, or 0.
+   Each panel is drawn at that width from its first frame to its last, and
+   the column clips them, so neither can size the column and neither ever
+   reflows while it moves.
 
-   THE MOTION. The width eases from wherever it is to the new panel's, and
-   the canvas, the grid's 1fr beside it, rides the edge frame by frame; the
-   board is re-packed once, when the column settles (use-canvas-size.ts).
+   ONE UNDER THE OTHER (the owner, 2026-11-23). Each door opens its own panel
+   and leaves the other open, so the column is a stack: Sessions on top,
+   Accounts under it, as Usage stands over This machine in the right column
+   (panel-place.css). Below.
+
+   THE MOTION. The width eases from wherever it is to the new one, and the
+   canvas, the grid's 1fr beside it, rides the edge frame by frame; the board
+   is re-packed once, when the column settles (use-canvas-size.ts).
    Transitions, not keyframes, so pressing L and A back and forth retargets
    from the frame on screen instead of restarting.
      · open: the column grows from nothing and the panel slides in with its
        edge, the same duration and curve, so the panel's right edge IS the
        column's edge on every frame;
-     · switch: the panel leaving fades out fast where it stands, and the one
-       arriving fades in a beat later, at its own width, on top;
+     · the second panel: the column is open already and keeps its width, and
+       the panel fades in where the stack puts it; one of two closing fades
+       out where it stands, and the other takes its room once it has gone;
      · close: the panel slides out with the edge as the column closes, and
        fades as it goes, a little faster than it came.
    240ms on the iOS drawer curve, brisk because the column changes tens of
@@ -30,6 +37,8 @@
   grid-column: 1;
   grid-row: 2 / -1;
   position: relative;
+  display: flex;
+  flex-direction: column;
   width: var(--left-col-w);
   min-height: 0;
   overflow: hidden;
@@ -43,20 +52,30 @@
   .left-column { width: 0; }
 }
 
-/* Each panel keeps its own width, and its own bed for the cross-fade; the edge
-   is the column's, so a panel narrower than the column for a moment draws no
-   line of its own inside it. */
+/* Each panel keeps its own width and its own bed; the edge is the column's, so
+   a panel narrower than the column for a moment draws no line of its own
+   inside it. Alone, a panel has the whole column, top to bottom. */
 .left-column > .session-list,
 .left-column > .accounts-panel {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
   z-index: 1;
   border-right-color: transparent;
   transition:
     transform var(--dur-move) var(--ease-stage),
     opacity var(--dur-base) var(--ease) var(--delay-step);
+}
+/* BOTH OPEN: the right column's rule (panel-place.css) with the two roles set
+   top and bottom. Sessions, on top, takes what is left and keeps at least
+   half; Accounts, under it, takes its content's height up to the rest, and
+   past that its own roster scrolls inside it (accounts-panel.css) while its
+   header and foot stand. One surface, the column's, with a 1px --line between
+   the two and no gap. No splitter: the column has one edge, its width's. */
+.left-column > .session-list:has(~ .accounts-panel) { min-height: 50%; }
+.left-column > .session-list ~ .accounts-panel {
+  flex: 0 1 auto;
+  border-top: 1px solid var(--line);
 }
 /* THE LIST'S OWN WIDTH (internal #103): the reader's, dragged at its right edge
    and kept in the browser (rail-width.ts), or the density's when nothing is
@@ -71,8 +90,8 @@
    nothing on the way. */
 .left-column[data-resizing] { transition: none; user-select: none; }
 /* How a panel arrives: alone, it came with the column and slides in with the
-   edge; beside another, the column was already open and it fades in where it
-   stands. */
+   edge; beside another, the column was already open and it fades in where the
+   stack puts it. */
 @starting-style {
   .left-column > :only-child { transform: translateX(-100%); }
   .left-column > :not(:only-child) { opacity: 0; }
@@ -80,9 +99,10 @@
      between them: a thing pressed over and over does not wait on a fade. */
   .left-column > .accounts-panel[data-side] { opacity: 1; }
 }
-/* How a panel leaves: under the one arriving, faded out before that one is
-   halfway in, and no longer the reader's (LeftColumn.tsx makes it inert). Its
-   transform keeps easing, so one caught mid-slide does not jump. */
+/* How a panel leaves: faded out fast where it stands, and no longer the
+   reader's (LeftColumn.tsx makes it inert); the one staying takes its room
+   once it has gone, as the Inspector does on the right. Its transform keeps
+   easing, so one caught mid-slide does not jump. */
 .left-column > .leaving {
   z-index: 0;
   opacity: 0;

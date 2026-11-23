@@ -268,10 +268,10 @@
 /* A permission prompt's call, "Bash · npm test", is what would run, so it is
    set in mono, as the session list sets the same line (V4 top-10 #8). */
 .agent-node .waiting-said.mono { font-family: var(--font-mono); }
-/* The still twin of .ap-pulse's emitter — same 5px dot, no ping. A session
-   that finished and is resting has not earned motion; the one that cannot
-   proceed without you has, and it borrows .ap-pulse outright so the app keeps
-   one idiom for "still asking" and one reduced-motion answer for it. */
+/* The still twin of .ap-pulse's emitter — same 5px dot, no ping. It marks the
+   Continued row (StopContinue.tsx). A waiting card has no dot: since the V4
+   card it holds still, and .ap-pulse's ping is for LAN decks (DESIGN.md,
+   Motion). */
 .waiting-dot {
   width: 5px;
   height: 5px;

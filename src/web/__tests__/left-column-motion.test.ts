@@ -9,9 +9,16 @@
 // Accounts' `auto`, which outranked the session list's `240px`. An `auto` track
 // is as wide as what is in it, and the session list had no width of its own.
 //
-// Now the column is one element. Its width is leftColumnWidth's, the open
-// panel's or 0, eased from the last one, and the panels are out of flow inside
-// it, each at its own width. No panel can size the column by its content.
+// Now the column is one element. Its width is leftColumnWidth's, the panels'
+// one width or 0, eased from the last one, and each panel in it is drawn at its
+// own width, which the column clips. No panel can size the column by its
+// content.
+//
+// CHANGED ON PURPOSE (the owner, 2026-11-23): the two no longer take turns at
+// the column. With both open they stand one under the other in it, Sessions
+// on top, so the panels are in the column's flow — a flex column — rather than
+// laid over each other out of it. What this file guards is unchanged: the
+// column's width is App's alone, and no panel's content can set it.
 //
 // There is no DOM or layout in this suite, so two levels are pinned here: the
 // decision, as the functions that make it, and the grid that applies it, read
@@ -25,19 +32,31 @@ import { sourceOf } from "./client-source";
 const PANEL_WIDTHS = [288, 288];
 
 describe("the column's width is decided in one place (2026-10-08)", () => {
-  it("is the open panel's own width, or nothing", () => {
-    const width = (list: boolean, accounts: boolean, waiting: boolean) =>
-      column.leftColumnWidth(column.leftColumnPanel(list, accounts, waiting));
-    // Accounts to the session list: the list takes the column, Accounts waits.
-    expect(width(true, false, true)).toBe(288);
-    // The session list to Accounts.
-    expect(width(false, true, false)).toBe(288);
-    // The list closing in front of a panel that is waiting for it: Accounts's
-    // width at once. A render at 0 would start the column closing.
-    expect(width(false, false, true)).toBe(288);
-    expect(width(false, false, false)).toBe(0);
-    for (const list of [true, false]) for (const accounts of [true, false]) for (const waiting of [true, false]) {
-      expect([0, ...PANEL_WIDTHS], `${list} ${accounts} ${waiting}`).toContain(width(list, accounts, waiting));
+  it("is the panels' one width while either is open, or nothing", () => {
+    const width = (list: boolean, accounts: boolean) =>
+      column.leftColumnWidth(column.leftColumnPanel(list, accounts));
+    // CHANGED ON PURPOSE: was the list taking the column while Accounts waited
+    // behind it (a third, "waiting" flag). Both open is the two stacked, at
+    // the one width they share.
+    expect(width(true, true)).toBe(288);
+    expect(width(true, false)).toBe(288);
+    expect(width(false, true)).toBe(288);
+    expect(width(false, false)).toBe(0);
+    // Opening Accounts under an open list, or closing either of two, leaves
+    // the column's width as it was: the board's edge does not move. (Was: the
+    // list closing in front of a waiting panel kept Accounts's width at once,
+    // because a render at 0 would start the column closing; the same holds
+    // with no waiting, since the panel left is already open.)
+    expect(width(true, true)).toBe(width(true, false));
+    expect(width(true, true)).toBe(width(false, true));
+    for (const list of [true, false]) for (const accounts of [true, false]) {
+      expect([0, ...PANEL_WIDTHS], `${list} ${accounts}`).toContain(width(list, accounts));
+    }
+  });
+
+  it("is the reader's dragged width with both open, the same as with either alone", () => {
+    for (const [list, accounts] of [[true, true], [true, false], [false, true]] as const) {
+      expect(column.leftColumnWidth(column.leftColumnPanel(list, accounts), 264, 400), `${list} ${accounts}`).toBe(400);
     }
   });
 
@@ -102,7 +121,9 @@ const occupants = () => rules
   .map(r => ({ who: r.selector, width: decl(r.body, "width") }));
 
 describe("no panel can size the column by its content (2026-10-08)", () => {
-  // A switch: the panel arriving and the panel leaving are both in the column.
+  // Both panels in the column: open one under the other, or one of the two on
+  // its way out (CHANGED ON PURPOSE: was a switch, the panel arriving and the
+  // panel leaving).
   for (const detail of [true, false]) {
     it(`gives the track a panel's width while both panels are in it, the detail panel ${detail ? "open" : "closed"}`, () => {
       const present = new Set(["session-list", "accounts-panel", "left-column", ...(detail ? ["detail"] : [])]);
@@ -122,7 +143,7 @@ describe("no panel can size the column by its content (2026-10-08)", () => {
     });
   }
 
-  it("draws each panel at its own width, out of the column's flow", () => {
+  it("draws each panel at its own width, in a stack the column clips", () => {
     const own = (sel: string) => decl(rules.find(r => r.selector === sel)?.body ?? "", "width");
     // The rail draws at V4's --rail-w, the density's token (Default and
     // Comfortable 288, Compact and below 264 — use-left-column.ts's
@@ -133,9 +154,25 @@ describe("no panel can size the column by its content (2026-10-08)", () => {
     // CHANGED ON PURPOSE (V4's Figma): the accounts panel is drawn at the same
     // token (264 at Compact), and the column holds the rail's width for it.
     expect(own(".accounts-panel")).toBe("calc(var(--rail-w))");
+    // In the column both are drawn at the one width they share, the list's
+    // (--list-w), whatever the column's own width is doing on that frame.
+    for (const sel of [".left-column > .session-list", ".left-column > .accounts-panel"]) {
+      expect(own(sel), sel).toMatch(/^var\(--list-w, /);
+    }
+    // CHANGED ON PURPOSE (the owner, 2026-11-23): was `position: absolute`,
+    // each panel laid over the other out of the column's flow, for the switch
+    // that cross-faded them. They stand one under the other now, so they are
+    // in the column's flow, and it is the column's explicit width and its clip
+    // that keep their content from sizing it.
     const inside = rules.find(r => selectorsOf(r.selector).includes(".left-column > .session-list")
       && selectorsOf(r.selector).includes(".left-column > .accounts-panel"));
-    expect(decl(inside?.body ?? "", "position")).toBe("absolute");
+    expect(decl(inside?.body ?? "", "position")).toBe("relative");
+    expect(decl(inside?.body ?? "", "flex")).toBe("1 1 0");
+    expect(decl(inside?.body ?? "", "min-height")).toBe("0");
+    const columnRule = rules.find(r => r.selector === ".left-column")?.body ?? "";
+    expect(decl(columnRule, "display")).toBe("flex");
+    expect(decl(columnRule, "flex-direction")).toBe("column");
+    expect(decl(columnRule, "overflow")).toBe("hidden");
   });
 
   it("is as wide as App says, eased over V4's --dur-move on --ease-stage", () => {

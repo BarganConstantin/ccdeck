@@ -1054,6 +1054,11 @@ const catalog: Catalog = {
   "board.inspector.subagents.other": "{count} Subagents",
   "board.chat.noTranscript": "ccdeck liest keine Unterhaltungen von {agent}, daher gibt es hier keinen Chat. Prompts und Tool-Aufrufe der Sitzung stehen auf dem Canvas.",
   "board.stage.eventsOnly": "{agent} läuft in einem eigenen Terminal, das ccdeck hier nicht öffnen kann. Prompts, Tool-Aufrufe und Fragen an dich erscheinen auf dem Canvas.",
+  "board.list.hideRow": "Aus der Liste ausblenden",
+  "board.list.showRow": "In der Liste zeigen",
+  "board.list.hiddenRow": "{name} aus der Liste ausgeblendet",
+  "board.list.hiddenSaid": "{name} aus der Liste ausgeblendet. Rückgängig möglich.",
+  "board.list.hiddenCount": "Ausgeblendet · {n}",
 };
 
 export default catalog;

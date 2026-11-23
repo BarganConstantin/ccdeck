@@ -8,6 +8,12 @@
 // The order is held while you aim at it: nothing moves under a pointer that is
 // over the rail or a focus that is inside it, and every row travels once to
 // its new place when both have left (rail-model.ts holdOrder, rail-motion.ts).
+//
+// A row that wants nothing now can be hidden from the list (the crossed eye at
+// its trailing edge, or Delete on it from the keyboard), with an Undo for a few
+// seconds and the Hidden line at the
+// end for later; it comes back by itself when the session works again
+// (list-hidden.ts, use-list-hidden.ts).
 import { useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { isAlarming } from "../ambient-counts";
 import { useT } from "../i18n";
@@ -29,7 +35,10 @@ import { leaveHoldMs, useRailFlip, useRailMembership } from "../rail-motion";
 import { prefersReducedMotion } from "../viewport-motion";
 import { compactRowContexts, lastTypedPrompt, runningTool, sessionNames, startedHover, twinClocks, type TwinClock } from "../rail-row-copy";
 import { PauseGlyph } from "./rail-glyphs";
-import { CloseGlyph, FoldBody, GroupHead, MoreLine, PlusGlyph, RailRow, type FoldMode } from "./RailParts";
+import { CloseGlyph, FoldBody, GroupHead, HiddenLine, MoreLine, PlusGlyph, RailRow, type FoldMode, type RowAct } from "./RailParts";
+import HideUndo from "./HideUndo";
+import { canHideRow, focusAfterLeaving } from "../list-hidden";
+import { useListHidden, type HiddenUndo, type ListHiddenOffer } from "../use-list-hidden";
 
 /** The id the rail's Plus carries, so the new-session popover can hang off it. */
 export const RAIL_NEW_SESSION_ID = "rail-new-session";
@@ -255,6 +264,21 @@ function focusIsVisible(el: Element | null): boolean {
   try { return !!el && el.matches(":focus-visible"); } catch { return false; }
 }
 
+/** The list's own rows, in drawn order: the ones a group draws and the ones an
+ *  open fold holds. Not a row on its way out, and not the rows the Hidden line
+ *  lists. */
+const LIST_ROWS = ":scope > .sl-row-item, :scope > .sl-fold[data-open] .sl-row-item";
+function listRows(list: Element | null | undefined): HTMLElement[] {
+  if (!list) return [];
+  return [...list.querySelectorAll<HTMLElement>(LIST_ROWS)].filter(el => !el.classList.contains("leaving"));
+}
+
+/** A row's own button, where focus goes for it. */
+const rowButton = (item: Element | null | undefined): HTMLElement | null => item?.querySelector<HTMLElement>("button.sl-row") ?? null;
+
+/** The id the Hidden line opens. */
+const HIDDEN_LIST_ID = "sl-hidden-list";
+
 interface Props {
   state: GraphState;
   now: number;
@@ -329,11 +353,19 @@ export default function SessionList({ state, now, historyReady = true, selectedI
   // The replay fills the store in batches. Publish its rows in a single render.
   const rows = useMemo(() => historyReady ? buildRows(state, now, watching) : [],
     [state, state.revision, now, seenVersion, watchKey, historyReady]);
-  const byId = new Map(rows.map(r => [r.sessionId, r]));
+  // HIDDEN FROM THE LIST (list-hidden.ts): every session keeps its row in
+  // `rows`; the list draws the ones not hidden, and the Hidden line the rest.
+  // A row that works again comes back by itself, on the render that sees it.
+  const groupOf = new Map(rows.map(r => [r.sessionId, rank(r)]));
+  const hiding = useListHidden({ agents: state.agents, revision: state.revision, groupOf: id => groupOf.get(id), ready: historyReady });
+  const listed = rows.filter(r => !hiding.isHidden(r.sessionId));
+  const allById = new Map(rows.map(r => [r.sessionId, r]));
+  const hiddenRows = hiding.hiddenIds.flatMap(id => allById.get(id) ?? []);
+  const byId = new Map(listed.map(r => [r.sessionId, r]));
   // New finished turns keep their priority in buildRows, but share Done's
   // header, count and fold with seen turns. Looking at one clears its row
   // marker without moving it between two identically named sections.
-  const fresh: Slot[] = rows.map(r => {
+  const fresh: Slot[] = listed.map(r => {
     const group = rank(r);
     return { id: r.sessionId, group: group === 1 ? 3 : group };
   });
@@ -386,7 +418,7 @@ export default function SessionList({ state, now, historyReady = true, selectedI
   const prev = useRef<{ slots: Slot[]; rows: Map<string, Row> } | null>(null);
   const clock = Date.now();
   const live = new Set(layout.map(s => s.id));
-  if (prev.current && joinMotion({ rows: rows.length, reduced }) !== "instant") {
+  if (prev.current && joinMotion({ rows: listed.length, reduced }) !== "instant") {
     prev.current.slots.forEach((s, i) => {
       const row = prev.current!.rows.get(s.id);
       if (!live.has(s.id) && !ghosts.current.has(s.id) && row) {
@@ -422,6 +454,7 @@ export default function SessionList({ state, now, historyReady = true, selectedI
   };
 
   const list = useRef<HTMLUListElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
   useRailFlip(list, layout.map(s => `${s.group}:${s.id}`).join("|"), aimed);
   useRailMembership(list, layout.map(s => s.id), historyReady);
 
@@ -464,9 +497,78 @@ export default function SessionList({ state, now, historyReady = true, selectedI
     }
   }, [landing?.nonce, folds]);
 
+  // HIDE FROM LIST, and back. Focus leaves a row that goes only if it was in
+  // it: to the next row, else the one before, else the list's heading. A press
+  // with focus somewhere else (a mouse that does not focus buttons, a pane)
+  // leaves focus where it is. Undo and the last Show in list hand focus to the
+  // row they bring back, once it is drawn (the effect below).
+  const focusRow = useRef<string | null>(null);
+  const focusWasIn = (item: Element | null) => typeof document !== "undefined" && !!item?.contains(document.activeElement);
+  const hideRow = (sessionId: string, from: HTMLElement) => {
+    const row = byId.get(sessionId);
+    if (!row) return;
+    // The row drawn before it, so Undo puts it back there while the order is held.
+    const at = layout.findIndex(s => s.id === sessionId);
+    const after = at > 0 ? layout[at - 1].id : null;
+    const item = from.closest(".sl-row-item");
+    if (item && focusWasIn(item)) (rowButton(focusAfterLeaving(listRows(from.closest(".sl-rows")), item as HTMLElement)) ?? heading.current)?.focus();
+    hiding.hide(sessionId, row.label, after);
+  };
+  /** Undo's row goes back where it stood. Put in the held order before the
+   *  mark goes, so the render that draws it again keeps it in its place; with
+   *  nothing held, the rules' own order is its place. */
+  const undoHide = () => {
+    const kept: HiddenUndo | null = hiding.offered;
+    const row = kept ? allById.get(kept.id) : undefined;
+    if (kept && row) {
+      const base = heldRef.current ?? drawnRef.current;
+      if (!base.some(s => s.id === kept.id)) {
+        const g = rank(row);
+        const slot: Slot = { id: kept.id, group: g === 1 ? 3 : g };
+        const after = kept.after == null ? -1 : base.findIndex(s => s.id === kept.after);
+        const first = base.findIndex(s => s.group >= slot.group);
+        const to = after >= 0 ? after + 1 : first < 0 ? base.length : first;
+        const next = [...base.slice(0, to), slot, ...base.slice(to)];
+        if (heldRef.current) heldRef.current = next;
+        drawnRef.current = next;
+      }
+      focusRow.current = kept.id;
+    }
+    hiding.undo();
+  };
+  const showRow = (sessionId: string, from: HTMLElement) => {
+    const item = from.closest(".sl-row-item");
+    if (item && focusWasIn(item)) {
+      const others = item.parentElement ? [...item.parentElement.children] : [];
+      const next = focusAfterLeaving(others, item)?.querySelector<HTMLElement>(".sl-row-act");
+      if (next) next.focus();
+      else focusRow.current = sessionId;
+    }
+    hiding.show([sessionId]);
+  };
+  useEffect(() => {
+    const id = focusRow.current;
+    if (!id) return;
+    const button = rowButton(listRows(list.current).find(el => el.dataset.railId === id));
+    if (button) { focusRow.current = null; button.focus(); return; }
+    // Behind its group's fold: opened, at once, and the next render focuses it.
+    const slot = layout.find(s => s.id === id);
+    if (slot && folded.has(id)) setFolds(f => ({ open: new Set(f.open).add(slot.group), mode: { ...f.mode, [slot.group]: "instant" } }));
+    else focusRow.current = null;
+  });
+  const hideAct: RowAct = { kind: "hide", run: hideRow };
+  const showAct: RowAct = { kind: "show", run: showRow };
+  // The Hidden line's list: shut by default, and for the page's life only.
+  const [hiddenOpen, setHiddenOpen] = useState(false);
+  useEffect(() => { if (hiddenRows.length === 0) setHiddenOpen(false); }, [hiddenRows.length === 0]);
+  const offer: ListHiddenOffer = {
+    open: hiding.offered != null, name: hiding.offered?.name ?? "",
+    undo: undoHide, dismiss: hiding.dismiss, hold: hiding.hold, release: hiding.release,
+  };
+
   // A row's words and glyph follow its own state, not the group a held order
   // keeps it in: they change in place while the row waits for its move.
-  const contexts = compactRowContexts(rows, new Map(layout.map(slot => [slot.id, slot.group])));
+  const contexts = compactRowContexts(listed, new Map(layout.map(slot => [slot.id, slot.group])));
   const renderRow = (e: Entry): ReactNode => (
     <RailRow key={e.id} row={e.row} group={rank(e.row)} now={now} leaving={e.ghost}
       selected={selectedIds.has(e.id)} removed={removedIds?.has(e.id) ?? false}
@@ -476,7 +578,22 @@ export default function SessionList({ state, now, historyReady = true, selectedI
       context={contexts.get(e.row.sessionId)}
       pane={openPanes?.get(e.row.sessionId)}
       // Named in place (internal #101), from the session as the board has it.
-      rename={e.ghost ? null : renameFacts(state.agents.get(e.id))} />
+      rename={e.ghost ? null : renameFacts(state.agents.get(e.id))}
+      // Hide from list, on a row that wants nothing now; never on one leaving.
+      act={!e.ghost && canHideRow(rank(e.row)) ? hideAct : undefined} />
+  );
+  // A hidden row, as the Hidden line lists it: the same row, quieter, which
+  // still opens its session (that does not bring it back) and has one act,
+  // Show in list. Not draggable and not renamed from here.
+  const hiddenContexts = compactRowContexts(hiddenRows, new Map(hiddenRows.map(r => [r.sessionId, rank(r)])));
+  const renderHiddenRow = (r: Row): ReactNode => (
+    <RailRow key={r.sessionId} row={r} group={rank(r)} now={now} leaving={false}
+      selected={selectedIds.has(r.sessionId)} removed={removedIds?.has(r.sessionId) ?? false}
+      landNonce={null} onSelect={press} onOpenKeys={onOpenKeys}
+      compact
+      context={hiddenContexts.get(r.sessionId)}
+      pane={openPanes?.get(r.sessionId)}
+      act={showAct} />
   );
 
   const nodes: ReactNode[] = [];
@@ -518,6 +635,18 @@ export default function SessionList({ state, now, historyReady = true, selectedI
       nodes.push(<FoldBody key={`fold-${g}`} open={open} motion={mode}>{behind.map(renderRow)}</FoldBody>);
     }
   }
+  // HIDDEN · N, the list's last line, only while something is hidden: the way
+  // back for a row whose Undo has gone. Opened, the hidden rows under it.
+  if (hiddenRows.length > 0) {
+    nodes.push(<HiddenLine key="hidden" count={hiddenRows.length} open={hiddenOpen} controls={HIDDEN_LIST_ID} onToggle={() => setHiddenOpen(o => !o)} />);
+    if (hiddenOpen) {
+      nodes.push(
+        <li key="hidden-rows" className="sl-hidden">
+          <ul id={HIDDEN_LIST_ID} className="sl-hidden-list">{hiddenRows.map(renderHiddenRow)}</ul>
+        </li>,
+      );
+    }
+  }
 
   return (
     // The id outlived the aria-controls it was named for: the topbar toggle
@@ -536,7 +665,7 @@ export default function SessionList({ state, now, historyReady = true, selectedI
             (#381). This <aside> was already the shape the other two panels
             were given there; only its heading moved. The groups say what the
             waiting and live chips used to. */}
-        <h2>{t("board.list.title")} {historyReady && <span className="sl-count">{rows.length}</span>}</h2>
+        <h2 ref={heading} tabIndex={-1}>{t("board.list.title")} {historyReady && <span className="sl-count">{listed.length}</span>}</h2>
         <div className="sl-header-end">
           {/* New session, V4's Plus: the launch the Command Panel's navigator
               already has (its popover hangs off this button's id). Drawn only
@@ -555,6 +684,9 @@ export default function SessionList({ state, now, historyReady = true, selectedI
       <ul className="sl-rows" ref={list} aria-busy={!historyReady || undefined}>
         {nodes}
       </ul>
+      {/* Hide from list's Undo, over the foot of the list and above the line
+          under it: a dock of no height, so nothing moves for it. */}
+      <div className="sl-undo-dock"><HideUndo offer={offer} /></div>
       {(() => {
         // Counted from what is off the board now, not from the stored ids: a
         // removed session the deck has since forgotten is nothing to bring back.

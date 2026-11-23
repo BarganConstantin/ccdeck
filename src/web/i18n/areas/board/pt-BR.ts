@@ -1054,6 +1054,11 @@ const catalog: Catalog = {
   "board.inspector.subagents.other": "{count} subagentes",
   "board.chat.noTranscript": "O ccdeck não lê as conversas do {agent}, então não há chat para mostrar aqui. Os prompts e as chamadas de ferramentas ficam no quadro.",
   "board.stage.eventsOnly": "O {agent} roda no próprio terminal, e o ccdeck não consegue abri-lo aqui. Os prompts, as chamadas de ferramentas e as perguntas para você aparecem no quadro.",
+  "board.list.hideRow": "Ocultar da lista",
+  "board.list.showRow": "Mostrar na lista",
+  "board.list.hiddenRow": "{name} foi ocultada da lista",
+  "board.list.hiddenSaid": "{name} foi ocultada da lista. Desfazer disponível.",
+  "board.list.hiddenCount": "Ocultas · {n}",
 };
 
 export default catalog;

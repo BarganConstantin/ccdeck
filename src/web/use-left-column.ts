@@ -1,23 +1,22 @@
-// The left column: one slot, and two panels that want it.
+// The left column: the session list and the accounts panel, one under the other.
 //
-// The session list and the accounts panel share the left column of the grid, and
-// opening either evicts the other rather than stacking both in the same slot.
-// An eviction is not the reader closing the panel (#824): it is remembered, never
-// written to storage as a close, and undone when the list gives the column back.
+// Both are drawn in the left column of the grid, and each door opens and closes
+// its own panel only. With both open the list is on top and Accounts under it,
+// a 1px line between them, as Usage stands over This machine in the right
+// column (styles/left-column.css). The column has one width either way.
+//
+// It used to be one slot the two took turns at: opening either evicted the
+// other, and an eviction was remembered rather than stored as a close (#824).
+// The owner asked for both at once (2026-11-23), so nothing is evicted any more
+// and there is nothing to remember. A store written while that was the rule
+// loads as it stands: a list and an Accounts both stored open are the two
+// stacked, which is what the reader had asked for and only one of them got.
 //
 // Lifted out of App.tsx's `Inner`, where it was spread across three places a
-// hundred lines apart — the list's state near the top, the panel's state and its
-// eviction further down, and the two toggles further still.
-//
-// What the move buys is an invariant. The setters are private, so the only ways
-// to OPEN either panel are the two toggles and Settings' door to the accounts
-// panel (the toggle's opening half, #2176), which are the only code that knows
-// about the other one. Before, any line in `Inner` could call
-// `setAccountsPanelOpen(true)` with the list open and draw both panels into one
-// slot. Closing is still free — `closeSessionList` / `closeAccountsPanel` — and
-// closing the list by any route still gives the panel its column back, because
-// that is an effect on the list's state rather than a step each caller must
-// remember.
+// hundred lines apart. The setters are private, so every open and close goes
+// through the functions below, and the rules that keep a flag out of storage —
+// a phone's load, a narrowing to a phone, Workspace — sit here, beside the
+// writes they hold back.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { readStored, writeStored } from "./storage";
 import { prefersReducedMotion } from "./viewport-motion";
@@ -55,28 +54,26 @@ export function useRailWidth(): number {
   return width;
 }
 
-/** Which of the two the column is for. */
+/** One of the two panels the column holds. */
 export type LeftPanel = "session-list" | "accounts";
 
-/** The panel the column is for, given the two open flags and whether the
- *  accounts panel is waiting behind the list (#824). The list wins: opening it
- *  evicts the panel. A panel waiting behind a list that has just closed is the
- *  column's already — it is reopened by an effect one render later, and a
- *  column that took that render to be empty would start to close. */
-export function leftColumnPanel(sessionListOpen: boolean, accountsOpen: boolean, accountsWaiting: boolean): LeftPanel | null {
+/** The panel at the top of the column, given the two open flags: the list when
+ *  it is open, else Accounts, else nothing. With both open, Accounts stands
+ *  under the list in the same column, so whether the column is drawn and how
+ *  wide it is follow from this alone. */
+export function leftColumnPanel(sessionListOpen: boolean, accountsOpen: boolean): LeftPanel | null {
   if (sessionListOpen) return "session-list";
-  return accountsOpen || accountsWaiting ? "accounts" : null;
+  return accountsOpen ? "accounts" : null;
 }
 
 /** THE WIDTH THE COLUMN IS DRAWN AT, decided here and only here: the open
- *  panel's own, or nothing. During a switch both panels are in the column —
- *  the one arriving and the one leaving — and the column used to be whatever
- *  the grid's track made of the two: the session list had no width of its
- *  own, the accounts panel's `auto` template outranked its 240px one, and the
- *  track opened to the list's longest row, half the window on a busy deck,
- *  until the leaving panel unmounted 200ms later and it snapped to 240. The
+ *  panel's own, or nothing. The column used to be whatever the grid's track
+ *  made of the two panels in it: the session list had no width of its own,
+ *  the accounts panel's `auto` template outranked its 240px one, and the track
+ *  opened to the list's longest row, half the window on a busy deck. The
  *  column is one element now, this is its width, and the sheet eases it from
- *  the last one: every frame of a switch is between the two panels' widths. */
+ *  the last one. With both panels open, one under the other, it is the same
+ *  width: the two share it. */
 export function leftColumnWidth(panel: LeftPanel | null, railWidth: number = SESSION_LIST_WIDTH, listWidth: number = railWidth): number {
   // The list's own width: the one the reader dragged its edge to, held to the
   // window, else the density's (rail-width.ts, internal #103).
@@ -124,14 +121,20 @@ function loadAccountsPanelOpen(): boolean {
   return readStored(ACCOUNTS_PANEL_OPEN_KEY) === "1";
 }
 
+/** Which of the two flags Workspace keeps out of storage for now: the list it
+ *  put in the column, or the whole column it emptied. */
+export type StoreHeld = "list" | "both";
+/** Neither flag held. Replaced whole, never changed in place. */
+const NOTHING_HELD: Readonly<{ list: boolean; accounts: boolean }> = { list: false, accounts: false };
+
 export interface LeftColumn {
   sessionListOpen: boolean;
   accountsPanelOpen: boolean;
-  /** Which panel the column is for — leftColumnPanel. */
+  /** The panel at the top of the column — leftColumnPanel. */
   panel: LeftPanel | null;
-  /** Opening the list takes the column; an open accounts panel is evicted. */
+  /** The list opened or closed. Accounts is left as it is. */
   toggleSessionList: () => void;
-  /** The reader's own call on the panel, which also ends any eviction. */
+  /** Accounts opened or closed. The list is left as it is. */
   toggleAccountsPanel: () => void;
   /** The panel opened, or left open if it is — Settings' door to it (#2176). */
   openAccountsPanel: () => void;
@@ -139,27 +142,27 @@ export interface LeftColumn {
   /** The list closing to show the session just picked, on a phone. */
   closeSessionListToCanvas: () => void;
   closeAccountsPanel: () => void;
-  /** Whatever the column holds goes, the eviction memory with it (Workspace
-   *  under 1100, where the column would be a sheet over the pane). */
+  /** Whatever the column holds goes (Workspace under 1100, where the column
+   *  would be a sheet over the pane). */
   dismissColumn: () => void;
-  /** The window grew past a phone's width: with the list and Accounts both
-   *  open, Accounts is evicted (use-phone-sheets.ts). */
-  leavePhone: () => void;
   /** Accounts waits shut while another sheet keeps a phone's screen: not
    *  stored (use-phone-sheets.ts). */
   holdAccounts: () => void;
   /** WORKSPACE changing the column is not the reader's choice, so it is not
-   *  stored: `hold` stops the two writes, `release` lets them go on, with
-   *  `write` saying whether the column as it stands is the reader's. */
-  storeHold: { hold: () => void; release: (write: boolean, baseline?: { list: boolean; accounts: boolean }) => void };
+   *  stored: `hold` stops the writes of the flags it names, `release` lets them
+   *  go on, with `write` saying whether the column as it stands is the
+   *  reader's. */
+  storeHold: { hold: (held: StoreHeld) => void; release: (write: boolean, baseline?: { list: boolean; accounts: boolean }) => void };
 }
 
 export function useLeftColumn(): LeftColumn {
   const accountsHeldRef = useRef(false);
   /** Workspace has put the list in the column, or taken out what it held:
    *  neither is written, so a reload (or a crash) in Workspace comes back to
-   *  the column the reader left, and leaving gives it back. */
-  const workspaceHeldRef = useRef(false);
+   *  the column the reader left, and leaving gives it back. Per flag: putting
+   *  the list in holds the list's write alone, and the reader's own Accounts
+   *  under it is stored as ever. */
+  const workspaceHeldRef = useRef(NOTHING_HELD);
   /** Left sidebar (session list) visibility — persisted across refresh. */
   /** A phone opens on Sessions, full width: the list is the home screen there,
    *  whatever the browser stored for a wider window, which this load leaves as
@@ -172,109 +175,52 @@ export function useLeftColumn(): LeftColumn {
   });
   useEffect(() => {
     if (phoneOpenedRef.current) { phoneOpenedRef.current = false; return; }
-    if (workspaceHeldRef.current) return;
+    if (workspaceHeldRef.current.list) return;
     saveSessionListOpen(sessionListOpen);
   }, [sessionListOpen]);
-  /** True while the session list holds the left column the accounts panel was
-   *  open in (#824). Opening the list used to close the panel for good: the
-   *  close was persisted as "0", so the panel stayed gone across reloads, and a
-   *  reader lost a panel they never closed. An eviction is not that choice — it
-   *  is remembered here, never written as one, and undone when the list goes. */
-  const accountsEvictedRef = useRef(false);
   const [accountsPanelOpen, setAccountsPanelOpen] = useState<boolean>(() => {
     const wanted = loadAccountsPanelOpen();
     // A phone's load opens Sessions alone: Accounts is a sheet over it, from its door.
     if (wanted && loadsOnPhone()) { accountsHeldRef.current = true; return false; }
-    // The list holds the column on this load, so the panel waits behind it.
-    if (wanted && sessionListOpen) { accountsEvictedRef.current = true; return false; }
+    // Wider, it opens as it was left, under the list when that is open too.
     return wanted;
   });
   useEffect(() => {
     if (accountsPanelOpen) accountsHeldRef.current = false;
     else if (accountsHeldRef.current) return;
-    if (workspaceHeldRef.current) return;
-    // An eviction is not the reader closing the panel, so it is not stored as one.
-    if (!accountsPanelOpen && accountsEvictedRef.current) return;
+    if (workspaceHeldRef.current.accounts) return;
     writeStored(ACCOUNTS_PANEL_OPEN_KEY, accountsPanelOpen ? "1" : "0");
   }, [accountsPanelOpen]);
-  // The list gave the column back, by any of its ways out: so does the panel it
-  // took the column from (#824).
-  useEffect(() => {
-    if (!sessionListOpen && accountsEvictedRef.current) {
-      accountsEvictedRef.current = false;
-      setAccountsPanelOpen(true);
-    }
-  }, [sessionListOpen]);
 
-  // One left column, two things that want it. Opening either evicts the other
-  // rather than fighting over the same grid slot.
-  //
-  // Still two, and still both callers' problem, even though only one of them
-  // has a button left: the session list is reached from L alone now, and the
-  // eviction is what stops that key from stacking it under an open accounts
-  // panel in the same slot.
-  const toggleSessionList = useCallback(() => {
-    setSessionListOpen(open => {
-      // Opening the list takes the column. If the panel was in it, that is an
-      // eviction to undo when the list closes (#824), not the panel closing.
-      // On a phone Accounts is a sheet over the list, not a panel that takes its place.
-      if (!open && !loadsOnPhone()) setAccountsPanelOpen(was => { if (was) accountsEvictedRef.current = true; return false; });
-      return !open;
-    });
-  }, []);
-  const toggleAccountsPanel = useCallback(() => {
-    // The reader's own call on the panel ends any eviction.
-    accountsEvictedRef.current = false;
-    setAccountsPanelOpen(open => {
-      if (!open && !loadsOnPhone()) setSessionListOpen(false);
-      return !open;
-    });
-  }, []);
+  // Each door toggles its own panel and leaves the other as it is: two open
+  // are one under the other in the same column (styles/left-column.css), and
+  // on a phone Accounts is a sheet over the list, so on no width does one
+  // take the other's place.
+  const toggleSessionList = useCallback(() => setSessionListOpen(open => !open), []);
+  const toggleAccountsPanel = useCallback(() => setAccountsPanelOpen(open => !open), []);
 
   // Settings › General's door to the panel (#2176): the toggle's opening half
   // alone. A door that shut a panel already open would hide the very thing it
-  // names, and pressed while the list holds the column it takes the column
-  // back, as A would, ending the eviction rather than queueing behind it.
-  const openAccountsPanel = useCallback(() => {
-    accountsEvictedRef.current = false;
-    setAccountsPanelOpen(open => {
-      if (!open && !loadsOnPhone()) setSessionListOpen(false);
-      return true;
-    });
-  }, []);
+  // names. The list, open or not, stays as it is.
+  const openAccountsPanel = useCallback(() => setAccountsPanelOpen(true), []);
 
   const closeSessionList = useCallback(() => setSessionListOpen(false), []);
   /** On a phone the column is a drawer over the canvas, and the list closes
-   *  there to show the session the reader just picked. The panel it evicted
-   *  stays closed this once instead of sliding back over that session; the
-   *  stored preference is untouched, so the next load still opens it. */
-  const closeSessionListToCanvas = useCallback(() => {
-    accountsEvictedRef.current = false;
-    setSessionListOpen(false);
-  }, []);
+   *  there to show the session the reader just picked. Accounts is a sheet of
+   *  its own there and is left as it is; the stored preference is untouched,
+   *  so the next load still opens the list. */
+  const closeSessionListToCanvas = closeSessionList;
   const closeAccountsPanel = useCallback(() => setAccountsPanelOpen(false), []);
   const dismissColumn = useCallback(() => {
-    accountsEvictedRef.current = false;
     setSessionListOpen(false);
     setAccountsPanelOpen(false);
   }, []);
 
-  const panel = leftColumnPanel(sessionListOpen, accountsPanelOpen, accountsEvictedRef.current);
+  const panel = leftColumnPanel(sessionListOpen, accountsPanelOpen);
 
   // What the column is now, for a release that keeps it as the reader left it.
   const nowRef = useRef<{ sessionListOpen: boolean; accountsPanelOpen: boolean } | null>(null);
   nowRef.current = { sessionListOpen, accountsPanelOpen };
-  /** The window grew past a phone's width with the list and Accounts both open
-   *  (on a phone Accounts is a sheet over the list): they cannot share the
-   *  column, so Accounts waits behind the list as an eviction does, and comes
-   *  back when the list goes. It is not the reader closing it, so nothing is
-   *  stored. */
-  const leavePhone = useCallback(() => {
-    const now = nowRef.current;
-    if (!now || !now.sessionListOpen || !now.accountsPanelOpen) return;
-    accountsEvictedRef.current = true;
-    setAccountsPanelOpen(false);
-  }, []);
   /** A window narrowed to a phone's width with several panels open draws one
    *  sheet, and Accounts, the lowest, waits shut: in memory, by the hold a
    *  phone's load uses, so the flag turns false and is not written. The
@@ -284,35 +230,37 @@ export function useLeftColumn(): LeftColumn {
     setAccountsPanelOpen(false);
   }, []);
   const storeHold = useMemo(() => ({
-    hold: () => { workspaceHeldRef.current = true; },
-    // `baseline` is the column as Workspace itself left it: only a flag that
-    // differs from it is the reader's, and only that one is written.
+    hold: (held: StoreHeld) => { workspaceHeldRef.current = { list: true, accounts: held === "both" }; },
+    // `baseline` is the column as Workspace itself left it: only a held flag
+    // that differs from it is the reader's, and only that one is written. A
+    // flag that was not held has been written all along.
     release: (write: boolean, baseline?: { list: boolean; accounts: boolean }) => {
-      workspaceHeldRef.current = false;
+      const held = workspaceHeldRef.current;
+      workspaceHeldRef.current = NOTHING_HELD;
       const now = nowRef.current;
       if (!write || !now) return;
-      if (!baseline || now.sessionListOpen !== baseline.list) saveSessionListOpen(now.sessionListOpen);
-      if ((!baseline || now.accountsPanelOpen !== baseline.accounts) && (now.accountsPanelOpen || !accountsEvictedRef.current)) {
+      if (held.list && (!baseline || now.sessionListOpen !== baseline.list)) saveSessionListOpen(now.sessionListOpen);
+      if (held.accounts && (!baseline || now.accountsPanelOpen !== baseline.accounts)) {
         writeStored(ACCOUNTS_PANEL_OPEN_KEY, now.accountsPanelOpen ? "1" : "0");
       }
     },
   }), []);
 
   return { sessionListOpen, accountsPanelOpen, panel, toggleSessionList, toggleAccountsPanel, openAccountsPanel,
-           closeSessionList, closeSessionListToCanvas, closeAccountsPanel, dismissColumn, leavePhone, holdAccounts, storeHold };
+           closeSessionList, closeSessionListToCanvas, closeAccountsPanel, dismissColumn, holdAccounts, storeHold };
 }
 
 /**
  * WORKSPACE's left column. The rail the view is made of is the Sessions list.
  * Entering at 1100px and wider puts the list in the column, through the state L
- * uses, when the column held the accounts panel or nothing. Entering under 1100,
- * where the column is a fixed sheet over the pane, closes whatever it holds,
- * through the state its door uses; the Sessions sheet then opens only from its
- * door. What the column held is remembered either way, and leaving gives it back
- * if the column is as entering left it. A reader who changed the column inside
- * Workspace (opened accounts or the list, closed the list) is left as they left
- * it, and the memory is forgotten. Nothing is forced at render: the doors work
- * as on the Board.
+ * uses, when it is not open already; an open Accounts stays, under it. Entering
+ * under 1100, where the column is a fixed sheet over the pane, closes whatever
+ * it holds, through the state its doors use; the Sessions sheet then opens only
+ * from its door. What the column held is remembered either way, and leaving
+ * gives it back if the column is as entering left it. A reader who changed
+ * what Workspace changed (closed the list it put there, opened a panel in the
+ * column it emptied) is left as they left it, and the memory is forgotten.
+ * Nothing is forced at render: the doors work as on the Board.
  */
 export function useWorkspaceColumn({ active, wide, column }: {
   /** Workspace is on screen (the Command Panel on, off a phone). */
@@ -322,7 +270,7 @@ export function useWorkspaceColumn({ active, wide, column }: {
   column: Pick<LeftColumn, "sessionListOpen" | "accountsPanelOpen" | "toggleSessionList" | "closeSessionList" | "openAccountsPanel" | "dismissColumn"> & { storeHold?: LeftColumn["storeHold"] };
 }): void {
   /** What entering did to the column: put the list in it, or took out what it held. */
-  const putRef = useRef<null | { kind: "list" } | { kind: "dismissed"; held: "list" | "accounts" }>(null);
+  const putRef = useRef<null | { kind: "list" } | { kind: "dismissed"; list: boolean; accounts: boolean }>(null);
   /** The column has been seen as entering left it, so a change after is the reader's. */
   const seenRef = useRef(false);
   const wasRef = useRef(false);
@@ -336,11 +284,11 @@ export function useWorkspaceColumn({ active, wide, column }: {
       seenRef.current = false;
       if (wide && !sessionListOpen) {
         putRef.current = { kind: "list" };
-        storeHold?.hold();
+        storeHold?.hold("list");
         toggleSessionList();
       } else if (!wide && (sessionListOpen || accountsPanelOpen)) {
-        putRef.current = { kind: "dismissed", held: sessionListOpen ? "list" : "accounts" };
-        storeHold?.hold();
+        putRef.current = { kind: "dismissed", list: sessionListOpen, accounts: accountsPanelOpen };
+        storeHold?.hold("both");
         dismissColumn();
       }
       return;
@@ -352,13 +300,17 @@ export function useWorkspaceColumn({ active, wide, column }: {
       // what that change makes of it.
       storeHold?.release(false);
       if (put?.kind === "list" && sessionListOpen) closeSessionList();
-      // Closing the list gives the column back to the panel it evicted (#824).
+      // The emptied column gets back what it held: the list, Accounts, or the
+      // two, one under the other.
       else if (put?.kind === "dismissed" && !sessionListOpen && !accountsPanelOpen) {
-        if (put.held === "list") toggleSessionList(); else openAccountsPanel();
+        if (put.list) toggleSessionList();
+        if (put.accounts) openAccountsPanel();
       }
       return;
     }
     if (!active || !put) return;
+    // The list Workspace put in is the only thing it changed there: Accounts
+    // under it is the reader's, and written as ever.
     const asLeft = put.kind === "list" ? sessionListOpen : !sessionListOpen && !accountsPanelOpen;
     if (asLeft) seenRef.current = true;
     else if (seenRef.current) {

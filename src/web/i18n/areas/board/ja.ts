@@ -1054,6 +1054,11 @@ const catalog: Catalog = {
   "board.inspector.subagents.other": "サブエージェント{count}件",
   "board.chat.noTranscript": "ccdeck は {agent} の会話を読み取らないため、ここに表示するチャットはありません。プロンプトとツール呼び出しはボードに表示されます。",
   "board.stage.eventsOnly": "{agent} は専用のターミナルで動作しており、ccdeck はここでは開けません。プロンプト、ツール呼び出し、あなたへの質問はボードに表示されます。",
+  "board.list.hideRow": "一覧から非表示",
+  "board.list.showRow": "一覧に表示",
+  "board.list.hiddenRow": "{name} を一覧から非表示にしました",
+  "board.list.hiddenSaid": "{name} を一覧から非表示にしました。元に戻せます。",
+  "board.list.hiddenCount": "非表示 · {n}",
 };
 
 export default catalog;

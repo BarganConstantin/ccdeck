@@ -60,10 +60,10 @@ export function foldAwareSet(
   };
 }
 
-/** A door's press on the left, which holds one panel at a time (Sessions or
- *  Accounts), answered against what is on screen. Folded, the door reads
- *  closed: the press brings the column back, and moves it to the door's panel
- *  when the other one holds it. */
+/** A door's press on the left, whose column holds Sessions, Accounts or the two
+ *  one under the other, answered against what is on screen. Folded, the door
+ *  reads closed: the press brings the column back, and opens the door's panel
+ *  in it when that panel is not open already. */
 export function foldAwarePress(press: () => void, p: { folded: () => boolean; holds: () => boolean; raise: () => void }): () => void {
   return () => {
     if (!p.folded()) { press(); return; }
