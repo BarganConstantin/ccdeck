@@ -265,6 +265,9 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
       const elsewhere = phase.stillRunning && !ours && !unsure;
       const handoff = adoptable ? p.handoff : undefined;
       const offer = adoptable && !phase.stillRunning && !handoff?.moving;
+      // Held after this pane's own Reopen here: the way on that does not wait
+      // is a new session in the same folder, only ever on its own press.
+      const fresh = phase.held && phase.stillRunning && !handoff ? p.onStartNew : undefined;
       return (
         <div className="ts-card">
           {p.context?.prompt && <div className="ts-ctx"><span className="ts-prompt">❯ </span>{p.context.prompt}</div>}
@@ -276,7 +279,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
             // and Reopen here", which would sit above a button that does it for
             // you. The header still says whether it is working or waiting.
             : elsewhere
-            ? <p className="ts-text" role="status">{t(handoff ? "board.stage.handoff.offer" : elsewhereLine(p.boardState))}</p>
+            ? <p className="ts-text" role="status">{t(handoff ? "board.stage.handoff.offer" : elsewhereLine(p.boardState, phase.held))}</p>
             : <p className="ts-text">{ours ? t(LAUNCHED_UNREACHABLE_MSG) : unsure ? t(PROVENANCE_UNKNOWN_MSG) : target.label}</p>}
           <div className="ts-acts">
             {handoff && (elsewhere || handoff.moving) && (
@@ -289,6 +292,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
                 {t(phase.busy ? REOPENING_MSG : "board.stage.reopenHere")}
               </button>
             )}
+            {fresh && <button type="button" className="btn" title={p.startNewTip} onClick={fresh}>{t(START_NEW_MSG)}</button>}
             <button type="button" className="btn" data-stage-land={offer ? undefined : true} onClick={p.onNotNow}>{t("common.notNow")}</button>
           </div>
         </div>

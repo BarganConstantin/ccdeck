@@ -278,6 +278,27 @@ describe("the body's state cards, each at the terminal's origin", () => {
       .not.toContain("Reopen here");
   });
 
+  it("says a conversation held after this pane's Reopen here is held, with a new session beside Not now", () => {
+    const target = { kind: "C" as const, label: "Running in another terminal.", adoptable: true };
+    const onStartNew = vi.fn();
+    for (const [agent, key] of [["codex", "board.stage.held.codex"], ["claude", "board.stage.held.claude"]] as const) {
+      const props = bodyProps({ kind: "not-attachable", target, stillRunning: true, busy: false, held: agent }, { onStartNew, startNewTip: "tip" });
+      const out = html(createElement(StateCard, props));
+      expect(out, agent).toContain(en[key]);
+      expect(out, `${agent}: not "quit it in that terminal"`).not.toContain(en["board.stage.elsewhere.running"]);
+      expect(out, agent).not.toContain("btn primary");
+      const tree = StateCard(props);
+      expect(button(tree, "Reopen here"), agent).toBeNull();
+      expect(button(tree, "Not now")?.props["data-stage-land"], `${agent}: the safe button takes focus`).toBe(true);
+      press(button(tree, "Start new session here"));
+    }
+    expect(onStartNew, "a new session only on its press").toHaveBeenCalledTimes(2);
+    // A card this pane's Reopen here did not lead to keeps its words and buttons.
+    const plain = bodyProps({ kind: "not-attachable", target, stillRunning: true, busy: false }, { onStartNew });
+    expect(button(StateCard(plain), "Start new session here")).toBeNull();
+    expect(html(createElement(StateCard, plain))).toContain(en["board.stage.elsewhere.running"]);
+  });
+
   it("guides a Claude handoff and keeps waiting when the old process exits", () => {
     const toggle = vi.fn();
     const target = { kind: "C" as const, label: "External session", adoptable: true };
