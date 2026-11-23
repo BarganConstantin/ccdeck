@@ -816,6 +816,141 @@ describe("how a session ends", () => {
   });
 });
 
+// Codex's own "Update now" installs the new version, says "Please restart
+// Codex." and exits 0, exactly as /exit does. The deck tells the two apart by
+// the codex on disk (codex-update.mjs); the stage restarts an updated one.
+describe("a Codex that updated itself", () => {
+  const CODEX: SessionRef = { ...REF, provider: "codex" };
+
+  /** A rig whose deck answers "did it update itself?" as `answer` does. */
+  function codexRig(answer: (liveForMs: number) => Promise<boolean>) {
+    const { r, ctl } = rig();
+    const asked = vi.fn(answer);
+    r.deps.api.codexUpdated = asked;
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    return { r, ctl, asked };
+  }
+
+  it("asks how long the pane was live, keeps the pane plainly ended while it asks, and says updated on a yes", async () => {
+    const { r, ctl, asked } = codexRig(async () => true);
+    await flush();
+    const s = await attach(r, ctl, CODEX);
+    r.clock.now += 60_000;
+    s.text({ t: "exit", reason: "ended", exitStatus: 0 });
+    expect(r.last().phase, "never clean while it asks, so the stage does not close the pane first").toEqual({ kind: "ended" });
+    expect(asked).toHaveBeenCalledTimes(1);
+    expect(asked).toHaveBeenCalledWith(60_000);
+    await flush();
+    expect(r.last().phase).toEqual({ kind: "ended", updated: true });
+    expect(r.adopt, "the stage restarts it, not the session").not.toHaveBeenCalled();
+  });
+
+  it("takes a no as the ending it would have been: clean after status 0, plain when tmux gave no status", async () => {
+    for (const [exit, phase] of [
+      [{ exitStatus: 0 }, { kind: "ended", clean: true }],
+      [{}, { kind: "ended" }],
+    ] as const) {
+      const { r, ctl, asked } = codexRig(async () => false);
+      await flush();
+      const s = await attach(r, ctl, CODEX);
+      r.clock.now += 60_000;
+      s.text({ t: "exit", reason: "ended", ...exit });
+      await flush();
+      expect(asked, JSON.stringify(exit)).toHaveBeenCalledTimes(1);
+      expect(r.last().phase, JSON.stringify(exit)).toEqual(phase);
+    }
+  });
+
+  it("takes a question that failed as a no", async () => {
+    const { r, ctl, asked } = codexRig(async () => { throw new Error("offline"); });
+    await flush();
+    const s = await attach(r, ctl, CODEX);
+    r.clock.now += 60_000;
+    s.text({ t: "exit", reason: "ended", exitStatus: 0 });
+    await flush();
+    expect(asked).toHaveBeenCalledTimes(1);
+    expect(r.last().phase).toEqual({ kind: "ended", clean: true });
+  });
+
+  it("asks nothing for a crash, a kill, an ending it never watched, or an agent that is not Codex", async () => {
+    for (const [ref, exit, phase] of [
+      [CODEX, { exitStatus: 1 }, { kind: "ended" }],
+      [CODEX, { exitSignal: 9 }, { kind: "ended" }],
+      [CODEX, { exitStatus: 0, exitSignal: 15 }, { kind: "ended" }],
+      [CODEX, { exitStatus: 0, atOpen: true }, { kind: "ended", atOpen: true }],
+      [REF, { exitStatus: 0 }, { kind: "ended", clean: true }],
+      [REF, {}, { kind: "ended" }],
+    ] as const) {
+      const { r, ctl, asked } = codexRig(async () => true);
+      await flush();
+      const s = await attach(r, ctl, ref);
+      r.clock.now += 60_000;
+      s.text({ t: "exit", reason: "ended", ...exit });
+      await flush();
+      const label = `${ref.provider} ${JSON.stringify(exit)}`;
+      expect(asked, label).not.toHaveBeenCalled();
+      expect(r.last().phase, label).toEqual(phase);
+    }
+  });
+
+  it("asks nothing for a Codex that ended before its first frame was drawn", async () => {
+    const { r, ctl, asked } = codexRig(async () => true);
+    await flush();
+    ctl.show({ kind: "session", ref: CODEX });
+    await flush();
+    const s = r.sockets[0];
+    s.open();
+    s.text({ t: "reset", cols: 120, rows: 40 });
+    s.binary(enc("LAST FRAME"));
+    s.text({ t: "exit", reason: "ended", exitStatus: 0 });
+    r.terminal().parse();
+    await flush();
+    expect(asked).not.toHaveBeenCalled();
+    expect(r.last().phase).toEqual({ kind: "ended", atOpen: true });
+  });
+
+  it("asks for a Codex the stage launched, which has no session id yet", async () => {
+    const { r, ctl, asked } = codexRig(async () => true);
+    r.launch.mockResolvedValueOnce({ ok: true, sessionId: "", name: "ccdeck-codex-9f8e7d6c", ticket: "launched" } as Launched);
+    await flush();
+    ctl.show({ kind: "launch", agent: "codex", cwd: "/w", key: "n20" });
+    await flush();
+    const s = r.sockets[0];
+    s.open();
+    s.text({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: false });
+    s.text({ t: "reset", cols: 120, rows: 40 });
+    s.binary(enc("Update available!"));
+    r.terminal().parse();
+    expect(r.last().phase.kind).toBe("live");
+    r.clock.now += 20_000;
+    s.text({ t: "exit", reason: "ended", exitStatus: 0 });
+    await flush();
+    expect(asked).toHaveBeenCalledWith(20_000);
+    expect(r.last().phase).toEqual({ kind: "ended", updated: true });
+    expect(r.launch, "launched once: the stage starts the next one").toHaveBeenCalledTimes(1);
+  });
+
+  it("drops an answer that comes after the stage moved on: Reopen here pressed, or another session shown", async () => {
+    for (const moveOn of ["reopen", "switch"] as const) {
+      let answer!: (updated: boolean) => void;
+      const { r, ctl, asked } = codexRig(() => new Promise<boolean>(res => { answer = res; }));
+      await flush();
+      const s = await attach(r, ctl, CODEX);
+      r.clock.now += 60_000;
+      s.text({ t: "exit", reason: "ended", exitStatus: 0 });
+      expect(asked, moveOn).toHaveBeenCalledTimes(1);
+      if (moveOn === "reopen") ctl.adopt();
+      else ctl.show({ kind: "session", ref: OTHER });
+      await flush();
+      const moved = r.last().phase;
+      expect(moved.kind, moveOn).toBe("attaching");
+      answer(true);
+      await flush();
+      expect(r.last().phase, moveOn).toEqual(moved);
+    }
+  });
+});
+
 describe("sending a Chat prompt on the current terminal connection", () => {
   async function promptRig(readOnly = false) {
     const { r, ctl } = rig();

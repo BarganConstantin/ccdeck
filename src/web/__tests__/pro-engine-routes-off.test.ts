@@ -128,6 +128,10 @@ const ROUTES: Array<[string, string, string?]> = [
   // deck with no engine says nothing new about this machine's folders.
   ["POST", "/api/terminal/folder", JSON.stringify({ cwd: PROJECT })],
   ["POST", "/api/terminal/folder", "{not json"],
+  // The pane's question after a Codex exits, the same: a deck with no engine
+  // ran no Codex in a pane, and says nothing about the one on this machine.
+  ["POST", "/api/terminal/codex-updated", JSON.stringify({ liveForMs: 60_000 })],
+  ["POST", "/api/terminal/codex-updated", "{not json"],
   ["POST", "/api/terminal/launch", JSON.stringify({ agent: "claude", cwd: PROJECT, pad: "x".repeat(9 * 1024) })],
 ];
 
