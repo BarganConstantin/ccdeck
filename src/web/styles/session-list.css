@@ -228,6 +228,77 @@
 }
 .session-list .sl-start:first-child { padding-left: 0; }
 
+/* ── a row's one act: Hide from list, Show in list (list-hidden.ts) ─────── */
+/* A quiet 24x24 icon button at the row's trailing edge, a sibling of the row's
+   button (never inside it), on the first line: centred where the title's line
+   is, the way the avatar is brought back to it above, so its glyph sits where
+   the status glyph does. It is on the row's own ground, so nothing under it
+   shows through. Where there is no fine hover (touch, a phone's sheet) it is
+   always there and the row keeps room for it: nothing ever slides under it. */
+.session-list .sl-row-in { position: relative; }
+.session-list .sl-row-act {
+  position: absolute;
+  top: 50%;
+  right: 3px;
+  translate: 0 calc(-50% - (19px + var(--ui-text-increase, 0px)) / 2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background-color: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+  /* With the row's own wash, so the ground under the act changes with it. */
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+              opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.session-list .sl-row-in:has(> .sl-row[data-one-line]) > .sl-row-act { translate: 0 -50%; }
+.session-list .sl-row-in:has(> .sl-row.selected, > .sl-row[data-pane-active]) > .sl-row-act { background-color: var(--selected); }
+.session-list .sl-row-in:has(> .sl-row-act) > .sl-row { padding-right: 32px; }
+.session-list .sl-row-act:active { transform: scale(var(--press-small)); }
+/* Under a fine pointer, Hide from list arrives with the pointer or with
+   keyboard focus in the row, over the row's time and status, which step aside
+   (opacity, never display, so the row keeps its width and its words for a
+   screen reader), and the row gives its room back to the words. On the row's
+   hover ground while the pointer is there, and the kit's control wash over
+   that when the pointer is on the act itself: a fill, never a ring. The focus
+   half is outside the mouse query, so it holds for every keyboard. */
+@media (hover: hover) and (pointer: fine) {
+  .session-list .sl-row-in:has(> .sl-row-hide) > .sl-row { padding-right: 8px; }
+  .session-list .sl-row-hide { opacity: 0; pointer-events: none; }
+  .session-list .sl-row-in:hover > .sl-row-hide { opacity: 1; pointer-events: auto; }
+  .session-list .sl-row-in:hover:has(> .sl-row-hide) .sl-row-status { opacity: 0; }
+  .session-list .sl-row-in:hover > .sl-row-act { background-color: var(--selected); }
+  .session-list .sl-row-act:hover { color: var(--text); background-image: linear-gradient(var(--ctl-fill), var(--ctl-fill)); }
+}
+.session-list .sl-row-in:has(:focus-visible) > .sl-row-hide { opacity: 1; pointer-events: auto; }
+.session-list .sl-row-in:has(:focus-visible):has(> .sl-row-hide) .sl-row-status { opacity: 0; }
+
+/* ── hidden from the list ────────────────────────────────────────────────── */
+/* "Hidden · N", the list's last line: the "N more" line's look, at the list's
+   own edge (8 in, as a group's label) and a group's distance below the rows. */
+.session-list .sl-hidden-item { margin-top: 4px; }
+.session-list .sl-more.sl-hidden-toggle { padding-left: 8px; }
+.session-list .sl-hidden { min-width: 0; }
+.session-list .sl-hidden-list { margin: 0; padding: 0; list-style: none; }
+/* Its rows are quieter than the list's: the name in the muted ink a row off
+   the board wears, the avatar faded. Show in list stays at full strength. */
+.session-list .sl-hidden-list .sl-label { color: var(--muted); }
+.session-list .sl-hidden-list .provider-avatar { opacity: 0.6; }
+
+/* Hide from list's Undo (components/HideUndo.tsx): Re-arrange's strip
+   (canvas.css .rearrange-undo), at the foot of the list. The dock has no
+   height, so the strip floats over the list's last rows and moves nothing; it
+   holds while the pointer or focus is on it. A long name gives way first. */
+.session-list .sl-undo-dock { position: relative; flex: none; height: 0; z-index: 2; }
+.session-list .sl-undo { bottom: 8px; min-width: 0; max-width: calc(100% - 16px); }
+.session-list .sl-undo .rearrange-undo-state { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.session-list .sl-undo .rearrange-undo-act { flex-shrink: 0; }
+
 /* LAND: the row a jump arrived at says "here" once, --accent-16 fading to
    nothing over --dur-base. Opacity only, so reduced motion keeps it. */
 .session-list .sl-land {
@@ -506,6 +577,13 @@
   /* 24 to look at, 44 to press, and the header stays 36. */
   .session-list .sl-icon-btn { position: relative; }
   .session-list .sl-icon-btn::after { content: ""; position: absolute; inset: -6px -10px -14px; }
+  /* A row's act (Hide from list, Show in list): 24 to look at, 44 tall to
+     press, reaching into the row on its left and never past the row's edge.
+     On a two-line row the act sits on the first line, 4px under the row's
+     top, so its reach goes 4 up and 16 down; the row above would take a
+     press any higher. Centred on a one-line row, it reaches 10 each way. */
+  .session-list .sl-row-act::after { content: ""; position: absolute; inset: -4px -3px -16px -10px; }
+  .session-list .sl-row-in:has(> .sl-row[data-one-line]) > .sl-row-act::after { inset: -10px -3px -10px -10px; }
 }
 
 @media (pointer: coarse) {
