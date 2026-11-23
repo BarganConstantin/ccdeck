@@ -1,4 +1,18 @@
 {
+  "4.3.5": [
+    {
+      "title": "🙈 Hide a finished session from the Sessions list",
+      "body": "Point at a finished or never-prompted session in the Sessions list, on the Board or in Workspace, and press Hide from list, or press Delete on the row you reached with the keyboard. The row goes away with an Undo for a few seconds, Hidden at the end of the list brings it back whenever you want, and a hidden session comes back by itself as soon as it works again. Only the list changes: the session, its card and its history stay as they were."
+    },
+    {
+      "title": "🗂️ Accounts opens under Sessions in the left column",
+      "body": "Opening Accounts no longer closes the Sessions list. Accounts now opens below it in the same column, the way Usage sits above This machine on the right. Sessions keeps the larger part of the height, Accounts takes the room its accounts need and scrolls inside, and each button opens or closes only its own panel. On a phone they still open one at a time."
+    },
+    {
+      "title": "🧭 A clearer hint when ccdeck can't start on its address",
+      "body": "When ccdeck can't start on its address, the message now says what to check: that the network interface is up, or this machine's name resolution. It no longer suggests a --host option that ccdeck doesn't have."
+    }
+  ],
   "4.3.4": [
     {
       "title": "🪟 A Codex started in Workspace on Windows connects to Chat",
@@ -334,6 +348,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.3.5": "Hide finished sessions from the Sessions list, and Accounts opens under Sessions",
     "4.3.4": "A Codex started in Workspace on Windows connects to Chat, and Reopen here says who holds a conversation",
     "4.3.3": "Reopen here shows it is working, and offers a way on when it can't",
     "4.3.2": "Chat shows what the agent is doing, and every account shows its quota bars again",
