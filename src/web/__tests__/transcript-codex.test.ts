@@ -213,6 +213,28 @@ describe("what is still running", () => {
   });
 });
 
+// Esc in Codex ends the turn with turn_aborted; Chat drew nothing for it, so a
+// stopped turn read as one still to answer. Claude Code's "[Request
+// interrupted by user]" has been the same line for a while.
+describe("a turn you stopped", () => {
+  const said = (text: string) => event({ type: "user_message", message: text });
+
+  it("says so where it stopped, once, as Claude Code's does", () => {
+    expect(turns(said("este gata?"), fn("c1", "exec_command", { cmd: "sleep 60" }), event({ type: "turn_aborted", reason: "interrupted" }),
+      event({ type: "turn_aborted", reason: "interrupted" }))).toEqual([
+      { kind: "user", text: "este gata?" },
+      { kind: "tool", name: "exec_command", arg: "sleep 60", mark: "terminal" },
+      { kind: "notice", what: "interrupted" },
+    ]);
+  });
+
+  it("not for a turn Codex replaced, a review that ended, or an end that gives no reason", () => {
+    for (const reason of ["replaced", "review_ended", undefined]) {
+      expect(turns(said("go on"), event({ type: "turn_aborted", reason })), String(reason)).toEqual([{ kind: "user", text: "go on" }]);
+    }
+  });
+});
+
 describe("Codex's other tools", () => {
   it("update_plan is the task list, in TodoWrite's three states", () => {
     expect(turns(

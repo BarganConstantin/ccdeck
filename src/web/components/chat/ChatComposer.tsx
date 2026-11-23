@@ -101,12 +101,14 @@ export default function ChatComposer({ value, onChange, onSend, unavailable, onS
   }
 
   // How the last stop went says it first; a stop that could not go says to
-  // press Esc in Term, with Show Term beside it.
+  // press Esc in Term, with Show Term beside it. A message that went says
+  // nothing here: the terminal taking it is not the agent taking it, and Chat
+  // says where it stands under the conversation (chat-progress.ts).
   const stopFailed = stopped === "unavailable" || stopped === "partial";
   const message = stopped === "sent" ? t("board.chat.stop.sent")
     : stopped === "changed" ? t("board.chat.stop.nothing")
     : stopFailed ? t("board.chat.stop.failed")
-    : result === "sent" ? t("board.chat.composer.sent")
+    : result === "sent" ? ""
     : result === "partial" ? t("board.chat.composer.partial")
     : result === "too-large" ? t("board.chat.composer.tooLarge")
     : result === "empty" ? t("board.chat.composer.empty")

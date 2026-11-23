@@ -546,8 +546,8 @@ export function codexTranscriptWindow(lines) {
 // ─── Codex ───────────────────────────────────────────────────────────────────
 // A Codex rollout's lines, as the turns Chat draws: what you typed and what
 // Codex said (its conversation events), one row per tool call with how it
-// went, the change an apply_patch makes, and its plan (update_plan) as the
-// task list.
+// went, the change an apply_patch makes, its plan (update_plan) as the task
+// list, and a line where you interrupted a turn.
 //
 // A CALL AND ITS RESULT ARE TWO RECORDS. Codex writes the call as a
 // `response_item` when it is made and the result as another, tied by
@@ -720,6 +720,12 @@ function codexTurns(lines) {
     if (record.type === "event_msg") {
       const message = codexMessage(payload);
       if (message) turns.push(message);
+      // A turn you stopped (Esc) says so, as Claude Code's does. Only that
+      // reason: a turn Codex replaced or a review that ended was not stopped.
+      else if (payload?.type === "turn_aborted" && payload.reason === "interrupted") {
+        const last = turns[turns.length - 1];
+        if (last?.kind !== "notice" || last.what !== "interrupted") turns.push({ kind: "notice", what: "interrupted" });
+      }
       return;
     }
     if (record.type !== "response_item" || !payload || typeof payload !== "object") return;
