@@ -15,9 +15,16 @@ import SessionNameField, { useRenaming } from "./SessionNameField";
 import { isRenameKey, type RenameFacts } from "../session-rename";
 import { beginDrag, endDrag } from "../split-drag";
 import ProviderAvatar from "./ProviderAvatar";
+import { BrowserWatchGlyph } from "./rail-glyphs";
 import type { PaneLink } from "../workspace-split";
 import { providerLabel } from "../provider-copy";
+import { withKey } from "../single-key-shortcuts";
 import type { Provider } from "../types";
+
+/** The key that hides a focused row from the list. A named key, so it works
+ *  whichever way the single-key switch is set; Backspace is not it, for the
+ *  reason the deck's Delete is Delete alone (use-deck-shortcuts.ts). */
+const HIDE_PRESS = "Delete";
 
 /** The CLI on a row's meta line: "Claude", as the row has always said it, and
  *  provider-copy.ts's name for every other one. */
@@ -85,6 +92,15 @@ export function PlusGlyph() {
 
 export type FoldMode = "animate" | "fade" | "instant";
 
+/** A row's one act, at its trailing edge: Hide from list, on a row that wants
+ *  nothing now (list-hidden.ts canHideRow), or Show in list, on a row the
+ *  Hidden line lists. `from` is the control the act came from, which is where
+ *  the list finds the row that focus leaves. */
+export interface RowAct {
+  kind: "hide" | "show";
+  run: (sessionId: string, from: HTMLElement) => void;
+}
+
 export interface RailRowProps {
   compact?: boolean;
   showContext?: boolean;
@@ -112,6 +128,43 @@ export interface RailRowProps {
    *  or F2 on it, opens the field where its name is. Left out (a row on its
    *  way out), the row only selects. */
   rename?: RenameFacts | null;
+  /** The row's trailing act. Absent on a working or waiting row, and on one
+   *  on its way out. */
+  act?: RowAct;
+}
+
+/** Whether focus came to this control by the keyboard (Tab, or handed on from
+ *  a control the keyboard reached), not by a press. */
+function keyboardFocused(el: unknown): boolean {
+  try { return typeof (el as Element | null)?.matches === "function" && (el as Element).matches(":focus-visible"); } catch { return false; }
+}
+
+/** A row's keydown for Hide from list: a bare, unheld Delete on a row the
+ *  keyboard is on hides the row, and is stopped here, so the deck's own Delete
+ *  (Remove from board) never hears it as well. A row the mouse pressed keeps
+ *  handing Delete to the deck, which is Remove from board for the session it
+ *  selected (#1668's rule, shortcuts.ts ownsKeystroke). False for any other
+ *  key, which stays the row's.
+ *
+ *  `cameByKeyboard` is asked how focus came to the row. RailRow answers with
+ *  what it read the moment focus ARRIVED: read at the keydown, :focus-visible
+ *  says keyboard for a row the mouse pressed too, because Chromium turns a
+ *  focused button :focus-visible as soon as a key is pressed on it, and Delete
+ *  after a click hid the row instead of removing its card. */
+export function hideOnDelete(
+  sessionId: string,
+  hide: RowAct["run"] | undefined,
+  cameByKeyboard: (target: unknown) => boolean = keyboardFocused,
+): ((e: { key: string; repeat: boolean; shiftKey: boolean; ctrlKey: boolean; altKey: boolean; metaKey: boolean; target: unknown; preventDefault(): void; stopPropagation(): void }) => boolean) | undefined {
+  if (!hide) return undefined;
+  return e => {
+    if (e.key !== HIDE_PRESS || e.repeat || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return false;
+    if (!cameByKeyboard(e.target)) return false;
+    e.preventDefault();
+    e.stopPropagation();
+    hide(sessionId, e.target as HTMLElement);
+    return true;
+  };
 }
 
 /** WORKSPACE: a row's keydown. A bare Enter opens the session and takes the
@@ -147,7 +200,7 @@ export function openBesideOnShiftEnter(
   };
 }
 
-export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys, onOpenBeside, rename, compact = false, showContext = false, context, pane }: RailRowProps) {
+export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys, onOpenBeside, rename, act, compact = false, showContext = false, context, pane }: RailRowProps) {
   const t = useT();
   const failed = railFailed(r, group, t);
   // Keep a second line where it explains an action or tells sessions apart.
@@ -183,6 +236,15 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
   const [dragging, setDragging] = useState(false);
   const beside = removed ? undefined : onOpenBeside;
   const besideKey = openBesideOnShiftEnter(r.sessionId, beside);
+  // How focus came to the row, read as it arrives (hideOnDelete says why).
+  // Always kept, so a row that turns finished while the keyboard is on it
+  // already knows.
+  const focusByKeyRef = useRef(false);
+  const hideKey = hideOnDelete(r.sessionId, act?.kind === "hide" ? act.run : undefined, () => focusByKeyRef.current);
+  // A row the Hidden line lists is not one of the list's own: it carries its
+  // id under another name, so the list's motion and its landing never take it
+  // for the row it was (rail-motion.ts reads data-rail-id).
+  const inHidden = act?.kind === "show";
   if (renaming.on && rename) {
     return (
       <li className="sl-row-item" data-rail-id={r.sessionId}>
@@ -196,10 +258,11 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
     );
   }
   return (
-    <li className={`sl-row-item${leaving ? " leaving" : ""}`} data-rail-id={r.sessionId}
+    <li className={`sl-row-item${leaving ? " leaving" : ""}`} data-rail-id={inHidden ? undefined : r.sessionId}
+      data-hidden-id={inHidden ? r.sessionId : undefined}
       ref={el => { if (el) el.inert = leaving; }}>
-      {/* F2 and ⇧↵ on the row, caught here as they bubble: the row's own
-          keydown is the Workspace's Enter (openKeysOnEnter). */}
+      {/* F2, ⇧↵ and Delete on the row, caught here as they bubble: the row's
+          own keydown is the Workspace's Enter (openKeysOnEnter). */}
       <div
         className="sl-row-in"
         data-dragging={dragging || undefined}
@@ -209,8 +272,11 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
           setDragging(true);
         } : undefined}
         onDragEnd={beside ? () => { setDragging(false); endDrag(); } : undefined}
-        onKeyDown={rename || besideKey ? e => {
+        onFocus={e => { if ((e.target as EventTarget) === rowRef.current) focusByKeyRef.current = keyboardFocused(e.target); }}
+        onBlur={e => { if ((e.target as EventTarget) === rowRef.current) focusByKeyRef.current = false; }}
+        onKeyDown={rename || besideKey || hideKey ? e => {
           if (e.target !== rowRef.current) return;
+          if (hideKey?.(e)) return;
           if (besideKey?.(e)) return;
           if (rename && isRenameKey(e)) { e.preventDefault(); renaming.start(); }
         } : undefined}
@@ -283,6 +349,21 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
             </span>}
           </span>
         </button>
+        {/* The row's one act, after the row in Tab order and drawn over its
+            trailing status, which it replaces while it shows (session-list.css):
+            the row never moves for it. Its own control, never inside the row's
+            button, so the row's click and Enter stay what they were. */}
+        {act && (
+          <button
+            type="button"
+            className={inHidden ? "sl-row-act" : "sl-row-act sl-row-hide"}
+            aria-label={t(act.kind === "hide" ? "board.list.hideRow" : "board.list.showRow")}
+            title={act.kind === "hide" ? withKey(t("board.list.hideRow"), HIDE_PRESS, true) : t("board.list.showRow")}
+            onClick={e => act.run(r.sessionId, e.currentTarget)}
+          >
+            <BrowserWatchGlyph watching={act.kind === "show"} />
+          </button>
+        )}
       </div>
     </li>
   );
@@ -346,6 +427,27 @@ export function MoreLine({ count, onToggle }: { count: number; onToggle: (e: Mou
     <li className="sl-more-item">
       <button type="button" className="sl-more" aria-expanded={false} onClick={onToggle}>
         {count} more
+        <ChevronGlyph />
+      </button>
+    </li>
+  );
+}
+
+/** "Hidden · N", the list's last line while any row is hidden from it: the way
+ *  to the rows Hide from list took away, opened in place under it. Drawn
+ *  as the "N more" line is, at the list's own edge rather than a group's. */
+export function HiddenLine({ count, open, controls, onToggle }: {
+  count: number;
+  open: boolean;
+  /** The list it opens, named only while it is drawn. */
+  controls: string;
+  onToggle: () => void;
+}) {
+  const t = useT();
+  return (
+    <li className="sl-more-item sl-hidden-item">
+      <button type="button" className="sl-more sl-hidden-toggle" aria-expanded={open} aria-controls={open ? controls : undefined} onClick={onToggle}>
+        {t("board.list.hiddenCount", { n: count })}
         <ChevronGlyph />
       </button>
     </li>

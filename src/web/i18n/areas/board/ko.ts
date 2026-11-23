@@ -1054,6 +1054,11 @@ const catalog: Catalog = {
   "board.inspector.subagents.other": "서브에이전트 {count}개",
   "board.chat.noTranscript": "ccdeck는 {agent} 대화를 읽지 않으므로 여기에 표시할 채팅이 없습니다. 프롬프트와 도구 호출은 보드에 표시됩니다.",
   "board.stage.eventsOnly": "{agent}는 자체 터미널에서 실행되며 ccdeck는 여기에서 열 수 없습니다. 프롬프트, 도구 호출, 사용자에게 묻는 질문은 보드에 표시됩니다.",
+  "board.list.hideRow": "목록에서 숨기기",
+  "board.list.showRow": "목록에 표시",
+  "board.list.hiddenRow": "{name} 세션을 목록에서 숨겼습니다",
+  "board.list.hiddenSaid": "{name} 세션을 목록에서 숨겼습니다. 실행 취소할 수 있습니다.",
+  "board.list.hiddenCount": "숨김 · {n}",
 };
 
 export default catalog;

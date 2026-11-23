@@ -470,7 +470,10 @@ describe("nothing else in the deck invents a focus stop", () => {
     // (DialogResize.tsx) is a destination too. The Size menu's "Resize with the
     // keyboard" moves focus onto it so the arrows reach it; it is never a Tab
     // stop, and leaving it ends the mode.
-    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/DialogResize.tsx", "components/IntegrationConnectionDetails.tsx", "components/IntegrationsSection.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/QuickOpen.tsx", "components/RadioFilter.tsx", "components/SettingsSearch.tsx", "components/SkillInspector.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/forge/DetailParts.tsx", "components/forge/RepoPicker.tsx"]);
+    // CHANGED ON PURPOSE: the Sessions list's heading is where focus goes when
+    // Hide from list takes the list's last row from under the keyboard
+    // (list-hidden.ts focusAfterLeaving). It is never a Tab stop.
+    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/DialogResize.tsx", "components/IntegrationConnectionDetails.tsx", "components/IntegrationsSection.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/QuickOpen.tsx", "components/RadioFilter.tsx", "components/SessionList.tsx", "components/SettingsSearch.tsx", "components/SkillInspector.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/forge/DetailParts.tsx", "components/forge/RepoPicker.tsx"]);
     expect(code(readFileSync(join(web, "components/forge/RepoPicker.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/forge/DetailParts.tsx"), "utf8"))).toMatch(/<article ref=\{ref\} className="fd"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/JiraIssueDetail.tsx"), "utf8"))).toMatch(/<h2 id="jira-detail-title" tabIndex=\{-1\}/);
@@ -480,6 +483,7 @@ describe("nothing else in the deck invents a focus stop", () => {
     expect(code(readFileSync(join(web, "components/CanvasMain.tsx"), "utf8"))).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/TelemetryCapture.tsx"), "utf8"))).toMatch(/<section className="tr-inspector"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/DialogResize.tsx"), "utf8"))).toMatch(/className="ig-rs-keys"[^>]*tabIndex=\{-1\}/);
+    expect(code(readFileSync(join(web, "components/SessionList.tsx"), "utf8"))).toMatch(/<h2 ref=\{heading\} tabIndex=\{-1\}>/);
   });
 
   it("has no role=\"button\" left that a keyboard cannot operate", () => {

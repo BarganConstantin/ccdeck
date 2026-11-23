@@ -413,6 +413,9 @@ const PRESSES: Press[] = [
   // The rail's header icon buttons (Plus, and the phone's close), 24px icons: the icon tier.
   // Renamed from .sl-close for V4's header, which has two such buttons.
   [".session-list .sl-icon-btn:active", "0.94", "transform"],
+  // A row's one act (Hide from list, Show in list), a 24px icon button at the
+  // row's trailing edge: the icon tier, as the header's buttons above.
+  [".session-list .sl-row-act:active", "0.94", "transform"],
   // The rail's usage meter, a labelled row that opens Usage: the rows' tier.
   // Browser Watch's episode disclosure. Same tier and same number as the row
   // above it: a full-width row that opens to show what it is summarising.
