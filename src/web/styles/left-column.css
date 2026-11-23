@@ -51,6 +51,32 @@
 @starting-style {
   .left-column { width: 0; }
 }
+/* THE EDGE'S WEIGHT (the owner, 2026-11-23: the line between Sessions and the
+   board looked too thick). The column's 1px --line is two device pixels on a
+   2x screen, and on a Contrast theme's dark --line that reads as a bar. There
+   the line is ONE device pixel: the border goes, and a 1px strip on the
+   column's right edge draws half a pixel of inset shadow, over the panels
+   (z-index 1) and under the drag edge (3, session-list.css), which keeps its
+   8px to grab and its 2px accent line. Neither simpler way draws it: a border
+   under 1px is drawn 1px, and a 0.5px box is snapped to whole pixels and
+   vanishes. A shadow is drawn at the screen's own resolution. At 1x the
+   border stays, one device pixel already. Nothing moves: the strip is
+   absolute and the column is border-box, its width the same either way. A
+   phone draws no edge (phone-sheet.css), so it gets no strip. */
+@media (min-resolution: 2dppx) and (min-width: 641px) {
+  .left-column { border-right-width: 0; }
+  .left-column::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 1px;
+    box-shadow: inset -0.5px 0 0 var(--line);
+    z-index: 2;
+    pointer-events: none;
+  }
+}
 
 /* Each panel keeps its own width and its own bed; the edge is the column's, so
    a panel narrower than the column for a moment draws no line of its own
