@@ -72,7 +72,7 @@ import { t as tr } from "./i18n";
 import { isEventOnly } from "../server/provider-ids.mjs";
 import { providerLabel } from "./provider-copy";
 import type { Provider } from "./types";
-import { endedCleanly, showsFrame, type KeysOwner, type StagePhase } from "./components/terminal/stage-model";
+import { CLEAN_END_MIN_LIVE_MS, endedCleanly, showsFrame, type KeysOwner, type StagePhase } from "./components/terminal/stage-model";
 
 /** The stage's font size. 13.3px is where the deck's mono stack advances a
  *  whole 8px on DejaVu Sans Mono and on Menlo, so cells come out exactly 8
@@ -791,7 +791,12 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     streamTimer = setTimeout(() => { streamTimer = null; emit({ streaming: false }); }, STREAM_QUIET_MS);
   };
 
-  const connect = (ticket: string, my: number) => {
+  /** `reopened`: the ticket is a Reopen here's (adopt). Its agent ending
+   *  before it was live CLEAN_END_MIN_LIVE_MS is the resume failing — a
+   *  conversation the agent could not find or load — not the session
+   *  ending, and the pane says so (`unresumed`) rather than offering the
+   *  same Reopen here again. */
+  const connect = (ticket: string, my: number, reopened = false) => {
     sizeOwner = "dock";
     readOnly = false;
     if (snap.paneSize) emit({ paneSize: null });
@@ -910,6 +915,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         else if (reason === "ended") {
           const unseen = atOpen || snap.phase.kind !== "live";
           const liveFor = deps.now() - (liveAt ?? deps.now());
+          if (reopened && (unseen || liveFor < CLEAN_END_MIN_LIVE_MS)) { setPhase({ kind: "ended", unresumed: true }); return; }
           const ended: StagePhase = unseen ? { kind: "ended", atOpen: true }
             : endedCleanly({ exitStatus, exitSignal }, liveFor) ? { kind: "ended", clean: true }
               : { kind: "ended" };
@@ -1211,6 +1217,52 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     },
   };
 
+  /** Reopen here: the session again, in this pane, resumed by its id in its
+   *  own folder (the deck's adopt). Refused while one is already asked for. */
+  const reopen = () => {
+    const ref = refOf();
+    const phase = snap.phase;
+    // Never for opencode or Copilot (eventsOnlyPhase): its card offers no
+    // Reopen here, and no key or menu may reach one either.
+    if (!ref || disposed || isEventOnly(ref.provider)) return;
+    // A refused Reopen here's Try again reopens again (retry, below).
+    const again = phase.kind === "error" && phase.reopen === true;
+    if (phase.kind !== "not-attachable" && phase.kind !== "ended" && phase.kind !== "detached" && !again) return;
+    // The button stays enabled while it works (#620: a press never
+    // disables its own control), so a second press is refused here.
+    if ((phase.kind === "not-attachable" || phase.kind === "ended" || phase.kind === "error") && phase.busy) return;
+    gen += 1;
+    const my = gen;
+    dropConnection();
+    // An ended pane keeps its last frame while it reopens, and its button
+    // says so (Reopening…); a card keeps its sentence, busy, the same way.
+    if (phase.kind === "not-attachable" || phase.kind === "error") setPhase({ ...phase, busy: true });
+    else if (phase.kind === "ended") setPhase({ kind: "ended", ...(phase.atOpen ? { atOpen: true } : {}), busy: true });
+    else setPhase({ kind: "attaching", reconnect: true });
+    // Check again is a read. Only a target confirmed as ended may offer
+    // Reopen here; repeatedly adopting a live external session just fails.
+    if (phase.kind === "not-attachable" && phase.stillRunning) {
+      void openFlow(ref, my, false);
+      return;
+    }
+    void deps.api.adopt(ref, {}, { ...want }, paneColours()).then(answer => {
+      if (my !== gen) return;
+      if (answer.ok) { connect(answer.ticket, my, true); return; }
+      if (answer.error === STILL_RUNNING && phase.kind === "not-attachable") {
+        runningElsewhere({ ...phase, stillRunning: true, busy: false }, my);
+        return;
+      }
+      // Running already — reopened from another tab, or by hand in a
+      // terminal: shown where it runs, never started a second time.
+      if (answer.error === STILL_RUNNING) { void openFlow(ref, my, false); return; }
+      const said = failed(answer, ref.provider);
+      // The deck's own sentence, with Try again reopening again and a new
+      // session in the same folder beside it (StageBody). A refusal that is
+      // a state of this machine keeps its own card.
+      setPhase(said.kind === "error" && !said.code && !said.missing ? { ...said, reopen: true } : said);
+    });
+  };
+
   return {
     mount(host, init) {
       if (term || mounting || disposed) return;
@@ -1284,41 +1336,13 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       conn?.sendColours(theme.foreground, theme.background);
     },
 
-    adopt() {
-      const ref = refOf();
-      const phase = snap.phase;
-      // Never for opencode or Copilot (eventsOnlyPhase): its card offers no
-      // Reopen here, and no key or menu may reach one either.
-      if (!ref || disposed || isEventOnly(ref.provider)) return;
-      if (phase.kind !== "not-attachable" && phase.kind !== "ended" && phase.kind !== "detached") return;
-      // The button stays enabled while it works (#620: a press never
-      // disables its own control), so a second press is refused here.
-      if (phase.kind === "not-attachable" && phase.busy) return;
-      gen += 1;
-      const my = gen;
-      dropConnection();
-      if (phase.kind === "not-attachable") setPhase({ ...phase, busy: true });
-      else setPhase({ kind: "attaching", reconnect: true });
-      // Check again is a read. Only a target confirmed as ended may offer
-      // Reopen here; repeatedly adopting a live external session just fails.
-      if (phase.kind === "not-attachable" && phase.stillRunning) {
-        void openFlow(ref, my, false);
-        return;
-      }
-      void deps.api.adopt(ref, {}, { ...want }, paneColours()).then(answer => {
-        if (my !== gen) return;
-        if (answer.ok) { connect(answer.ticket, my); return; }
-        if (answer.error === STILL_RUNNING && phase.kind === "not-attachable") {
-          runningElsewhere({ ...phase, stillRunning: true, busy: false }, my);
-          return;
-        }
-        setPhase(failed(answer, ref.provider));
-      });
-    },
+    adopt() { reopen(); },
 
     retry() {
       if (disposed) return;
       const phase = snap.phase;
+      // A refused Reopen here is tried again as what it was.
+      if (phase.kind === "error" && phase.reopen) { reopen(); return; }
       const checks = phase.kind === "tmux-missing" || (phase.kind === "error" && !!phase.code);
       if (checks && phase.busy) return;
       attempts = 0;

@@ -816,6 +816,155 @@ describe("how a session ends", () => {
   });
 });
 
+// Reopen here on an ended pane: the same conversation, in the same pane and
+// folder (the deck's adopt). The frame stays while it works, a second press
+// starts nothing, a refusal is said with Try again reopening again, and an
+// agent that ends as soon as it is reopened could not resume the conversation.
+describe("reopening an ended pane", () => {
+  /** A live pane whose agent then crashed: the ended frame, Reopen here on offer. */
+  async function endedPane(ref = REF) {
+    const { r, ctl } = rig();
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    const s = await attach(r, ctl, ref);
+    r.clock.now += 60_000;
+    s.text({ t: "exit", reason: "ended", exitStatus: 1 });
+    expect(r.last().phase).toEqual({ kind: "ended" });
+    return { r, ctl };
+  }
+  /** The reopened pane's socket says hello and its seed is drawn. */
+  const reveal = (r: Rig, s: FakeSocket, seed = "RESUMED") => {
+    s.open();
+    s.text({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: false });
+    s.text({ t: "reset", cols: 120, rows: 40 });
+    s.binary(enc(seed));
+    r.terminal().parse();
+  };
+
+  it("keeps the frame and says it is reopening, and a second press starts nothing", async () => {
+    const { r, ctl } = await endedPane();
+    let answer!: (a: Ticketed | ApiFailure) => void;
+    r.adopt.mockImplementationOnce(() => new Promise(res => { answer = res; }));
+    ctl.adopt();
+    expect(r.last().phase, "the last frame stays, busy").toEqual({ kind: "ended", busy: true });
+    ctl.adopt();
+    ctl.adopt();
+    await flush();
+    expect(r.adopt, "one reopen in flight").toHaveBeenCalledTimes(1);
+    answer(ticketed("adopted"));
+    await flush();
+    expect(r.sockets, "one connection for the one reopen").toHaveLength(2);
+    ctl.adopt();
+    await flush();
+    expect(r.adopt, "still busy until the pane is live").toHaveBeenCalledTimes(1);
+  });
+
+  it("reopens the same conversation, in its own folder, and the pane goes live", async () => {
+    const { r, ctl } = await endedPane();
+    ctl.adopt();
+    await flush();
+    expect(r.adopt).toHaveBeenCalledTimes(1);
+    expect(r.adopt.mock.calls[0][0], "the same session id and folder").toEqual(REF);
+    expect(r.open, "no open in its place").toHaveBeenCalledTimes(1);
+    reveal(r, r.sockets[1]);
+    expect(r.last().phase).toEqual({ kind: "live", sizeOwner: "dock", readOnly: false });
+    expect(r.last().subject, "the pane still shows the same session").toBe(REF_SUBJECT);
+  });
+
+  it("says a refused reopen in the deck's words, and Try again reopens again rather than opening", async () => {
+    const { r, ctl } = await endedPane();
+    r.adopt.mockResolvedValueOnce(failure(500, "tmux could not start the session."));
+    ctl.adopt();
+    await flush();
+    expect(r.last().phase).toEqual({ kind: "error", message: "tmux could not start the session.", reopen: true });
+    let answer!: (a: Ticketed | ApiFailure) => void;
+    r.adopt.mockImplementationOnce(() => new Promise(res => { answer = res; }));
+    ctl.retry();
+    expect(r.last().phase, "Try again says it is reopening").toEqual({ kind: "error", message: "tmux could not start the session.", reopen: true, busy: true });
+    ctl.retry();
+    ctl.adopt();
+    await flush();
+    expect(r.adopt, "the first press, the Try again; a second press while it works starts nothing").toHaveBeenCalledTimes(2);
+    expect(r.open, "never an open in its place").toHaveBeenCalledTimes(1);
+    answer(ticketed("adopted-again"));
+    await flush();
+    reveal(r, r.sockets[1]);
+    expect(r.last().phase.kind).toBe("live");
+    expect(r.sockets[1].url).toMatch(/ticket=adopted-again$/);
+  });
+
+  it("keeps a refusal that is a state of this machine on its own card, with no reopen of its own", async () => {
+    const { r, ctl } = await endedPane();
+    r.adopt.mockResolvedValueOnce({ ok: false, status: 409, error: "The engine is not installed.", code: "not-installed" });
+    ctl.adopt();
+    await flush();
+    expect(r.last().phase).toEqual({ kind: "error", message: "The engine is not installed.", code: "not-installed", busy: false });
+  });
+
+  it("shows a session that already runs again (another tab reopened it) instead of starting it twice", async () => {
+    const { r, ctl } = await endedPane();
+    r.adopt.mockResolvedValueOnce(failure(409, "still-running"));
+    r.open.mockResolvedValueOnce(ticketed("running"));
+    ctl.adopt();
+    await flush();
+    expect(r.adopt).toHaveBeenCalledTimes(1);
+    expect(r.open, "opened where it runs").toHaveBeenCalledTimes(2);
+    expect(r.sockets[1].url).toMatch(/ticket=running$/);
+    reveal(r, r.sockets[1]);
+    expect(r.last().phase.kind).toBe("live");
+  });
+
+  it("says the session could not be resumed when its agent ends before, or just after, the reopened pane is live", async () => {
+    for (const [when, exit] of [
+      ["before the seed", { reason: "ended", exitStatus: 1 }],
+      ["as the deck opened it", { reason: "ended", atOpen: true }],
+      ["just after", { reason: "ended", exitStatus: 0 }],
+    ] as const) {
+      const { r, ctl } = await endedPane();
+      ctl.adopt();
+      await flush();
+      const s = r.sockets[1];
+      if (when === "just after") {
+        reveal(r, s);
+        expect(r.last().phase.kind, when).toBe("live");
+        r.clock.now += CLEAN_END_MIN_LIVE_MS - 1;
+      } else s.open();
+      s.text({ t: "exit", ...exit });
+      await flush();
+      expect(r.last().phase, when).toEqual({ kind: "ended", unresumed: true });
+      expect(r.adopt, `${when}: never reopened again by itself`).toHaveBeenCalledTimes(1);
+      expect(r.launch, `${when}: never a new session by itself`).not.toHaveBeenCalled();
+      // Try again is a reopen, pressed.
+      ctl.adopt();
+      await flush();
+      expect(r.adopt, when).toHaveBeenCalledTimes(2);
+    }
+  });
+
+  it("ends as any other session does once the reopened pane has run a while", async () => {
+    const { r, ctl } = await endedPane();
+    ctl.adopt();
+    await flush();
+    reveal(r, r.sockets[1]);
+    r.clock.now += CLEAN_END_MIN_LIVE_MS;
+    r.sockets[1].text({ t: "exit", reason: "ended", exitStatus: 0 });
+    expect(r.last().phase, "the agent ending itself after a real run: a clean ending").toEqual({ kind: "ended", clean: true });
+  });
+
+  it("drops a reopen's answer that comes after the pane moved on", async () => {
+    const { r, ctl } = await endedPane();
+    let answer!: (a: Ticketed | ApiFailure) => void;
+    r.adopt.mockImplementationOnce(() => new Promise(res => { answer = res; }));
+    ctl.adopt();
+    ctl.show({ kind: "empty" });
+    await flush();
+    answer(ticketed("late"));
+    await flush();
+    expect(r.last().phase).toEqual({ kind: "empty" });
+    expect(r.sockets.map(s => s.url), "nothing attached for the pane that was closed").not.toContainEqual(expect.stringMatching(/ticket=late$/));
+  });
+});
+
 // Codex's own "Update now" installs the new version, says "Please restart
 // Codex." and exits 0, exactly as /exit does. The deck tells the two apart by
 // the codex on disk (codex-update.mjs); the stage restarts an updated one.
@@ -943,7 +1092,9 @@ describe("a Codex that updated itself", () => {
       else ctl.show({ kind: "session", ref: OTHER });
       await flush();
       const moved = r.last().phase;
-      expect(moved.kind, moveOn).toBe("attaching");
+      // CHANGED ON PURPOSE (ended-pane restart): Reopen here keeps the ended
+      // frame, busy, while it reopens; a switch attaches as before.
+      expect(moved, moveOn).toEqual(moveOn === "reopen" ? { kind: "ended", busy: true } : { kind: "attaching", reconnect: false });
       answer(true);
       await flush();
       expect(r.last().phase, moveOn).toEqual(moved);

@@ -31,7 +31,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } f
 import { copyText } from "../../copy-text";
 import { CAUGHT_KEYS_ATTR } from "../../shortcuts";
 import type { TmuxProgress } from "../../terminal-api";
-import { CLAUDE_MISSING_MSG, LAUNCHED_UNREACHABLE_MSG, PROVENANCE_UNKNOWN_MSG, agentName, elsewhereLine, errorWords, frameRun, launchedUnreachable, provenanceUnknown, type FrameRun, type StagePhase, type StageState } from "./stage-model";
+import { CLAUDE_MISSING_MSG, LAUNCHED_UNREACHABLE_MSG, PROVENANCE_UNKNOWN_MSG, REOPEN_FAILED_MSG, REOPENING_MSG, START_NEW_MSG, agentName, elsewhereLine, errorWords, frameRun, launchedUnreachable, provenanceUnknown, type FrameRun, type StagePhase, type StageState } from "./stage-model";
 import { CopyGlyph, StageGlyph } from "./stage-icons";
 import EngineCard, { engineCardCode } from "./EngineCard";
 import ClaudeInstall from "../ClaudeInstall";
@@ -77,6 +77,11 @@ export interface StageBodyProps {
   /** "Not now": leave the stage, the session untouched. */
   onNotNow(): void;
   onRetry(): void;
+  /** A new session of the same agent in the same folder, offered beside Try
+   *  again when the deck refused a Reopen here (TerminalStage onStartNew),
+   *  and its tooltip, which names the agent. */
+  onStartNew?(): void;
+  startNewTip?: string;
   onNewSession(anchorId: string): void;
   /** WORKSPACE: this is the pane with nothing in it, and says so (Figma,
    *  "Empty workspace"), instead of the Board stage's "click a session on the
@@ -281,7 +286,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
             )}
             {offer && (
               <button type="button" className="btn primary" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onAdopt}>
-                {t("board.stage.reopenHere")}
+                {t(phase.busy ? REOPENING_MSG : "board.stage.reopenHere")}
               </button>
             )}
             <button type="button" className="btn" data-stage-land={offer ? undefined : true} onClick={p.onNotNow}>{t("common.notNow")}</button>
@@ -332,6 +337,26 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
       // The engine's refusal, when it is a state of this machine, is checked
       // again in place, as tmux missing is; a platform with no panel has
       // nothing to check, and offers only Not now.
+      // A refused Reopen here: what the deck said, Try again reopening again
+      // (Reopening… while it works), and the explicit way on — a new session
+      // in the same folder, only ever started by its own press.
+      if (phase.reopen) {
+        return (
+          <div className="ts-card" data-reopen>
+            <div className="ts-title">{t(REOPEN_FAILED_MSG)}</div>
+            <p className="ts-text">{errorWords(phase.message)}</p>
+            <div className="ts-acts">
+              <button type="button" className="btn" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onRetry}>
+                {t(phase.busy ? REOPENING_MSG : "board.stage.tryAgain")}
+              </button>
+              {p.onStartNew && (
+                <button type="button" className="btn" title={p.startNewTip} onClick={p.onStartNew}>{t(START_NEW_MSG)}</button>
+              )}
+              <button type="button" className="btn" onClick={p.onNotNow}>{t("common.notNow")}</button>
+            </div>
+          </div>
+        );
+      }
       const again = phase.code !== "unsupported";
       const check = !!phase.code;
       const acts = (

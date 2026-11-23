@@ -222,7 +222,9 @@ export interface StageHeaderProps {
    *  name is being edited, nor from a button. */
   onDragHead?(e: DragEvent<HTMLElement>): void;
   /** An ended session's one action, Reopen here (or Attach again, Start
-   *  again), after the state word, with the end bar's sentence as its tooltip.
+   *  again, or Try again with Start new session here beside it when a reopen
+   *  could not resume), after the state word, with the end bar's sentence as
+   *  its tooltip.
    *  Handed in only where the keys bar is out in the window's status bar
    *  (TerminalStage endPlacement); on a phone the keys bar inside the pane
    *  carries it. Left out, nothing is drawn. */
@@ -360,6 +362,13 @@ export default function StageHeader(p: StageHeaderProps) {
           <button type="button" className="btn ts-end-act" data-stage-land aria-busy={p.end.busy || undefined}
             title={p.end.sentence} onClick={p.end.onAction}>
             {p.end.action}
+          </button>
+        )}
+        {/* A session Reopen here could not resume: a new one in its folder,
+            beside Try again, only ever on this press. */}
+        {p.end?.alt && (
+          <button type="button" className="btn ts-end-act" title={p.end.alt.title} onClick={p.end.alt.onAction}>
+            {p.end.alt.action}
           </button>
         )}
       </div>
