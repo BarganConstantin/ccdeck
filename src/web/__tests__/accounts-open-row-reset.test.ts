@@ -54,24 +54,19 @@ const seen = (html: string) => html
   .replace(/<span class="vis-hidden">[^<]*<\/span>/g, "")
   .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
-/** One window's line on the open row, from its name to the end of its value. */
-// CHANGED ON PURPOSE (V4's Figma): the open row says each window on a line of
-// text — its name in words, then its number or "reset" and when it resets —
-// and the row's one meter, its last line, draws the first window.
+/** One window's lane on a row, from its short name to its reset. */
+// CHANGED ON PURPOSE (#2644): every row, shut or open, draws each window as a
+// lane — its short name (the whole name its title), a bar, its number or
+// "reset", and when it resets — and the row has no meter of its own.
 const laneOf = (html: string, label: string) =>
-  new RegExp(`<div class="ap-lane"[^>]*><span class="ap-lane-label" title="${label}">[^]*?</div>`)
+  new RegExp(`<div class="ap-lane"><span class="ap-lane-label" title="[^"]*">${label}</span>[^]*?</div>`)
     .exec(html)?.[0] ?? "";
 
-/** The row's meter, the last thing on it. */
-const meterOf = (html: string) => /<div class="ap-meter"[^>]*>(?:<div class="ap-meter-fill"[^>]*><\/div>)?<\/div>/.exec(html)?.[0] ?? "";
-
 /** What the shut row says of one window, without its label. */
-// CHANGED ON PURPOSE (V4's Figma): the first two windows are the row's two
-// figures at its right edge (`ap-fig`), the first on the name's line and the
-// second under it.
+// CHANGED ON PURPOSE (#2644): the shut row says it on the window's own lane,
+// the same lane the open row draws.
 const shutSays = (html: string, label: string) =>
-  seen(new RegExp(`<span class="ap-fig ap-fig-[12]"[^>]*><span class="ap-q-label">${label}</span>[^]*?</span></span>`).exec(html)?.[0] ?? "")
-    .replace(label, "").trim();
+  seen(laneOf(html, label)).replace(label, "").trim();
 
 // CHANGED ON PURPOSE (user feedback): the open row names the week's window
 // "Weekly", beside the model lanes that run a week too.
@@ -86,7 +81,10 @@ describe("an open account row whose windows have reset since a reading that is f
     for (const { label, name, said } of WINDOWS) {
       const lane = laneOf(open, label);
       expect(lane, `the ${label} line was not found`).not.toBe("");
-      expect(seen(lane)).toBe(`${name} reset`);
+      // CHANGED ON PURPOSE (#2644): the lane leads with the short name, as the
+      // shut row's always did, and keeps the whole one in its title.
+      expect(seen(lane)).toBe(`${label} reset`);
+      expect(lane).toContain(`<span class="ap-lane-label" title="${name}">${label}</span>`);
       // When, and at what, on hover and for a screen reader — the report's words.
       expect(lane).toContain(`title="${said}"`);
       expect(lane).toContain(`<span class="vis-hidden">${said}</span>`);
@@ -96,12 +94,17 @@ describe("an open account row whose windows have reset since a reading that is f
   });
 
   it("draws a reset window's bar empty, not full to the reading before the reset", () => {
-    // The row's one meter draws its first window, shut or open; the open
-    // lines are words and draw no bar of their own.
+    // CHANGED ON PURPOSE (#2644): every window draws its own bar, shut or
+    // open, and the row has no meter beside them; a window that has reset is
+    // an empty track on its lane.
     for (const opened of [false, true]) {
       const html = row(frozenAndReset, opened);
-      expect(meterOf(html)).toBe('<div class="ap-meter" aria-hidden="true"></div>');
-      for (const { label } of WINDOWS) expect(laneOf(html, label)).not.toMatch(/ap-lane-(?:track|fill)|ap-meter/);
+      expect(html).not.toContain("ap-meter");
+      expect(html).not.toContain("ap-lane-fill");
+      for (const { label } of WINDOWS) {
+        expect(laneOf(html, label), `the ${label} lane, ${opened ? "open" : "shut"}`)
+          .toContain('<span class="ap-lane-track" aria-hidden="true"></span>');
+      }
     }
   });
 
@@ -111,10 +114,15 @@ describe("an open account row whose windows have reset since a reading that is f
       lanes: [{ id: "five_hour", label: "5h", pct: 33, resetAt: NOW + 2 * HOUR }, frozenAndReset.lanes[1]],
     };
     const lane = laneOf(row(running, true), "5h");
-    expect(seen(lane)).toBe("5-hour 33%");
-    // In the record's one ink: no warning colour, and the meter in the muted ink.
+    // CHANGED ON PURPOSE (#2644): the short name leads the lane, and a reset
+    // still ahead is counted down on an old reading too — when a window ends
+    // is not something a later reading moves, and the shut row said it to a
+    // screen reader on this row before, so the accounts compare on it.
+    expect(seen(lane)).toBe("5h 33% 2h 00m");
+    expect(lane).toContain('<span class="vis-hidden">resets in </span>2h 00m');
+    // In the record's one ink: no warning colour, and its own bar in the muted ink.
     expect(lane).not.toContain("data-level");
-    expect(meterOf(row(running, true))).toContain('<div class="ap-meter-fill" style="width:33%;background:var(--muted);opacity:1"></div>');
+    expect(lane).toContain('<span class="ap-lane-fill" style="width:33%;background:var(--muted);opacity:1"></span>');
     expect(lane).not.toContain("title=\"Reported reset time passed");
   });
 
@@ -126,10 +134,10 @@ describe("an open account row whose windows have reset since a reading that is f
     // compares the figure each view gives for the window, as it always did.
     const cells = [...report(frozenAndReset).matchAll(/<td class="ap-report-cell"[^]*?<\/td>/g)].map(m => seen(m[0].replace(/<span class="ap-report-mobile-label"[^]*?<\/span>/g, "").replace(/<span class="ap-report-win-sub"[^]*$/, "")));
     expect(cells).toHaveLength(2);
-    WINDOWS.forEach(({ label, name }, i) => {
+    WINDOWS.forEach(({ label }, i) => {
       const views = {
         shut: shutSays(shut, label),
-        open: seen(laneOf(open, label)).replace(name, "").trim(),
+        open: seen(laneOf(open, label)).replace(label, "").trim(),
         report: cells[i],
       };
       expect(views, `the ${label} window`).toEqual({ shut: "reset", open: "reset", report: i === 0 ? "96%" : "84%" });

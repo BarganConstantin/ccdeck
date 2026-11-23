@@ -43,8 +43,14 @@ describe("the open row's bars", () => {
 
   it("say a high window with the mark and the word, not its colour alone", () => {
     // The level's name is the shared quota level's (V4 top-10 #9): "warn", was "mid".
-    expect(html).toMatch(/class="ap-lane-pct" data-level="warn"><span class="level-mark" data-tone="warn">/);
-    expect(html.match(/class="level-mark-word"/g)).toHaveLength(1);
+    // CHANGED ON PURPOSE (#2644): the lane is a bar in a column of figures now,
+    // on every row, so its figure wears the mark the shut row's figures wore —
+    // the warning glyph before the number — with the word "high" on hover and
+    // for a screen reader, where "· high" after every hot figure would push its
+    // bar aside. Never the colour alone.
+    expect(html).toMatch(/<span class="ap-lane-pct" data-level="warn" title="high"><svg[^>]*class="level-mark-glyph"[^>]*>[^]*?<\/svg>86%<span class="vis-hidden"> high<\/span><\/span>/);
+    expect(html.match(/data-level="/g)).toHaveLength(1);
+    expect(html.match(/<span class="vis-hidden"> high<\/span>/g)).toHaveLength(1);
   });
 });
 

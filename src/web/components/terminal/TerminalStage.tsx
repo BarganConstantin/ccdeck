@@ -52,7 +52,7 @@ import {
   type StagePhase, type StagePhaseKind,
   type StageStatus,
 } from "./stage-model";
-import StageHeader from "./StageHeader";
+import StageHeader, { metaRest } from "./StageHeader";
 import StageBody, { catchKeys, type StageContext } from "./StageBody";
 import type { HeldKeys } from "../../type-ahead";
 import { useFocusRequest, type FocusRequest } from "./use-focus-request";
@@ -73,6 +73,7 @@ import { chatSessionFor, useSessionTranscript } from "../../use-session-transcri
 import { isEventOnly } from "../../../server/provider-ids.mjs";
 import { askSteps } from "../../ask-keys";
 import { stopSteps } from "../../chat-stop";
+import { pendingFor, useChatProgress, waitsInChat, type ChatFacts, type ChatPending } from "../../chat-progress";
 import { noteFeature, useFeatureUse } from "../../feature-use";
 import type { ChatAsk, ChatTurn } from "../chat/chat-model";
 import { usePromptDecision } from "../../use-prompt-decision";
@@ -405,6 +406,10 @@ export default function TerminalStage(p: TerminalStageProps) {
   // Drafts belong to session IDs, so switching panes or Chat/Term cannot
   // send one session's draft to another. They stay in this stage's memory.
   const [chatDrafts, setChatDrafts] = useState<Record<string, string>>({});
+  // A message sent from Chat until the session says it took it and its turn
+  // is over (chat-progress.ts), held per session as the drafts are, so one
+  // session's never shows on another.
+  const [chatPending, setChatPending] = useState<Record<string, ChatPending>>({});
   const [chatSent, setChatSent] = useState(0);
   const chatSource = useSessionTranscript({
     session: chatSession,
@@ -619,6 +624,25 @@ export default function TerminalStage(p: TerminalStageProps) {
     onSent: () => { setChatSent(sent => sent + 1); noteFeature("chat-decision"); },
     onShowTerm: () => showView("term"),
   });
+  // Under Chat's last line: where a message sent from here stands, and what the
+  // session is doing, in the header's words (chat-progress.ts).
+  const chatTurns = chatSource.state === "ready" ? chatSource.turns : NO_TURNS;
+  const chatFacts: ChatFacts = {
+    turns: chatTurns,
+    prompts: p.show.kind === "session" ? p.show.session.promptCount ?? 0 : 0,
+    state: status.state,
+    detail: metaRest(status) ?? undefined,
+    tool: !!status.tool,
+    heardAt: p.show.kind === "session" ? p.show.session.heardAt : undefined,
+    connected: chatCannotSend === undefined,
+    asked: promptCard !== undefined || waitsInChat(chatTurns),
+  };
+  const chatProgress = useChatProgress(chatPending[chatDraftKey], chatFacts, next => setChatPending(all => {
+    if (next) return { ...all, [chatDraftKey]: next };
+    const rest = { ...all };
+    delete rest[chatDraftKey];
+    return rest;
+  }));
 
   // RENAMING (internal #101): held here rather than in the header, which is
   // drawn by calling it; the facts are the session on stage, so a switch to
@@ -778,6 +802,8 @@ export default function TerminalStage(p: TerminalStageProps) {
       if (result === "sent") {
         setChatSent(sent => sent + 1);
         noteFeature("chat-reply");
+        // On its way, not yet taken: Chat says so under the conversation.
+        setChatPending(all => ({ ...all, [chatDraftKey]: pendingFor(text, chatFacts, Date.now()) }));
       }
       return result;
     }}
@@ -879,7 +905,10 @@ export default function TerminalStage(p: TerminalStageProps) {
         workspace={workspace && p.show.kind === "empty"}
         waiting={workspace ? p.waiting ?? null : null}
         onOpenWaiting={openWaiting(p.waiting, p.onOpenWaiting)}
-        screens={chatSession !== null ? { view, source: chatSource, provider: chatProvider, ask: chatAsk, decision: promptCard } : undefined}
+        screens={chatSession !== null ? {
+          view, source: chatSource, provider: chatProvider, ask: chatAsk, decision: promptCard,
+          session: chatDraftKey, outgoing: chatProgress.outgoing, activity: chatProgress.activity, onShowTerm: () => showView("term"),
+        } : undefined}
       />
       <KeysBar
         primary={p.split?.primary ?? true}

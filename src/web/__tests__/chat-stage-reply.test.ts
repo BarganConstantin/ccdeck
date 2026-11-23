@@ -1,12 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 import { mount, one, textOf } from "./fake-react";
 import { ASSUMED_CELL, stageGeometry } from "../stage-geometry";
 import TerminalStage, { type TerminalStageProps } from "../components/terminal/TerminalStage";
 import StageHeader from "../components/terminal/StageHeader";
+import StageBody from "../components/terminal/StageBody";
 import KeysBar from "../components/terminal/KeysBar";
 import { ChatComposerSlot } from "../use-screens";
 import type { ChatComposerProps } from "../components/chat/ChatComposer";
+import type { ChatActivity, ChatOutgoing, ChatTurn } from "../components/chat/chat-model";
+import { CONFIRM_MS } from "../chat-progress";
 import type { StagePhase } from "../components/terminal/stage-model";
 import { stopSteps } from "../chat-stop";
 
@@ -15,6 +18,8 @@ const held = vi.hoisted(() => ({
   sendPrompt: vi.fn(() => "sent"), sendAsk: vi.fn(async () => "sent"), focus: vi.fn(), release: vi.fn(),
   /** What Chat's transcript was last asked to follow: it reads again when this changes. */
   change: "",
+  /** The conversation as the transcript reads it. */
+  turns: [] as ChatTurn[],
 }));
 vi.mock("react", async () => (await import("./fake-react")).react);
 vi.mock("../use-terminal-session", async importOriginal => ({
@@ -31,7 +36,7 @@ vi.mock("../use-screens", async importOriginal => ({
 }));
 vi.mock("../use-session-transcript", async importOriginal => ({
   ...await importOriginal<typeof import("../use-session-transcript")>(),
-  useSessionTranscript: ({ change }: { change: string }) => { held.change = change; return { state: "ready", turns: [] }; },
+  useSessionTranscript: ({ change }: { change: string }) => { held.change = change; return { state: "ready", turns: held.turns }; },
 }));
 
 beforeEach(() => {
@@ -40,6 +45,7 @@ beforeEach(() => {
   held.sendPrompt.mockReset().mockReturnValue("sent");
   held.sendAsk.mockReset().mockResolvedValue("sent");
   held.focus.mockClear(); held.release.mockClear();
+  held.turns = [];
 });
 function props(id = "a", waiting = false, state: "idle" | "waiting" | "working" = waiting ? "waiting" : "idle", provider = "claude"): TerminalStageProps {
   return {
@@ -149,6 +155,71 @@ describe("direct Chat reply wiring", () => {
     expect(textOf(view.tree)).toContain("Reopen here");
     expect(textOf(view.tree)).not.toContain("Replies are available");
     expect(one(view.tree, el => el.type === "footer")!.props.hidden).toBeUndefined();
+    view.unmount();
+  });
+});
+
+// What Chat says under the conversation, as the stage hands it over: where a
+// message sent from here stands, and what the session is doing, per session.
+describe("where a message sent from Chat stands", () => {
+  afterEach(() => { vi.useRealTimers(); });
+  type Shown = { outgoing?: ChatOutgoing; activity?: ChatActivity; session?: string; onShowTerm(): void };
+  const screens = (view: ReturnType<typeof mount<TerminalStageProps>>) => one(view.tree, el => el.type === StageBody)!.props.screens as Shown;
+  /** The same session as the board has it now. */
+  function board(p: TerminalStageProps, extra: { promptCount?: number; heardAt?: number }): TerminalStageProps {
+    const show = p.show as Extract<TerminalStageProps["show"], { kind: "session" }>;
+    return { ...p, show: { ...show, session: { ...show.session, ...extra } } } as TerminalStageProps;
+  }
+
+  // The confirmed failure path: the terminal took the keys, the agent never
+  // took the message, and Chat showed it nowhere while the composer said sent.
+  it("is on its way at once, and not taken once the session, free to take it, has not", () => {
+    vi.useFakeTimers();
+    const view = mount(TerminalStage, props("a", false, "idle", "codex")); changeView(view, "chat");
+    expect(screens(view).outgoing).toBeUndefined();
+    expect(composer(view).onSend("stuck: please check")).toBe("sent");
+    expect(screens(view).outgoing).toEqual({ text: "stuck: please check", state: "sending" });
+    expect(screens(view).activity).toBeUndefined();
+    vi.advanceTimersByTime(CONFIRM_MS - 500);
+    expect(screens(view).outgoing?.state).toBe("sending");
+    vi.advanceTimersByTime(1000);
+    expect(screens(view).outgoing).toEqual({ text: "stuck: please check", state: "unconfirmed" });
+    // Term is where it went; Chat never sends it again.
+    screens(view).onShowTerm();
+    expect((header(view).view as { current: string }).current).toBe("term");
+    expect(held.sendPrompt).toHaveBeenCalledOnce();
+    view.unmount();
+  });
+
+  it("taken by the session: working until its turn ends, then nothing more", () => {
+    const view = mount(TerminalStage, board(props("a", false, "idle", "codex"), { promptCount: 1 })); changeView(view, "chat");
+    composer(view).onSend("este gata?");
+    // Codex's rollout says it took it before the board does: Chat says it is on it.
+    held.turns = [{ kind: "user", text: "este gata?" }];
+    view.rerender(board(props("a", false, "idle", "codex"), { promptCount: 1 }));
+    expect(screens(view).outgoing).toBeUndefined();
+    expect(screens(view).activity).toEqual({ state: "working" });
+    // The board catches up, and goes on saying working for a turn that writes nothing yet.
+    view.rerender(board(props("a", false, "working", "codex"), { promptCount: 2, heardAt: Date.now() }));
+    expect(screens(view).activity?.state).toBe("working");
+    // The reply, and the turn ends.
+    held.turns = [{ kind: "user", text: "este gata?" }, { kind: "assistant", text: "Da." }];
+    view.rerender(board(props("a", false, "idle", "codex"), { promptCount: 2 }));
+    expect(screens(view).outgoing).toBeUndefined();
+    expect(screens(view).activity).toBeUndefined();
+    view.unmount();
+  });
+
+  it("is each session's own: another session shows its own state and none of this one's", () => {
+    const view = mount(TerminalStage, props("a")); changeView(view, "chat");
+    composer(view).onSend("for a");
+    expect(screens(view).outgoing?.text).toBe("for a");
+    held.subject = "session:b"; view.rerender(props("b", false, "working"));
+    expect(screens(view).outgoing).toBeUndefined();
+    expect(screens(view).activity?.state).toBe("working");
+    held.subject = "session:a"; view.rerender(props("a"));
+    expect(screens(view).outgoing).toEqual({ text: "for a", state: "sending" });
+    expect(screens(view).activity).toBeUndefined();
     view.unmount();
   });
 });

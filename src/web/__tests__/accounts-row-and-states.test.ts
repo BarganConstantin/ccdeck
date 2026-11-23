@@ -39,29 +39,43 @@ const textOfId = (html: string, id: string) => {
   return (m?.[1] ?? "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
 };
 
-describe("the row's main number, for a screen reader", () => {
-  it("is said inside the line the door is described by, with its window", () => {
+// CHANGED ON PURPOSE (#2644): the row's numbers left the quota line for a lane
+// per window — short name, bar, figure, reset — on every row, shut or open,
+// and the door is described by those lanes. A screen reader hears each window
+// once, with its window and its reset, from the lanes the eye reads.
+describe("the row's numbers, for a screen reader", () => {
+  /** What a screen reader hears of an element: without what is aria-hidden. */
+  const spoken = (html: string) => html
+    .replace(/<span[^>]*aria-hidden="true"[^>]*>(?:<span[^>]*><\/span>)?[^<]*<\/span>/g, " ")
+    .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const lanesOf = (html: string) =>
+    /<div class="ap-lanes" id="ap-lanes-2">(?:<div class="ap-lane">[^]*?<\/div>)*<\/div>/.exec(html)?.[0] ?? "";
+
+  it("are said inside the lanes the door is described by, each with its window and its reset", () => {
     const html = row(account, false);
-    // The door is described by the quota line…
-    expect(html).toMatch(/aria-describedby="[^"]*ap-quota-2/);
-    // …and the line says the first window as the head draws it, then the others.
-    const said = textOfId(html, "ap-quota-2");
-    expect(said).toContain("5h 31%");
-    expect(said).toContain("7d");
-    expect(said).toContain("62%");
-    // The copy is for a screen reader only: the head still draws the figure once.
-    expect(html).toMatch(/<span class="vis-hidden">5h 31%\. <\/span>/);
-    expect([...html.matchAll(/class="ap-value ap-q-pct"/g)]).toHaveLength(1);
+    // The door is described by the lanes…
+    expect(html).toMatch(/aria-describedby="[^"]*ap-lanes-2/);
+    // …and they say every window, in order, as the eye reads them.
+    expect(spoken(lanesOf(html))).toBe("5h 31% resets in 2h 00m 7d 62% resets in 2d 2h");
+    // Drawn once: no copy of a figure for a screen reader alone.
+    expect([...html.matchAll(/class="ap-lane-pct"/g)]).toHaveLength(2);
+    expect(html.match(/>31%</g)).toHaveLength(1);
+    expect(html).not.toContain('id="ap-quota-2"');
   });
 
-  it("says reset for a first window that has reset since it was read", () => {
+  it("say reset for a first window that has reset since it was read, and what it read before", () => {
     const rolled = { ...account, lanes: [{ id: "five_hour", label: "5h", pct: 96, resetAt: NOW - HOUR }, account.lanes[1]] };
-    expect(textOfId(row(rolled, false), "ap-quota-2")).toContain("5h reset");
+    const said = spoken(lanesOf(row(rolled, false)));
+    expect(said).toMatch(/^5h Reported reset time passed 1h ago, 96% when read 1m ago 7d 62% /);
   });
 
-  it("keeps the middle dot off the line's first visible part", () => {
+  it("keep the middle dot off the plan line's first visible part", () => {
+    // The plan line keeps only the plan and "skipped by auto-switch"; the
+    // extra window's figure (`.ap-q`) it carried is a lane now.
     const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
-    expect(css).toMatch(/\.ap-quota > :not\(\.vis-hidden\) ~ :is\(\.ap-q-reset, \.ap-q\)::before/);
+    expect(css).toMatch(/\.ap-quota > :not\(\.vis-hidden\) ~ \.ap-q-reset::before \{ content: "·";/);
+    const held = row({ ...account, disabled: true }, false);
+    expect(textOfId(held, "ap-quota-2")).toBe("Skipped by auto-switch");
   });
 });
 

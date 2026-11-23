@@ -40,13 +40,16 @@ function accountRow(pct: number, opened = false) {
     onDismissRefusal: () => {}, onSignIn: () => {}, switchedHere: false, swapped: null, displaced: undefined,
     issueExpanded: false, onOpenIssue: () => {},
   } as never));
-  // The shut row's head figure: the mark alone, its level on the attribute.
-  const head = /<span class="ap-value ap-q-pct"(?: data-level="(warn|err)")?/.exec(html);
+  // CHANGED ON PURPOSE (#2644): the row's figures are its lanes', shut or
+  // open — the first window's figure, its warning mark and its level on the
+  // attribute — and each lane draws its own bar where the row drew one meter.
   const lane = /<div class="ap-lane">[^]*?<\/div>/.exec(html)?.[0] ?? "";
+  const figure = /<span class="ap-lane-pct"(?: data-level="(warn|err)")?/.exec(lane);
+  const marked = /<span class="ap-lane-pct" data-level="(warn|err)" title="high"><svg[^>]*class="level-mark-glyph"/.exec(lane);
   return {
-    level: (head?.[1] as Level) ?? null,
-    laneLevel: markTone(lane),
-    fill: /class="ap-meter-fill" style="[^"]*background:(var\(--[\w-]+\))/.exec(html)?.[1],
+    level: (figure?.[1] as Level) ?? null,
+    laneLevel: (marked?.[1] as Level) ?? null,
+    fill: /class="ap-lane-fill" style="[^"]*background:(var\(--[\w-]+\))/.exec(lane)?.[1],
   };
 }
 
@@ -80,9 +83,9 @@ describe("one quota level for every meter (V4 top-10 #9)", () => {
     // The figure's level, the same on every surface.
     expect({ usage: u.level, row: a.level, lane: open.laneLevel, report: rep.level })
       .toEqual({ usage: level, row: level, lane: level, report: level });
-    // The fill, the same token on every surface.
-    expect({ usage: u.fill, row: a.fill, report: reportFill(rep.barLevel) })
-      .toEqual({ usage: fill, row: fill, report: fill });
+    // The fill, the same token on every surface, shut or open.
+    expect({ usage: u.fill, row: a.fill, open: open.fill, report: reportFill(rep.barLevel) })
+      .toEqual({ usage: fill, row: fill, open: fill, report: fill });
   });
 
 });

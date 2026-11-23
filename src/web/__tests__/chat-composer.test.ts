@@ -47,6 +47,11 @@ describe("ChatComposer controlled drafts", () => {
     r.view.unmount();
   });
 
+  // CHANGED ON PURPOSE (Chat says where a sent message stands): "sent" is the
+  // terminal taking the keys, not the agent taking the message, and it stayed
+  // under the input after the reply. The composer now says nothing for it;
+  // the message shows under the conversation as "Sending…" until the session
+  // takes it (chat-progress.test.ts, chat-progress-view.test.ts).
   it("sends the exact draft synchronously and clears it only after sent", () => {
     const r = rig({ value: "  preserve spacing\nand lines  " });
     expect(r.submit()).toHaveBeenCalledOnce();
@@ -55,7 +60,8 @@ describe("ChatComposer controlled drafts", () => {
     expect(r.onChange).toHaveBeenCalledOnce();
     expect(r.onChange).toHaveBeenCalledWith("");
     expect(r.element("textarea").props.value).toBe("");
-    expect(textOf(r.status())).toBe("Message sent to the session.");
+    expect(r.status().props["data-result"]).toBe("sent");
+    expect(textOf(r.status()), "a send is not a delivery: the composer claims nothing").toBe("");
     expect(r.status().props["aria-live"]).toBe("polite");
     r.edit("next message");
     expect(textOf(r.status())).toBe("");

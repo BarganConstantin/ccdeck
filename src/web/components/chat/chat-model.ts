@@ -137,6 +137,26 @@ export interface ChatSince {
   label: string;
 }
 
+/** A message sent from Chat that the conversation does not show yet
+ *  (chat-progress.ts). The composer's "sent" is the terminal taking the keys,
+ *  never the agent taking the message. */
+export interface ChatOutgoing {
+  /** As typed. */
+  text: string;
+  /** On its way; not taken in time, so it may sit in Term's input; or taken,
+   *  and the conversation not read again since. */
+  state: "sending" | "unconfirmed" | "taken";
+}
+
+/** What the session is doing, said under the conversation's last line. */
+export interface ChatActivity {
+  state: "working" | "waiting";
+  /** The header's tool, argument and time: "Bash · npm test · 12s". */
+  detail?: string;
+  /** How long nothing was heard from a session at work with no call open: "3m". */
+  quiet?: string;
+}
+
 /** The part of the conversation before the turns held, offered on request. */
 export interface ChatOlder {
   /** Reads it and puts it in front of the turns. */
