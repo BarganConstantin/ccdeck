@@ -2,8 +2,9 @@
 // was five columns, two worded stripes (156 each), the Sessions list, the pane
 // and a 320 Inspector, and the pane had 38% of the window. Now the stripes are
 // icons in Workspace (v4-stripe-words.test.ts), the Inspector starts closed on
-// every entry and the Board gets its own back on leaving (below, run as hooks
-// under fake-react over the real use-right-panels.ts), and the pane header is
+// every entry, opens only with the session an entry from the Board lands on,
+// and the Board gets its own back on leaving (below, run as hooks under
+// fake-react over the real use-right-panels.ts), and the pane header is
 // the name and one state word (v4-term-pane.test.ts). The last block is the
 // width arithmetic, from the sheet's own tokens.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -46,9 +47,11 @@ afterEach(() => { setStripeWorkspace(false); delete (globalThis as Record<string
 
 /** App's Inspector in Workspace, as App.tsx wires it at 1320 and wider: the
  *  Board's flag (use-right-panels.ts), the column's fold, the unfold on an
- *  open, and the hook. `shows` is what the column draws (inspector-corner.ts). */
-interface Props { workspace: boolean }
-function Harness({ workspace }: Props) {
+ *  open, and the hook. `shows` is what the column draws (inspector-corner.ts).
+ *  `pane` is what Workspace's pane shows: a session, null for the empty pane,
+ *  left out until it opens (App passes undefined outside Workspace too). */
+interface Props { workspace: boolean; pane?: string | null }
+function Harness({ workspace, pane }: Props) {
   const { detailOpen, setDetailOpen, hold } = useRightPanels();
   const [folded, setFolded] = useState(false);
   const detailWasOpen = useRef(detailOpen);
@@ -56,7 +59,10 @@ function Harness({ workspace }: Props) {
     if (detailOpen && !detailWasOpen.current) setFolded(false);
     detailWasOpen.current = detailOpen;
   }, [detailOpen]);
-  useWorkspaceInspector({ active: workspace, detailOpen, fold: () => setFolded(true), hold: hold.detail, restore: setDetailOpen });
+  useWorkspaceInspector({
+    active: workspace, detailOpen, fold: () => setFolded(true), hold: hold.detail, restore: setDetailOpen,
+    pane: workspace ? pane : undefined, unfold: () => setFolded(false),
+  });
   return {
     detailOpen,
     shows: inspectorDoorOpen({ workspace, column: true, folded, shown: detailOpen, zoomed: false }),
@@ -164,6 +170,92 @@ describe("the Inspector starts closed in Workspace", () => {
     const show = app.slice(app.indexOf("const showInspector = useCallback("), app.indexOf("const toggleInspector"));
     expect(show).toContain("setInspectorFolded(false)");
     expect(app).toMatch(/if \(detailOpen && !detailWasOpen\.current\) setInspectorFolded\(false\);/);
+    // What the pane shows, only while it is up in Workspace, and the column's unfold.
+    expect(app).toMatch(/restore: setDetailStored,\s*pane: inWorkspace && stageClaimsKeys\(stage\.shell\.phase\) \? targetSession\(stage\.shell\.target\) : undefined,\s*unfold: \(\) => setInspectorFolded\(false\),\s*\}\);/);
+  });
+
+  // CHANGED ON PURPOSE (reported on 4.3.0): App unfolded the column in an
+  // effect of its own on every session Workspace's pane changed to, so a
+  // closed Inspector came back on the next row and took 320 from the pane each
+  // time. The hook unfolds it once, for the session Workspace is entered on.
+  it("leaves no effect in App that unfolds the column when the pane's session changes", () => {
+    const app = withoutComments(sourceOf("App.tsx"));
+    expect(app).not.toMatch(/useLayoutEffect\(\(\) => \{\s*if \(\w+\) setInspectorFolded\(false\);\s*\}, \[\w+\]\);/);
+  });
+});
+
+describe("a session chosen inside Workspace leaves the Inspector as the reader has it", () => {
+  it("opens with the session a card on the Board enters Workspace on", () => {
+    const { now, go } = setup({ workspace: false });
+    // A card's click puts its session on the pane in the commit that enters.
+    go({ workspace: true, pane: "a" });
+    expect(now().shows, "the session the reader came for").toBe(true);
+  });
+
+  it("opens with the session the switch carries in, its pane a commit after the entry", () => {
+    const { now, go } = setup({ workspace: false });
+    go({ workspace: true });
+    expect(now().shows).toBe(false);
+    go({ workspace: true, pane: "a" });
+    expect(now().shows).toBe(true);
+  });
+
+  it("keeps a closed Inspector closed while the reader picks one session after another", () => {
+    const { now, go } = setup({ workspace: false });
+    go({ workspace: true, pane: "a" });
+    expect(now().shows).toBe(true);
+    now().fold();
+    expect(now().shows).toBe(false);
+    for (const pane of ["b", "c", "a", "b"]) {
+      go({ workspace: true, pane });
+      expect(now().shows, `after ${pane}`).toBe(false);
+    }
+  });
+
+  it("keeps an open Inspector open while the reader picks one session after another", () => {
+    const { now, go } = setup({ workspace: false });
+    go({ workspace: true, pane: "a" });
+    for (const pane of ["b", "c"]) {
+      go({ workspace: true, pane });
+      expect(now().shows, `after ${pane}`).toBe(true);
+    }
+    // Opened by its door after a close, the same.
+    now().fold();
+    now().open();
+    go({ workspace: true, pane: "a" });
+    expect(now().shows).toBe(true);
+    expect(now().detailOpen).toBe(true);
+  });
+
+  it("starts closed on an entry to the empty pane, and stays closed when a session is chosen in it", () => {
+    const { now, go } = setup({ workspace: false });
+    go({ workspace: true });
+    go({ workspace: true, pane: null });
+    expect(now().shows).toBe(false);
+    go({ workspace: true, pane: "a" });
+    expect(now().shows, "chosen inside Workspace").toBe(false);
+  });
+
+  it("stays closed on a load that lands in Workspace when the stage puts its session back", () => {
+    store.set(DETAIL_KEY, "1");
+    const { now, go } = setup({ workspace: true });
+    go({ workspace: true, pane: null });
+    go({ workspace: true, pane: "a" });
+    expect(now().shows).toBe(false);
+    expect(store.get(DETAIL_KEY), "the Board's choice survives").toBe("1");
+  });
+
+  it("opens again on the next entry on a session, and the Board keeps its own choice", () => {
+    store.set(DETAIL_KEY, "0");
+    const { now, go } = setup({ workspace: false });
+    go({ workspace: true, pane: "a" });
+    now().fold();
+    go({ workspace: false });
+    expect(now().detailOpen, "the Board's Inspector, closed as it was").toBe(false);
+    go({ workspace: true, pane: "b" });
+    expect(now().shows).toBe(true);
+    go({ workspace: false });
+    expect(store.get(DETAIL_KEY)).toBe("0");
   });
 });
 
