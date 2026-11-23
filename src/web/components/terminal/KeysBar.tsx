@@ -81,6 +81,9 @@ export interface EndView {
   action: string;
   busy?: boolean;
   onAction(): void;
+  /** A second way on, after the action: a new session in the same folder,
+   *  when Reopen here could not resume the session (TerminalStage endView). */
+  alt?: { action: string; title?: string; onAction(): void };
 }
 
 export interface KeysBarProps {
@@ -254,6 +257,7 @@ export default function KeysBar(p: KeysBarProps) {
       <div className="ts-keys" data-owner="none" data-split>
         <span className="ts-end">{p.end.sentence}</span>
         <button type="button" className="btn" aria-busy={p.end.busy || undefined} data-stage-land onClick={p.end.onAction}>{p.end.action}</button>
+        {p.end.alt && <button type="button" className="btn" title={p.end.alt.title} onClick={p.end.alt.onAction}>{p.end.alt.action}</button>}
       </div>
     );
   } else if (p.notice) {

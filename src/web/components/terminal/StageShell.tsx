@@ -500,6 +500,10 @@ export function StageDock(p: StageDockProps) {
     const rect = multi ? arrangement!.rects.get(id) : null;
     const geometry = multi && rect ? stage.geometryFor(rect.w, rect.h) : g!;
     const keysHere = () => { if (!own) stage.focusPaneId(id); };
+    // What a new session in place of this one would start: its agent, in its
+    // folder. Claude and Codex are the agents the deck starts.
+    const ref = ps.kind === "session" ? ps.session.ref : null;
+    const fresh = ref && (ref.provider === "claude" || ref.provider === "codex") ? { agent: ref.provider, cwd: ref.cwd } : null;
     const splitView: StageSplit | null = multi ? {
       number: arrangement!.order.indexOf(id) + 1,
       primary: own,
@@ -553,6 +557,9 @@ export function StageDock(p: StageDockProps) {
           return true;
         }}
         onLaunchAgain={ps.kind === "launch" ? () => { keysHere(); stage.launch(ps.agent, ps.cwd, ps.options); } : undefined}
+        // A session Reopen here could not bring back: a new one of its agent
+        // in its folder, in this pane, on that press only.
+        onStartNew={fresh ? () => { keysHere(); stage.launch(fresh.agent, fresh.cwd); } : undefined}
         onAnnounce={stage.announce}
         windows={stage.windows}
         split={splitView}

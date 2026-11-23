@@ -119,7 +119,10 @@ describe("a Codex session that updated itself", () => {
     expect((s.api.adopt.mock.calls as unknown[][])[0][0], "the same session, in its own folder").toEqual(CODEX_REF);
     expect(s.onWantKeys, "the keys go to the pane it brings back").toHaveBeenCalledTimes(1);
     expect(s.onClose, "an update is not the agent ending itself").not.toHaveBeenCalled();
-    expect(s.phase().kind).toBe("attaching");
+    // CHANGED ON PURPOSE (ended-pane restart): a Reopen here keeps the ended
+    // frame up, busy (its button says Reopening…), instead of "reconnecting…".
+    expect(s.phase()).toEqual({ kind: "ended", busy: true });
+    expect(s.bar().end, "the end bar says it is reopening").toMatchObject({ action: "Reopening…", busy: true });
     s.view.rerender({ ...s.props });
     await flush();
     expect(s.api.adopt, "and only once").toHaveBeenCalledTimes(1);

@@ -131,7 +131,10 @@ describe("Reopen here", () => {
     s.bar().end!.onAction();
     expect(s.adopt).toHaveBeenCalledTimes(1);
     expect(s.onWantKeys, "the press asks for the keys, as Try again does").toHaveBeenCalledTimes(1);
-    expect(s.bar().end, "the end bar, and its button, are gone").toBeNull();
+    // CHANGED ON PURPOSE (ended-pane restart): the end bar and its button stay
+    // while the reopen works, saying so (Reopening…, busy), so the press is
+    // answered where it was made and a second press starts nothing.
+    expect(s.bar().end, "the end bar says it is reopening").toMatchObject({ action: "Reopening…", busy: true });
     doc().activeElement = s.body;
     expect(s.term.focus, "nothing to type into yet").not.toHaveBeenCalled();
 
@@ -163,7 +166,9 @@ describe("Reopen here", () => {
     s.header().end!.onAction();
     expect(s.adopt).toHaveBeenCalledTimes(1);
     expect(s.onWantKeys, "the press asks for the keys, as Try again does").toHaveBeenCalledTimes(1);
-    expect(s.header().end, "the header's button is gone with the end").toBeNull();
+    // CHANGED ON PURPOSE (ended-pane restart): the header's button stays while
+    // the reopen works, saying so (Reopening…, busy), until the pane is back.
+    expect(s.header().end, "the header's button says it is reopening").toMatchObject({ action: "Reopening…", busy: true });
     doc().activeElement = s.body;
 
     await flush();

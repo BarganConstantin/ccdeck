@@ -54,8 +54,16 @@ import type { Provider } from "../../types";
  *    stays on the board to reopen. `updated` when that agent was a Codex
  *    that had just updated itself (Codex's own "Update now", which asks to
  *    be restarted): the stage starts it again in the same pane, once.
+ *    `busy` while a Reopen here asked for it works: the frame stays, the
+ *    button says Reopening… and a second press starts nothing. `unresumed`
+ *    when the session a Reopen here started ended at once
+ *    (CLEAN_END_MIN_LIVE_MS): its agent could not resume the conversation,
+ *    and the pane offers to try again or, as an explicit choice, a new
+ *    session in the same folder.
  *  - detached: someone else took the pane away; the session runs on.
  *  - error: anything else, said in a sentence, with a way to try again.
+ *    `reopen` when it is the deck refusing a Reopen here: Try again reopens
+ *    again, and a new session in the same folder is offered beside it.
  */
 export type StagePhase =
   | { kind: "empty" }
@@ -65,14 +73,15 @@ export type StagePhase =
   | { kind: "not-attachable"; target: TerminalTarget; stillRunning: boolean; busy: boolean }
   | { kind: "tmux-installing"; progress?: TmuxProgress }
   | { kind: "tmux-missing"; reason: string; install?: string; download?: string; busy: boolean }
-  | { kind: "ended"; atOpen?: boolean; clean?: boolean; updated?: boolean }
+  | { kind: "ended"; atOpen?: boolean; clean?: boolean; updated?: boolean; busy?: boolean; unresumed?: boolean }
   | { kind: "detached" }
   /** `code`: the engine's refusal, when it is a state of this machine
    *  (terminal-api's PANEL_UNAVAILABLE). Such a card checks again in place,
    *  `busy` while it does, as the tmux card does. `missing`: a Claude
    *  session refused `agent-missing`, which the card offers to install
-   *  (ClaudeInstall.tsx); a Codex one keeps the plain card. */
-  | { kind: "error"; message: string; code?: PanelUnavailable; busy?: boolean; missing?: "claude" };
+   *  (ClaudeInstall.tsx); a Codex one keeps the plain card. `reopen`: a
+   *  refused Reopen here, whose Try again reopens again (`busy` meanwhile). */
+  | { kind: "error"; message: string; code?: PanelUnavailable; busy?: boolean; missing?: "claude"; reopen?: boolean };
 
 export type StagePhaseKind = StagePhase["kind"];
 
@@ -263,6 +272,19 @@ function lastTurnWords(ago: string): string {
  *  keys bar's second half (V4's Figma). */
 export const RECONNECT_NOTE_MSG = "board.stage.reconnectNote";
 
+/** The header's word for a session a Reopen here could not resume, and the
+ *  end bar's sentence for it ({name}: the agent). */
+export const NOT_RESUMED_PHRASE_MSG = "board.stage.phrase.notResumed";
+export const NOT_RESUMED_MSG = "board.stage.notResumed";
+/** Reopen here's words while it works. */
+export const REOPENING_MSG = "board.stage.reopening";
+/** The explicit way on from a session that could not be reopened: a new
+ *  session of the same agent in the same folder. Its tooltip names the agent. */
+export const START_NEW_MSG = "board.stage.startNewHere";
+export const START_NEW_TIP_MSG = "board.stage.startNewTip";
+/** The card's first line when the deck refused a Reopen here. */
+export const REOPEN_FAILED_MSG = "board.stage.reopenFailed";
+
 /**
  * What the header says once the stage's own phase is taken into account. The
  * board's sentence stands whenever the pane is up or the stage has nothing
@@ -298,6 +320,9 @@ export function headerStatus(board: StageStatus | null, phase: StagePhase): Stag
       }
       return board ?? { state: "ended", phrase: t("board.stage.phrase.ended") };
     case "ended":
+      // A Reopen here whose agent ended at once: the stage knows why, which
+      // the board's "ended 2m ago" does not say.
+      if (phase.unresumed) return { state: "ended", phrase: t(NOT_RESUMED_PHRASE_MSG) };
       // The socket said so before the board's sweep did. "Just now" only when
       // the stage watched it happen; a pane that was already dead when it was
       // opened ended some time ago, and the stage cannot say when.
@@ -373,7 +398,7 @@ export function elsewherePhrase(state: StageState): string {
 export function stageAnnouncement(name: string, phase: StagePhase): string | null {
   switch (phase.kind) {
     case "live": return t("board.stage.announceLive", { name });
-    case "ended": return t("board.stage.announceEnded", { name });
+    case "ended": return t(phase.unresumed ? "board.stage.announceNotResumed" : "board.stage.announceEnded", { name });
     case "detached": return t("board.stage.announceDetached", { name });
     case "not-attachable": return phase.stillRunning ? t("board.stage.announceStillRunning", { name }) : t("board.stage.announceNoPane", { name });
     case "tmux-installing": return t("board.stage.announceTmuxSetup");
