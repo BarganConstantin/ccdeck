@@ -140,8 +140,8 @@ export function usePhoneSheets({ phone, open, close, openers, modalOpenRef, onLe
   // nothing is stored (a resize is not the reader closing a panel).
   //
   // A layout effect, so the crossing is settled before a frame is painted: the
-  // desktop frame after a widening never shows the list and Accounts in one
-  // column, and the phone frame after a narrowing never shows two sheets.
+  // phone frame after a narrowing never shows two sheets, and the page hears
+  // of a widening (onLeavePhone) before the desktop frame after it.
   useLayoutEffect(() => {
     const crossed = prevPhone.current !== phone;
     prevPhone.current = phone;

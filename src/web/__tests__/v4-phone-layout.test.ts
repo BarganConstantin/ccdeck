@@ -67,7 +67,17 @@ describe("the deck opens on Sessions, full width, with no panel open", () => {
   });
 
   it("opening Accounts on a phone does not take the list's place, and the list does not evict it", () => {
-    expect(left.match(/!loadsOnPhone\(\)/g)?.length).toBeGreaterThanOrEqual(3);
+    // CHANGED ON PURPOSE (the owner, 2026-11-23): was three `!loadsOnPhone()`
+    // guards, one in each way to open, that kept a phone out of the eviction
+    // beside a canvas. Nothing evicts on any width now, so there is nothing to
+    // keep a phone out of: neither toggle, nor Accounts' open, touches the
+    // other panel (phone-load-panels.test.ts runs it on a phone).
+    const toggles = left.slice(left.indexOf("const toggleSessionList"), left.indexOf("const closeSessionList"));
+    expect(toggles).toContain("setSessionListOpen(open => !open)");
+    expect(toggles).toContain("setAccountsPanelOpen(open => !open)");
+    expect(toggles).toContain("setAccountsPanelOpen(true)");
+    expect(toggles.match(/setSessionListOpen\(/g)).toHaveLength(1);
+    expect(toggles.match(/setAccountsPanelOpen\(/g)).toHaveLength(2);
   });
 
   it("the Sessions panel is the width of the screen between the top bar and the dock", () => {

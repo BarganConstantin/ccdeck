@@ -1,10 +1,10 @@
 /* ---------------- accounts panel (claude-swap) ---------------- */
 /* Sits left of the usage panel so both can be open — comparing accounts is
    usually something you do while watching your current spend. */
-/* Left sidebar, in the same slot as the session list — the two are alternate
-   answers to "what should this column show", so they swap rather than stack.
-   Both are drawn inside the left column, which owns the slot, the edge and the
-   motion (styles/left-column.css). */
+/* Left sidebar, in the session list's column: alone it has the column, and
+   with the list open too it stands under the list, as This machine stands
+   under Usage on the right. Both are drawn inside the left column, which owns
+   the slot, the edge, the stack and the motion (styles/left-column.css). */
 /** How long a left panel takes to leave, and the column to close. App.tsx
     holds both panels mounted for exactly this — see panel-exit.ts — so the two
     must not drift apart. Out is faster than in, as an exit should be: arriving

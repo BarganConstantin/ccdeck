@@ -40,7 +40,13 @@ describe("the left column moves, and what is in it does not resize (#866)", () =
     // --column-ease were.
     expect(body(".left-column")).toMatch(/transition:\s*width var\(--dur-move\)/);
     const panels = /\.left-column > \.session-list,\s*\.left-column > \.accounts-panel\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
-    expect(panels).toMatch(/position:\s*absolute/);
+    // CHANGED ON PURPOSE (the owner, 2026-11-23): was `position: absolute`.
+    // The two stand one under the other in the column now, so they are in its
+    // flow; neither resizes with it, because each keeps its own width there
+    // (--list-w) and the column clips it (left-column-motion.test.ts).
+    expect(panels).toMatch(/position:\s*relative/);
+    expect(css).toMatch(/\n\.left-column > \.session-list \{ width: var\(--list-w,/);
+    expect(css).toMatch(/\n\.left-column > \.accounts-panel \{ width: var\(--list-w,/);
     expect(panels).toMatch(/transition:\s*transform var\(--dur-move\) var\(--ease-stage\),\s*opacity/);
   });
 
