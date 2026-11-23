@@ -665,6 +665,8 @@ const catalog: Catalog = {
   "board.stage.handoff.offer": "它在 ccdeck 之外的 Ghostty 視窗中開啟。ccdeck 可以將它移到這裡，對話保持不變。",
   "board.stage.elsewhere.working": "它正在 ccdeck 之外的終端機中工作。要在這裡繼續，請在該終端機中結束它。ccdeck 會自動察覺，並提供「在此重新開啟」，對話保持不變。",
   "board.stage.elsewhere.running": "它仍在 ccdeck 之外的終端機中執行。要在這裡繼續，請在該終端機中結束它。ccdeck 會自動察覺，並提供「在此重新開啟」，對話保持不變。",
+  "board.stage.held.codex": "Codex 仍在別處開著這個對話，例如它的背景服務、Codex 應用程式或另一個終端機，所以暫時無法在這裡重新開啟。ccdeck 會持續檢查，一旦空出來就提供「在此重新開啟」。",
+  "board.stage.held.claude": "Claude Code 仍在另一個終端機或視窗中開著這個對話，所以暫時無法在這裡重新開啟。ccdeck 會持續檢查，一旦空出來就提供「在此重新開啟」。",
   "board.stage.wsEmptyTitle": "沒有任何待處理項目",
   "board.stage.wsEmptyLine": "點擊清單中的工作階段，或啟動新的。",
   "board.stage.wsEmptyBeside": "{keys} 或拖曳可在旁邊再開啟一個，最多四個窗格。",

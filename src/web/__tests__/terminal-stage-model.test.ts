@@ -129,6 +129,13 @@ describe("what the stage knows better than the board", () => {
     for (const unknown of [null, undefined, "ended", "none"] as const) expect(elsewhereLine(unknown)).toBe("board.stage.elsewhere.running");
   });
 
+  it("says a conversation held after this pane's Reopen here is held, by its agent, whatever the board says", () => {
+    for (const state of [null, "idle", "waiting", "working"] as const) {
+      expect(elsewhereLine(state, "codex")).toBe("board.stage.held.codex");
+      expect(elsewhereLine(state, "claude")).toBe("board.stage.held.claude");
+    }
+  });
+
   it("says not attached when tmux is missing, and ended when the socket said so first", () => {
     expect(headerStatus(working, { kind: "tmux-missing", reason: "missing", busy: false }).phrase).toBe("not attached");
     expect(headerStatus(working, { kind: "ended" })).toEqual({ state: "ended", phrase: "ended just now" });

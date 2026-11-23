@@ -665,6 +665,8 @@ const catalog: Catalog = {
   "board.stage.handoff.offer": "它在 ccdeck 之外的 Ghostty 窗口中打开。ccdeck 可以将它移到这里，对话保持不变。",
   "board.stage.elsewhere.working": "它正在 ccdeck 之外的终端中工作。要在这里继续，请在那个终端中退出它。ccdeck 会自动发现，并提供“在此重新打开”，对话保持不变。",
   "board.stage.elsewhere.running": "它仍在 ccdeck 之外的终端中运行。要在这里继续，请在那个终端中退出它。ccdeck 会自动发现，并提供“在此重新打开”，对话保持不变。",
+  "board.stage.held.codex": "Codex 仍在别处打开着这个对话，例如它的后台服务、Codex 应用或另一个终端，所以暂时无法在这里重新打开。ccdeck 会持续检查，一旦空闲就提供“在此重新打开”。",
+  "board.stage.held.claude": "Claude Code 仍在另一个终端或窗口中打开着这个对话，所以暂时无法在这里重新打开。ccdeck 会持续检查，一旦空闲就提供“在此重新打开”。",
   "board.stage.wsEmptyTitle": "没有等待处理的内容",
   "board.stage.wsEmptyLine": "点击列表中的会话，或新建一个。",
   "board.stage.wsEmptyBeside": "{keys} 或拖动可在旁边再打开一个，最多四个窗格。",

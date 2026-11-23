@@ -665,6 +665,8 @@ const catalog: Catalog = {
   "board.stage.handoff.offer": "Está abierta en una ventana de Ghostty fuera de ccdeck. ccdeck puede moverla aquí, con la misma conversación.",
   "board.stage.elsewhere.working": "Está trabajando en una terminal fuera de ccdeck. Para continuarla aquí, ciérrala en esa terminal. ccdeck lo nota por sí solo y ofrece Reabrir aquí, con la misma conversación.",
   "board.stage.elsewhere.running": "Sigue en marcha en una terminal fuera de ccdeck. Para continuarla aquí, ciérrala en esa terminal. ccdeck lo nota por sí solo y ofrece Reabrir aquí, con la misma conversación.",
+  "board.stage.held.codex": "Codex aún tiene esta conversación abierta en otro lugar, como su servicio en segundo plano, la app de Codex u otra terminal, así que todavía no se puede reabrir aquí. ccdeck sigue comprobando y ofrece Reabrir aquí en cuanto quede libre.",
+  "board.stage.held.claude": "Claude Code aún tiene esta conversación abierta en otra terminal o ventana, así que todavía no se puede reabrir aquí. ccdeck sigue comprobando y ofrece Reabrir aquí en cuanto quede libre.",
   "board.stage.wsEmptyTitle": "Nada está esperando",
   "board.stage.wsEmptyLine": "Haz clic en una sesión de la lista o inicia una nueva.",
   "board.stage.wsEmptyBeside": "{keys} o arrastrar abre otra al lado, hasta cuatro paneles.",

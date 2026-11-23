@@ -1020,14 +1020,18 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     else setPhase({ kind: "empty" });
   };
 
-  const openFlow = async (ref: SessionRef, my: number, reconnecting: boolean) => {
+  /** A card's `held` (StagePhase), for an agent this pane can start anew. */
+  const heldBy = (provider: SessionRef["provider"]) => provider === "claude" || provider === "codex" ? { held: provider } : {};
+
+  /** `held`: a Reopen here of this pane's led here (StagePhase, `held`). */
+  const openFlow = async (ref: SessionRef, my: number, reconnecting: boolean, held = false) => {
     // Every open goes through here — the first, Check again, a reconnect.
     if (isEventOnly(ref.provider)) { setPhase(eventsOnlyPhase(ref.provider)); return; }
     // At the pane's size and in its colours, as an adopt: an open the engine
     // answers by starting a client (a managed Codex) starts it in both.
     const answer = await deps.api.open(ref, {}, { ...want }, paneColours());
     if (my !== gen) return;
-    await landOpen(answer, my, reconnecting);
+    await landOpen(answer, my, reconnecting, held ? ref.provider : undefined);
   };
 
   /** The card for a session that runs in a terminal outside the deck, and a
@@ -1061,7 +1065,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     }, ELSEWHERE_POLL_MS);
   };
 
-  const landOpen = async (answer: Awaited<ReturnType<SessionDeps["api"]["open"]>>, my: number, reconnecting: boolean) => {
+  const landOpen = async (answer: Awaited<ReturnType<SessionDeps["api"]["open"]>>, my: number, reconnecting: boolean, held?: SessionRef["provider"]) => {
     if (answer.ok) { connect(answer.ticket, my); return; }
     if (isFailure(answer)) {
       // Opening starts nothing, so a moment's refusal is waited out even on
@@ -1074,7 +1078,10 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       await tmuxOr(my, { kind: "error", message: answer.target.reason === "uncertain" ? tr("board.stage.identityUncertain") : answer.target.label });
       return;
     }
-    const phase = { kind: "not-attachable", target: answer.target, stillRunning: answer.target.kind === "C", busy: false } as const;
+    const stillRunning = answer.target.kind === "C";
+    // Still held after this pane asked to reopen it: the card says so, and
+    // offers a new session beside Not now. Freed, it is the plain card again.
+    const phase = { kind: "not-attachable", target: answer.target, stillRunning, busy: false, ...(stillRunning && held ? heldBy(held) : {}) } as const;
     if (phase.stillRunning) runningElsewhere(phase, my);
     else setPhase(phase);
   };
@@ -1242,19 +1249,21 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     // Check again is a read. Only a target confirmed as ended may offer
     // Reopen here; repeatedly adopting a live external session just fails.
     if (phase.kind === "not-attachable" && phase.stillRunning) {
-      void openFlow(ref, my, false);
+      void openFlow(ref, my, false, !!phase.held);
       return;
     }
     void deps.api.adopt(ref, {}, { ...want }, paneColours()).then(answer => {
       if (my !== gen) return;
       if (answer.ok) { connect(answer.ticket, my, true); return; }
+      // Still held, after a press here: the card says where (`held`).
       if (answer.error === STILL_RUNNING && phase.kind === "not-attachable") {
-        runningElsewhere({ ...phase, stillRunning: true, busy: false }, my);
+        runningElsewhere({ ...phase, stillRunning: true, busy: false, ...heldBy(ref.provider) }, my);
         return;
       }
       // Running already — reopened from another tab, or by hand in a
-      // terminal: shown where it runs, never started a second time.
-      if (answer.error === STILL_RUNNING) { void openFlow(ref, my, false); return; }
+      // terminal: shown where it runs, never started a second time. Where
+      // it cannot be shown, its card is `held`.
+      if (answer.error === STILL_RUNNING) { void openFlow(ref, my, false, true); return; }
       const said = failed(answer, ref.provider);
       // The deck's own sentence, with Try again reopening again and a new
       // session in the same folder beside it (StageBody). A refusal that is
