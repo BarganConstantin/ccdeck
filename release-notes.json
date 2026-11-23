@@ -1,4 +1,14 @@
 {
+  "4.3.2": [
+    {
+      "title": "💬 Chat shows what the agent is doing after you write",
+      "body": "After you send a message from Workspace Chat, a line under it now says Sending… until the session takes it, then that Claude Code or Codex is working, with the tool it runs and for how long. If the agent hasn't taken your message after a few seconds, Chat says so and offers Show Term instead of claiming it was sent. A Codex turn you stop now reads Interrupted, as Claude Code's does."
+    },
+    {
+      "title": "📊 Every account shows a bar for each quota window again",
+      "body": "In Accounts, every account, the active one and Other accounts alike, shows each of its quota windows on its own line: 5h, 7d and a model window such as Fable, each with a bar, the percentage and the time until it resets, lined up from one account to the next. An account at 0% keeps a faint sliver, an old reading is drawn muted under Last read, and an account never read says so instead of showing empty bars."
+    }
+  ],
   "4.3.1": [
     {
       "title": "🔄 Codex starts again after it updates itself",
@@ -308,6 +318,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.3.2": "Chat shows what the agent is doing, and every account shows its quota bars again",
     "4.3.1": "Codex starts again after it updates itself, and a closed Inspector stays closed",
     "4.3.0": "opencode and GitHub Copilot CLI sessions on the board",
     "4.2.1": "Add account finds and installs Claude Code on more machines",
