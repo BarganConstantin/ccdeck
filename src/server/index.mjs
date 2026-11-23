@@ -200,7 +200,7 @@ import { handleIntegrations } from "./integrations/routes.mjs";
 // which runs its own gates because the route table never sees an upgrade
 // (terminal-socket.mjs).
 import {
-  handleTerminalAdopt, handleTerminalBackground, handleTerminalClaim, handleTerminalEndHosts, handleTerminalFolder, handleTerminalHosts, handleTerminalLaunch, handleTerminalOpen,
+  handleTerminalAdopt, handleTerminalBackground, handleTerminalClaim, handleTerminalEndHosts, handleTerminalFolder, handleTerminalCodexUpdated, handleTerminalHosts, handleTerminalLaunch, handleTerminalOpen,
   handleTerminalStatus, handleTerminalTarget, handleTerminalProjects, terminalUpgradeOptions,
   handleEngineStatus, handleEngineAction,
 } from "./terminal-routes.mjs";
@@ -579,6 +579,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/terminal/launch") return guard(handleTerminalLaunch(req, res, terminal), res);
     if (req.method === "POST" && url.pathname === "/api/terminal/claim")  return guard(handleTerminalClaim(req, res, terminal), res);
     if (req.method === "POST" && url.pathname === "/api/terminal/folder") return guard(handleTerminalFolder(req, res, terminal), res);
+    if (req.method === "POST" && url.pathname === "/api/terminal/codex-updated") return guard(handleTerminalCodexUpdated(req, res, terminal), res);
     // The engine's install, from the page (engine-install.mjs): its state, an
     // install from the registry or from a file, a cancel and a remove.
     if (req.method === "GET"  && url.pathname === "/api/terminal/engine") return guard(handleEngineStatus(req, res, terminal), res);

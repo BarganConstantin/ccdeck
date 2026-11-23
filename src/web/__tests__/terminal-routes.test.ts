@@ -84,6 +84,10 @@ let pruned: any[];
 let clock: number;
 let sized: string[];
 let ttyAnswer: { cols: number; rows: number } | null;
+// Whether Codex just updated itself (codex-update.mjs): every duration the
+// route passed on, and what the stand-in answers.
+let codexAsked: unknown[];
+let codexReplacedImpl: (liveForMs: number) => Promise<boolean>;
 const tickets = createTicketStore();
 
 class FakeControl extends EventEmitter {
@@ -123,6 +127,8 @@ beforeEach(() => {
   clock = 1_000_000_000;
   sized = [];
   ttyAnswer = null;
+  codexAsked = [];
+  codexReplacedImpl = async () => false;
   js.resetPruneClock();
   js.resetWrappers();
 });
@@ -154,6 +160,7 @@ beforeAll(async () => {
       ownTmuxWanted: (found: any) => { wantedFor.push(found); return ownWanted; },
       pruneDeadDeckSessions: async (o: any) => { pruned.push(o); return []; },
       now: () => clock,
+      codexReplaced: (liveForMs: number) => { codexAsked.push(liveForMs); return codexReplacedImpl(liveForMs); },
     },
   });
   port = (server.address() as { port: number }).port;
@@ -784,6 +791,53 @@ describe("POST /api/terminal/folder", () => {
 
   it("is a mutation: refused to a caller that presents nothing", async () => {
     expect((await ask("POST", "/api/terminal/folder", { cwd: PROJECT }, { host: `127.0.0.1:${port}` })).status).toBe(401);
+  });
+});
+
+describe("POST /api/terminal/codex-updated", () => {
+  // The pane's question when a Codex it watched exits with status 0: was
+  // that Codex's own "Update now"? Answered by the deck from the codex on
+  // disk (codex-update.mjs); codex-update.test.ts has the decision itself.
+  it("answers yes or no with the pane's duration passed on, and starts nothing nor asks tmux anything", async () => {
+    codexReplacedImpl = async () => true;
+    const yes = await ask("POST", "/api/terminal/codex-updated", { liveForMs: 61_000 });
+    expect(yes).toMatchObject({ status: 200, body: { ok: true, updated: true } });
+    codexReplacedImpl = async () => false;
+    expect((await ask("POST", "/api/terminal/codex-updated", { liveForMs: 0 })).body).toEqual({ ok: true, updated: false });
+    expect((await ask("POST", "/api/terminal/codex-updated", { liveForMs: 1e12 })).body).toEqual({ ok: true, updated: false });
+    expect(codexAsked, "held to a day").toEqual([61_000, 0, 24 * 3_600_000]);
+    expect(launches).toEqual([]);
+    expect(resolved).toEqual([]);
+    expect(lists).toEqual([]);
+  });
+
+  it("reads the real codex link it is pointed at, and never says where it is", async () => {
+    // @ts-expect-error — plain .mjs server module, no types
+    const { codexReplaced } = await import("../../server/codex-update.mjs");
+    const bin = join(DIR, "codex-bin", "codex");
+    mkdirSync(join(DIR, "codex-bin"), { recursive: true });
+    writeFileSync(bin, "#!/bin/sh\n");
+    codexReplacedImpl = (liveForMs) => codexReplaced(liveForMs, { findBin: () => bin });
+    const got = await ask("POST", "/api/terminal/codex-updated", { liveForMs: 30_000 });
+    expect(got.body).toEqual({ ok: true, updated: true });
+    expect(got.raw, "no path, no folder").not.toContain(DIR);
+    expect(got.raw).not.toContain("codex-bin");
+  });
+
+  it("refuses a body with no duration in it with 400, which the page reads as no, and one too large with 413", async () => {
+    for (const body of ["{not json", JSON.stringify({}), "null", JSON.stringify({ liveForMs: -1 }), JSON.stringify({ liveForMs: "60000" }), JSON.stringify({ liveForMs: null })]) {
+      expect(await ask("POST", "/api/terminal/codex-updated", body), body).toMatchObject({ status: 400, body: { ok: false, code: "bad-request" } });
+    }
+    expect((await ask("POST", "/api/terminal/codex-updated", JSON.stringify({ liveForMs: 1, pad: "x".repeat(20_000) }))).status).toBe(413);
+    expect(codexAsked, "nothing was looked at").toEqual([]);
+  });
+
+  it("is a mutation: refused to a caller that presents nothing, or comes from another site", async () => {
+    expect((await ask("POST", "/api/terminal/codex-updated", { liveForMs: 1 }, { host: `127.0.0.1:${port}` })).status).toBe(401);
+    const cross = await ask("POST", "/api/terminal/codex-updated", { liveForMs: 1 }, { host: `127.0.0.1:${port}`, origin: "https://example.com", "sec-fetch-site": "cross-site" });
+    expect(cross.status).toBeGreaterThanOrEqual(401);
+    expect(cross.status).toBeLessThanOrEqual(403);
+    expect(codexAsked).toEqual([]);
   });
 });
 

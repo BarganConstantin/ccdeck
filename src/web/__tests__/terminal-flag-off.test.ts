@@ -106,6 +106,8 @@ const ROUTES: [string, string, unknown?][] = [
   ["POST", "/api/terminal/hosts/end", { generation: 1, sessions: ["a".repeat(32)] }],
   // New session's folder question (internal #106): gone with the switch too.
   ["POST", "/api/terminal/folder", { cwd: "/tmp" }],
+  // And the pane's question after a Codex exits: did it update itself?
+  ["POST", "/api/terminal/codex-updated", { liveForMs: 60_000 }],
 ];
 
 describe("the terminal routes on a deck with the panel switched off", () => {

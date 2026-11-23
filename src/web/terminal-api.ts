@@ -69,6 +69,9 @@ export const TERMINAL_ROUTES = {
  *  one the deck answers itself, behind the same switch and gates. */
 export const FOLDER_ROUTE = "/api/terminal/folder";
 export const PROJECTS_ROUTE = "/api/terminal/projects";
+/** Did the Codex that just ended update itself? The deck answers this one
+ *  itself too (codex-update.mjs), behind the same switch and gates. */
+export const CODEX_UPDATED_ROUTE = "/api/terminal/codex-updated";
 
 export interface ProjectWorktree { projectCwd: string; projectName: string; branch?: string }
 export interface DiscoveredProject { cwd: string; name: string; worktree?: ProjectWorktree }
@@ -512,6 +515,24 @@ export async function checkFolder(cwd: string, options: ApiOptions = {}): Promis
     if (body.ok === false && typeof body.code === "string" && FOLDER_PROBLEMS.has(body.code)) return { ok: false, code: body.code as FolderProblem };
   }
   return { ok: false, code: "unavailable" };
+}
+
+/** Whether the codex the deck starts was replaced while the pane that just
+ *  ended was live: Codex's own "Update now", which exits 0 as /exit does and
+ *  asks to be restarted. Said as how long the pane was live, never as a time,
+ *  since the page's clock is not the deck's (a phone on the LAN). Never
+ *  throws: anything short of the deck's yes is a no. */
+export async function codexUpdated(liveForMs: number, options: ApiOptions = {}): Promise<boolean> {
+  const fetchFn = options.fetchFn ?? ((input: string, req?: RequestInit) => fetch(input, req));
+  try {
+    const init = post({ liveForMs: Math.max(0, Math.round(liveForMs)) });
+    const res = await fetchFn(CODEX_UPDATED_ROUTE, options.signal ? { ...init, signal: options.signal } : init);
+    if (!res.ok) return false;
+    const body: unknown = await res.json().catch(() => null);
+    return isObject(body) && body.ok === true && body.updated === true;
+  } catch {
+    return false;
+  }
 }
 
 /** Start a new agent in `cwd`, inside a deck-owned tmux session, and get a
