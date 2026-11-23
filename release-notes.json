@@ -1,4 +1,18 @@
 {
+  "4.3.1": [
+    {
+      "title": "🔄 Codex starts again after it updates itself",
+      "body": "When Codex offers an update in a session's pane and you choose Update now, ccdeck starts it again in the same pane once the update succeeds, back in the same conversation, folder and account. A new session starts again in the same folder. If the update fails, the pane stays as it was, with Reopen here."
+    },
+    {
+      "title": "🗂️ A closed Inspector stays closed in Workspace",
+      "body": "In Workspace, choosing another session in the Sessions list no longer opens the Inspector again after you closed it, so your terminal and chat panes keep their space. An open Inspector follows the session you choose, and opening a session from the Board into Workspace still opens it."
+    },
+    {
+      "title": "💬 Send feedback is easier to find",
+      "body": "The corner of the top bar says Feedback beside its icon while the stripes show their words, and its hint reads “Report a bug or share an idea”. Send feedback also shows beside Settings as soon as you open quick open (Ctrl+K or ⌘K), and in the footer of the keyboard shortcuts sheet."
+    }
+  ],
   "4.3.0": [
     {
       "title": "🧩 opencode and GitHub Copilot CLI sessions on the board",
@@ -294,6 +308,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.3.1": "Codex starts again after it updates itself, and a closed Inspector stays closed",
     "4.3.0": "opencode and GitHub Copilot CLI sessions on the board",
     "4.2.1": "Add account finds and installs Claude Code on more machines",
     "4.2.0": "Chat shows every step, gets Stop and keeps up with the session",
