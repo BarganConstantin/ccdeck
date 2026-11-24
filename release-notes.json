@@ -1,4 +1,14 @@
 {
+  "4.3.9": [
+    {
+      "title": "📋 Copy the sign-in link from ccdeck tui over SSH",
+      "body": "On the sign-in pages of ccdeck tui, ctrl+o now sends Claude's sign-in link to the clipboard of the computer you connect from, and c copies Codex's one-time code. tab shows the link alone, with no frame around it, so you can select all of it by hand. Inside tmux, copying needs set -g set-clipboard on."
+    },
+    {
+      "title": "💬 Send feedback is named in the top bar",
+      "body": "On every window wider than a phone, the top bar's right corner now reads Send feedback beside its icon, so you no longer have to guess what the icon does. On a phone the icon stays in the bar, and More lists Send feedback too."
+    }
+  ],
   "4.3.8": [
     {
       "title": "⬇️ Install Codex from the session pane",
@@ -394,6 +404,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.3.9": "Copy the TUI sign-in link over SSH, and Send feedback is named in the top bar",
     "4.3.8": "Install Codex from the session pane, and each Graph card says which model it runs",
     "4.3.7": "Drag the line between Sessions and Accounts, and Reopen brings back an ended Codex pane",
     "4.3.6": "A lighter line beside Sessions on sharp screens",
