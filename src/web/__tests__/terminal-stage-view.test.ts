@@ -227,6 +227,20 @@ describe("the body's state cards, each at the terminal's origin", () => {
     expect(html(createElement(StateCard, bodyProps({ kind: "attaching", reconnect: true })))).toBe("");
   });
 
+  it("draws a folder-gone line over an ended pane's kept frame: one line, the path on hover, a live region", () => {
+    const gone = { kind: "folder-gone", cwd: "/w/paycore", code: "folder-missing", agent: "claude", sessionId: "s1", frame: true } as StagePhase;
+    const note = { lead: "paycore is not there any more.", next: "Choose folder… starts a new session elsewhere; this conversation stays with its folder.", where: "/w/paycore" };
+    const out = html(createElement(StageBody, bodyProps(gone, { frameNote: note })));
+    expect(out).toContain('<p class="ts-frame-note" role="status" title="/w/paycore"><span class="ts-frame-note-lead">paycore is not there any more.</span> Choose folder… starts a new session elsewhere; this conversation stays with its folder.</p>');
+    expect(out, "no card over the frame: the line and the end bar speak").not.toContain("ts-card");
+    expect(html(createElement(StageBody, bodyProps(gone))), "no line unless the stage hands one (a phone's bar says it)").not.toContain("ts-frame-note");
+    const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
+    const rule = /\.ts-frame-note \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    for (const decl of ["position: absolute", "top: 0", "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis"]) {
+      expect(rule, decl).toContain(decl);
+    }
+  });
+
   it("says where a new session is starting", () => {
     expect(html(createElement(StateCard, bodyProps({ kind: "starting", agent: "claude", cwd: "/home/u/personal/ccdeck" }))))
       .toContain("Starting Claude Code in /home/u/personal/ccdeck");
@@ -806,6 +820,46 @@ describe("the stage as a whole", () => {
     expect(endView({ kind: "live", sizeOwner: "panel", readOnly: false } as StagePhase, session, act)).toBeNull();
   });
 
+  it("offers Choose folder… and Check again on the ended frame of a pane whose folder is gone, naming the folder", () => {
+    const act = { reopen: vi.fn(), launchAgain: vi.fn(), attachAgain: vi.fn(), startNew: vi.fn(), chooseFolder: vi.fn(), chooseId: "ts-choose-1", checkAgain: vi.fn() };
+    const cwd = "/home/u/code/worktrees/paycore-fix-login";
+    const gone = { kind: "folder-gone", cwd, code: "folder-missing", agent: "codex", sessionId: "s1", frame: true } as StagePhase;
+    const end = endView(gone, session, act)!;
+    // One line: what is gone, by name (the path on hover), then what Choose
+    // folder… does; a live region, as it changes after a Check again.
+    expect(end).toMatchObject({
+      sentence: "paycore-fix-login is not there any more. Choose folder… starts a new session elsewhere; this conversation stays with its folder.",
+      where: cwd, live: true, action: "Choose folder…", id: "ts-choose-1",
+      title: en["board.stage.folderGone.body"], alt: { action: "Check again" },
+    });
+    end.onAction();
+    expect(act.chooseFolder, "a new session elsewhere, only on this press").toHaveBeenCalledTimes(1);
+    end.alt!.onAction();
+    expect(act.checkAgain).toHaveBeenCalledTimes(1);
+    expect(act.reopen, "never a reopen, nor a launch, from here").not.toHaveBeenCalled();
+    expect(act.launchAgain).not.toHaveBeenCalled();
+    const launch: StageShow = { kind: "launch", agent: "codex", cwd, name: "paycore", hue: 3, key: "n1" };
+    const launched = endView({ ...gone, sessionId: undefined } as StagePhase, launch, act);
+    expect(launched?.title, "a launch has no conversation to keep").toBe("Choose another folder to start Codex there.");
+    expect(launched?.sentence).toBe("paycore-fix-login is not there any more. Choose folder… starts Codex in another folder.");
+    expect(endView({ ...gone, code: "folder-denied" } as StagePhase, session, act)?.sentence)
+      .toBe("This account may not open paycore-fix-login. Choose folder… starts a new session elsewhere; this conversation stays with its folder.");
+    expect(endView({ ...gone, busy: true } as StagePhase, session, act)?.alt).toMatchObject({ action: "Checking…", busy: true });
+    expect(endView({ ...gone, checked: true } as StagePhase, session, act)?.sentence, "asked again, still gone: the line changes")
+      .toBe("The folder is still not there. Choose folder… starts a new session elsewhere; this conversation stays with its folder.");
+    const alone = endView(gone, session, { ...act, chooseFolder: undefined });
+    expect(alone?.action, "nothing to choose with: Check again alone").toBe("Check again");
+    expect(alone?.alt).toBeUndefined();
+    expect(endView({ ...gone, frame: undefined } as StagePhase, session, act), "no frame: the card says it, not the bar").toBeNull();
+  });
+
+  it("hands New session the folder that is gone when Choose folder… opens it, so that folder is never chosen first", () => {
+    const shell = withoutComments(readFileSync(fileURLToPath(new URL("../components/terminal/StageShell.tsx", import.meta.url)), "utf8"));
+    expect(shell).toContain("onNewSession={(anchor, elsewhere) => { keysHere(); setNewWith(elsewhere ? { anchor, ...elsewhere } : null); stage.openPopover(anchor); }}");
+    expect(shell).toContain("initialAgent={newWith?.anchor === shell.popover ? newWith.agent : undefined}");
+    expect(shell).toContain("gone={newWith?.anchor === shell.popover ? newWith.gone : undefined}");
+  });
+
   it("draws the end action in the pane's header where the keys bar is out in the status bar, in the bar on a phone, never both", () => {
     const end = { sentence: "The session ended.", action: "Reopen here", onAction: vi.fn() };
     expect(endPlacement(true, end), "beside a mouse: the status bar is far from the pane").toEqual({ header: end, bar: null });
@@ -880,7 +934,9 @@ describe("asking for the session again from the stage", () => {
     const stage = web("components/terminal/TerminalStage.tsx");
     // CHANGED ON PURPOSE (ended-pane restart): a refused Reopen here's Try again
     // is refused the same way while it reopens (busy), as a running check is.
-    expect(stage).toMatch(/const retry = \(\) => \{\s*if \(\(phase\.kind === "tmux-missing" \|\| \(phase\.kind === "error" && phase\.reopen\)\) && phase\.busy\) return;\s*session\.retry\(\);\s*p\.onWantKeys\?\.\(\);\s*\};/);
+    // CHANGED ON PURPOSE (missing folder): and a folder-gone Check again while
+    // it asks about the folder.
+    expect(stage).toMatch(/const retry = \(\) => \{\s*if \(\(phase\.kind === "tmux-missing" \|\| phase\.kind === "folder-gone" \|\| \(phase\.kind === "error" && phase\.reopen\)\) && phase\.busy\) return;\s*session\.retry\(\);\s*p\.onWantKeys\?\.\(\);\s*\};/);
     expect(stage).toContain("onRetry={retry}");
     // CHANGED ON PURPOSE (the UI in every language): the button's words are a catalog key now.
     expect(stage).toMatch(/action: tNow\("board\.stage\.attachAgain"\), onAction: act\.attachAgain \}/);
@@ -897,7 +953,12 @@ describe("asking for the session again from the stage", () => {
     // CHANGED ON PURPOSE (internal #102): per pane, and that pane takes the keys first.
     expect(web("components/terminal/StageShell.tsx"))
       .toContain('onLaunchAgain={ps.kind === "launch" ? () => { keysHere(); stage.launch(ps.agent, ps.cwd, ps.options); } : undefined}');
-    expect(web("components/terminal/TerminalStage.tsx")).toContain("launchAgain: p.onLaunchAgain");
+    // CHANGED ON PURPOSE (missing folder): the same press, once the deck says
+    // its folder is still there (startIfFolder); else the folder-gone choices.
+    const stage = web("components/terminal/TerminalStage.tsx");
+    expect(stage).toContain("const launchAgain = p.onLaunchAgain;");
+    expect(stage).toContain("() => session.startIfFolder(show.cwd, { agent: show.agent }, launchAgain)");
+    expect(stage).toContain("launchAgain: startAgain");
   });
 
   it("reports a recognised Codex with the launch it was recognised for", () => {

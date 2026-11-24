@@ -271,7 +271,9 @@ export async function handleTerminalOpen(req, res, options) {
 }
 
 /** POST /api/terminal/adopt `{ sessionId, provider, cwd }`: reopen an ended
- *  session in a deck pane. 409 `still-running` while its process lives. */
+ *  session in a deck pane. 409 `still-running` while its process lives; 409
+ *  `folder-missing` or `folder-denied`, with the folder, when it cannot be
+ *  reopened in its own folder (posted). */
 export async function handleTerminalAdopt(req, res, options) {
   return posted(req, res, options, "adopt");
 }
@@ -323,7 +325,9 @@ export async function handleTerminalBackground(req, res, options) {
 }
 
 /** POST /api/terminal/launch `{ agent, cwd, key? }` → `{ ok: true, sessionId,
- *  name, ticket }`. The key makes asking again safe: one agent per key. */
+ *  name, ticket }`. The key makes asking again safe: one agent per key. 409
+ *  `folder-missing` or `folder-denied`, with the folder, when the folder is
+ *  not one to start in (posted). */
 export async function handleTerminalLaunch(req, res, options) {
   return posted(req, res, options, "launch");
 }
@@ -422,12 +426,41 @@ export async function handleEngineAction(req, res, action, options) {
 
 // ---------------------------------------------------------------------------
 
-/** A POST route: the switch, then the body under its cap, then the answer. */
+/** A POST route: the switch, then the body under its cap, then the answer. A
+ *  launch or an adopt asks about its folder first (folderGone). */
 async function posted(req, res, options, method) {
   const d = terminalDeps(options);
   if (!d.enabled()) return notFound(res);
   const body = await jsonBody(req, res);
+  // Only once the question is whole, with the switch still on, and only where
+  // there is something to start an agent: a deck with no engine says that,
+  // in the same bytes as every other route (pro-engine-routes-off.test.ts).
+  if (LAUNCHES.has(method) && !res.headersSent && d.enabled() && (d.jsBackend || d.engine?.enabled === true)) {
+    const gone = await folderGone(d, body);
+    if (gone) return d.enabled() ? send(res, 409, gone) : notFound(res);
+  }
   return answer(d, req, res, method, body);
+}
+
+/**
+ * Why a launch or an adopt cannot start in the folder it names, or null to
+ * ask the engine as before. A folder that went away (a removed worktree, a
+ * project moved or renamed), or that is not a folder, is `folder-missing`;
+ * one this user may not open, `folder-denied`; both with the folder as it was
+ * asked, so the page can name it. Answered before the deck notes the start
+ * and before the engine is asked, so nothing is started anywhere else in its
+ * place — tmux would otherwise open the pane in the home folder, and the
+ * agent would work in another project than the one the reader chose. A path
+ * that is not absolute is the engine's to refuse, as before.
+ */
+async function folderGone(d, question) {
+  const cwd = question?.cwd;
+  if (typeof cwd !== "string" || cwd === "") return null;
+  const said = await (d.checkFolder ?? checkFolder)(cwd);
+  if (said?.ok !== false) return null;
+  if (said.code === "missing" || said.code === "not-folder") return { ok: false, code: "folder-missing", cwd };
+  if (said.code === "denied") return { ok: false, code: "folder-denied", cwd };
+  return null;
 }
 
 /** The routes that only ask: answered after the switch-off, they changed nothing. */

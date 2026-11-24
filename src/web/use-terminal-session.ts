@@ -40,13 +40,17 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 
 import type { ITheme } from "@xterm/xterm";
 import {
   adoptTerminal,
+  checkFolder,
   codexUpdated,
+  folderRefusal,
   launchTerminal,
   openTerminal,
   terminalStatus,
   panelUnavailable,
   PANEL_RECOVERING,
   STILL_RUNNING,
+  type FolderAnswer,
+  type FolderRefusal,
   type LaunchOptions,
   type PaneColours,
   type ApiFailure,
@@ -72,7 +76,7 @@ import { t as tr } from "./i18n";
 import { isEventOnly } from "../server/provider-ids.mjs";
 import { providerLabel } from "./provider-copy";
 import type { Provider } from "./types";
-import { CLEAN_END_MIN_LIVE_MS, endedCleanly, showsFrame, type KeysOwner, type StagePhase } from "./components/terminal/stage-model";
+import { CLEAN_END_MIN_LIVE_MS, endedCleanly, showsFrame, type FolderGonePhase, type KeysOwner, type StagePhase } from "./components/terminal/stage-model";
 
 /** The stage's font size. 13.3px is where the deck's mono stack advances a
  *  whole 8px on DejaVu Sans Mono and on Menlo, so cells come out exactly 8
@@ -537,6 +541,11 @@ export interface SessionApi {
   /** Whether a Codex that exited 0 had just updated itself. An API without
    *  it (a suite's) never asks, and every ending is taken as it comes. */
   codexUpdated?: typeof codexUpdated;
+  /** Whether an agent can start in a folder: asked before a Reopen here, a
+   *  Start again or a new session in the pane's folder, and by Check again
+   *  on the folder-gone card. An API without it (a suite's) never asks, and
+   *  the press goes straight to the deck, which asks the same itself. */
+  checkFolder?: typeof checkFolder;
 }
 
 export interface SessionDeps {
@@ -547,7 +556,7 @@ export interface SessionDeps {
 }
 
 export const DEFAULT_DEPS: SessionDeps = {
-  api: { status: terminalStatus, open: openTerminal, adopt: adoptTerminal, launch: launchTerminal, codexUpdated },
+  api: { status: terminalStatus, open: openTerminal, adopt: adoptTerminal, launch: launchTerminal, codexUpdated, checkFolder },
   connect: connectTerminal,
   mount: mountXterm,
   now: () => Date.now(),
@@ -614,6 +623,11 @@ export interface TerminalSessionController {
   setFontSize(px: number): void;
   adopt(): void;
   retry(): void;
+  /** `run`, a press that starts an agent in `cwd` from this pane (Start
+   *  again, a new session here), once the deck says the folder is one to
+   *  start in; else the folder-gone phase, whose Check again runs it once the
+   *  folder is back. One at a time. `who` is what that phase names. */
+  startIfFolder(cwd: string, who: FolderWho, run: () => void): void;
   focus(): void;
   /** Keys typed before the pane could take them (type-ahead.ts). */
   type(text: string): void;
@@ -643,14 +657,46 @@ const transient = (f: ApiFailure) => f.status === null || f.status === 502 || f.
  *  asking again, wherever asking again cannot start anything. */
 const recovering = (f: ApiFailure) => transient(f) && (PANEL_RECOVERING as readonly string[]).includes(f.code ?? "");
 
+/** What the folder-gone phase names besides the folder: the agent a new
+ *  session elsewhere would start, and the conversation that stays with the
+ *  folder, when there is one. */
+export interface FolderWho {
+  agent: TerminalProvider;
+  sessionId?: string;
+}
+
+/** The agent the deck would start for `provider`, or null: Claude and Codex
+ *  are the agents it starts. */
+const startable = (provider?: Provider): TerminalProvider | null =>
+  (provider === "claude" || provider === "codex" ? provider : null);
+
+/** The folder-gone phase for `cwd` (StagePhase), without its frame: the
+ *  caller knows where the press came from (goneAt). */
+const folderGone = (code: FolderRefusal, cwd: string, who: FolderWho): FolderGonePhase =>
+  ({ kind: "folder-gone", cwd, code, agent: who.agent, ...(who.sessionId ? { sessionId: who.sessionId } : {}) });
+
+/** The deck's word on a folder as a refusal, or null to go ahead: there, or a
+ *  deck that could not say (offline, a deck without the question, a relative
+ *  path), when the launch or the adopt asks the same on the deck's side. */
+const folderProblem = (answer: FolderAnswer): FolderRefusal | null =>
+  answer.ok ? null
+    : answer.code === "missing" || answer.code === "not-folder" ? "folder-missing"
+      : answer.code === "denied" ? "folder-denied" : null;
+
 /** A failure as the card draws it. A refusal that is a state of this machine
  *  keeps its code, so the card checks again in place. A Claude session
  *  refused because Claude Code is not installed is said so, and the card
- *  offers to install it; Codex's keeps the engine's sentence. */
-const failed = (f: ApiFailure, agent?: Provider): StagePhase =>
-  panelUnavailable(f.code) ? { kind: "error", message: f.error, code: f.code, busy: false }
+ *  offers to install it; Codex's keeps the engine's sentence. A launch or an
+ *  adopt refused for its folder (`at`: the folder it named, and the
+ *  conversation for an adopt) is the folder-gone phase, never asked again by
+ *  itself. */
+const failed = (f: ApiFailure, agent?: Provider, at?: { cwd: string; sessionId?: string }): StagePhase => {
+  const starts = startable(agent);
+  if (folderRefusal(f.code) && at && starts) return folderGone(f.code, f.cwd || at.cwd, { agent: starts, sessionId: at.sessionId });
+  return panelUnavailable(f.code) ? { kind: "error", message: f.error, code: f.code, busy: false }
     : f.code === "agent-missing" && agent === "claude" ? { kind: "error", message: f.error, missing: "claude" }
       : { kind: "error", message: f.error };
+};
 
 /**
  * The card for an opencode or Copilot session. Each runs in a terminal of its
@@ -741,12 +787,56 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
 
   let snap: SessionSnapshot = { subject: "empty", phase: { kind: "empty" }, keysOwner: "board", streaming: false, cell: null };
 
+  // THE FOLDER-GONE PHASE (stage-model.ts). What its Check again runs once
+  // the folder is back — the press the missing folder stopped — and the phase
+  // that press was made from, put back first. Only ever run by Check again.
+  let goneThen: (() => void) | null = null;
+  let goneFrom: StagePhase | null = null;
+  /** The generation a startIfFolder is asking the deck in: one at a time. */
+  let askingAt: number | null = null;
+
   const emit = (next: Partial<SessionSnapshot>) => {
     if (disposed) return;
     snap = { ...snap, ...next, subject: subjectKey(subject) };
     callbacks.onChange(snap);
   };
   const setPhase = (phase: StagePhase) => emit({ phase });
+
+  /** The folder is not one to start in: say so, naming it, and keep `then`
+   *  for Check again. `from` is the phase the press was made from: an ended
+   *  pane keeps its last frame, and the choices go to its end bar. */
+  const goneAt = (phase: FolderGonePhase, from: StagePhase, then: () => void) => {
+    goneThen = then;
+    goneFrom = from;
+    setPhase(showsFrame(from) ? { ...phase, frame: true } : phase);
+  };
+
+  /** Check again on the folder-gone phase: the folder asked about once more,
+   *  and the press it stopped run once it is back — once. Still gone, the
+   *  phase says so and waits for the next press. */
+  const checkAgain = (phase: FolderGonePhase) => {
+    if (phase.busy) return;
+    const then = goneThen;
+    const from = goneFrom;
+    const back = () => {
+      goneThen = null;
+      goneFrom = null;
+      if (from) setPhase(from);
+      if (then) then();
+      else begin(false);
+    };
+    const check = deps.api.checkFolder;
+    if (!check) { back(); return; }
+    gen += 1;
+    const my = gen;
+    setPhase({ ...phase, busy: true });
+    void check(phase.cwd).then(answer => {
+      if (my !== gen || disposed) return;
+      const code = folderProblem(answer);
+      if (code) { setPhase({ ...phase, code, busy: false, checked: true }); return; }
+      back();
+    });
+  };
 
   const withTerminal = (fn: (t: StageTerminal) => void) => {
     if (term) fn(term);
@@ -1078,12 +1168,39 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       await tmuxOr(my, { kind: "error", message: answer.target.reason === "uncertain" ? tr("board.stage.identityUncertain") : answer.target.label });
       return;
     }
+    // An ended session whose folder is not there to reopen it in — a git
+    // worktree removed, a project moved or renamed before it was opened —
+    // is the folder-gone phase a Reopen here would have met: the folder
+    // named, Choose folder… and Check again, never the bare card.
+    if (answer.target.kind === "gone" && answer.target.adoptable === false && await goneOnOpen(my)) return;
     const stillRunning = answer.target.kind === "C";
     // Still held after this pane asked to reopen it: the card says so, and
     // offers a new session beside Not now. Freed, it is the plain card again.
     const phase = { kind: "not-attachable", target: answer.target, stillRunning, busy: false, ...(stillRunning && held ? heldBy(held) : {}) } as const;
     if (phase.stillRunning) runningElsewhere(phase, my);
     else setPhase(phase);
+  };
+
+  /** The deck answered that an ended session cannot be reopened for want of
+   *  its folder: asked about the folder (missing, or not this account's), and
+   *  the folder-gone phase for it. Check again, once the folder is back, opens
+   *  the session again — its card offers Reopen here, which stays a press.
+   *  False when the folder is there after all, or the session has none, or
+   *  its agent is not one the deck starts: the card the deck described. */
+  const goneOnOpen = async (my: number): Promise<boolean> => {
+    const ref = refOf();
+    const agent = startable(ref?.provider);
+    if (!ref || !agent || !ref.cwd) return false;
+    const from = snap.phase;
+    const check = deps.api.checkFolder;
+    const answer = check ? await check(ref.cwd) : null;
+    if (my !== gen || disposed) return true;
+    // The deck has just said the folder is not one to reopen in; a question
+    // it could not answer (offline, a deck without it) does not undo that.
+    const code = !answer ? "folder-missing" : folderProblem(answer) ?? (answer.ok ? null : "folder-missing");
+    if (!code) return false;
+    goneAt(folderGone(code, ref.cwd, { agent, sessionId: ref.sessionId }), from, () => begin(false));
+    return true;
   };
 
   const launchFlow = async (agent: TerminalProvider, cwd: string, key: string, my: number, options?: LaunchOptions) => {
@@ -1101,8 +1218,13 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       // without asking about tmux. Never asked again by itself, whatever the
       // status — a launch is started only by a press, and its key keeps a
       // second press to the one agent.
+      const said = failed(answer, agent, { cwd });
+      // Its folder is not one to start in: named, with Check again launching
+      // it once the folder is back. The deck refused before starting
+      // anything, so the same key starts it then.
+      if (said.kind === "folder-gone") { goneAt(said, snap.phase, () => begin(false)); return; }
       if (answer.status === 409 && !answer.code) await tmuxOr(my, { kind: "error", message: answer.error });
-      else setPhase(failed(answer, agent));
+      else setPhase(said);
       return;
     }
     launched = true;
@@ -1117,6 +1239,8 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     gen += 1;
     const my = gen;
     dropConnection();
+    goneThen = null;
+    goneFrom = null;
     if (subject.kind === "empty") { setPhase({ kind: "empty" }); return; }
     if (toLaunch() && subject.kind === "launch") {
       setPhase({ kind: "starting", agent: subject.agent, cwd: subject.cwd });
@@ -1225,8 +1349,12 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   };
 
   /** Reopen here: the session again, in this pane, resumed by its id in its
-   *  own folder (the deck's adopt). Refused while one is already asked for. */
-  const reopen = () => {
+   *  own folder (the deck's adopt). Refused while one is already asked for.
+   *  The folder is asked about first (`checked`: Check again just did): a
+   *  conversation is resumed in its own folder or not at all, and a folder
+   *  that went away is the folder-gone phase, not an adopt the engine might
+   *  start somewhere else. */
+  const reopen = (checked = false) => {
     const ref = refOf();
     const phase = snap.phase;
     // Never for opencode or Copilot (eventsOnlyPhase): its card offers no
@@ -1252,7 +1380,9 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       void openFlow(ref, my, false, !!phase.held);
       return;
     }
-    void deps.api.adopt(ref, {}, { ...want }, paneColours()).then(answer => {
+    const agent = startable(ref.provider);
+    const who: FolderWho | null = agent ? { agent, sessionId: ref.sessionId } : null;
+    const adopt = () => void deps.api.adopt(ref, {}, { ...want }, paneColours()).then(answer => {
       if (my !== gen) return;
       if (answer.ok) { connect(answer.ticket, my, true); return; }
       // Still held, after a press here: the card says where (`held`).
@@ -1264,11 +1394,23 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       // terminal: shown where it runs, never started a second time. Where
       // it cannot be shown, its card is `held`.
       if (answer.error === STILL_RUNNING) { void openFlow(ref, my, false, true); return; }
-      const said = failed(answer, ref.provider);
+      const said = failed(answer, ref.provider, { cwd: ref.cwd, sessionId: ref.sessionId });
+      // The deck found its folder gone after all: named, as below.
+      if (said.kind === "folder-gone") { goneAt(said, phase, () => reopen(true)); return; }
       // The deck's own sentence, with Try again reopening again and a new
       // session in the same folder beside it (StageBody). A refusal that is
       // a state of this machine keeps its own card.
       setPhase(said.kind === "error" && !said.code && !said.missing ? { ...said, reopen: true } : said);
+    });
+    const check = checked ? undefined : deps.api.checkFolder;
+    if (!check || !who) { adopt(); return; }
+    void check(ref.cwd).then(answer => {
+      if (my !== gen || disposed) return;
+      const code = folderProblem(answer);
+      if (!code) { adopt(); return; }
+      // Never resumed anywhere else, and never asked again by itself: Check
+      // again reopens it here once the folder is back.
+      goneAt(folderGone(code, ref.cwd, who), phase, () => reopen(true));
     });
   };
 
@@ -1352,6 +1494,9 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       const phase = snap.phase;
       // A refused Reopen here is tried again as what it was.
       if (phase.kind === "error" && phase.reopen) { reopen(); return; }
+      // A folder that was gone: asked about again, and the press it stopped
+      // run only once it is back.
+      if (phase.kind === "folder-gone") { checkAgain(phase); return; }
       const checks = phase.kind === "tmux-missing" || (phase.kind === "error" && !!phase.code);
       if (checks && phase.busy) return;
       attempts = 0;
@@ -1371,6 +1516,24 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       dropConnection();
       setPhase({ ...phase, busy: true });
       askAgain(my);
+    },
+
+    startIfFolder(cwd, who, run) {
+      if (disposed) return;
+      const check = deps.api.checkFolder;
+      if (!check) { run(); return; }
+      // A second press while the deck is asked starts nothing.
+      if (askingAt === gen) return;
+      const my = gen;
+      askingAt = my;
+      const from = snap.phase;
+      void check(cwd).then(answer => {
+        if (askingAt === my) askingAt = null;
+        if (my !== gen || disposed) return;
+        const code = folderProblem(answer);
+        if (!code) { run(); return; }
+        goneAt(folderGone(code, cwd, who), from, run);
+      });
     },
 
     focus() { term?.focus(); },
@@ -1518,6 +1681,7 @@ export interface TerminalSessionView extends SessionSnapshot {
   hostRef: MutableRefObject<HTMLDivElement | null>;
   adopt(): void;
   retry(): void;
+  startIfFolder(cwd: string, who: FolderWho, run: () => void): void;
   focus(): void;
   type(text: string): void;
   sendPrompt(text: string, expectedSubject: string): PromptSendResult;
@@ -1575,6 +1739,7 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
 
   const adopt = useCallback(() => controller.current?.adopt(), []);
   const retry = useCallback(() => controller.current?.retry(), []);
+  const startIfFolder = useCallback((cwd: string, who: FolderWho, run: () => void) => controller.current?.startIfFolder(cwd, who, run), []);
   const focus = useCallback(() => controller.current?.focus(), []);
   const type = useCallback((text: string) => controller.current?.type(text), []);
   const sendPrompt = useCallback((text: string, expectedSubject: string): PromptSendResult => {
@@ -1597,5 +1762,5 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
   const holdsFocus = useCallback(() => controller.current?.holdsFocus() === true, []);
   const release = useCallback(() => controller.current?.release(), []);
 
-  return { ...snapshot, hostRef, adopt, retry, focus, type, sendPrompt, sendAsk, readScreen, press, holdsFocus, release };
+  return { ...snapshot, hostRef, adopt, retry, startIfFolder, focus, type, sendPrompt, sendAsk, readScreen, press, holdsFocus, release };
 }

@@ -50,7 +50,10 @@ const CRASH: TerminalExit = { reason: "ended", exitStatus: 1 };
 
 type Doc = { body: unknown; activeElement: unknown };
 const doc = () => (globalThis as unknown as { document: Doc }).document;
-afterEach(() => { delete (globalThis as Record<string, unknown>).document; });
+afterEach(() => {
+  delete (globalThis as Record<string, unknown>).document;
+  delete (globalThis as Record<string, unknown>).window;
+});
 
 /** A document where the focus can be, with the window's status bar the keys
  *  bar is drawn in beside a mouse (`statusBar`), so the end action is the
@@ -65,7 +68,15 @@ function page(statusBar: boolean) {
 }
 
 /** The stage on a fake deck, showing `show`, live once opened. */
-function stageOn(show: StageShow, { statusBar = true, adopt }: { statusBar?: boolean; adopt?: () => Promise<unknown> } = {}) {
+function stageOn(show: StageShow, { statusBar = true, adopt, open, folder }: {
+  statusBar?: boolean;
+  adopt?: () => Promise<unknown>;
+  /** The deck's answer to an open; the pane is attached when it is left out. */
+  open?: () => Promise<unknown>;
+  /** The deck's answer about a folder (terminal-api's checkFolder); none: a
+   *  deck the stage does not ask, as before. */
+  folder?: (cwd: string) => Promise<unknown>;
+} = {}) {
   if (!(globalThis as Record<string, unknown>).document) page(statusBar);
   const clock = { now: 1_000_000 };
   /** The control the reader pressed, and where a press leaves the focus. */
@@ -93,10 +104,11 @@ function stageOn(show: StageShow, { statusBar = true, adopt }: { statusBar?: boo
   const closed: number[] = [];
   const api = {
     status: vi.fn(),
-    open: vi.fn(async () => OPENED),
+    open: vi.fn(open ?? (async () => OPENED)),
     adopt: vi.fn(adopt ?? (async () => ({ ok: true, ticket: `t-adopt-${conns.length}`, target: { kind: "A", label: "" } }))),
-    launch: vi.fn(),
+    launch: vi.fn(async () => ({ ok: true, sessionId: "", name: "ccdeck-codex-1a2b3c4d", ticket: "t-launch" })),
     codexUpdated: vi.fn(async () => false),
+    checkFolder: folder ? vi.fn(folder) : undefined,
   };
   const deps: Partial<SessionDeps> = {
     api: api as never,
@@ -115,11 +127,15 @@ function stageOn(show: StageShow, { statusBar = true, adopt }: { statusBar?: boo
   const onWantKeys = vi.fn(() => { request += 1; view.rerender({ ...props, focusRequest: request }); });
   const onClose = vi.fn();
   const onStartNew = vi.fn();
+  const onNewSession = vi.fn();
+  const onLaunchAgain = vi.fn();
+  const onStartIn = vi.fn();
   const props: TerminalStageProps = {
     show, geometry, cell: ASSUMED_CELL, readToken: () => "", expanded: false, firstRun: false, asksWaiting: false,
-    onClose, onToggleExpand: vi.fn(), onFirstRunDone: vi.fn(), onNewSession: vi.fn(),
+    onClose, onToggleExpand: vi.fn(), onFirstRunDone: vi.fn(), onNewSession,
     onCols: vi.fn(), onColsReset: vi.fn(), onWantKeys, takeTypeAhead: () => "", holdsTypeAhead: () => null,
-    onStartNew,
+    onStartNew, onStartIn,
+    ...(show.kind === "launch" ? { onLaunchAgain } : {}),
     sessionDeps: deps,
   };
   const view = mount(TerminalStage, props, {
@@ -148,7 +164,7 @@ function stageOn(show: StageShow, { statusBar = true, adopt }: { statusBar?: boo
     await flush();
     expect(phase()).toEqual({ kind: "ended" });
   };
-  return { view, props, api, conns, closed, clock, term, textarea, pressed, onWantKeys, onClose, onStartNew, header, bar, body, phase, live, crashed };
+  return { view, props, api, conns, closed, clock, term, textarea, pressed, onWantKeys, onClose, onStartNew, onNewSession, onLaunchAgain, onStartIn, header, bar, body, phase, live, crashed };
 }
 
 describe("the words and states of a reopen", () => {
@@ -312,7 +328,10 @@ describe("Reopen here on an ended pane", () => {
     s.header().end!.onAction();
     await flush();
     expect(s.phase()).toEqual({ kind: "error", message: "tmux could not start the session.", reopen: true });
-    expect(s.body().onStartNew).toBe(s.onStartNew);
+    // CHANGED ON PURPOSE (missing folder): the card's Start new session here
+    // asks about the folder first; this deck has no folder question, so it is
+    // the same press at once.
+    expect(typeof s.body().onStartNew).toBe("function");
     expect(s.body().startNewTip).toBe("Starts a new Codex session in this project. The ended conversation stays as it was.");
     expect(s.onStartNew).not.toHaveBeenCalled();
 
@@ -378,5 +397,262 @@ describe("what a reopen leaves alone", () => {
     expect(b.api.adopt).not.toHaveBeenCalled();
     a.view.unmount();
     b.view.unmount();
+  });
+});
+
+// A folder that went away under an ended pane — a git worktree removed, a
+// project moved or renamed. Reopen here, Start again and Start new session
+// here ask the deck about the folder first; gone, the pane keeps its last
+// frame and names the folder, with Choose folder… (a NEW session in another
+// folder, never this conversation moved) and Check again (the press it
+// stopped, once the folder is back). Nothing is started by itself.
+describe("an ended pane whose folder is gone", () => {
+  const NEXT = "Choose folder… starts a new session elsewhere; this conversation stays with its folder.";
+  const MISSING = { ok: false, code: "missing" };
+  /** The deck's answers about the folder, in turn; the last one stays. */
+  const answers = (...said: unknown[]) => async () => (said.length > 1 ? said.shift() : said[0]);
+  const launchShow: StageShow = { kind: "launch", agent: "codex", cwd: "/w/paycore", name: "paycore", hue: 270, key: "k1" };
+
+  it("names the folder on Reopen here, keeps the frame, and reopens nothing", async () => {
+    const s = stageOn(SHOW, { folder: answers(MISSING) });
+    await s.crashed();
+    s.header().end!.onAction();
+    await flush();
+    expect(s.api.checkFolder).toHaveBeenCalledWith("/w/paycore");
+    expect(s.phase()).toEqual({ kind: "folder-gone", cwd: "/w/paycore", code: "folder-missing", agent: "codex", sessionId: CODEX_REF.sessionId, frame: true });
+    expect(s.header().status.phrase, "the header names it").toBe("paycore not found");
+    expect(s.header().end).toMatchObject({
+      sentence: `paycore is not there any more. ${NEXT}`, action: "Choose folder…", alt: { action: "Check again" },
+    });
+    // Beside a mouse the end bar's buttons are in the header: the kept frame
+    // carries the line itself, where the reader looks.
+    expect(s.body().frameNote).toEqual({ lead: "paycore is not there any more.", next: NEXT, where: "/w/paycore" });
+    expect(s.header().end?.title).toBe(en["board.stage.folderGone.body"]);
+    expect(s.bar().end ?? null, "never on both").toBeNull();
+    expect(s.api.adopt, "never resumed, here or anywhere else").not.toHaveBeenCalled();
+    expect(s.api.launch).not.toHaveBeenCalled();
+    expect(s.onStartNew).not.toHaveBeenCalled();
+    expect(s.onClose).not.toHaveBeenCalled();
+    expect(s.conns, "nothing new connected: the old frame stays").toHaveLength(1);
+    s.view.unmount();
+  });
+
+  it("reopens the conversation here, once, when Check again finds the folder back", async () => {
+    const s = stageOn(SHOW, { folder: answers(MISSING, MISSING, { ok: true, cwd: "/w/paycore" }) });
+    await s.crashed();
+    s.header().end!.onAction();
+    await flush();
+    s.header().end!.alt!.onAction();
+    expect(s.header().end?.alt).toMatchObject({ action: "Checking…", busy: true });
+    s.header().end!.alt!.onAction();
+    await flush();
+    expect(s.api.checkFolder, "one question for a double press").toHaveBeenCalledTimes(2);
+    expect(s.header().end?.sentence, "still gone: said so").toBe(`The folder is still not there. ${NEXT}`);
+    expect(s.body().frameNote?.lead, "on the frame, where it was not before").toBe("The folder is still not there.");
+    expect(s.api.adopt).not.toHaveBeenCalled();
+    s.header().end!.alt!.onAction();
+    await flush();
+    expect(s.api.adopt, "the Reopen here it stopped, once").toHaveBeenCalledTimes(1);
+    expect((s.api.adopt.mock.calls as unknown[][])[0][0], "the same conversation, in its own folder").toEqual(CODEX_REF);
+    s.live(1);
+    expect(s.phase().kind).toBe("live");
+    expect(s.onStartIn).not.toHaveBeenCalled();
+    s.view.unmount();
+  });
+
+  it("starts a launch again only in a folder that is there", async () => {
+    const s = stageOn(launchShow, { folder: answers(MISSING, { ok: true, cwd: "/w/paycore" }) });
+    await s.crashed();
+    expect(s.header().end?.action).toBe("Start Codex again");
+    s.header().end!.onAction();
+    await flush();
+    expect(s.onLaunchAgain, "not started in a folder that is gone").not.toHaveBeenCalled();
+    expect(s.phase()).toEqual({ kind: "folder-gone", cwd: "/w/paycore", code: "folder-missing", agent: "codex", frame: true });
+    expect(s.header().end?.title, "a launch has no conversation to keep").toBe("Choose another folder to start Codex there.");
+    expect(s.api.launch, "only the first launch").toHaveBeenCalledTimes(1);
+    s.header().end!.alt!.onAction();
+    await flush();
+    expect(s.onLaunchAgain, "Check again: the Start again it stopped, once").toHaveBeenCalledTimes(1);
+    s.view.unmount();
+  });
+
+  it("starts a new session here only in a folder that is there", async () => {
+    const s = stageOn(SHOW, { folder: answers({ ok: true, cwd: "/w/paycore" }, MISSING) });
+    await s.crashed();
+    s.header().end!.onAction();
+    await flush();
+    s.live(1);
+    s.clock.now += 500;
+    s.conns[1].onExit?.({ reason: "ended", exitStatus: 0 });
+    await flush();
+    expect(s.phase()).toEqual({ kind: "ended", unresumed: true });
+    s.header().end!.alt!.onAction();
+    await flush();
+    expect(s.onStartNew, "never started in a folder that is gone").not.toHaveBeenCalled();
+    expect(s.phase()).toMatchObject({ kind: "folder-gone", cwd: "/w/paycore", agent: "codex", frame: true });
+    s.view.unmount();
+  });
+
+  it("starts a NEW session in the folder chosen in the app's dialog, never this conversation there", async () => {
+    let chosen: string | null = "/w/elsewhere";
+    (globalThis as Record<string, unknown>).window = { addEventListener() {}, removeEventListener() {}, ccdeckFolder: { choose: async () => chosen } };
+    const s = stageOn(SHOW, { folder: answers(MISSING) });
+    await s.crashed();
+    s.header().end!.onAction();
+    await flush();
+    s.header().end!.onAction();
+    await flush();
+    expect(s.onStartIn).toHaveBeenCalledWith("codex", "/w/elsewhere");
+    expect(s.api.adopt, "the conversation stays with its folder").not.toHaveBeenCalled();
+    expect(s.onNewSession).not.toHaveBeenCalled();
+    chosen = null;
+    s.header().end!.onAction();
+    await flush();
+    expect(s.onStartIn, "the dialog closed: nothing").toHaveBeenCalledTimes(1);
+    s.view.unmount();
+  });
+
+  it("says the line in the pane's own keys bar on a phone, a live region with the path on hover, and draws none on the frame", async () => {
+    const s = stageOn(SHOW, { statusBar: false, folder: answers(MISSING) });
+    await s.crashed();
+    s.bar().end!.onAction();
+    await flush();
+    expect(s.bar().end).toMatchObject({ sentence: `paycore is not there any more. ${NEXT}`, where: "/w/paycore", live: true, action: "Choose folder…" });
+    expect(s.header().end ?? null).toBeNull();
+    expect(s.body().frameNote, "never said twice").toBeUndefined();
+    const bar = mount(KeysBar, { owner: "board", name: "paycore", chordLabel: "Ctrl+Shift+X", canType: false, asksWaiting: false, firstRun: false, onFirstRunDone: vi.fn(), onTypeHere: vi.fn(), end: s.bar().end } as KeysBarProps).tree;
+    const line = one(bar, el => el.props?.className === "ts-end")!;
+    expect([line.props.role, line.props.title]).toEqual(["status", "/w/paycore"]);
+    s.view.unmount();
+  });
+
+  it("opens New session, with the agent chosen, where there is no dialog to ask", async () => {
+    const s = stageOn(SHOW, { folder: answers(MISSING) });
+    await s.crashed();
+    s.header().end!.onAction();
+    await flush();
+    const end = s.header().end!;
+    expect(end.id).toMatch(/^ts-choose-/);
+    end.onAction();
+    expect(s.onNewSession, "anchored on Choose folder…, the folder that is gone never chosen").toHaveBeenCalledWith(end.id, { agent: "codex", gone: "/w/paycore" });
+    expect(s.onStartIn).not.toHaveBeenCalled();
+    expect(s.api.adopt).not.toHaveBeenCalled();
+    s.view.unmount();
+  });
+});
+
+describe("the folder-gone card", () => {
+  const cwd = "/home/u/code/worktrees/a-very-long-project-name/feature-branch-folder";
+  const phase = { kind: "folder-gone", cwd, code: "folder-missing", agent: "claude", sessionId: "s1" } as StagePhase;
+  const draw = (p: StagePhase, over: Partial<StageBodyProps> = {}) => {
+    page(false);
+    const acts = { onAdopt: vi.fn(), onNotNow: vi.fn(), onRetry: vi.fn(), onNewSession: vi.fn(), onChooseFolder: vi.fn(), chooseFolderId: "ts-choose-9", ...over };
+    // The card is a component of its own: drawn as the page would draw it.
+    const card = mount(StateCard, { phase: p, ...acts } as Omit<StageBodyProps, "hostRef">).tree as Drawn | null;
+    const tree = card && typeof card.type === "function" ? mount(card.type as (q: unknown) => unknown, card.props).tree : card;
+    return { tree, ...acts };
+  };
+
+  it("names the folder, says the conversation stays with it, and offers Choose folder…, Check again and Not now", () => {
+    const { tree, onChooseFolder, onRetry, onNotNow, onAdopt } = draw(phase);
+    const ctx = one(tree, el => el.props?.className === "ts-ctx")!;
+    expect(ctx.props.title, "the whole path on hover").toBe(cwd);
+    expect(textOf(ctx), "the end of it, which names it").toBe("…/a-very-long-project-name/feature-branch-folder");
+    expect(textOf(tree)).toContain("This folder is not there any more");
+    expect(textOf(tree)).toContain("The conversation stays with this folder.");
+    const choose = one(tree, el => el.type === "button" && textOf(el).trim() === "Choose folder…")!;
+    expect(choose.props.id).toBe("ts-choose-9");
+    expect(choose.props["data-stage-land"]).toBe(true);
+    (choose.props.onClick as () => void)();
+    expect(onChooseFolder).toHaveBeenCalledTimes(1);
+    const check = one(tree, el => el.type === "button" && textOf(el).trim() === "Check again")!;
+    (check.props.onClick as () => void)();
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    (one(tree, el => el.type === "button" && textOf(el).trim() === "Not now")!.props.onClick as () => void)();
+    expect(onNotNow).toHaveBeenCalledTimes(1);
+    expect(onAdopt, "no Reopen here on it").not.toHaveBeenCalled();
+    expect(one(tree, el => el.type === "button" && textOf(el).trim() === "Reopen here")).toBeNull();
+  });
+
+  it("says a launch's and a denied folder's own words, and Checking… / still gone as it asks", () => {
+    expect(textOf(draw({ ...phase, sessionId: undefined } as StagePhase).tree)).toContain("Choose another folder to start Claude Code there.");
+    expect(textOf(draw({ ...phase, code: "folder-denied" } as StagePhase).tree)).toContain("This account may not open this folder");
+    const busy = draw({ ...phase, busy: true } as StagePhase).tree;
+    expect(one(busy, el => el.type === "button" && textOf(el).trim() === "Checking…")?.props["aria-busy"]).toBe(true);
+    const still = draw({ ...phase, checked: true } as StagePhase).tree;
+    expect(textOf(one(still, el => el.props?.role === "status")!)).toBe("The folder is still not there.");
+    const plain = draw(phase, { onChooseFolder: undefined }).tree;
+    expect(one(plain, el => el.type === "button" && textOf(el).trim() === "Choose folder…"), "nothing to choose with").toBeNull();
+    expect(one(plain, el => el.type === "button" && textOf(el).trim() === "Check again")?.props["data-stage-land"]).toBe(true);
+  });
+
+  it("draws nothing over the ended frame it keeps: the end bar has the choices", () => {
+    expect(draw({ ...phase, frame: true } as StagePhase).tree).toBeNull();
+  });
+});
+
+// The likeliest case: the folder went (a worktree removed, a project renamed)
+// and the reader then opens the ended session. The deck answers that it cannot
+// be reopened for want of its folder; the pane says so as a Reopen here would
+// have — the folder named, Choose folder…, Check again, Not now — and Check
+// again, once the folder is back, leaves it where an open of an ended session
+// does: Reopen here offered, never pressed for the reader.
+describe("opening an ended session whose folder is gone", () => {
+  const goneTarget = (adoptable: boolean) => ({
+    ok: false,
+    target: adoptable
+      ? { kind: "gone", label: "This session has ended; reopening it here continues the conversation in a new terminal.", adoptable: true }
+      : { kind: "gone", label: "This session has ended, and its project folder is no longer there to reopen it in.", adoptable: false },
+  });
+
+  it("names the folder with Choose folder…, Check again and Not now, and opens the ended card once it is back", async () => {
+    let back = false;
+    const s = stageOn(SHOW, {
+      open: async () => goneTarget(back),
+      folder: async (cwd: string) => (back ? { ok: true, cwd } : { ok: false, code: "missing" }),
+    });
+    await flush();
+    await flush();
+    expect(s.api.checkFolder).toHaveBeenCalledWith("/w/paycore");
+    expect(s.phase()).toEqual({ kind: "folder-gone", cwd: "/w/paycore", code: "folder-missing", agent: "codex", sessionId: CODEX_REF.sessionId });
+    expect(s.header().status.phrase).toBe("paycore not found");
+    expect(s.header().end ?? null, "no frame: the card speaks, with its own buttons").toBeNull();
+    expect(s.body().onChooseFolder, "Choose folder… on the card").toBeTypeOf("function");
+    expect(s.body().frameNote).toBeUndefined();
+
+    s.body().onRetry();
+    await flush();
+    expect(s.phase(), "still gone: said so").toMatchObject({ kind: "folder-gone", checked: true });
+    expect(s.api.open).toHaveBeenCalledTimes(1);
+
+    back = true;
+    s.body().onRetry();
+    await flush();
+    await flush();
+    expect(s.api.open, "opened again, as before").toHaveBeenCalledTimes(2);
+    expect(s.phase()).toMatchObject({ kind: "not-attachable", target: { kind: "gone", adoptable: true } });
+    expect(s.api.adopt, "Reopen here stays the reader's press").not.toHaveBeenCalled();
+    expect(s.api.launch).not.toHaveBeenCalled();
+    s.view.unmount();
+  });
+
+  it("starts a new session in the folder chosen, never this conversation there", async () => {
+    (globalThis as Record<string, unknown>).window = { addEventListener() {}, removeEventListener() {}, ccdeckFolder: { choose: async () => "/w/elsewhere" } };
+    const s = stageOn(SHOW, { open: async () => goneTarget(false), folder: async () => ({ ok: false, code: "missing" }) });
+    await flush();
+    await flush();
+    s.body().onChooseFolder!();
+    await flush();
+    expect(s.onStartIn).toHaveBeenCalledWith("codex", "/w/elsewhere");
+    expect(s.api.adopt).not.toHaveBeenCalled();
+    s.view.unmount();
+  });
+
+  it("keeps the card the deck described when the folder is there after all", async () => {
+    const s = stageOn(SHOW, { open: async () => goneTarget(false), folder: async (cwd: string) => ({ ok: true, cwd }) });
+    await flush();
+    await flush();
+    expect(s.phase()).toMatchObject({ kind: "not-attachable", target: { kind: "gone", adoptable: false } });
+    s.view.unmount();
   });
 });

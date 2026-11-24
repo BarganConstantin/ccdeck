@@ -359,9 +359,33 @@ button.btn.ts-end-act {
    sideways instead of losing the right of every line. */
 .ts-stage[data-kind="ended"] .ts-body,
 .ts-stage[data-kind="detached"] .ts-body,
+/* An ended pane whose folder has gone keeps its frame the same way. */
+.ts-stage[data-kind="folder-gone"] .ts-body[data-frame],
 /* So does a live pane that keeps the size of someone's own terminal (case B),
    where the window has no room left to make for it (TerminalStage). */
 .ts-stage[data-pane-size] .ts-body { overflow-x: auto; overflow-y: hidden; }
+/* A folder-gone pane's one line across the top of its kept frame (StageBody
+   frameNote): what is gone and what Choose folder… does, beside the header's
+   buttons. One line, cut with an ellipsis in a narrow pane, its text where
+   the terminal's starts, on the frame's own ground with a hairline under it. */
+.ts-frame-note {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 6px 24px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-secondary);
+  background: var(--panel);
+  border-bottom: 1px solid var(--line-soft);
+}
+.ts-stage[data-fill] .ts-frame-note { padding: 6px 14px; background: var(--sunken); }
+.ts-frame-note-lead { color: var(--text); font-weight: 500; }
 
 /* Every card is a column in the middle of the pane (V4), centred both ways:
    10px between its lines, 464 wide at most, 48 in from the sides and 24 from
