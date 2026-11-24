@@ -69,7 +69,7 @@
 // ticket, the engine gives an opaque handle instead, and the ticket is minted
 // here over it: the handle never reaches the page, and nothing the page sends
 // is ever used as a pane.
-import { backgroundInGhostty } from "./ghostty-handoff.mjs";
+import { backgroundInGhostty, handoffSent, rememberHandoff } from "./ghostty-handoff.mjs";
 import { existsSync } from "node:fs";
 import { PRODUCT } from "./brand.mjs";
 import { commandPanel } from "./command-panel-engine.mjs";
@@ -278,13 +278,26 @@ export async function handleTerminalAdopt(req, res, options) {
   return posted(req, res, options, "adopt");
 }
 
-const backgroundRequests = new Map();
-const BACKGROUND_REQUEST_COOLDOWN = 15_000;
+// Moves being asked right now, by session: one at a time each.
+const backgroundRequests = new Set();
+
+/** backgroundInGhostty's answer, or a stand-in's plain boolean, as `{ ok, reason }`. */
+function backgroundOutcome(value) {
+  if (value === true || (value && typeof value === "object" && value.ok === true)) return { ok: true };
+  const reason = value && typeof value === "object" && typeof value.reason === "string" ? value.reason : "failed";
+  return { ok: false, reason };
+}
 
 /** A local request to use Claude's background shortcut on its exact Ghostty surface.
- *  With `check: true` it sends nothing and answers `{ ok: true, movable }`:
- *  whether the same request without `check` could be made. The pane offers
- *  the move only when `movable` is true. */
+ *  With `check: true` it sends nothing and answers `{ ok: true, movable }`, with
+ *  `reason` when it is not: whether the same request without `check` could be
+ *  made. The pane offers the move only when `movable` is true.
+ *
+ *  Without `check`: 200 `{ ok: true }` once Ghostty took the shortcut, or 409
+ *  `{ ok: false, reason }` (ghostty-handoff.mjs names the reasons). A move
+ *  already sent for the session answers `already-sent` and sends nothing until
+ *  its continued session is found or HANDOFF_SENT_FOR passes; one still being
+ *  asked answers the same. */
 export async function handleTerminalBackground(req, res, options) {
   const d = terminalDeps(options);
   if (!d.enabled()) return notFound(res);
@@ -299,28 +312,30 @@ export async function handleTerminalBackground(req, res, options) {
     return send(res, 400, { ok: false });
   }
   const session = { sessionId: body.sessionId.toLowerCase(), provider: "claude", cwd: body.cwd };
-  if (body.check === true) {
-    let movable = false;
-    if (d.engine?.enabled === true) {
-      const answer = await d.engine.route("target", session);
-      if (answer.status === 200 && answer.body?.target?.kind === "C") {
-        movable = await (d.background ?? backgroundInGhostty)(session, { enabled: d.enabled, check: true });
-      }
-    }
-    return send(res, 200, { ok: true, movable: movable === true });
-  }
-  if (backgroundRequests.has(session.sessionId)) return send(res, 409, { ok: false });
-  backgroundRequests.set(session.sessionId, true);
-  let sent = false;
-  try {
-    if (d.engine?.enabled !== true) return send(res, 409, { ok: false });
+  const background = d.background ?? backgroundInGhostty;
+  // The engine's word first: only a session in a terminal of its own (C) is
+  // Ghostty's to move.
+  const external = async () => {
+    if (d.engine?.enabled !== true) return { ok: false, reason: "failed" };
     const answer = await d.engine.route("target", session);
-    if (answer.status !== 200 || answer.body?.target?.kind !== "C") return send(res, 409, { ok: false });
-    sent = await (d.background ?? backgroundInGhostty)(session, { enabled: d.enabled });
-    return send(res, sent ? 200 : 409, { ok: sent });
+    return answer.status === 200 && answer.body?.target?.kind === "C" ? { ok: true } : { ok: false, reason: "not-ghostty" };
+  };
+  if (body.check === true) {
+    let outcome = await external();
+    if (outcome.ok) outcome = backgroundOutcome(await background(session, { enabled: d.enabled, check: true }));
+    return send(res, 200, outcome.ok ? { ok: true, movable: true } : { ok: true, movable: false, reason: outcome.reason });
+  }
+  if (handoffSent(session.sessionId) || backgroundRequests.has(session.sessionId)) {
+    return send(res, 409, { ok: false, reason: "already-sent" });
+  }
+  backgroundRequests.add(session.sessionId);
+  try {
+    let outcome = await external();
+    if (outcome.ok) outcome = backgroundOutcome(await background(session, { enabled: d.enabled }));
+    if (outcome.ok) rememberHandoff(session.sessionId);
+    return send(res, outcome.ok ? 200 : 409, outcome.ok ? { ok: true } : { ok: false, reason: outcome.reason });
   } finally {
-    if (sent) setTimeout(() => backgroundRequests.delete(session.sessionId), BACKGROUND_REQUEST_COOLDOWN).unref();
-    else backgroundRequests.delete(session.sessionId);
+    backgroundRequests.delete(session.sessionId);
   }
 }
 

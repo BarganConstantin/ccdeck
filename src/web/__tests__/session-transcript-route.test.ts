@@ -22,6 +22,8 @@ const OUTSIDE = join(DIR, "outside");
 const routes = await import("../../server/session-transcript-routes.mjs");
 // @ts-expect-error — server module, untyped by design (tsconfig.build.json)
 const { GUARDED_READS } = await import("../../server/request-gates.mjs");
+// @ts-expect-error — server module, untyped by design (tsconfig.build.json)
+const { handoffContinued, handoffSent, rememberHandoff } = await import("../../server/ghostty-handoff.mjs");
 const { handleSessionTranscript, LOOKAHEAD, READ_WINDOW, SESSION_TRANSCRIPT_ROUTE } = routes;
 /** The shape of the route's version and of a cursor's file tag. */
 const VERSION = /^[A-Za-z0-9_-]{22}$/;
@@ -605,6 +607,17 @@ describe("Claude foreground-to-background continuation", () => {
       .toEqual({ status: 200, body: { ok: true, sessionId: moved } });
     expect(await call(query, { pathOf: (id: string) => id === original ? source : destination }))
       .toEqual({ status: 200, body: { ok: true, sessionId: moved } });
+  });
+
+  it("lets a move sent to Ghostty go again once its continued session is found, and not before", async () => {
+    const source = file(`${original}.jsonl`, said("Still in Ghostty."));
+    rememberHandoff(original);
+    expect((await call(query, { pathOf: (id: string) => id === original ? source : undefined })).body.sessionId).toBeNull();
+    expect(handoffSent(original), "no continuation yet").toBe(true);
+    writeFileSync(source, event(original, moved));
+    expect((await call(query, { pathOf: (id: string) => id === original ? source : undefined })).body.sessionId).toBe(moved);
+    expect(handoffSent(original)).toBe(false);
+    handoffContinued(original);
   });
 
   it("ignores another session's event and rejects a link outside the project", async () => {

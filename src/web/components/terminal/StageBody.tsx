@@ -62,6 +62,36 @@ export interface StageContext {
   fact?: string | null;
 }
 
+/** Why a move of Claude out of Ghostty did not happen, or why it is still
+ *  waiting: the server's reasons (POST /api/terminal/background), and the
+ *  pane's own `continuation-timeout` — the move was sent, and the continued
+ *  session has not shown up in time. */
+export type HandoffReason =
+  | "ghostty-unsupported" | "automation-denied" | "claude-not-ready" | "surface-changed"
+  | "already-sent" | "continuation-timeout" | "failed";
+
+/** One sentence for each reason. */
+export const HANDOFF_REASON_MSG: Readonly<Record<HandoffReason, string>> = {
+  "ghostty-unsupported": "board.stage.handoff.unsupported",
+  "automation-denied": "board.stage.handoff.automationDenied",
+  "claude-not-ready": "board.stage.handoff.notReady",
+  "surface-changed": "board.stage.handoff.surfaceChanged",
+  "already-sent": "board.stage.handoff.alreadySent",
+  "continuation-timeout": "board.stage.handoff.timeout",
+  failed: "board.stage.handoff.failed",
+};
+/** The way by hand, after every move that did not happen. */
+export const HANDOFF_MANUAL_MSG = "board.stage.handoff.manual";
+export const HANDOFF_LOOK_AGAIN_MSG = "board.stage.handoff.lookAgain";
+/** Where pressing Move again cannot help: this Ghostty cannot do it, or the
+ *  move already went and only its arrival is missing. */
+const HANDOFF_NO_RETRY: ReadonlySet<HandoffReason> = new Set(["ghostty-unsupported", "already-sent", "continuation-timeout"]);
+
+/** A server's reason as one of the card's; anything else is the generic failure. */
+export function handoffReason(value: unknown): HandoffReason {
+  return typeof value === "string" && Object.hasOwn(HANDOFF_REASON_MSG, value) ? value as HandoffReason : "failed";
+}
+
 export interface StageBodyProps {
   hostRef: MutableRefObject<HTMLDivElement | null>;
   /** The name the header shows for this session; the pane carries it for the
@@ -77,7 +107,10 @@ export interface StageBodyProps {
    *  that runs somewhere the stage cannot reach (#97). */
   boardState?: StageState | null;
   onAdopt(): void;
-  handoff?: { moving: boolean; failed?: boolean; toggle(): void };
+  /** "Move session here", for Claude in a Ghostty window (TerminalStage):
+   *  whether the move is under way, why the last one did not happen, and
+   *  Look again after one that was sent and has not arrived yet. */
+  handoff?: { moving: boolean; reason?: HandoffReason; toggle(): void; lookAgain?(): void };
   /** "Not now": leave the stage, the session untouched. */
   onNotNow(): void;
   onRetry(): void;
@@ -317,6 +350,11 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
       const elsewhere = phase.stillRunning && !ours && !unsure;
       const handoff = adoptable ? p.handoff : undefined;
       const offer = adoptable && !phase.stillRunning && !handoff?.moving;
+      // A move that did not happen: why, in one sentence, and the way by hand.
+      const stopped = handoff && !handoff.moving ? handoff.reason : undefined;
+      // Sent and not arrived: look again, never send again.
+      const lookAgain = stopped === "continuation-timeout" ? handoff?.lookAgain : undefined;
+      const moveAgain = handoff && (handoff.moving || (elsewhere && !(stopped && HANDOFF_NO_RETRY.has(stopped))));
       // Held after this pane's own Reopen here: the way on that does not wait
       // is a new session in the same folder, only ever on its own press.
       const fresh = phase.held && phase.stillRunning && !handoff ? p.onStartNew : undefined;
@@ -324,9 +362,9 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
         <div className="ts-card">
           {p.context?.prompt && <div className="ts-ctx"><span className="ts-prompt">❯ </span>{p.context.prompt}</div>}
           {handoff?.moving
-            ? <p className="ts-text" role="status">{t("board.stage.handoff.waiting")}</p>
-            : handoff?.failed
-            ? <p className="ts-text" role="status">{t("board.stage.handoff.failed")}</p>
+            ? <p className="ts-text" role="status">{t(handoff.reason === "already-sent" ? HANDOFF_REASON_MSG["already-sent"] : "board.stage.handoff.waiting")}</p>
+            : stopped
+            ? <p className="ts-text" role="status">{t("board.stage.twoSentences", { first: t(HANDOFF_REASON_MSG[stopped]), second: t(HANDOFF_MANUAL_MSG) })}</p>
             // With the move offered, the line says so instead of "quit it there
             // and Reopen here", which would sit above a button that does it for
             // you. The header still says whether it is working or waiting.
@@ -334,7 +372,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
             ? <p className="ts-text" role="status">{t(handoff ? "board.stage.handoff.offer" : elsewhereLine(p.boardState, phase.held))}</p>
             : <p className="ts-text">{ours ? t(LAUNCHED_UNREACHABLE_MSG) : unsure ? t(PROVENANCE_UNKNOWN_MSG) : target.label}</p>}
           <div className="ts-acts">
-            {handoff && (elsewhere || handoff.moving) && (
+            {moveAgain && (
               <button type="button" className="btn primary" data-stage-land onClick={handoff.toggle}>
                 {t(handoff.moving ? "common.cancel" : "board.stage.handoff.move")}
               </button>
@@ -342,6 +380,11 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
             {offer && (
               <button type="button" className="btn primary" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onAdopt}>
                 {t(phase.busy ? REOPENING_MSG : "board.stage.reopenHere")}
+              </button>
+            )}
+            {lookAgain && (
+              <button type="button" className={offer ? "btn" : "btn primary"} data-stage-land={offer ? undefined : true} onClick={lookAgain}>
+                {t(HANDOFF_LOOK_AGAIN_MSG)}
               </button>
             )}
             {fresh && <button type="button" className="btn" title={p.startNewTip} onClick={fresh}>{t(START_NEW_MSG)}</button>}

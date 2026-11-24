@@ -331,10 +331,21 @@ describe("the deck's start and its uninstall", () => {
 
   it("starts the install once, after the hooks job, and keeps its answer with the other jobs", () => {
     const src = read("../../../bin/cli/startup.js");
-    const body = src.slice(src.indexOf("export function startupWork("), src.indexOf("\n}", src.indexOf("export function startupWork(")));
-    expect(body.match(/installOpencodePlugin\(/g)?.length).toBe(1);
-    expect(body).toMatch(/const opencode = hooks\s*\.then\(/);
-    expect(body).toMatch(/return \{[^}]*\bopencode\b[^}]*\};/);
+    const fn = (name: string) => src.slice(src.indexOf(`export function ${name}(`), src.indexOf("\n}", src.indexOf(`export function ${name}(`)));
+    // One installer call, in the job both boots share; startupWork starts that
+    // job after its Claude hook job, and keeps the plugin's answer.
+    expect(src.match(/installOpencodePlugin\(/g)?.length).toBe(1);
+    expect(fn("installProviderForwarders")).toMatch(/m\.installOpencodePlugin\(\)/);
+    const body = fn("startupWork");
+    expect(body).toMatch(/const forwarders = installProviderForwarders\(hooks\);/);
+    expect(body).toMatch(/return \{[^}]*\bopencode: forwarders\.opencode\b[^}]*\};/);
+  });
+
+  it("starts it on a respawn too, after the respawn's own hook job", () => {
+    const deck = read("../../../bin/deck.js");
+    const respawnBranch = deck.slice(deck.indexOf("const reinstall = respawnHooks("));
+    expect(respawnBranch).toMatch(/const forwarders = installProviderForwarders\(reinstall\);/);
+    expect(respawnBranch).toMatch(/await sayForwarderTrouble\(forwarders\);/);
   });
 
   it("takes the plugin out on --uninstall, and counts a failure as a refusal", () => {

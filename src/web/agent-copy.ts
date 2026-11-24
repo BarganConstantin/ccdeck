@@ -10,7 +10,7 @@
 import type { AgentNodeData, WaitingBlock } from "./types";
 import { fmtCost } from "./pricing";
 import { agentCost, agentUnpricedTokens, otherModelIds } from "./usage-models";
-import { shortModel } from "./model-label";
+import { modelChipText, shortModel } from "./model-label";
 import { guessLine } from "./notify";
 import { isAlarming } from "./ambient-counts";
 import { planSpoken, planSummary } from "./agent-plan";
@@ -95,7 +95,8 @@ export function subRowTitle(a: AgentNodeData, tr: TFunction = t): string {
  *  `visibility: hidden`, the same card suddenly announced as three words. This
  *  is composed from the data instead, so it does not change with zoom, and it
  *  says the things a reader chooses a card by, in the card's own words: name,
- *  kind, the state pill, the waiting sentence, model, tools, failures, cost. */
+ *  kind, the state pill, the waiting sentence, model and effort, tools,
+ *  failures, cost. */
 export function agentAriaLabel(data: AgentNodeData, now: number = Date.now(), selected = false, tr: TFunction = t): string {
   // Over the agent's whole life, like the card's "err" (#1809).
   const failed = data.toolErrorCount ?? 0;
@@ -111,7 +112,9 @@ export function agentAriaLabel(data: AgentNodeData, now: number = Date.now(), se
     // card draws it as "Failed" and its row says the rest.
     data.kind === "root" && data.stopFailure ? stopSpoken(data.stopFailure, data.job != null, tr) : null,
     isAlarming(data.waiting) ? waitingSentence(data.waiting!, tr) : null,
-    data.model ? shortModel(data.model) : null,
+    // The model and the effort the session stated, the words the card's foot
+    // draws until the squeeze drops them: here they are always said.
+    data.model ? modelChipText(data.model, data.effort) : null,
     // The card's plan row, where a screen reader hears it (#2157): this name,
     // not the card's rows, is what a reader on the node is told.
     (() => { const plan = planSummary(data.plan); return plan ? planSpoken(plan, tr) : null; })(),

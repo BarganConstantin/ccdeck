@@ -19,7 +19,7 @@ import { withoutComments } from "./tsx-scan";
 import { sheetText } from "./sheet-source";
 import TerminalStage, { endPlacement, endView, stageName, subjectOf, type StageShow, type TerminalStageProps } from "../components/terminal/TerminalStage";
 import StageHeader, { BACK_EMPTY_LABEL_MSG, BACK_LABEL_MSG, CLOSE_EMPTY_LABEL_MSG, CLOSE_LABEL_MSG, FULL_LABEL_MSG, FULL_LEAVE_LABEL_MSG, type StageHeaderProps } from "../components/terminal/StageHeader";
-import StageBody, { EMPTY_NEW_SESSION_ID, StateCard, downloadNote, setupLine, setupShare, tmuxFact, type StageBodyProps } from "../components/terminal/StageBody";
+import StageBody, { EMPTY_NEW_SESSION_ID, HANDOFF_LOOK_AGAIN_MSG, HANDOFF_MANUAL_MSG, HANDOFF_REASON_MSG, StateCard, downloadNote, handoffReason, setupLine, setupShare, tmuxFact, type HandoffReason, type StageBodyProps } from "../components/terminal/StageBody";
 import EngineCard from "../components/terminal/EngineCard";
 import { en } from "../i18n/en";
 import KeysBar, { ArrivalNote, AsksTrack, type KeysBarProps } from "../components/terminal/KeysBar";
@@ -347,9 +347,85 @@ describe("the body's state cards, each at the terminal's origin", () => {
     expect(plain).not.toContain(en["board.stage.handoff.offer"]);
     const stage = withoutComments(readFileSync(fileURLToPath(new URL("../components/terminal/TerminalStage.tsx", import.meta.url)), "utf8"));
     expect(stage).toMatch(/cwd: handoffCwd, check: true \}/);
-    expect(stage).toMatch(/if \(!controller\.signal\.aborted && movable === true\) setMovableFor\(claudeSource\);/);
-    expect(stage).toMatch(/const canMove = couldMove && movableFor === claudeSource;/);
-    expect(stage).toMatch(/handoff=\{canMove \? \{/);
+    expect(stage).toMatch(/if \(movable === true\) setMovableFor\(claudeSource\);/);
+    // A later no takes back an earlier yes.
+    expect(stage).toMatch(/else setMovableFor\(was => was === claudeSource \? null : was\);/);
+    expect(stage).toMatch(/const handoffShown = couldMove && \(movableFor === claudeSource \|\| moving \|\| handoffStopped !== undefined\);/);
+    expect(stage).toMatch(/handoff=\{handoffShown \? \{/);
+  });
+
+  it("says a Ghostty too old to hand over is the limit as soon as the check answers, before any press", () => {
+    // Ghostty 1.3 lists terminals but not their pid and tty: the check answers
+    // movable false with that reason, and the card shows the limit and the way
+    // by hand with no Move button, instead of a button that can only fail.
+    const stage = withoutComments(readFileSync(fileURLToPath(new URL("../components/terminal/TerminalStage.tsx", import.meta.url)), "utf8"));
+    expect(stage).toMatch(/const \{ movable, reason \} = await response\.json\(\)/);
+    expect(stage).toMatch(/if \(movable !== true && reason === "ghostty-unsupported"\) \{\s*setHandoffIssue\(was => was\?\.source === claudeSource \? was : \{ source: claudeSource, reason: "ghostty-unsupported" \}\);/);
+    const target = { kind: "C" as const, label: "External session", adoptable: true };
+    const external = { kind: "not-attachable" as const, target, stillRunning: true, busy: false };
+    const props = bodyProps(external, { handoff: { moving: false, reason: "ghostty-unsupported", toggle: vi.fn(), lookAgain: vi.fn() } });
+    const out = html(createElement(StateCard, props));
+    expect(out).toContain(en["board.stage.handoff.unsupported"]);
+    expect(out).toContain(en[HANDOFF_MANUAL_MSG]);
+    expect(button(StateCard(props), "Move session here")).toBeNull();
+  });
+
+  it("says why a move did not happen, in one sentence per reason, with the way by hand", () => {
+    const target = { kind: "C" as const, label: "External session", adoptable: true };
+    const external = { kind: "not-attachable" as const, target, stillRunning: true, busy: false };
+    const reasons = Object.keys(HANDOFF_REASON_MSG) as HandoffReason[];
+    expect(reasons.sort()).toEqual(["already-sent", "automation-denied", "claude-not-ready", "continuation-timeout", "failed", "ghostty-unsupported", "surface-changed"]);
+    for (const reason of reasons.filter(r => r !== "already-sent")) {
+      const props = bodyProps(external, { handoff: { moving: false, reason, toggle: vi.fn(), lookAgain: vi.fn() } });
+      const out = html(createElement(StateCard, props));
+      // As markup: "Privacy & Security" is drawn "&amp;".
+      expect(out, reason).toContain(en[HANDOFF_REASON_MSG[reason]].replace(/&/g, "&amp;"));
+      expect(out, reason).toContain(en[HANDOFF_MANUAL_MSG]);
+      expect(out, `${reason}: not the offer`).not.toContain(en["board.stage.handoff.offer"]);
+      const tree = StateCard(props);
+      // Press again where it can help; never where this Ghostty cannot do it,
+      // or after the move went and only its arrival is missing.
+      const again = reason !== "ghostty-unsupported" && reason !== "continuation-timeout";
+      expect(button(tree, "Move session here") !== null, reason).toBe(again);
+      expect(button(tree, en[HANDOFF_LOOK_AGAIN_MSG]) !== null, reason).toBe(reason === "continuation-timeout");
+    }
+    expect(en[HANDOFF_REASON_MSG["ghostty-unsupported"]]).toMatch(/Ghostty 1\.4 or later/);
+    expect(en[HANDOFF_REASON_MSG["automation-denied"]]).toMatch(/Privacy & Security → Automation/);
+    // The server's reasons, and anything else, read as the card's.
+    expect(handoffReason("automation-denied")).toBe("automation-denied");
+    for (const other of ["not-mac", "not-ghostty", "toString", undefined, 7]) expect(handoffReason(other)).toBe("failed");
+  });
+
+  it("looks again for a move that was sent, and only waits, never sends, while one already went", () => {
+    const toggle = vi.fn(), lookAgain = vi.fn();
+    const target = { kind: "C" as const, label: "External session", adoptable: true };
+    const external = { kind: "not-attachable" as const, target, stillRunning: true, busy: false };
+    const late = StateCard(bodyProps(external, { handoff: { moving: false, reason: "continuation-timeout", toggle, lookAgain } }));
+    press(button(late, en[HANDOFF_LOOK_AGAIN_MSG]));
+    expect(lookAgain).toHaveBeenCalledOnce();
+    expect(toggle).not.toHaveBeenCalled();
+    // Claude has left Ghostty: Reopen here leads, Look again stays beside it.
+    const gone = { ...external, target: { ...target, kind: "gone" as const }, stillRunning: false };
+    const left = StateCard(bodyProps(gone, { handoff: { moving: false, reason: "continuation-timeout", toggle, lookAgain } }));
+    expect(button(left, "Reopen here")?.props.className).toBe("btn primary");
+    expect(button(left, en[HANDOFF_LOOK_AGAIN_MSG])?.props.className).toBe("btn");
+    // Already sent, from another press or tab: the card waits, with Cancel.
+    const sent = bodyProps(external, { handoff: { moving: true, reason: "already-sent", toggle, lookAgain } });
+    const out = html(createElement(StateCard, sent));
+    expect(out).toContain(en[HANDOFF_REASON_MSG["already-sent"]]);
+    expect(out).not.toContain(en["board.stage.handoff.waiting"]);
+    expect(button(StateCard(sent), "Cancel")).not.toBeNull();
+    expect(button(StateCard(sent), en[HANDOFF_LOOK_AGAIN_MSG])).toBeNull();
+  });
+
+  it("asks the server why, waits again without sending again, and tells a slow arrival from a failure", () => {
+    const stage = withoutComments(readFileSync(fileURLToPath(new URL("../components/terminal/TerminalStage.tsx", import.meta.url)), "utf8"));
+    expect(stage).toMatch(/const reason = handoffReason\(said\);/);
+    expect(stage).toMatch(/reason: handoffSent\.current === claudeSource \? "continuation-timeout" : "failed"/);
+    // Look again restarts the wait for the continued session and posts nothing.
+    const look = stage.slice(stage.indexOf("const lookAgain = () => {"), stage.indexOf("};", stage.indexOf("const lookAgain = () => {")));
+    expect(look).toContain("setHandoffFrom(claudeSource);");
+    expect(look).not.toContain("fetch(");
   });
 
   it("says what a session outside the deck is doing there and how to bring it here, by the board's state (#97)", () => {

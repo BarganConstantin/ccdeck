@@ -62,7 +62,7 @@ import {
 } from "./stage-model";
 import { canChooseFolder, chooseFolder } from "../../desktop-folder";
 import StageHeader, { metaRest } from "./StageHeader";
-import StageBody, { catchKeys, type StageContext } from "./StageBody";
+import StageBody, { catchKeys, handoffReason, type HandoffReason, type StageContext } from "./StageBody";
 import type { HeldKeys } from "../../type-ahead";
 import { useFocusRequest, type FocusRequest } from "./use-focus-request";
 import { paneHoldsKeys } from "../../pane-keys";
@@ -502,16 +502,22 @@ export default function TerminalStage(p: TerminalStageProps) {
   });
   const { phase } = session;
   const [handoffFrom, setHandoffFrom] = useState<string | null>(null);
-  const [handoffFailed, setHandoffFailed] = useState(false);
+  // Why the last move of this source did not happen, or why it still waits.
+  const [handoffIssue, setHandoffIssue] = useState<{ source: string; reason: HandoffReason } | null>(null);
   const handoffRequest = useRef<AbortController | null>(null);
+  // The source whose move Ghostty took: its wait running out is a slow
+  // arrival, not a failure, and Look again asks nothing of Ghostty.
+  const handoffSent = useRef<string | null>(null);
   const continuationRef = useRef(p.onContinuation);
   continuationRef.current = p.onContinuation;
   const claudeSource = chatRef?.provider === "claude" && !p.windows ? chatRef.sessionId : null;
   const handoffCwd = chatRef?.cwd ?? "";
   const couldMove = !!p.onContinuation && !!claudeSource && !!handoffCwd && phase.kind === "not-attachable";
-  // The move works only for Claude in a Ghostty window on a Mac. The server
-  // makes every lookup of the real move without sending anything, and the
-  // button shows only when it says yes, so nobody gets a button that fails.
+  // The move works only for Claude in a Ghostty window on a Mac, with a
+  // Ghostty whose scripting can find Claude's surface. The server makes every
+  // lookup of the real move without sending anything, and the button shows
+  // only when it says yes, so nobody gets a button that fails. A later no
+  // takes back an earlier yes.
   const [movableFor, setMovableFor] = useState<string | null>(null);
   useEffect(() => {
     if (!couldMove || !claudeSource) return;
@@ -525,30 +531,43 @@ export default function TerminalStage(p: TerminalStageProps) {
           body: JSON.stringify({ sessionId: claudeSource, provider: "claude", cwd: handoffCwd, check: true }),
         });
         if (!response.ok) return;
-        const { movable } = await response.json() as { movable?: unknown };
-        if (!controller.signal.aborted && movable === true) setMovableFor(claudeSource);
-      } catch { /* No answer: the button stays hidden. */ }
+        const { movable, reason } = await response.json() as { movable?: unknown; reason?: unknown };
+        if (controller.signal.aborted) return;
+        if (movable === true) setMovableFor(claudeSource);
+        else setMovableFor(was => was === claudeSource ? null : was);
+        // A Ghostty too old to find Claude's surface: say so before anyone
+        // looks for a Move button, with the way by hand, and offer no move.
+        if (movable !== true && reason === "ghostty-unsupported") {
+          setHandoffIssue(was => was?.source === claudeSource ? was : { source: claudeSource, reason: "ghostty-unsupported" });
+        }
+      } catch { /* No answer: the button stays as it was. */ }
     })();
     return () => controller.abort();
   }, [couldMove, claudeSource, handoffCwd]);
-  const canMove = couldMove && movableFor === claudeSource;
-  const moving = canMove && handoffFrom === claudeSource;
+  // A move under way, or one that stopped, keeps its card after a later check
+  // says no: Claude leaving Ghostty is what a move that worked looks like.
+  const moving = couldMove && handoffFrom === claudeSource;
+  const handoffStopped = handoffIssue && handoffIssue.source === claudeSource ? handoffIssue.reason : undefined;
+  const handoffShown = couldMove && (movableFor === claudeSource || moving || handoffStopped !== undefined);
   useEffect(() => {
     setHandoffFrom(null);
-    setHandoffFailed(false);
+    setHandoffIssue(null);
+    handoffSent.current = null;
     return () => handoffRequest.current?.abort();
   }, [claudeSource]);
   const toggleHandoff = async () => {
     if (moving) {
       handoffRequest.current?.abort();
       setHandoffFrom(null);
+      setHandoffIssue(null);
       return;
     }
     if (!claudeSource || handoffRequest.current) return;
     const controller = new AbortController();
     handoffRequest.current = controller;
-    setHandoffFailed(false);
+    setHandoffIssue(null);
     setHandoffFrom(claudeSource);
+    let said: unknown;
     try {
       const response = await fetch("/api/terminal/background", {
         method: "POST",
@@ -556,12 +575,24 @@ export default function TerminalStage(p: TerminalStageProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId: claudeSource, provider: "claude", cwd: handoffCwd }),
       });
-      if (response.ok) return;
+      if (response.ok) { handoffSent.current = claudeSource; return; }
+      said = (await response.json().catch(() => null) as { reason?: unknown } | null)?.reason;
     } catch { /* The source remains where it was if the request failed. */ }
     finally { handoffRequest.current = null; }
     if (controller.signal.aborted) return;
+    const reason = handoffReason(said);
+    setHandoffIssue({ source: claudeSource, reason });
+    // Sent before, from here or another tab: keep waiting for it, send nothing.
+    if (reason === "already-sent") { handoffSent.current = claudeSource; return; }
     setHandoffFrom(null);
-    setHandoffFailed(true);
+    if (reason === "ghostty-unsupported") setMovableFor(null);
+  };
+  // After a move that was sent and has not arrived: wait for it again, and
+  // never ask Ghostty a second time.
+  const lookAgain = () => {
+    if (!claudeSource || handoffSent.current !== claudeSource) return;
+    setHandoffIssue(null);
+    setHandoffFrom(claudeSource);
   };
   useEffect(() => {
     if (!moving || !claudeSource) return;
@@ -571,7 +602,7 @@ export default function TerminalStage(p: TerminalStageProps) {
       handoffRequest.current?.abort();
       controller.abort();
       setHandoffFrom(null);
-      setHandoffFailed(true);
+      setHandoffIssue({ source: claudeSource, reason: handoffSent.current === claudeSource ? "continuation-timeout" : "failed" });
     }, 40_000);
     const findContinuation = async () => {
       try {
@@ -587,6 +618,7 @@ export default function TerminalStage(p: TerminalStageProps) {
                 continuationRef.current?.(sessionId, handoffCwd)) {
               setView("term");
               setHandoffFrom(null);
+              setHandoffIssue(null);
               return;
             }
           }
@@ -994,7 +1026,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         launched={p.show.kind === "session" && (p.show.session.launched === true || !!p.show.launch)}
         boardState={board?.state ?? null}
         onAdopt={reopen}
-        handoff={canMove ? { moving, failed: handoffFailed, toggle: toggleHandoff } : undefined}
+        handoff={handoffShown ? { moving, reason: handoffStopped, toggle: toggleHandoff, lookAgain } : undefined}
         onNotNow={p.onClose}
         onRetry={retry}
         onStartNew={startNew}

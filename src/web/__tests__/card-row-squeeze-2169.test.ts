@@ -19,6 +19,11 @@
 // say, the task line being the one cut piece, and the head's shrink order for
 // what is left in it. The tooltip, the list, the peek and the Inspector keep
 // the model and its effort.
+//
+// CHANGED ON PURPOSE (the owner's call, 2026-11-24): the model and its effort
+// are on the card again, in the foot rather than the head, and the foot's
+// squeeze drops the effort and then the model before anything else. The head
+// still measures nothing.
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -74,13 +79,16 @@ describe("the row the card draws", () => {
   // the folder the only piece cut short so the chip was never pushed off. The
   // kind and folder are the task line on a row of their own.
   // CHANGED ON PURPOSE (V4 top-10 #2): this also held the model in the head
-  // ("sonnet 5.5 · medium"). The card draws no model now; the task line's
+  // ("sonnet 5.5 · medium"). The card drew no model then; the task line's
   // tooltip still names it.
-  it("puts a subagent's kind and folder on the task line, and no model on the card", () => {
+  it("puts a subagent's kind and folder on the task line, and the model with its effort in the foot", () => {
     const html = card({ cwdBasename: "customer-onboarding", model: "claude-sonnet-5-5", effort: "medium" });
     expect(html).toMatch(/<div class="task-line" title="subagent · customer-onboarding · sonnet 5\.5">subagent · customer-onboarding<\/div>/);
     expect(html).not.toContain("model-text");
-    expect(html).not.toContain("sonnet 5.5 · medium");
+    // CHANGED ON PURPOSE (the owner's call, 2026-11-24): the model and its
+    // effort are shown on the card's foot now, not in the head.
+    expect(/<div class="foot">([\s\S]*?)<\/div>/.exec(html)![1]).toContain(">sonnet 5.5 · medium</span>");
+    expect(/<div class="title">([\s\S]*?)<\/div>/.exec(html)![1]).not.toContain("sonnet 5.5");
   });
 
   // CHANGED ON PURPOSE: this also pinned the model text as `flex: none`.
