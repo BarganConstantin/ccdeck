@@ -28,7 +28,7 @@ import {
 } from "./commands.js";
 import { oneLine } from "../../src/server/cli-lines.mjs";
 import { stripAnsi } from "../../src/server/term.mjs";
-import { COMMAND, PKG_ROOT } from "./package.js";
+import { COMMAND, PKG_ROOT, PKG_VERSION } from "./package.js";
 import { G, LINKS, P, PROFILE, UNICODE } from "./screen.js";
 
 /** How often each reading is taken while the screen is up. The sessions are
@@ -91,7 +91,7 @@ export async function runTui(flags, out, deps = {}) {
     return out.fail(EXIT.NO_DECK, "no_deck", `no deck is listening on ${port} ${G.dash} \`${COMMAND} status\` lists them`);
   }
 
-  let state = { ...view.initialState(), deck: deck ? { port: deck.port, version: deck.version ?? null } : null };
+  let state = { ...view.initialState(), own: PKG_VERSION, deck: deck ? { port: deck.port, version: deck.version ?? null } : null };
   const last = { roster: 0, auto: 0, sessions: 0, system: 0, history: 0, signin: 0, codex: 0, codexQuota: 0, codexSignin: 0, lan: 0, find: clock() };
   const inflight = new Set();
   const screen = createScreen(s => output.write(s));
