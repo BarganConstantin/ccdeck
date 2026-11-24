@@ -818,8 +818,8 @@
    own text and the five of them printed over one another, inside a card that
    clips. Wrapping cured that at the price of a second line on every root card;
    Figma's foot is one line, so the row stays one line and the card measures it
-   and drops meta items instead (tokens, then in-flight, then the tool count;
-   see card-row-squeeze.ts).
+   and drops meta items instead (the effort, the model, tokens, then
+   in-flight; see card-row-squeeze.ts).
 
    THE FOOT (V4) is that row in the card's 11/14 with tabular figures (the sans
    since V4 top-10 #8, it was mono): --text-secondary figures
@@ -923,6 +923,22 @@
   color: var(--text-secondary);
 }
 .agent-node .foot .spawn-badge svg { flex: none; color: var(--muted); }
+/* The model and its effort ("opus 5.5 · xhigh"), after the foot's figures, in
+   the annotation ink: it says what the session runs on, not what it has done.
+   No family tint and no pill, which are the chip's. Like the foot's other items
+   its box does not shrink while the squeeze still has something to drop (the
+   token figure, the effort, the in-flight count; card-row-squeeze.ts). The
+   model itself never drops: once nothing else can go, .model-meta-fit lets its
+   box shrink and the words end in an ellipsis, and the title carries the whole
+   label. */
+.agent-node .foot .model-meta {
+  color: var(--muted);
+  white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.agent-node .foot .model-meta.model-meta-fit { flex: 0 1 auto; }
 
 /* Model chip — tiny pill next to "session"/"subagent" with a family tint,
    keyed on `data-family` (below). */
