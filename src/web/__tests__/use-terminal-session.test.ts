@@ -2734,3 +2734,195 @@ describe("an opencode or Copilot session on the stage", () => {
     ctl.dispose();
   });
 });
+
+// A folder that is gone: a git worktree removed, a project moved or renamed.
+// A launch or a Reopen here there is never started anywhere else and never
+// asked again by itself: the folder-gone phase names it, keeps the ended
+// frame it came from, and Check again runs the press it stopped once the
+// folder is back — once.
+describe("a pane whose folder is gone", () => {
+  const GONE = "/home/u/code/paycore-worktree";
+  type Answer = { ok: true; cwd: string } | { ok: false; code: string };
+  /** The rig's API with the deck's folder question, answering `answers` in
+   *  turn (the last one again once they run out). */
+  const asksFolder = (r: Rig, ...answers: Answer[]) => {
+    const said = [...answers];
+    const checkFolder = vi.fn(async (cwd: string) => (said.length > 1 ? said.shift()! : said[0]) ?? { ok: true, cwd });
+    (r.deps.api as unknown as Record<string, unknown>).checkFolder = checkFolder;
+    return checkFolder;
+  };
+  const MISSING: Answer = { ok: false, code: "missing" };
+  const THERE: Answer = { ok: true, cwd: GONE };
+  /** The deck's answer to a launch, read by the page's own terminal-api. */
+  const answered = (r: Rig, status: number, body: Record<string, unknown>) =>
+    r.launch.mockImplementationOnce(req => launchTerminal(req as Parameters<typeof launchTerminal>[0], {
+      fetchFn: async () => ({ ok: false, status, json: async () => body }) as unknown as Response,
+    }));
+  async function endedPane(ref: SessionRef) {
+    const { r, ctl } = rig();
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    const s = await attach(r, ctl, ref);
+    r.clock.now += 60_000;
+    s.text({ t: "exit", reason: "ended", exitStatus: 1 });
+    expect(r.last().phase).toEqual({ kind: "ended" });
+    return { r, ctl };
+  }
+
+  it("names the folder a launch was refused for, asks nothing about tmux, and never launches again by itself", async () => {
+    for (const code of ["folder-missing", "bad-cwd"]) {
+      const { r, ctl } = rig();
+      answered(r, code === "bad-cwd" ? 400 : 409, { ok: false, code, cwd: GONE });
+      ctl.show({ kind: "launch", agent: "codex", cwd: GONE, key: "n1" });
+      await flush();
+      await flush();
+      expect(r.last().phase, code).toEqual({ kind: "folder-gone", cwd: GONE, code: "folder-missing", agent: "codex" });
+      expect(r.status, code).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+      expect(r.launch, `${code}: asked once`).toHaveBeenCalledTimes(1);
+      ctl.dispose();
+    }
+  });
+
+  it("says a folder this account may not open as such", async () => {
+    const { r, ctl } = rig();
+    answered(r, 409, { ok: false, code: "folder-denied", cwd: GONE });
+    ctl.show({ kind: "launch", agent: "claude", cwd: GONE, key: "n2" });
+    await flush();
+    await flush();
+    expect(r.last().phase).toEqual({ kind: "folder-gone", cwd: GONE, code: "folder-denied", agent: "claude" });
+    ctl.dispose();
+  });
+
+  it("launches the same launch, by its key, once Check again finds the folder back", async () => {
+    const { r, ctl } = rig();
+    const check = asksFolder(r, MISSING, THERE);
+    answered(r, 409, { ok: false, code: "folder-missing", cwd: GONE });
+    ctl.show({ kind: "launch", agent: "claude", cwd: GONE, key: "n3" });
+    await flush();
+    await flush();
+    ctl.retry();
+    expect(r.last().phase, "busy while it asks").toMatchObject({ kind: "folder-gone", busy: true });
+    ctl.retry();
+    await flush();
+    expect(check, "one question for two presses").toHaveBeenCalledTimes(1);
+    expect(r.last().phase, "still gone: said so").toEqual({ kind: "folder-gone", cwd: GONE, code: "folder-missing", agent: "claude", busy: false, checked: true });
+    expect(r.launch).toHaveBeenCalledTimes(1);
+    ctl.retry();
+    await flush();
+    expect(check).toHaveBeenCalledTimes(2);
+    expect(r.launch, "launched once more").toHaveBeenCalledTimes(2);
+    expect(r.launch.mock.calls[1][0]).toMatchObject({ agent: "claude", cwd: GONE, key: "n3" });
+    ctl.dispose();
+  });
+
+  it("asks about the folder before a Reopen here, and keeps the ended frame without reopening when it is gone", async () => {
+    const { r, ctl } = await endedPane({ ...REF, cwd: GONE });
+    const check = asksFolder(r, MISSING);
+    ctl.adopt();
+    expect(r.last().phase, "the frame stays, busy, while it asks").toEqual({ kind: "ended", busy: true });
+    await flush();
+    expect(check).toHaveBeenCalledWith(GONE);
+    expect(r.last().phase).toEqual({ kind: "folder-gone", cwd: GONE, code: "folder-missing", agent: "claude", sessionId: REF.sessionId, frame: true });
+    await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+    expect(r.adopt, "never resumed, here or anywhere else").not.toHaveBeenCalled();
+    expect(r.launch).not.toHaveBeenCalled();
+    expect(r.sockets, "no new connection").toHaveLength(1);
+    ctl.dispose();
+  });
+
+  it("reopens the conversation here, once, when Check again finds the folder back", async () => {
+    const { r, ctl } = await endedPane({ ...REF, cwd: GONE });
+    const check = asksFolder(r, MISSING, { ok: false, code: "denied" }, THERE);
+    ctl.adopt();
+    await flush();
+    ctl.retry();
+    await flush();
+    expect(r.last().phase, "now refused for its access").toMatchObject({ kind: "folder-gone", code: "folder-denied", checked: true, frame: true });
+    expect(r.adopt).not.toHaveBeenCalled();
+    ctl.retry();
+    await flush();
+    expect(check).toHaveBeenCalledTimes(3);
+    expect(r.adopt, "the Reopen here it stopped, once").toHaveBeenCalledTimes(1);
+    expect(r.adopt.mock.calls[0][0]).toEqual({ ...REF, cwd: GONE });
+    expect(r.last().phase, "the frame, reopening").toEqual({ kind: "ended", busy: true });
+    ctl.dispose();
+  });
+
+  it("goes ahead when the deck cannot say, and names the folder when the deck's adopt finds it gone after all", async () => {
+    const { r, ctl } = await endedPane({ ...REF, cwd: GONE });
+    asksFolder(r, { ok: false, code: "offline" });
+    r.adopt.mockResolvedValueOnce({ ok: false, status: 409, error: "gone", code: "folder-missing", cwd: GONE } as ApiFailure);
+    ctl.adopt();
+    await flush();
+    await flush();
+    expect(r.adopt).toHaveBeenCalledTimes(1);
+    expect(r.last().phase).toEqual({ kind: "folder-gone", cwd: GONE, code: "folder-missing", agent: "claude", sessionId: REF.sessionId, frame: true });
+    ctl.dispose();
+  });
+
+  /** The deck's answer to an open of an ended session it cannot reopen for want of its folder. */
+  const goneOpen = (adoptable = false) => ({
+    ok: false as const,
+    target: { kind: "gone" as const, label: adoptable ? "ended" : "This session has ended, and its project folder is no longer there to reopen it in.", adoptable },
+  });
+
+  it("names the folder of an ended session opened after its folder went, and opens it again once Check again finds it back", async () => {
+    const { r, ctl } = rig();
+    const check = asksFolder(r, { ok: false, code: "denied" }, THERE);
+    r.open.mockResolvedValueOnce(goneOpen()).mockResolvedValueOnce(goneOpen(true));
+    ctl.show({ kind: "session", ref: { ...REF, cwd: GONE } });
+    await flush();
+    await flush();
+    expect(check).toHaveBeenCalledWith(GONE);
+    expect(r.last().phase, "no frame to keep: the card").toEqual({ kind: "folder-gone", cwd: GONE, code: "folder-denied", agent: "claude", sessionId: REF.sessionId });
+    await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+    expect(r.open, "never asked again by itself").toHaveBeenCalledTimes(1);
+    ctl.retry();
+    await flush();
+    await flush();
+    expect(r.open, "Check again: an open, as before").toHaveBeenCalledTimes(2);
+    expect(r.last().phase).toMatchObject({ kind: "not-attachable", target: { kind: "gone", adoptable: true }, stillRunning: false });
+    expect(r.adopt, "Reopen here stays a press").not.toHaveBeenCalled();
+    ctl.dispose();
+  });
+
+  it("says the folder is missing on a deck it cannot ask, and keeps the deck's card for an agent it does not start", async () => {
+    const { r, ctl } = rig();
+    r.open.mockResolvedValueOnce(goneOpen());
+    ctl.show({ kind: "session", ref: { ...REF, cwd: GONE } });
+    await flush();
+    await flush();
+    expect(r.last().phase).toMatchObject({ kind: "folder-gone", code: "folder-missing", cwd: GONE });
+    ctl.dispose();
+    const other = rig();
+    asksFolder(other.r, MISSING);
+    other.r.open.mockResolvedValueOnce(goneOpen());
+    other.ctl.show({ kind: "session", ref: { ...REF, cwd: "" } });
+    await flush();
+    await flush();
+    expect(other.r.last().phase, "no folder to name").toMatchObject({ kind: "not-attachable", target: { kind: "gone", adoptable: false } });
+    other.ctl.dispose();
+  });
+
+  it("runs a press made through startIfFolder only in a folder that is there, and one at a time", async () => {
+    const { r, ctl } = await endedPane({ ...REF, cwd: GONE });
+    const check = asksFolder(r, MISSING, THERE);
+    const run = vi.fn();
+    ctl.startIfFolder(GONE, { agent: "codex" }, run);
+    ctl.startIfFolder(GONE, { agent: "codex" }, run);
+    await flush();
+    expect(check, "a second press while it asks starts nothing").toHaveBeenCalledTimes(1);
+    expect(run).not.toHaveBeenCalled();
+    expect(r.last().phase).toEqual({ kind: "folder-gone", cwd: GONE, code: "folder-missing", agent: "codex", frame: true });
+    ctl.retry();
+    await flush();
+    expect(run, "the press it stopped, once the folder is back").toHaveBeenCalledTimes(1);
+    expect(r.last().phase, "back to the frame it came from").toEqual({ kind: "ended" });
+    ctl.startIfFolder(GONE, { agent: "codex" }, run);
+    await flush();
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(r.adopt).not.toHaveBeenCalled();
+    ctl.dispose();
+  });
+});

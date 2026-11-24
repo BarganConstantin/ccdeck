@@ -31,7 +31,11 @@ import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } f
 import { copyText } from "../../copy-text";
 import { CAUGHT_KEYS_ATTR } from "../../shortcuts";
 import type { TmuxProgress } from "../../terminal-api";
-import { LAUNCHED_UNREACHABLE_MSG, MISSING_MSGS, PROVENANCE_UNKNOWN_MSG, REOPEN_FAILED_MSG, REOPENING_MSG, START_NEW_MSG, agentName, elsewhereLine, errorWords, frameRun, launchedUnreachable, provenanceUnknown, type FrameRun, type StagePhase, type StageState } from "./stage-model";
+import {
+  CHOOSE_FOLDER_MSG, LAUNCHED_UNREACHABLE_MSG, MISSING_MSGS, PROVENANCE_UNKNOWN_MSG, REOPEN_FAILED_MSG, REOPENING_MSG, START_NEW_MSG,
+  agentName, elsewhereLine, errorWords, folderGoneBody, folderGoneTitle, folderShown, folderStillGone, frameRun, launchedUnreachable, provenanceUnknown,
+  type FolderGonePhase, type FrameRun, type StagePhase, type StageState,
+} from "./stage-model";
 import { CopyGlyph, StageGlyph } from "./stage-icons";
 import EngineCard, { engineCardCode } from "./EngineCard";
 import ClaudeInstall from "../ClaudeInstall";
@@ -115,6 +119,16 @@ export interface StageBodyProps {
    *  and its tooltip, which names the agent. */
   onStartNew?(): void;
   startNewTip?: string;
+  /** The folder-gone card's Choose folder…: a NEW session of the same agent in
+   *  a folder the reader chooses (TerminalStage), and the id of its button,
+   *  which New session hangs off where there is no folder dialog. */
+  onChooseFolder?(): void;
+  chooseFolderId?: string;
+  /** The folder-gone line over an ended pane's kept frame, where the end
+   *  bar's buttons are in the header and its sentence would be only a
+   *  tooltip (TerminalStage): what is gone, by name, with the full path
+   *  (`where`) on hover, and what Choose folder… does. */
+  frameNote?: { lead: string; next: string; where: string };
   onNewSession(anchorId: string): void;
   /** WORKSPACE: this is the pane with nothing in it, and says so (Figma,
    *  "Empty workspace"), instead of the Board stage's "click a session on the
@@ -252,6 +266,44 @@ export function WorkspaceEmpty({ waiting, onOpen, onNewSession }: {
   );
 }
 
+/**
+ * The folder-gone card (StagePhase `folder-gone`, without its frame): the
+ * folder, cut to its end with the whole path in its tooltip; why, in a title;
+ * what becomes of the conversation, or what a launch can do; then Choose
+ * folder… — a NEW session elsewhere, only on that press — Check again, for a
+ * folder put back, and Not now. The keys land on Choose folder… where it is
+ * offered, else on Check again.
+ */
+function FolderGoneCard({ phase, onChoose, chooseId, onCheck, onNotNow }: {
+  phase: FolderGonePhase;
+  onChoose?: () => void;
+  chooseId?: string;
+  onCheck(): void;
+  onNotNow(): void;
+}) {
+  const t = useT();
+  const still = folderStillGone(phase);
+  return (
+    <div className="ts-card" data-folder-gone={phase.code}>
+      <div className="ts-ctx" title={phase.cwd}>{folderShown(phase.cwd)}</div>
+      <div className="ts-title">{folderGoneTitle(phase)}</div>
+      <p className="ts-text">{folderGoneBody(phase)}</p>
+      {still && <p className="ts-note" role="status">{still}</p>}
+      <div className="ts-acts">
+        {onChoose && (
+          <button type="button" id={chooseId} className="btn primary" data-stage-land onClick={onChoose}>
+            {t(CHOOSE_FOLDER_MSG)}
+          </button>
+        )}
+        <button type="button" className="btn" aria-busy={phase.busy || undefined} data-stage-land={onChoose ? undefined : true} onClick={onCheck}>
+          {t(phase.busy ? "board.stage.checking" : "board.stage.checkAgain")}
+        </button>
+        <button type="button" className="btn" onClick={onNotNow}>{t("common.notNow")}</button>
+      </div>
+    </div>
+  );
+}
+
 /** The card for a phase with no pane to show, or null when the frame is
  *  what the body shows. `held`: a switch is holding the last frame up.
  *  Exported so the suite can draw each one. */
@@ -364,6 +416,11 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
         </div>
       );
     }
+    case "folder-gone":
+      // From an ended pane its last frame stays, and the end bar offers the
+      // same choices (TerminalStage endView): no card over the frame.
+      if (phase.frame) return null;
+      return <FolderGoneCard phase={phase} onChoose={p.onChooseFolder} chooseId={p.chooseFolderId} onCheck={p.onRetry} onNotNow={p.onNotNow} />;
     case "tmux-missing":
       return (
         <div className="ts-card">
@@ -543,7 +600,7 @@ export default function StageBody(p: StageBodyProps) {
   const run = frameRun(last.current, p.phase);
   const { state, afterHold } = run;
   useEffect(() => { last.current = run; });
-  const { hostRef, paneName: _paneName, screens, ...card } = p;
+  const { hostRef, paneName: _paneName, screens, frameNote, ...card } = p;
   // `workspace` is the EMPTY Workspace pane; a pane handed `screens` is a
   // session's in Workspace (the stage hands them only there).
   const flags = useScreenFlags(p.workspace === true || screens !== undefined);
@@ -606,6 +663,14 @@ export default function StageBody(p: StageBodyProps) {
         ? (wait.draw ? <StateCard {...card} held={false} timed={wait.leaving ? "out" : "in"} /> : null)
         : <StateCard {...card} held={state === "held"} />}
       {lingering && <StateCard {...card} phase={{ kind: "attaching", reconnect: false }} held={false} timed={wait.leaving ? "out" : "in"} />}
+      {/* One line across the top of the kept frame, cut with an ellipsis
+          in a narrow pane; it changes when a Check again finds the folder
+          still gone, so it is a polite live region. */}
+      {frameNote && !inChat && (
+        <p className="ts-frame-note" role="status" title={frameNote.where}>
+          <span className="ts-frame-note-lead">{frameNote.lead}</span> {frameNote.next}
+        </p>
+      )}
       <ScreensSlot screens={screens} flags={flags} />
     </div>
   );

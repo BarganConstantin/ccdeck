@@ -121,6 +121,10 @@ export interface NewSessionFormProps {
   /** The board's folders, the stage's own first (stage-board.ts boardProjects). */
   projects: ProjectChoice[];
   initialAgent?: TerminalProvider;
+  /** A folder that is not there any more (a pane's folder-gone Choose
+   *  folder…): left out of the rows, and no folder chosen to begin with, so
+   *  the reader picks another one rather than Start in the one that is gone. */
+  gone?: string;
   /** The deck's sessions run in the Windows session host, not tmux. */
   windows?: boolean;
   onStart(agent: TerminalProvider, cwd: string, options?: LaunchOptions): void;
@@ -179,13 +183,15 @@ const pathExample = (windows: boolean) => (windows ? "C:\\path\\to\\project" : "
 
 interface Chosen { cwd: string; name: string }
 
-export function NewSessionForm({ projects, initialAgent = "claude", windows = false, onStart, onCancel, deps: given, searchRef }: NewSessionFormProps) {
+export function NewSessionForm({ projects, initialAgent = "claude", gone, windows = false, onStart, onCancel, deps: given, searchRef }: NewSessionFormProps) {
   const t = useT();
   const [deps] = useState<NewSessionDeps>(() => ({ ...productDeps(), ...given }));
   const [kept, setKept] = useState<KeptProjects>(() => readKept(deps.store));
   const [discovered, setDiscovered] = useState<ProjectChoice[]>([]);
   const [discovery, setDiscovery] = useState<"loading" | "ready" | "partial" | "unavailable">(deps.loadProjects ? "loading" : "ready");
-  const all = pickerProjects(projects, kept.recents, kept.forgotten, discovered);
+  const goneId = gone ? projectIdentity(gone) : null;
+  const all = pickerProjects(projects, kept.recents, kept.forgotten, discovered)
+    .filter(project => goneId === null || projectIdentity(project.cwd) !== goneId);
   useEffect(() => {
     const controller = new AbortController();
     void deps.loadProjects?.(controller.signal).then(found => {
@@ -197,7 +203,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", windows = fa
     });
     return () => controller.abort();
   }, [deps]);
-  const [chosen, setChosen] = useState<Chosen | null>(() => (all[0] ? { cwd: all[0].cwd, name: all[0].name } : null));
+  const [chosen, setChosen] = useState<Chosen | null>(() => (all[0] && !gone ? { cwd: all[0].cwd, name: all[0].name } : null));
   const [query, setQuery] = useState("");
   const [active, setActive] = useState<string | null>(() => all[0]?.cwd ?? null);
   const [showWorktrees, setShowWorktrees] = useState(false);
@@ -565,6 +571,8 @@ export interface NewSessionPopoverProps {
   anchorId: string;
   projects: ProjectChoice[];
   initialAgent?: TerminalProvider;
+  /** NewSessionForm's `gone`. */
+  gone?: string;
   windows?: boolean;
   onStart(agent: TerminalProvider, cwd: string, options?: LaunchOptions): void;
   onClose(): void;
@@ -596,6 +604,7 @@ export default function NewSessionPopover(p: NewSessionPopoverProps) {
         searchRef={searchRef}
         projects={p.projects}
         initialAgent={p.initialAgent}
+        gone={p.gone}
         windows={p.windows}
         onStart={(agent, cwd, options) => { p.onStart(agent, cwd, options); p.onClose(); }}
         onCancel={p.onClose}

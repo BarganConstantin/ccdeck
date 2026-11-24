@@ -11,6 +11,10 @@
 // same path, which answers the same question less kindly; it is behind the
 // same switch and the same gates as that launch (terminal-routes.mjs).
 //
+// THE LAUNCH AND THE ADOPT ASK IT TOO (terminal-routes.mjs, posted): a pane
+// reopened, or started again, in a folder that has gone since is refused
+// `folder-missing` or `folder-denied` with the folder, before anything starts.
+//
 // THE ENGINE STILL DECIDES. The launch is asked of the engine as before, which
 // checks the folder again; a yes here is a courtesy that can go stale, never a
 // permission. Nothing is ever started in another folder than the one asked.

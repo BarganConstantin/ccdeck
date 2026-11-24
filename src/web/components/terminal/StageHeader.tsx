@@ -359,15 +359,16 @@ export default function StageHeader(p: StageHeaderProps) {
             this pane (KeysBar's placement), and a split's other pane has
             none. The stage's focus lands on it (landFocus). */}
         {p.end && (
-          <button type="button" className="btn ts-end-act" data-stage-land aria-busy={p.end.busy || undefined}
-            title={p.end.sentence} onClick={p.end.onAction}>
+          <button type="button" id={p.end.id} className="btn ts-end-act" data-stage-land aria-busy={p.end.busy || undefined}
+            title={p.end.title ? `${p.end.sentence}\n${p.end.title}` : p.end.sentence} onClick={p.end.onAction}>
             {p.end.action}
           </button>
         )}
         {/* A session Reopen here could not resume: a new one in its folder,
-            beside Try again, only ever on this press. */}
+            beside Try again, only ever on this press. A folder that was
+            gone: Check again, beside Choose folder…. */}
         {p.end?.alt && (
-          <button type="button" className="btn ts-end-act" title={p.end.alt.title} onClick={p.end.alt.onAction}>
+          <button type="button" className="btn ts-end-act" title={p.end.alt.title} aria-busy={p.end.alt.busy || undefined} onClick={p.end.alt.onAction}>
             {p.end.alt.action}
           </button>
         )}
