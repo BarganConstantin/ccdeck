@@ -422,12 +422,17 @@ export function shareKey(state, str, key, ctx) {
 
   if (sh.view === "paste") {
     const max = sh.codex ? PASTE_MAX.codex : PASTE_MAX.claude;
+    // A share made on the other tab: said here, not sent for the deck to
+    // refuse in words that do not say where it goes.
+    const elsewhere = (draft) => (draft.trimStart().startsWith(sh.codex ? "ccdeck2:" : "ccdeck-codex-v1.")
+      ? `that is a ${sh.codex ? "Claude" : "Codex"} share ${ctx.g.dash} paste it on the ${sh.codex ? "Claude" : "Codex"} tab`
+      : null);
     const add = (text) => {
       if (sh.sending || !text) return stay;
       const draft = `${sh.draft}${text}`;
       return draft.length > max
         ? set({ draft: draft.slice(0, max), error: `that is longer than a share can be ${ctx.g.dash} ctrl+u clears it, then paste the share alone` })
-        : set({ draft, error: null });
+        : set({ draft, error: elsewhere(draft) });
     };
     // The whole paste at once, the terminal's own brackets around it: a
     // newline inside it is a character, not enter.
@@ -438,6 +443,8 @@ export function shareKey(state, str, key, ctx) {
     if (enter) {
       const blob = sh.draft;
       if (!blob) return stay;
+      const wrong = elsewhere(blob);
+      if (wrong) return set({ error: wrong });
       if (!state.deck) return noDeck("an import");
       if (sh.codex) {
         const revision = state.codex?.revision;

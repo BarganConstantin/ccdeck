@@ -210,7 +210,10 @@ export async function runTui(flags, out, deps = {}) {
       const part = Math.min(state.share.part ?? 0, Math.max(0, frame.parts - 1));
       set({ share: { ...state.share, parts: frame.parts, part } });
     }
-    screen.bracketPaste(view.takesPaste(state));
+    // On while the screen is up, not only under a share's field: a paste
+    // anywhere else then comes bracketed, and is set aside whole rather than
+    // run a character a key (pasted).
+    screen.bracketPaste(true);
     screen.paint(frame.lines, frame.run);
   };
 
@@ -1283,7 +1286,7 @@ export async function runTui(flags, out, deps = {}) {
       resumeSide = null;
       const name = key?.name;
       if (name === "paste-start") {
-        pasting = view.takesPaste(state) ? { text: "", at: clock() } : null;
+        pasting = { text: "", at: clock() };
         return;
       }
       if (pasting) {
@@ -1312,10 +1315,26 @@ export async function runTui(flags, out, deps = {}) {
       }
       return false;
     }
+    // A paste goes whole into a share's field, as one line into a Network
+    // field, and nowhere else: its characters are not keys. A share pasted
+    // over the list (or a line of anything) would otherwise switch accounts,
+    // turn auto-switch, start an update.
     function pasted() {
       const text = pasting?.text ?? "";
       pasting = null;
-      if (text && view.takesPaste(state)) press(text, { name: "paste" });
+      if (!text) return;
+      if (view.takesPaste(state)) return press(text, { name: "paste" });
+      if (view.takesText(state)) {
+        const line = text.replace(/[\x00-\x1f\x7f]+/g, " ").trim();
+        if (line) press(line, {});
+        return;
+      }
+      const lead = text.trimStart();
+      const where = lead.startsWith("ccdeck2:") ? "Claude" : lead.startsWith("ccdeck-codex-v1.") ? "Codex" : null;
+      tell("info", where
+        ? `nothing was pasted ${g.dash} to take in that share, press + on the ${where} tab, then tab`
+        : `nothing was pasted ${g.dash} only a field takes a paste`);
+      soon();
     }
     function press(str, key) {
       const { state: next, effect } = view.tuiKey(state, str, key ?? {}, { now: clock(), g });

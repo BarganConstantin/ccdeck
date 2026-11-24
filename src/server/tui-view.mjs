@@ -29,13 +29,15 @@ import {
 } from "./tui-codex.mjs";
 import { machinePanel } from "./tui-machine.mjs";
 import {
-  hasLan, lanAsking, lanFooterKeys, lanFormSpec, lanInviteKeys, lanInviteLines, lanInvitePage, lanKey, lanLines, onLan,
+  hasLan, lanAsking, lanFooterKeys, lanFormSpec, lanInviteKeys, lanInviteLines, lanInvitePage, lanKey, lanLines, lanTakesText, onLan,
 } from "./tui-network.mjs";
 import {
   addTabs, openPaste, openPick, shareKey, shareKeys, sharePage, sharePageLines, sharePickSpec, sharePicking, shareValue, takesPaste,
 } from "./tui-share.mjs";
 
 export { hasLan, onLan, takesPaste };
+/** Whether a field that takes typed text is up, a share's aside. */
+export const takesText = lanTakesText;
 
 /** Text from elsewhere — the deck's own sentences, an alias — on a console
  *  that draws ASCII alone: its punctuation in ASCII's, anything else a "?". */

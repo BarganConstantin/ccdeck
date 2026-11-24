@@ -1780,6 +1780,26 @@ describe("sharing accounts", () => {
     expect(paste({ ...s, share: share.openPaste(true) }, "A".repeat(70_000)).state.share.draft).toHaveLength(70_000);
   });
 
+  it("a share made on the other tab is said as such, as it is pasted and on enter, and nothing goes to the deck", () => {
+    const codexHere = paste({ ...deckState(), share: share.openPaste(false) }, `${CBLOB}\n`).state;
+    expect(codexHere.share.error).toBe("that is a Codex share — paste it on the Codex tab");
+    expect(shows(codexHere, "that is a Codex share — paste it on the Codex tab")).toBe(true);
+    expect(enter(codexHere)).toMatchObject({ effect: null, state: { share: { error: "that is a Codex share — paste it on the Codex tab" } } });
+    const claudeHere = paste({ ...onCodex(), share: share.openPaste(true) }, BLOB).state;
+    expect(claudeHere.share.error).toBe("that is a Claude share — paste it on the Claude tab");
+    expect(enter(claudeHere).effect).toBeNull();
+    // Its own kind goes in as before, typed or pasted.
+    expect(paste({ ...deckState(), share: share.openPaste(false) }, BLOB).state.share.error).toBeNull();
+    expect(enter(paste({ ...deckState(), share: share.openPaste(false) }, BLOB).state).effect).toEqual({ type: "share-import", codex: false, blob: BLOB });
+  });
+
+  it("a paste goes as text only into a Network field: this deck's name, a name, an address, an invite", () => {
+    for (const v of ["name", "alias", "address", "join"]) expect(view.takesText(lanState({ lanForm: { view: v, draft: "", error: null } }))).toBe(true);
+    for (const v of ["add", "invite", "unpair"]) expect(view.takesText(lanState({ lanForm: { view: v, error: null } }))).toBe(false);
+    expect(view.takesText(lanState())).toBe(false);
+    expect(view.takesText({ ...deckState(), share: share.openPaste(false) })).toBe(false);
+  });
+
   it("the import's results, account by account in the deck's words; u updates one already here", () => {
     let s = resultsState();
     const l = lines(s);
@@ -2720,6 +2740,28 @@ describe("the loop", () => {
     expect(await done).toBe(0);
   });
 
+  it("an invite pasted bracketed into the Network's invite field goes in as one line, its line end not enter", async () => {
+    const term = fakeTerminal();
+    const deck = lanDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes(" Network "));
+    term.input.write("l");
+    await until(() => term.screenText().includes("╭─ Local network"));
+    term.input.write("+");
+    term.input.write("p");
+    await until(() => term.screenText().includes("Pasting one pairs both decks on the spot"));
+    term.input.write(`\x1b[200~${INVITE.token}\n\x1b[201~`);
+    await new Promise(r => setTimeout(r, 80));
+    expect(posts(deck.calls, "/api/lan/invite")).toEqual([]);
+    term.input.write("\r");
+    await until(() => posts(deck.calls, "/api/lan/invite").length === 1);
+    expect(posts(deck.calls, "/api/lan/invite")[0].body).toMatchObject({ action: "join", token: INVITE.token });
+    await until(() => term.screenText().includes("paired with that deck"));
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
   it("reads Local network as its Network tab while the tab is on screen, so the deck counts the tab as used", async () => {
     const term = fakeTerminal();
     const deck = lanDeck();
@@ -2877,18 +2919,18 @@ describe("the loop", () => {
     await until(() => term.screenText().includes("bob@home.example"));
     term.input.write("+");
     await until(() => term.screenText().includes("Add a Claude account"));
-    expect(term.written()).not.toContain(PASTE_ON);
+    // The terminal brackets a paste from the start: one anywhere else is set aside whole.
+    expect(term.written()).toContain(PASTE_ON);
     term.input.write("\t");
     await until(() => term.screenText().includes("Paste an account shared from another deck"));
-    await until(() => term.written().includes(PASTE_ON));
     term.input.write(`\x1b[200~${BLOB.slice(0, 700)}\r\n${BLOB.slice(700)}\n\x1b[201~`);
     await until(() => term.screenText().includes(`${BLOB.length.toLocaleString("en-US")} characters`));
     expect(deck.bodies).toEqual([]);
     term.input.write("\r");
     await until(() => term.screenText().includes("1 of 2 imported, 1 already here."));
     expect(deck.bodies).toEqual([{ action: "import", blob: BLOB }]);
-    // The field is gone, and the terminal's brackets with it.
-    expect(term.written().lastIndexOf(PASTE_OFF)).toBeGreaterThan(term.written().lastIndexOf(PASTE_ON));
+    // The field is gone; the brackets stay on while the screen is up.
+    expect(term.written()).not.toContain(PASTE_OFF);
     term.input.write("\x1b[B");
     term.input.write("u");
     await until(() => deck.bodies.length === 2);
@@ -2903,6 +2945,30 @@ describe("the loop", () => {
     expect(await done).toBe(0);
   });
 
+  it("a paste over the list is set aside whole: none of its characters is a key, and the notice says where a share goes", async () => {
+    const term = fakeTerminal();
+    const deck = shareDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("bob@home.example"));
+    await until(() => term.written().includes(PASTE_ON));
+    const from = deck.calls.length;
+    term.input.write(`\x1b[200~${BLOB}\x1b[201~`);
+    await until(() => term.screenText().includes("nothing was pasted — to take in that share, press + on the Claude tab, then tab"));
+    term.input.write(`\x1b[200~${CBLOB}\x1b[201~`);
+    await until(() => term.screenText().includes("nothing was pasted — to take in that share, press + on the Codex tab, then tab"));
+    // Keys this screen answers — quit, best, update, auto-switch, share, switch — pasted: none of them runs.
+    term.input.write("\x1b[200~qbuaex\r\x1b[201~");
+    await until(() => term.screenText().includes("nothing was pasted — only a field takes a paste"));
+    await new Promise(r => setTimeout(r, 80));
+    expect(deck.calls.slice(from).filter(c => c.method === "POST")).toEqual([]);
+    expect(deck.bodies).toEqual([]);
+    expect(term.screenText()).toContain("bob@home.example");
+    expect(term.screenText()).not.toContain(BLOB.slice(8, 48));
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
   it("takes a long bracketed paste as one key: one redraw of the field, not one a character", async () => {
     const term = fakeTerminal();
     const deck = shareDeck();
@@ -2911,7 +2977,7 @@ describe("the loop", () => {
     await until(() => term.screenText().includes("bob@home.example"));
     term.input.write("+");
     term.input.write("\t");
-    await until(() => term.written().includes(PASTE_ON));
+    await until(() => term.screenText().includes("Paste an account shared from another deck"));
     const before = term.written().length;
     const long = `ccdeck2:${"x".repeat(60_000)}`;
     term.input.write(`\x1b[200~${long}\x1b[201~`);
@@ -2929,17 +2995,20 @@ describe("the loop", () => {
     await until(() => term.screenText().includes("bob@home.example"));
     term.input.write("+");
     term.input.write("\t");
-    await until(() => term.written().includes(PASTE_ON));
+    await until(() => term.screenText().includes("Paste an account shared from another deck"));
     term.input.write(`\x1b[200~${BLOB}\x1b[201~`);
     await until(() => term.screenText().includes(`${BLOB.length.toLocaleString("en-US")} characters`));
     term.input.write("\r");
     await until(() => term.screenText().includes("that share has expired — make a new one"));
     expect(term.screenText()).not.toContain("cswap import");
     expect(term.screenText()).not.toContain(BLOB);
+    const before = term.written().length;
     term.input.write("\x1b");
-    await until(() => term.written().lastIndexOf(PASTE_OFF) > term.written().lastIndexOf(PASTE_ON));
+    await until(() => since(term, before).includes("alice@corp.example"));
     term.input.write("q");
     expect(await done).toBe(0);
+    // Handed back as it was found: no brackets after the screen.
+    expect(term.written().lastIndexOf(PASTE_OFF)).toBeGreaterThan(term.written().lastIndexOf(PASTE_ON));
   });
 
   it("a terminal that does not bracket a paste: the share's own line ends are not enter, a later enter imports it", async () => {
@@ -2950,7 +3019,7 @@ describe("the loop", () => {
     await until(() => term.screenText().includes("bob@home.example"));
     term.input.write("+");
     term.input.write("\t");
-    await until(() => term.written().includes(PASTE_ON));
+    await until(() => term.screenText().includes("Paste an account shared from another deck"));
     // One chunk, as a terminal without bracketed paste types a paste: every
     // character a key, the line ends among them, and one at the end.
     term.input.write(`${BLOB.slice(0, 700)}\r${BLOB.slice(700)}\r`);
@@ -3031,7 +3100,7 @@ describe("the loop", () => {
     term.input.write("+");
     await until(() => term.screenText().includes("Add a Codex account"));
     term.input.write("\t");
-    await until(() => term.written().includes(PASTE_ON));
+    await until(() => term.screenText().includes("Paste an account shared from another deck"));
     term.input.write(`\x1b[200~${CBLOB}\n\x1b[201~`);
     await until(() => term.screenText().includes(`${CBLOB.length.toLocaleString("en-US")} characters`));
     term.input.write("\r");
@@ -3068,7 +3137,7 @@ describe("the loop", () => {
     term.input.write("+");
     await until(() => term.screenText().includes("Add a Codex account"));
     term.input.write("\t");
-    await until(() => term.written().includes(PASTE_ON));
+    await until(() => term.screenText().includes("Paste an account shared from another deck"));
     term.input.write(`\x1b[200~${CBLOB}\x1b[201~`);
     await until(() => term.screenText().includes(`${CBLOB.length.toLocaleString("en-US")} characters`));
     const reads = () => deck.calls.filter(c => c.path === "/api/codex-profiles").length;
