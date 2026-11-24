@@ -173,7 +173,9 @@ function installForwarder() {
  *                              out rather than left to deny every tool call
  *   { state: "foreign", path } a ccdeck.json the deck did not write is in the way
  *   { state: "installed" | "unchanged", path }
- *   { state: "failed", path, reason }
+ *   { state: "failed", path, reason, why }  `why` is the error's code alone
+ *                              (EACCES…), which a boot can print; `reason` can
+ *                              carry a path, so nothing prints it
  *
  * AGENTS_DECK_NO_INSTALL=1 does not stop it, as it does not stop the Claude
  * hooks: this file is how the sessions reach the board, not a managed tool and
@@ -210,7 +212,7 @@ export async function installCopilotHooks({
     await writeFileAtomic(path, next);
     return { state: "installed", path };
   } catch (err) {
-    return { state: "failed", path, reason: String(err?.message ?? err).split("\n")[0] };
+    return { state: "failed", path, reason: String(err?.message ?? err).split("\n")[0], why: err?.code };
   }
 }
 
