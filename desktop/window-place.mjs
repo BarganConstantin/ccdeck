@@ -11,6 +11,18 @@
 // that moment: a window last seen on a monitor that is gone opens at the usual
 // size on the main display, and one partly off its display is moved inside.
 //
+// The size and place kept are the window's normal bounds, out of maximized and
+// full screen. On macOS Electron's getNormalBounds of a zoomed or full-screen
+// window is the frame Electron itself last gave it — when it was made, or by
+// setBounds, maximize() or setFullScreen() — and nothing the person does
+// changes that: not dragging the window to another monitor, not the green
+// button, not a double click on the title bar. A window opened on the main
+// display, dragged to the other one and put full screen there was kept on the
+// main display, and after an automatic update it came back there. So for a
+// maximized or full-screen window, the display it is on now wins over the one
+// its normal bounds name. Windows and Linux track the normal bounds
+// themselves, and theirs are on the window's display already.
+//
 // Knows nothing about Electron: main.mjs reads the window and the displays
 // and hands them here.
 
@@ -39,19 +51,75 @@ function clamp(value, low, high) {
   return Math.min(Math.max(value, low), Math.max(low, high));
 }
 
+/** The work areas that are rectangles, out of whatever was handed in. */
+function workAreasOf(workAreas) {
+  return (Array.isArray(workAreas) ? workAreas : []).map(rectangle).filter(Boolean);
+}
+
+/** The work area `bounds` is mostly on, or null when it is on none. */
+function displayOf(bounds, areas) {
+  let area = null;
+  let most = 0;
+  if (bounds) {
+    for (const each of areas) {
+      const shared = overlap(bounds, each);
+      if (shared > most) { most = shared; area = each; }
+    }
+  }
+  return area;
+}
+
 /**
  * What to keep of a window as it closes.
- * @param {{ normal: { x: number, y: number, width: number, height: number }, maximized: boolean, fullScreen: boolean }} window
+ * @param {{ normal: { x: number, y: number, width: number, height: number }, bounds?: { x: number, y: number, width: number, height: number }, maximized: boolean, fullScreen: boolean }} window
  *   `normal` is the window's size and place out of maximized and full screen
  *   (Electron's getNormalBounds), so that leaving either after it opens again
- *   goes back to where the person had it.
+ *   goes back to where the person had it. `bounds` is where the window is
+ *   drawn now (getBounds), maximized or full screen included.
+ * @param {Array<{ x: number, y: number, width: number, height: number }>} [workAreas]
+ *   The work area of every display connected now.
  * @returns {{ x: number, y: number, width: number, height: number, maximized: boolean, fullScreen: boolean } | null}
  *   null for bounds that are not a window's, which is then not written.
  */
-export function windowPlaceToKeep({ normal, maximized, fullScreen }) {
-  const bounds = rectangle(normal);
-  if (!bounds) return null;
-  return { ...bounds, maximized: maximized === true, fullScreen: fullScreen === true };
+export function windowPlaceToKeep({ normal, bounds, maximized, fullScreen }, workAreas) {
+  let kept = rectangle(normal);
+  if (!kept) return null;
+  // A maximized or full-screen window whose normal bounds are on another
+  // display than the window itself (macOS, see above): its normal size goes in
+  // the middle of the display it is on. Where it sat on that display before it
+  // grew is not known, and opening maximized or full screen again it fills
+  // the display anyway.
+  if (maximized === true || fullScreen === true) {
+    const areas = workAreasOf(workAreas);
+    const here = displayOf(rectangle(bounds), areas);
+    if (here && displayOf(kept, areas) !== here) {
+      const width = Math.min(kept.width, here.width);
+      const height = Math.min(kept.height, here.height);
+      kept = {
+        x: Math.round(here.x + (here.width - width) / 2),
+        y: Math.round(here.y + (here.height - height) / 2),
+        width: Math.round(width),
+        height: Math.round(height),
+      };
+    }
+  }
+  return { ...kept, maximized: maximized === true, fullScreen: fullScreen === true };
+}
+
+/**
+ * A place as the desktop log writes it — its numbers and nothing else, so a
+ * window that opens on the wrong monitor leaves a trail that says why.
+ * @param {unknown} value A rectangle, with or without x and y, and with
+ *   `maximized` and `fullScreen` when it is a kept place; anything else from
+ *   desktop-state.json reads "none".
+ */
+export function placeText(value) {
+  if (!value || typeof value !== "object") return "none";
+  const { x, y, width, height } = value;
+  if (![width, height].every(Number.isFinite)) return "none";
+  const size = `${Math.round(width)}x${Math.round(height)}`;
+  const where = [x, y].every(Number.isFinite) ? `${size} at ${Math.round(x)},${Math.round(y)}` : `${size} centred`;
+  return `${where}${value.maximized === true ? ", maximized" : ""}${value.fullScreen === true ? ", full screen" : ""}`;
 }
 
 /**
@@ -69,16 +137,8 @@ export function windowPlaceToOpen(saved, workAreas) {
     ? { maximized: saved.maximized === true, fullScreen: saved.fullScreen === true }
     : { maximized: false, fullScreen: false };
   const bounds = rectangle(saved);
-  const areas = (Array.isArray(workAreas) ? workAreas : []).map(rectangle).filter(Boolean);
   // The display the window was mostly on, if it is still there.
-  let area = null;
-  let most = 0;
-  if (bounds) {
-    for (const each of areas) {
-      const shared = overlap(bounds, each);
-      if (shared > most) { most = shared; area = each; }
-    }
-  }
+  const area = displayOf(bounds, workAreasOf(workAreas));
   // Maximized or full screen still holds on the main display: that is how the
   // person wanted it, whichever monitor they did it on.
   if (!bounds || !area) return { bounds: { ...WINDOW_SIZE }, ...flags };

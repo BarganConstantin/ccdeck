@@ -38,7 +38,7 @@ import { openAtLogin, replaceNpmLoginItem, setOpenAtLogin } from "./login-item.m
 import { createOwnDeck, discoverPlan, startOwnDeck, stopChild } from "./own-deck.mjs";
 import { trayIconFile } from "./tray-icon.mjs";
 import { windowChrome, titlebarColors, TITLEBAR_HEIGHT } from "./window-chrome.mjs";
-import { WINDOW_MIN, windowPlaceToKeep, windowPlaceToOpen } from "./window-place.mjs";
+import { placeText, WINDOW_MIN, windowPlaceToKeep, windowPlaceToOpen } from "./window-place.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const icons = join(here, "dist", "icons");
@@ -591,7 +591,13 @@ function openWindow(steal = true, customChrome = true) {
   // copied into them: attach() moves it when the deck moves to another port.
   windowOrigin = deckOrigin(deck.port);
   // The way the last window was when it closed (#2466, window-place.mjs).
-  const place = windowPlaceToOpen(desktopState.read().window, screen.getAllDisplays().map(d => d.workArea));
+  const kept = desktopState.read().window;
+  const workAreas = screen.getAllDisplays().map(d => d.workArea);
+  const place = windowPlaceToOpen(kept, workAreas);
+  // Which monitor a window opens on is only seen on a real desktop: what was
+  // kept, the displays Electron reported and what was asked for go in the
+  // log, and where the window really is once it shows, below.
+  trace(`open: kept ${placeText(kept)}; displays ${workAreas.map(placeText).join(" | ")}; asking ${placeText(place.bounds)}`);
   // On macOS full screen is a Space of its own, and entering it takes the
   // person there: only when they opened the window themselves (#1214).
   const fullScreen = place.fullScreen && (steal || process.platform !== "darwin");
@@ -659,6 +665,7 @@ function openWindow(steal = true, customChrome = true) {
     // needs a window on screen to grow from.
     if (place.maximized) created.maximize();
     created.show();
+    trace(`open: shown at ${placeText({ ...created.getBounds(), maximized: created.isMaximized() })}`);
     if (fullScreen) created.setFullScreen(true);
     shown = true;
     if (steal) app.focus({ steal: true });
@@ -686,15 +693,22 @@ function openWindow(steal = true, customChrome = true) {
 
 /** Write down how the window is as it closes, for the next one to open the
  *  same way (#2466, window-place.mjs). Every way the app ends goes through
- *  app.quit(), which closes the window first, so this runs for those too. */
+ *  app.quit(), which closes the window first, so this runs for those too —
+ *  the restarts into an update and for the tray icon among them.
+ *
+ *  Where the window is drawn now goes with its normal bounds: on macOS those
+ *  of a zoomed or full-screen window can still name the display it opened on
+ *  (window-place.mjs). */
 function keepWindowPlace(window) {
+  const bounds = window.getBounds();
   const place = windowPlaceToKeep({
     normal: window.getNormalBounds(),
+    bounds,
     maximized: window.isMaximized(),
     fullScreen: window.isFullScreen(),
-  });
+  }, screen.getAllDisplays().map(d => d.workArea));
   if (!place) return;
-  trace(`close: keeping ${place.width}x${place.height} at ${place.x},${place.y}${place.maximized ? ", maximized" : ""}${place.fullScreen ? ", full screen" : ""}`);
+  trace(`close: keeping ${placeText(place)} (window at ${placeText(bounds)})`);
   try { desktopState.merge({ window: place }); } catch (err) { trace(`window place not kept: ${err?.message ?? err}`); }
 }
 
