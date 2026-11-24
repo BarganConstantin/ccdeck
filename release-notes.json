@@ -1,4 +1,22 @@
 {
+  "4.3.7": [
+    {
+      "title": "↕️ Drag the line between Sessions and Accounts",
+      "body": "With Sessions and Accounts both open in the left column, the line between them is now a handle, like the one between Usage and This machine. Drag it down to see more sessions, or up to give Accounts more room, and this browser keeps your choice. The arrow keys move it when it has focus, and a double-click puts the usual split back."
+    },
+    {
+      "title": "🔁 Reopen brings back a Codex pane that ended",
+      "body": "On macOS and Linux, when a Codex pane had ended while Codex itself was still running, Reopen here said another agent still had the conversation open, and stopped there. It now picks the same conversation up again in that pane."
+    },
+    {
+      "title": "📂 Other accounts stays open when you leave it open",
+      "body": "In the Accounts panel, Other accounts now opens the way you last left it, for Claude and for Codex separately. If you keep the list open, it is still open after a restart or an update. The first time, it starts closed as before."
+    },
+    {
+      "title": "🖥️ The app opens on the monitor you left it on",
+      "body": "On a Mac with two monitors, a window made full screen or zoomed on the second monitor came back on the main one after the app restarted for an update. It now comes back on the monitor it was on."
+    }
+  ],
   "4.3.6": [
     {
       "title": "🪶 A lighter line beside Sessions on sharp screens",
@@ -354,6 +372,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.3.7": "Drag the line between Sessions and Accounts, and Reopen brings back an ended Codex pane",
     "4.3.6": "A lighter line beside Sessions on sharp screens",
     "4.3.5": "Hide finished sessions from the Sessions list, and Accounts opens under Sessions",
     "4.3.4": "A Codex started in Workspace on Windows connects to Chat, and Reopen here says who holds a conversation",
