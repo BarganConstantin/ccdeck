@@ -57,6 +57,7 @@ import { codexTranscriptWindow, MAX_TURNS, transcriptWindow } from "./transcript
 import { rolloutNameId } from "./codex-dir.mjs";
 import { codexProfileSessionDirs } from "./codex-profiles.mjs";
 import { codexTranscriptPath } from "./codex-watch.mjs";
+import { handoffContinued } from "./ghostty-handoff.mjs";
 
 export const SESSION_TRANSCRIPT_ROUTE = "/api/session/transcript";
 
@@ -298,7 +299,11 @@ export async function handleSessionTranscript(req, res, io = {}) {
   if (!read) return unknown(res);
   if (read.unchanged) return send(res, 200, { ok: true, unchanged: true });
   if (read.stale) return send(res, 400, { ok: false, reason: "stale_cursor" });
-  if (continuation) return send(res, 200, { ok: true, sessionId: next });
+  if (continuation) {
+    // The move to the deck arrived: Ghostty may be asked again for this session.
+    if (next) handoffContinued(session);
+    return send(res, 200, { ok: true, sessionId: next });
+  }
   const windowOf = codex ? codexTranscriptWindow : transcriptWindow;
   const ahead = [];
   for (const line of read.ahead) {
