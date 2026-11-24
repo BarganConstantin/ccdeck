@@ -36,7 +36,7 @@ const view = await import("../../server/tui-view.mjs");
 // @ts-expect-error — plain .mjs module, no types
 const { codexRows, codexLiveSaid } = await import("../../server/tui-codex.mjs");
 // @ts-expect-error — plain .mjs module, no types
-const { createScreen, framesHeld, ALT_SCREEN_ON, ALT_SCREEN_OFF, SYNC_ON, WRAP_ON, WRAP_OFF } = await import("../../server/tui-screen.mjs");
+const { createScreen, framesHeld, clipboardSequence, ALT_SCREEN_ON, ALT_SCREEN_OFF, SYNC_ON, WRAP_ON, WRAP_OFF } = await import("../../server/tui-screen.mjs");
 // @ts-expect-error — plain .mjs module, no types
 const { fitPainted, sliceCells, textWidth } = await import("../../server/cli-lines.mjs");
 // @ts-expect-error — plain .mjs module, no types
@@ -180,6 +180,8 @@ describe("the frame", () => {
     ["the Codex sign-in's first page", codexState({ side: "codex", codexSignin: { id: null, name: null, adding: true, started: false, login: null } })],
     ["the Codex sign-in showing its code", codexState({ side: "codex", codexSignin: { id: CXC, name: "#3 cal@openai.example", adding: false, started: true, login: CODE_PAGE } })],
     ["a Codex sign-in that failed", codexState({ side: "codex", codexSignin: { id: CXC, name: "#3", adding: false, started: true, login: { state: "failed", reason: "z".repeat(300) } } })],
+    ["the sign-in link alone", { ...signingIn(WAITING_CODE), signin: { ...signingIn(WAITING_CODE).signin, alone: true } }],
+    ["the Codex code alone", codexState({ side: "codex", codexSignin: { id: CXC, name: "#3 cal@openai.example", adding: false, started: true, login: CODE_PAGE, alone: true } })],
     ["the Local network", lanState()],
     ["the Local network, a deck far down selected", lanState({ lanSel: "inviteOnly" })],
     ["the Local network off", lanState({}, { enabled: false })],
@@ -1052,7 +1054,7 @@ describe("the sign-in", () => {
     expect(lines.slice(f.run.row, f.run.row + f.run.rows).join("")).toBe(LOGIN_URL);
     expect(lines[f.run.row - 1]).toBe("  Open this link in any browser and approve the sign-in:");
     expect(lines).toContain("  › ▏");
-    expect(lines[23]).toMatch(/^ {2}enter +send the code +esc +cancel/);
+    expect(lines[23]).toMatch(/^ {2}enter +send the code +ctrl\+o +copy the link +tab +link alone +esc +cancel$/);
     // Where the terminal knows links, the run is one: OSC 8 around it.
     expect(frame(signingIn(WAITING_CODE), 80, 24, true, "ansi16", true).run.text).toContain(`\x1b]8;;${LOGIN_URL}`);
     expect(text(frame(signingIn(WAITING_CODE), 80, 24, false).lines)).toContain("  > _");
@@ -1154,6 +1156,223 @@ describe("the sign-in", () => {
     // A start the deck refused holds nothing of ours to let go of.
     const refused = signingIn({ state: "failed", error: "another sign-in is saving an account right now", local: true });
     expect(esc(refused)).toMatchObject({ state: { signin: null }, effect: null });
+  });
+});
+
+// What the person carries to the browser on their own machine — Claude's link,
+// Codex's one-time code — sent to the terminal's clipboard on a key, said to
+// be sent and never said to have landed, or shown alone for a selection.
+describe("copying what the sign-in gives", () => {
+  const key = (s: State, str: string | undefined, k: Row = {}) => view.tuiKey(s, str, { name: str, ...k }, { now: NOW, g: U });
+  const ctrlO = (s: State) => key(s, "\x0f", { name: "o", ctrl: true });
+  const tab = (s: State) => key(s, "\t", { name: "tab" });
+  const enter = (s: State) => key(s, "\r", { name: "return" });
+  const esc = (s: State) => key(s, undefined, { name: "escape" });
+  const codexPage = (login: Row = CODE_PAGE) =>
+    codexState({ side: "codex", codexSignin: { id: CXC, name: "#3 cal@openai.example", adding: false, started: true, login } });
+  const SENT = "sent to your terminal's clipboard — if nothing pastes, tab shows it alone";
+  const SENT_ALONE = "sent to your terminal's clipboard — if nothing pastes, select it here";
+  const prose = (lines: string[]) => text(lines).map(l => l.trim()).filter(Boolean).join(" ");
+
+  it("ctrl+o sends Claude's link, and the page says it was sent, not that it landed", () => {
+    const s = signingIn(WAITING_CODE);
+    const r = ctrlO(s);
+    expect(r.effect).toEqual({ type: "copy", text: LOGIN_URL });
+    expect(r.state.notice).toMatchObject({ tone: "info", text: SENT, until: null });
+    // Not a character of the code.
+    expect(r.state.signin.code).toBe("");
+    const lines = text(frame(r.state).lines);
+    expect(lines[22]).toBe(`  →  ${SENT}`);
+    expect(lines[23]).toMatch(/^ {2}enter +send the code +ctrl\+o +copy the link +tab +link alone +esc +cancel$/);
+    // The notice names neither the link nor anything of it.
+    expect(r.state.notice.text).not.toContain("https");
+    // A letter on this page is the code's, c included.
+    expect(key(s, "c").effect).toBeNull();
+    expect(key(s, "c").state.signin.code).toBe("c");
+  });
+
+  it("c sends Codex's code, as does the Claude page's ctrl+o", () => {
+    const s = codexPage();
+    const r = key(s, "c");
+    expect(r.effect).toEqual({ type: "copy", text: "ABCD-EFGH" });
+    expect(r.state.notice).toMatchObject({ tone: "info", text: SENT, until: null });
+    expect(ctrlO(s).effect).toEqual({ type: "copy", text: "ABCD-EFGH" });
+    const lines = text(frame(r.state, 100, 30).lines);
+    expect(lines.at(-2)).toBe(`  →  ${SENT}`);
+    expect(lines.at(-1)).toMatch(/^ {2}c +copy the code +tab +code alone +esc +cancel$/);
+  });
+
+  it("keeps the copy keys and a whole hint on a narrow screen, a phone over SSH", () => {
+    // enter goes first: the page itself says to press it after the paste.
+    const claude = ctrlO(signingIn(WAITING_CODE)).state;
+    const at64 = text(frame(claude, 64, 24).lines);
+    expect(at64.at(-1)).toMatch(/^ {2}ctrl\+o +copy the link +tab +link alone +esc +cancel$/);
+    const at40 = text(frame(claude, 40, 12).lines);
+    expect(at40.at(-1)).toMatch(/^ {2}ctrl\+o +copy the link +esc +cancel$/);
+    // The long hint would be cut at 40 columns; the short one says the same, whole.
+    expect(at40.at(-2)).toBe("  →  sent — if not, tab shows it alone");
+    expect(text(frame(claude, 80, 24).lines).at(-2)).toBe(`  →  ${SENT}`);
+    const alone = ctrlO(tab(signingIn(WAITING_CODE)).state).state;
+    expect(text(frame(alone, 40, 12).lines).at(-2)).toBe("  →  sent — if not, select it here");
+    const codex = key(codexPage(), "c").state;
+    const narrow = text(frame(codex, 40, 12).lines);
+    expect(narrow.at(-1)).toMatch(/^ {2}c +copy the code +esc +cancel$/);
+    expect(narrow.at(-2)).toBe("  →  sent — if not, tab shows it alone");
+  });
+
+  it("is not offered, and does nothing, while there is no link or code to copy", () => {
+    const claude = [
+      key(deckState(), "+").state,
+      signingIn({ state: "awaiting_url", url: null }),
+      signingIn({ ...WAITING_CODE, url: "http://claude.ai/oauth" }),
+      signingIn({ ...WAITING_CODE, state: "registering", step: "save" }),
+      signingIn({ ...WAITING_CODE, state: "failed", error: "the sign-in window expired" }),
+      signingIn({ state: "done", account: { num: 5, email: "eve@new.example", added: true }, restored: true }),
+    ];
+    for (const s of claude) {
+      expect(ctrlO(s).effect).toBeNull();
+      expect(tab(s).state.signin?.alone).toBeFalsy();
+      expect(text(frame(s).lines)[23]).not.toMatch(/copy|alone/);
+    }
+    const codex = [
+      codexState({ side: "codex", codexSignin: { id: null, name: null, adding: true, started: false, login: null } }),
+      codexPage({ state: "starting" }),
+      codexPage({ ...CODE_PAGE, code: null }),
+      codexPage({ ...CODE_PAGE, code: "AB CD" }),
+      codexPage({ state: "expired", reason: "code_expired" }),
+      codexPage({ state: "done" }),
+    ];
+    for (const s of codex) {
+      for (const r of [key(s, "c"), ctrlO(s)]) expect(r.effect?.type).not.toBe("copy");
+      expect(tab(s).state.codexSignin?.alone).toBeFalsy();
+      expect(text(frame(s, 100, 30).lines).at(-1)).not.toMatch(/copy|alone/);
+    }
+  });
+
+  it("tab shows Claude's link alone: from the first column, nothing inserted, nothing else on its rows", () => {
+    const s = tab(signingIn(WAITING_CODE)).state;
+    expect(s.signin.alone).toBe(true);
+    for (const [columns, rows] of [[80, 24], [40, 12], [160, 50]]) {
+      for (const unicode of [true, false]) {
+        const f = frame(s, columns, rows, unicode);
+        const lines = text(f.lines);
+        expect(stripAnsi(f.run.text)).toBe(LOGIN_URL);
+        expect(lines.slice(f.run.row, f.run.row + f.run.rows).join("")).toBe(LOGIN_URL);
+        expect(lines[f.run.row].startsWith("https://")).toBe(true);
+        expect(lines[f.run.row - 1].endsWith(":")).toBe(true);
+        expect(lines[f.run.row + f.run.rows]).toBe("");
+        // No panel, no field, no spinner: nothing on screen moves under a selection.
+        const around = lines.filter((_, i) => i < f.run.row || i >= f.run.row + f.run.rows).slice(0, -1);
+        expect(around.join("\n")).not.toMatch(/[╭╰│›▏|]|\+-|min left|[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/);
+      }
+    }
+    const lines = text(frame(s).lines);
+    expect(lines[23]).toMatch(/^ {2}ctrl\+o +copy the link +esc +back$/);
+    expect(prose(lines)).toContain("The sign-in keeps waiting: tab or esc goes back to it, and a code pasted here goes into its field.");
+    expect(prose(lines)).toContain("Some terminals do not allow it, and tmux lets it through only with set -g set-clipboard on.");
+    // From here ctrl+o copies too, and says the link is right here to select.
+    const r = ctrlO(s);
+    expect(r.effect).toEqual({ type: "copy", text: LOGIN_URL });
+    expect(r.state.notice.text).toBe(SENT_ALONE);
+    expect(r.state.signin.alone).toBe(true);
+  });
+
+  it("tab shows Codex's code alone on its row, the link on its own above it", () => {
+    const s = tab(codexPage()).state;
+    expect(s.codexSignin.alone).toBe(true);
+    for (const [columns, rows] of [[80, 24], [40, 12]]) {
+      const f = frame(s, columns, rows);
+      const lines = text(f.lines);
+      // The whole row, nothing before or after it.
+      expect(lines).toContain("ABCD-EFGH");
+      expect(stripAnsi(f.run.text)).toBe("https://auth.openai.com/codex/device");
+      expect(lines[f.run.row]).toBe("https://auth.openai.com/codex/device");
+      expect(lines.indexOf("ABCD-EFGH")).toBeGreaterThan(f.run.row);
+      expect(lines.join("\n")).not.toMatch(/[╭╰│]|min left/);
+    }
+    expect(text(frame(s).lines)[23]).toMatch(/^ {2}c +copy the code +esc +back$/);
+    expect(prose(frame(s).lines)).toContain("Codex keeps waiting for the code: tab or esc goes back.");
+    const r = key(s, "c");
+    expect(r.effect).toEqual({ type: "copy", text: "ABCD-EFGH" });
+    expect(r.state.notice.text).toBe(SENT_ALONE);
+  });
+
+  it("goes back to the page with the sign-in still waiting: nothing cancelled, nothing sent", () => {
+    const alone = tab(signingIn(WAITING_CODE)).state;
+    for (const back of [esc(alone), tab(alone), enter(alone)]) {
+      expect(back.effect).toBeNull();
+      expect(back.state.signin).toMatchObject({ started: true, alone: false, code: "", sending: false });
+      expect(view.signinRunning(back.state.signin)).toBe(true);
+      expect(text(frame(back.state).lines)).toContain("  › ▏");
+    }
+    // A code pasted while the link is alone goes into the field, the page back.
+    let s = alone;
+    for (const ch of ["q", "a", "-", "Z"]) s = key(s, ch).state;
+    expect(s.signin).toMatchObject({ alone: false, code: "qa-Z" });
+    expect(enter(s).effect).toEqual({ type: "signin-code", code: "qa-Z" });
+    // From the page, esc lets go of the deck's sign-in, as it always did.
+    expect(esc(s).effect).toEqual({ type: "signin-cancel" });
+
+    const calone = tab(codexPage()).state;
+    for (const back of [esc(calone), tab(calone), enter(calone), key(calone, "q")]) {
+      expect(back.effect).toBeNull();
+      expect(back.state.codexSignin).toMatchObject({ id: CXC, started: true, alone: false, login: CODE_PAGE });
+    }
+    expect(key(calone, "a")).toEqual({ state: calone, effect: null });
+    expect(esc(codexPage()).effect).toEqual({ type: "codex-signin-cancel", id: CXC });
+  });
+
+  it("says it was sent while the value is on the page, and not past it", () => {
+    const sent = ctrlO(signingIn(WAITING_CODE)).state;
+    const noticeOf = (s: State) => text(frame(s).lines)[22];
+    expect(noticeOf(sent)).toBe(`  →  ${SENT}`);
+    // The code was taken: no link on the page, and no notice about one.
+    expect(noticeOf(view.withLogin(sent, { ...WAITING_CODE, state: "registering", step: "save" }))).toBe("");
+    // A fresh start is a fresh link: neither the notice nor the old one's view comes back.
+    const failed = view.withLogin({ ...sent, signin: { ...sent.signin, alone: true } }, { ...WAITING_CODE, state: "failed", error: "the sign-in window expired" });
+    const again = enter(failed);
+    expect(again.effect).toEqual({ type: "signin-start" });
+    expect(again.state.notice).toBeNull();
+    expect(again.state.signin.alone).toBe(false);
+    expect(esc(failed).state.notice).toBeNull();
+    expect(esc(sent).state.notice).toBeNull();
+    // It says where to look next, which tab changes: in or out, it goes.
+    expect(tab(sent).state.notice).toBeNull();
+    expect(tab(ctrlO(tab(signingIn(WAITING_CODE)).state).state).state.notice).toBeNull();
+    expect(tab(key(codexPage(), "c").state).state.notice).toBeNull();
+    // Another notice is not taken away with the page.
+    const told = { ...signingIn(WAITING_CODE), notice: view.note("warn", "something else", NOW) };
+    expect(esc(told).state.notice?.text).toBe("something else");
+
+    const csent = key(codexPage(), "c").state;
+    expect(esc(csent).state.notice).toBeNull();
+    const cdone = { ...csent, codexSignin: { ...csent.codexSignin, login: { state: "done" } } };
+    expect(text(frame(cdone, 100, 30).lines).at(-2)).toBe("");
+    const cagain = enter({ ...csent, codexSignin: { ...csent.codexSignin, alone: true, login: { state: "expired", reason: "code_expired" } } });
+    expect(cagain.state.notice).toBeNull();
+    expect(cagain.state.codexSignin.alone).toBe(false);
+  });
+
+  it("the screen sends one OSC 52 of the value's UTF-8, bare, only while it is up, and then writes the frame whole", () => {
+    const value = "https://a.example/ü?x=1";
+    expect(clipboardSequence(value)).toBe(`\x1b]52;c;${Buffer.from(value, "utf8").toString("base64")}\x07`);
+    const writes: string[] = [];
+    const screen = createScreen((s: string) => writes.push(s), { held: false });
+    screen.copy("before");
+    expect(writes).toEqual([]);
+    screen.enter();
+    screen.paint(["one", "two"]);
+    const n = writes.length;
+    screen.copy(value);
+    expect(writes.slice(n)).toEqual([clipboardSequence(value)]);
+    // Not tmux's passthrough as well: that would set the clipboard twice.
+    expect(writes.join("")).not.toContain("\x1bP");
+    // A terminal that printed the sequence instead of taking it has it painted over.
+    screen.paint(["one", "two"]);
+    expect(writes.at(-1)).toContain("\x1b[2J");
+    screen.leave();
+    screen.copy("after");
+    expect(writes.join("").split("\x1b]52;").length - 1).toBe(1);
   });
 });
 
@@ -1835,6 +2054,82 @@ describe("the loop", () => {
     term.input.write("\x03");
     expect(await done).toBe(0);
     expect(deck.posts()).toEqual([{ action: "login" }, { action: "login" }]);
+  });
+
+  /** How many OSC 52 clipboard writes went to the terminal. */
+  const osc52 = (written: string) => written.split("\x1b]52;").length - 1;
+  const b64 = (s: string) => Buffer.from(s, "utf8").toString("base64");
+
+  it("ctrl+o sends the sign-in link to the terminal's clipboard once, tab shows it alone, and the sign-in still takes the code", async () => {
+    const term = fakeTerminal(80, 24);
+    const deck = signinDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("+");
+    await until(() => term.screenText().includes("Sign in to Anthropic"));
+    term.input.write("\r");
+    await until(() => term.screenText().includes("Open this link in any browser"));
+    // Nothing goes to the clipboard unasked: not with the page, not with the link on it.
+    await new Promise(r => setTimeout(r, 120));
+    expect(osc52(term.written())).toBe(0);
+    term.input.write("\x0f");          // ctrl+o
+    await until(() => term.screenText().includes("if nothing pastes, tab shows it alone"));
+    expect(osc52(term.written())).toBe(1);
+    expect(term.written()).toContain(`\x1b]52;c;${b64(LOGIN_URL)}\x07`);
+    expect(term.written()).not.toContain("\x1bPtmux;");
+    term.input.write("\t");
+    await until(() => term.screenText().includes("The sign-in keeps waiting"));
+    // Back with esc: the page again, its sign-in not let go of.
+    const pages = () => term.screenText().split("Open this link in any browser and approve").length - 1;
+    const before = pages();
+    term.input.write("\x1b");
+    await until(() => pages() > before);
+    term.input.write("good\r");
+    await until(() => term.screenText().includes("Account 5 added"));
+    expect(deck.posts()).toEqual([{ action: "login" }, { action: "login-code", code: "good" }]);
+    // The link went to the terminal and nowhere else: no request carried it.
+    expect(JSON.stringify(deck.calls)).not.toContain(b64(LOGIN_URL));
+    expect(osc52(term.written())).toBe(1);
+    term.input.write("\r");
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("c sends the Codex code to the terminal's clipboard, once a key, and the code alone keeps the sign-in waiting", async () => {
+    const term = fakeTerminal();
+    const deck = codexDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes(" Codex "));
+    term.input.write("c");
+    term.input.write("+");
+    await until(() => term.screenText().includes("Add a Codex account"));
+    deck.box.login = { ...CODE_PAGE, expiresAt: Date.now() + 14 * 60_000 };
+    term.input.write("\r");
+    await until(() => term.screenText().includes("ABCD-EFGH"));
+    await new Promise(r => setTimeout(r, 120));
+    expect(osc52(term.written())).toBe(0);
+    term.input.write("c");
+    await until(() => term.screenText().includes("if nothing pastes, tab shows it alone"));
+    expect(osc52(term.written())).toBe(1);
+    expect(term.written()).toContain(`\x1b]52;c;${b64("ABCD-EFGH")}\x07`);
+    term.input.write("\t");
+    await until(() => term.screenText().includes("Codex keeps waiting for the code"));
+    term.input.write("c");
+    await until(() => term.screenText().includes("if nothing pastes, select it here"));
+    expect(osc52(term.written())).toBe(2);
+    // Back to the page, and the sign-in finishes by itself as before.
+    term.input.write("\x1b");
+    deck.box.codex.profiles.push(cx("d".repeat(20), "dee@openai.example", { managed: true }));
+    deck.box.login = { ok: true, state: "done" };
+    await until(() => term.screenText().includes("Signed in as dee@openai.example"));
+    expect(posts(deck.calls, "/api/codex-profile-login-cancel")).toEqual([]);
+    expect(JSON.stringify(deck.calls)).not.toContain("ABCD-EFGH");
+    term.input.write("\r");
+    await until(() => term.screenText().includes("signed in to Codex"));
+    term.input.write("q");
+    expect(await done).toBe(0);
   });
 
   it("refuses --json and a pipe, pointing at the commands that print once", async () => {

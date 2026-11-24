@@ -179,6 +179,8 @@ export function withRoster(state, roster, trouble = null) {
  *   { type: "signin-code", code }       hand it the code the page showed
  *   { type: "signin-cancel", quiet }    let go of the deck's sign-in
  *   { type: "signin-done", account }    the page closed on a sign-in that took
+ *   { type: "copy", text }              send the sign-in's link or code to the
+ *                                       terminal's clipboard (signinValue)
  *   { type: "history" }                 read the deck's machine history (t)
  *   { type: "home", account, set }      make it Auto-switch's home, or stop
  *   { type: "hold", account, out }      hold it out of rotation, or put it back
@@ -393,13 +395,21 @@ function codexSigninKey(state, str, key, { now, g }) {
   const enter = name === "return" || name === "enter";
   const back = name === "escape" || str === "q";
   const stay = { state, effect: null };
-  const close = (effect = null) => ({ state: { ...state, codexSignin: null }, effect });
+  const close = (effect = null) => ({ state: { ...forgetCopied(state), codexSignin: null }, effect });
   const login = si.login?.state;
   if (!si.started || login === "failed" || login === "expired" || login === "cancelled") {
-    if (enter) return { state: { ...state, codexSignin: { ...si, started: true, login: null } }, effect: { type: "codex-signin-start" } };
+    if (enter) return { state: { ...forgetCopied(state), codexSignin: { ...si, started: true, login: null, alone: false } }, effect: { type: "codex-signin-start" } };
     return back ? close() : stay;
   }
   if (login === "done") return enter || back ? close({ type: "codex-signin-done" }) : stay;
+  // The code, to the terminal's clipboard (c, or the Claude page's ctrl+o) or
+  // on its own (tab), and back from there with the sign-in still waiting.
+  const value = codexValue(si);
+  if (value && (str === "c" || (key.ctrl && name === "o"))) return copied(state, value, si.alone, { now, g });
+  if (value && si.alone) {
+    return back || enter || name === "tab" ? { state: { ...forgetCopied(state), codexSignin: { ...si, alone: false } }, effect: null } : stay;
+  }
+  if (value && name === "tab") return { state: { ...forgetCopied(state), codexSignin: { ...si, alone: true } }, effect: null };
   // Leaving while it runs lets the deck's codex login go: no process stays behind.
   if (back) return close(si.id ? { type: "codex-signin-cancel", id: si.id } : null);
   return stay;
@@ -618,11 +628,11 @@ export function tuiFrame(state, { columns = 80, rows = 24, tone, g, unicode = tr
       : state.codexSignin ? codexSigninLines(state, rows - 3, width, columns, look)
       : lanInviteLines(state, rows - 3, width, columns, look);
     const run = page.run ? { ...page.run, row: page.run.row + 1 } : null;
-    const lines = [titleBar(state, width, look), ...page.lines, noticeLine(state, look), footerLine(state, width, look)];
+    const lines = [titleBar(state, width, look), ...page.lines, noticeLine(state, look, width), footerLine(state, width, look)];
     return { lines: fill(lines, run), top: state.top, run };
   }
   const body = bodyLines(state, rows - 3, width, look);
-  const lines = [titleBar(state, width, look), ...body.lines, noticeLine(state, look), footerLine(state, width, look)];
+  const lines = [titleBar(state, width, look), ...body.lines, noticeLine(state, look, width), footerLine(state, width, look)];
   const over = state.help ? withHelp(lines, width, look) : state.menu ? withMenu(lines, state, width, look)
     : state.lanForm ? withLanForm(lines, state, width, look) : lines;
   return { lines: fill(over), top: body.top, run: null };
@@ -767,7 +777,7 @@ function titleBar(state, width, { tone, g, unicode, now, skin }) {
 
 const NOTICE_MARK = { ok: ["ok", "ok"], err: ["err", "fail"], warn: ["warn", "warn"], info: ["accent", "arrow"] };
 
-function noticeLine(state, { tone, g, unicode, now }) {
+function noticeLine(state, { tone, g, unicode, now }, width = Infinity) {
   if (state.busy) {
     const frames = spinnerFrames(unicode);
     const spin = frames[Math.floor((now - state.busy.since) / 100) % frames.length];
@@ -775,8 +785,15 @@ function noticeLine(state, { tone, g, unicode, now }) {
   }
   const n = state.notice;
   if (!n || (n.until != null && now > n.until)) return "";
+  // That a link or a code was sent to the clipboard, said for as long as it is
+  // the one on the page: not past the sign-in that had it.
+  if (n.copy && !signinValue(state)) return "";
   const [toneName, glyph] = NOTICE_MARK[n.tone] ?? NOTICE_MARK.info;
-  return `  ${tone[toneName]}${g[glyph]}${tone.reset}  ${n.tone === "err" ? tone.err : ""}${oneLine(n.text)}${tone.reset}`;
+  // A notice with a short form says that one where the long one would be cut:
+  // a copy's hint is read on a phone over SSH, where the screen is narrowest.
+  // A row keeps its last column free, as every row here does.
+  const text = n.short && textWidth(`  ${g[glyph]}  ${oneLine(n.text)}`) > width - 1 ? n.short : n.text;
+  return `  ${tone[toneName]}${g[glyph]}${tone.reset}  ${n.tone === "err" ? tone.err : ""}${oneLine(text)}${tone.reset}`;
 }
 
 /** The keys, as many as fit, the ones that leave and explain kept to the last.
@@ -808,8 +825,10 @@ function footerLine(state, width, look) {
   const draw = (list) => `${skin.cap ? " " : "  "}${list.map(([k, what]) => `${cap(k)} ${tone.muted}${what}${tone.reset}`).join("  ")}`;
   const list = keys.slice();
   // r goes first, then the moves, then b: the screen says what they do, and ?
-  // and q are how to find out and how to leave.
-  for (const drop of ["r", unicode ? "↑↓" : "up/down", "b", "+", "a", "d", "m", tabsKey, "n", "x", "space", "enter"]) {
+  // and q are how to find out and how to leave. On a sign-in page enter goes
+  // before the copy keys: the page itself says to press it after the paste,
+  // and nothing else there tells of ctrl+o or tab on a narrow screen.
+  for (const drop of ["r", unicode ? "↑↓" : "up/down", "b", "+", "a", "d", "m", tabsKey, "n", "x", "space", "enter", "tab", "ctrl+o"]) {
     if (textWidth(draw(list)) <= width) break;
     const i = list.findIndex(([k]) => k === drop);
     if (i !== -1) list.splice(i, 1);
@@ -1342,7 +1361,7 @@ function signinKey(state, str, key, { now, g }) {
   const enter = name === "return" || name === "enter";
   const back = name === "escape" || str === "q";
   const stay = { state, effect: null };
-  const close = (effect = null) => ({ state: { ...state, signin: null }, effect });
+  const close = (effect = null) => ({ state: { ...forgetCopied(state), signin: null }, effect });
   if (!si.started) {
     if (enter) return { state, effect: { type: "signin-start" } };
     return back ? close() : stay;
@@ -1350,7 +1369,8 @@ function signinKey(state, str, key, { now, g }) {
   const at = signinStage(si);
   if (at.done) return enter || back ? close({ type: "signin-done", account: si.login?.account ?? null }) : stay;
   if (at.failed) {
-    if (enter) return { state, effect: { type: "signin-start" } };
+    // A fresh start is a fresh link: neither the old one's view nor its notice.
+    if (enter) return { state: { ...forgetCopied(state), signin: { ...si, alone: false } }, effect: { type: "signin-start" } };
     // The deck may still hold the flow that failed. Letting go of it is what
     // the panel's dialog does on every way out but a success (login-flow.ts) —
     // unless the deck never started ours (`local`), when the only sign-in it
@@ -1358,6 +1378,20 @@ function signinKey(state, str, key, { now, g }) {
     if (!back) return stay;
     return close(si.login?.local ? null : { type: "signin-cancel", quiet: true });
   }
+  // The link, to the terminal's clipboard or on its own. Not letters: on this
+  // page every printable key is a character of the code.
+  const value = claudeValue(si);
+  if (value && key.ctrl && name === "o") return copied(state, value, si.alone, { now, g });
+  // A copy's notice says where to look next, which changes with the view.
+  if (value && si.alone) {
+    // Back to the page, the sign-in still waiting: esc here is not a cancel,
+    // nor enter a send. A code pasted while the link is alone goes into the
+    // field as it would on the page.
+    const page = { ...forgetCopied(state), signin: { ...si, alone: false } };
+    if (name === "escape" || enter || name === "tab") return { state: page, effect: null };
+    return signinKey(page, str, key, { now, g });
+  }
+  if (value && name === "tab") return { state: { ...forgetCopied(state), signin: { ...si, alone: true } }, effect: null };
   if (name === "escape") {
     // Past the code the deck is writing the account, and the dialog offers no
     // cancel there either: stopping half-way is how a store loses a record.
@@ -1388,10 +1422,71 @@ function signinKeys(si) {
   const at = signinStage(si);
   if (at.done) return [["enter", "done"]];
   if (at.failed) return [["enter", "try again"], ["esc", "back"]];
-  if (at.live === "approve") return [["enter", "send the code"], ["esc", "cancel"]];
+  if (at.live === "approve") {
+    if (!claudeValue(si)) return [["enter", "send the code"], ["esc", "cancel"]];
+    if (si.alone) return [["ctrl+o", "copy the link"], ["esc", "back"]];
+    return [["enter", "send the code"], ["ctrl+o", "copy the link"], ["tab", "link alone"], ["esc", "cancel"]];
+  }
   if (at.live === "link") return [["esc", "cancel"]];
   return [];
 }
+
+// ── what the person carries to their own machine ────────────────────────────
+//
+// Over SSH the browser that signs in is on another machine, and what it needs
+// from this screen has to get there whole: Claude's sign-in link — hundreds of
+// characters, wrapped over several rows, and no link a click opens unless the
+// terminal says it takes OSC 8, which over SSH it cannot — or Codex's one-time
+// code, short, but cut at its dash by a double click in many terminals. A
+// selection over wrapped rows comes out whole only where the terminal knows
+// they were wrapped, and through tmux, mosh or a phone app it often does not.
+//
+// So each page has a copy key, which sends the value to the terminal's
+// clipboard (tui-screen.mjs copy) and says only that it was sent, and tab,
+// which shows the value alone for a selection to take. The value goes to the
+// terminal and nowhere else: not to the deck, not to a log, not to a count.
+
+/** A one-time code a page may copy and draw on a row of its own: printable
+ *  ASCII, no space, short enough for the narrowest screen. */
+const safeCode = (code) => {
+  const c = oneLine(code);
+  return /^[\x21-\x7e]{1,32}$/.test(c) ? c : null;
+};
+
+/** The Claude page's value: its link, once the deck waits for the code. */
+const claudeValue = (si) => (si?.started && signinStage(si).live === "approve" ? safeLink(si.login?.url) : null);
+
+/** The Codex page's value: the code to type on the link's page, while codex
+ *  waits for it. */
+const codexValue = (si) => (si?.started && si.login?.state === "waiting" ? safeCode(si.login.code) : null);
+
+/** What the sign-in page up now gives to copy, or null: no page, or nothing
+ *  to copy yet — or any more. */
+export function signinValue(state) {
+  if (state.signin) return claudeValue(state.signin);
+  if (state.codexSignin) return codexValue(state.codexSignin);
+  return null;
+}
+
+/**
+ * The copy key's answer: the value to the terminal's clipboard, and a notice
+ * that says it was sent and what to do if it never arrives — OSC 52 has no
+ * answer, so nothing here may say it landed. The notice stays while the value
+ * is on the page; `alone` is whether the value is already shown on its own.
+ */
+function copied(state, text, alone, { now, g }) {
+  const then = alone ? "select it here" : "tab shows it alone";
+  const notice = {
+    ...note("info", `sent to your terminal's clipboard ${g.dash} if nothing pastes, ${then}`, now),
+    short: `sent ${g.dash} if not, ${then}`,
+    until: null,
+    copy: true,
+  };
+  return { state: { ...state, notice }, effect: { type: "copy", text } };
+}
+
+/** The state without a copy's notice: the page it was said on is going. */
+const forgetCopied = (state) => (state.notice?.copy ? { ...state, notice: null } : state);
 
 /** Each stage's words: still to come, under way, done (signin-stages.ts). */
 const STAGE_WORDS = Object.freeze({
@@ -1440,6 +1535,7 @@ function restoreWarning(login, g) {
 function signinLines(state, room, width, columns, look) {
   const { tone, g, unicode, now, links } = look;
   const si = state.signin;
+  if (si.alone && claudeValue(si)) return aloneLines(state, room, width, columns, look);
   const inner = width - 4;
   // Everything the deck wrote — an address, the CLI's own last words — on one
   // line, with nothing in it a terminal could take for an instruction.
@@ -1555,7 +1651,9 @@ function codexSigninKeys(si) {
   if (!si.started) return [["enter", "get the code"], ["esc", "back"]];
   if (login === "done") return [["enter", "done"]];
   if (login === "failed" || login === "expired" || login === "cancelled") return [["enter", "try again"], ["esc", "back"]];
-  return [["esc", "cancel"]];
+  if (!codexValue(si)) return [["esc", "cancel"]];
+  if (si.alone) return [["c", "copy the code"], ["esc", "back"]];
+  return [["c", "copy the code"], ["tab", "code alone"], ["esc", "cancel"]];
 }
 
 /**
@@ -1566,6 +1664,7 @@ function codexSigninKeys(si) {
 function codexSigninLines(state, room, width, columns, look) {
   const { tone, g, unicode, now, links } = look;
   const si = state.codexSignin;
+  if (si.alone && codexValue(si)) return aloneLines(state, room, width, columns, look);
   const inner = width - 4;
   const title = `${tone.bold}${si.adding ? "Add a Codex account" : `Sign in: ${oneLine(si.name)}`}${tone.reset}`;
   const quiet = (l) => `${tone.muted}${l}${tone.reset}`;
@@ -1633,6 +1732,61 @@ function codexSigninLines(state, room, width, columns, look) {
     lines.push(...blocks[b]);
   }
   return out(lines, run && run.row + run.rows <= room ? run : null);
+}
+
+// ── the value on its own ────────────────────────────────────────────────────
+
+/**
+ * The sign-in's value with nothing else on its rows (tab on either page), for
+ * a selection or a long press to take exactly it: from the first column, no
+ * panel, no indent, nothing animated repainting rows under a selection, and a
+ * link longer than a row written as the run the terminal wraps itself
+ * (tui-screen.mjs), with no character of ours inside it. Codex's link goes
+ * above its code, each on rows of its own: the code is typed on the link's page.
+ *
+ * It stays on the alternate screen, as every page here does, rather than being
+ * printed on the shell's own: there it would stay in the shell's scrollback
+ * after the screen closed, and every reading that repaints this screen would
+ * have to be held off while it showed.
+ */
+function aloneLines(state, room, width, columns, look) {
+  const { tone, g, links } = look;
+  const codex = !state.signin;
+  const si = codex ? state.codexSignin : state.signin;
+  const say = (text, t = tone.muted) => wrap(text, width - 2).map(l => `  ${t}${l}${tone.reset}`);
+  const url = safeLink(si.login?.url);
+  const pieces = [];
+  if (url) for (let i = 0; i < url.length; i += columns) pieces.push(url.slice(i, i + columns));
+  const blocks = {
+    top: [""],
+    open: say(codex ? "Open this link in any browser:" : "Select this link to copy it, or open it in any browser:", ""),
+    link: url ? pieces : say(`the deck's sign-in link could not be shown ${g.dash} sign in from its Accounts panel`, tone.warn),
+    gap: codex ? [""] : [],
+    enter: codex ? say("and type this code on its page:", "") : [],
+    code: codex ? [`${tone.accent}${tone.bold}${codexValue(si)}${tone.reset}`] : [],
+    after: ["", ...say(codex
+      ? "Codex keeps waiting for the code: tab or esc goes back."
+      : "The sign-in keeps waiting: tab or esc goes back to it, and a code pasted here goes into its field.")],
+    clip: say(`${codex ? "c" : "ctrl+o"} asks your terminal to put the ${codex ? "code" : "link"} on your clipboard. Some terminals do not allow it, and tmux lets it through only with set -g set-clipboard on.`),
+  };
+  const order = ["top", "open", "link", "gap", "enter", "code", "after", "clip"];
+  const shown = new Set(order);
+  const height = () => order.filter(b => shown.has(b)).reduce((n, b) => n + blocks[b].length, 0);
+  for (const drop of ["clip", "after", "top", "gap", "open", "enter"]) {
+    if (height() <= room) break;
+    shown.delete(drop);
+  }
+  if (height() > room) blocks.link = say(`make the window taller to see the sign-in link ${g.dash} it needs ${pieces.length} rows`, tone.warn);
+  const lines = [];
+  let run = null;
+  for (const b of order) {
+    if (!shown.has(b)) continue;
+    if (b === "link" && url && blocks.link === pieces) {
+      run = { row: lines.length, rows: pieces.length, full: url.length % columns === 0, text: `${tone.accent}${link(url, url, links)}${tone.reset}` };
+    }
+    lines.push(...blocks[b]);
+  }
+  return { lines: [...lines, ...pad(room - lines.length)].slice(0, room), run: run && run.row + run.rows <= room ? run : null };
 }
 
 // ── help ────────────────────────────────────────────────────────────────────
