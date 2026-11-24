@@ -47,6 +47,7 @@ import { homedir } from "node:os";
 import { posix as posixPath, win32 as winPath } from "node:path";
 import { claudeInstallBlocked, InstallFailure, installJob, outputTail, runInstaller } from "./claude-install.mjs";
 import { codexBin } from "./codex-update.mjs";
+import { commandPanel } from "./command-panel-engine.mjs";
 import { killTree, watchChild } from "./exec-children.mjs";
 import { pathLookup, shimPath, spawnSpec } from "./exec-spec.mjs";
 import { readBody, send } from "./http-io.mjs";
@@ -233,10 +234,9 @@ export function createCodexInstaller({
 }
 
 /** The deck's terminal engine let go, so the next pane it starts sees the
- *  deck's PATH as it is now (command-panel-engine.mjs renew). Loaded when
- *  asked, so this module never starts or loads the engine by itself. */
+ *  deck's PATH as it is now (command-panel-engine.mjs renew). The module is
+ *  the one the deck already loads at boot; renew starts no engine by itself. */
 async function renewTerminalEngine() {
-  const { commandPanel } = await import("./command-panel-engine.mjs");
   await commandPanel.renew();
 }
 
