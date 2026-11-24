@@ -281,7 +281,7 @@ describe("the Projects report, with two requests streaming at once (#2031)", () 
     // What version 8 kept for that file: request 1 at its snapshot.
     await writeFile(stateFile, JSON.stringify({
       version: 8,
-      cursors: { [agent]: Buffer.byteLength(body) },
+      cursors: { [await realpath(agent)]: Buffer.byteLength(body) },
       tally: { [KEY]: { "/Users/c/agents-deck": { "2026-10-03": { [AGENT_MODEL]: COUNTERS(6 + 500) } } } },
       folders: {}, requests: {},
     }), "utf8");
@@ -299,7 +299,8 @@ describe("the Projects report, with two requests streaming at once (#2031)", () 
     await writeFile(agent, lines, "utf8");
     const deck = rollup();
     await deck.tick();
-    const waiting = deck._state().requests[agent].streaming;
+    // The state keys each file by its real path (/private/var/… on macOS).
+    const waiting = deck._state().requests[await realpath(agent)].streaming;
     expect(Object.keys(waiting)).toHaveLength(16);
     expect(Object.keys(waiting).at(-1)).toBe("req_n39");
     expect((await deck.report(KEY, 0)).projects[0].models[AGENT_MODEL].o).toBe(6 * 40);
