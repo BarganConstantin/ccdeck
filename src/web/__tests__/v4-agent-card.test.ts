@@ -131,13 +131,15 @@ describe("the head", () => {
   // CHANGED ON PURPOSE (V4 top-10 #2): the head drew the model and its effort
   // as mono text after the name ("opus 5.5 · high", or "Codex" before a Codex
   // session reports one). That is the machinery, not the work, and it cut the
-  // name on every busy card; the Inspector, the Sessions list and the peek
-  // still say it, so the card draws no model at all.
-  it("draws no model, effort, chip or family tint on the card", () => {
+  // name on every busy card, so the card drew no model at all.
+  // CHANGED ON PURPOSE (the owner's call, 2026-11-24): the model and its effort
+  // are shown again on purpose, in the foot as plain muted text, and still not
+  // in the head beside the name.
+  it("draws the model and its effort in the foot, not the head, with no chip or family tint", () => {
     const out = html({ model: "claude-opus-5-5", effort: "high" });
     expect(out).not.toContain("model-text");
-    expect(out).not.toContain("opus 5.5");
-    expect(out).not.toContain("effort: high");
+    expect(/<div class="title">([\s\S]*?)<\/div>/.exec(out)![1]).not.toContain("opus 5.5");
+    expect(/<div class="foot">([\s\S]*?)<\/div>/.exec(out)![1]).toContain('<span class="model-meta" title="claude-opus-5-5\neffort: high">opus 5.5 · high</span>');
     expect(out).not.toContain("model-chip");
     expect(out).not.toContain("data-family");
     expect(node).not.toContain("model-chip");
@@ -315,7 +317,7 @@ describe("the foot", () => {
   // CHANGED ON PURPOSE (V4's Figma, Agent / Card): the foot no longer prints
   // "5 tools" or "1 err"; the tool icons' tooltip says both, as do the card's
   // accessible name and the Inspector.
-  it("reads cost · time · tokens, then the sub-agent count, with no tools or err words", () => {
+  it("reads cost · time · tokens · model, then the sub-agent count, with no tools or err words", () => {
     const out = html({ toolCount: 5, toolErrorCount: 1, usage: SPENT, model: "claude-opus-5-5", childCount: 2 });
     const foot = /<div class="foot">([\s\S]*?)<\/div>/.exec(out)![1];
     const at = (s: string) => foot.indexOf(s);
@@ -323,13 +325,99 @@ describe("the foot", () => {
     expect(at("cost-meta")).toBeLessThan(at('class="time"'));
     expect(at('class="time"')).toBeLessThan(at("tokens-meta"));
     expect(foot).not.toMatch(/\btools?\b|\berr\b|failed-meta/);
-    expect(at("tokens-meta")).toBeLessThan(at("spawn-badge"));
+    // CHANGED ON PURPOSE (the owner's call, 2026-11-24): the model is shown on
+    // purpose, after the figures and before the sub-agent count.
+    expect(at("tokens-meta")).toBeLessThan(at("model-meta"));
+    expect(at("model-meta")).toBeLessThan(at("spawn-badge"));
     expect(foot).toContain('<span class="foot-sep" aria-hidden="true">·</span>');
     expect(foot).toMatch(/<span class="foot-end"><span class="spawn-badge"[^>]*>2<svg[^>]*>[\s\S]*<\/svg><\/span><\/span>$/);
   });
   it("starts at the clock when there is no cost, and has no dot before the first item", () => {
     const foot = /<div class="foot">([\s\S]*?)<\/div>/.exec(html({}))![1];
     expect(foot.startsWith('<span class="time"')).toBe(true);
+  });
+});
+
+// The model and its effort are shown on the card on purpose (the owner's call,
+// 2026-11-24), in the foot, only as the session stated them.
+describe("the model and its effort, in the foot", () => {
+  const foot = (over: Partial<AgentNodeData>) => /<div class="foot">([\s\S]*?)<\/div>/.exec(html(over))![1];
+  const meta = (over: Partial<AgentNodeData>) => /<span class="model-meta(?: model-meta-fit)?"[^>]*>[^<]*<\/span>/.exec(foot(over))?.[0];
+
+  it("says a Claude session's model and effort, the whole id and the effort in its title", () => {
+    expect(meta({ model: "claude-opus-5-5", effort: "xhigh" }))
+      .toBe('<span class="model-meta" title="claude-opus-5-5\neffort: xhigh">opus 5.5 · xhigh</span>');
+    // After the clock, with the foot's own dot between them.
+    expect(foot({ model: "claude-opus-5-5", effort: "xhigh" }))
+      .toMatch(/<span class="time"[\s\S]*<\/span><span class="foot-sep" aria-hidden="true">·<\/span><span class="model-meta"/);
+  });
+
+  it("says the model alone when the session stated no effort, and never guesses one", () => {
+    // With nothing else on the foot to drop, the model's words may shrink from the start.
+    expect(meta({ model: "claude-sonnet-5-5" })).toBe('<span class="model-meta model-meta-fit" title="claude-sonnet-5-5">sonnet 5.5</span>');
+    expect(meta({ model: "claude-sonnet-5-5" })).not.toContain(" · ");
+  });
+
+  it("draws nothing for a session with no model, even with an effort", () => {
+    expect(foot({})).not.toContain("model-meta");
+    expect(foot({ effort: "high" })).not.toContain("model-meta");
+    expect(foot({ effort: "high" })).not.toContain("high");
+  });
+
+  it("says a Codex session's model and effort, beside the head's Codex word", () => {
+    const over = { provider: "codex", model: "gpt-5.3-codex-spark", effort: "xhigh" } as Partial<AgentNodeData>;
+    expect(meta(over)).toBe('<span class="model-meta" title="gpt-5.3-codex-spark\neffort: xhigh">GPT-5.3 Codex Spark · xhigh</span>');
+    expect(html(over)).toContain('<span class="provider-word">Codex</span>');
+    expect(meta({ provider: "codex", model: "gpt-5.5" } as Partial<AgentNodeData>)).toBe('<span class="model-meta model-meta-fit" title="gpt-5.5">GPT-5.5</span>');
+  });
+
+  it("puts the effort in the card's accessible name when the session stated it", () => {
+    expect(agentAriaLabel(T({ model: "claude-opus-5-5", effort: "xhigh" }), 0)).toContain(", opus 5.5 · xhigh,");
+    const plain = agentAriaLabel(T({ model: "claude-opus-5-5" }), 0);
+    expect(plain).toContain(", opus 5.5,");
+    expect(plain).not.toContain(" · ");
+    expect(agentAriaLabel(T({ effort: "xhigh" }), 0)).not.toContain("xhigh");
+  });
+
+  it("gives up the token figure first and the effort next, and never drops the model", () => {
+    expect(rowSqueeze.FOOT_DROP_ORDER).toEqual(["tokens", "effort", "inflight"]);
+    expect(rowSqueeze.FOOT_DROP_ORDER).not.toContain("model");
+    // No stated effort: the token figure and the in-flight count are all there is to drop.
+    expect(footDroppable({ tokens: true, effort: false, inflight: true })).toEqual(["tokens", "inflight"]);
+    // The model is drawn whatever the notch; its words may only shrink once
+    // nothing else is left to drop.
+    expect(node).toMatch(/const modelMeta: React\.ReactElement \| false = !!data\.model && \(/);
+    expect(node).not.toMatch(/dropped\.has\("model"\)/);
+    expect(rowSqueeze.footModelFits(0, 3)).toBe(false);
+    expect(rowSqueeze.footModelFits(2, 3)).toBe(false);
+    expect(rowSqueeze.footModelFits(3, 3)).toBe(true);
+    expect(rowSqueeze.footModelFits(0, 0)).toBe(true);
+    expect(node).toMatch(/footModelFits\(footNotch, footMax\) \? "model-meta model-meta-fit" : "model-meta"/);
+    // The card offers the effort only beside a model, and draws the model's
+    // label without it once the squeeze has dropped it.
+    expect(node).toMatch(/effort: !!data\.model && !!data\.effort/);
+    expect(node).toMatch(/modelChipText\(data\.model, dropped\.has\("effort"\) \? undefined : data\.effort\)/);
+    // A change of model or effort starts the squeeze again.
+    expect(node).toMatch(/const footKey = \[[\s\S]*?modelChipText\(data\.model, data\.effort\)[\s\S]*?\]\.join/);
+  });
+
+  it("is muted, one line, and cut rather than wrapped, in tokens only", () => {
+    const sel = ".agent-node .foot .model-meta";
+    expect(decl(sel, "color")).toBe("var(--muted)");
+    expect(decl(sel, "white-space")).toBe("nowrap");
+    expect(decl(sel, "min-width")).toBe("0");
+    expect(decl(sel, "overflow")).toBe("hidden");
+    expect(decl(sel, "text-overflow")).toBe("ellipsis");
+    expect(body(sel)).not.toMatch(/background|border|padding|font-family/);
+    // Its box keeps its width like every foot item until the squeeze is spent;
+    // then, and only then, it may shrink to the ellipsis.
+    expect(decl(".agent-node .foot .model-meta.model-meta-fit", "flex")).toBe("0 1 auto");
+  });
+
+  it("lives in the foot, which the faces drawn from a distance hide", () => {
+    const out = html({ model: "claude-opus-5-5", effort: "xhigh" });
+    expect(out.slice(out.indexOf('class="lod-face"'))).not.toContain("opus 5.5");
+    expect(sheet).toContain('.canvas-wrap[data-lod="compact"] .agent-node > :not(.lod-face), .canvas-wrap[data-lod="overview"] .agent-node > :not(.lod-face)');
   });
 });
 
@@ -344,7 +432,7 @@ describe("no new colour literals", () => {
       '.agent-node .state-line[data-tone="active"] .state-mark',
       ".agent-node .title", ".agent-node .title .label", ".agent-node .title .synth-tag",
       ".agent-node .time", ".agent-node .task-line", ".agent-node .foot", ".agent-node .foot b", ".agent-node .foot .foot-sep",
-      ".agent-node .foot .inflight-meta", ".agent-node .foot .spawn-badge",
+      ".agent-node .foot .inflight-meta", ".agent-node .foot .spawn-badge", ".agent-node .foot .model-meta",
     ]) expect(body(sel), sel).not.toMatch(LITERAL);
     expect(body(".agent-node")).not.toMatch(LITERAL);
   });
@@ -450,21 +538,26 @@ describe("fixes found in the browser", () => {
 
   // CHANGED ON PURPOSE (V4's Agent / Card): the tool count left the foot, so
   // the squeeze has two items to drop, not three.
+  // CHANGED ON PURPOSE (the owner's call, 2026-11-24): the model and its effort
+  // are shown in the foot on purpose. The token figure goes before the effort,
+  // and the model never drops: a busy 256px card has no room for it beside the
+  // token figure, which is exactly the card it was asked for on.
   describe("the foot's squeeze", () => {
-    const all = { tokens: true, inflight: true };
-    it("drops tokens first, then in-flight", () => {
-      expect(footDroppable(all)).toEqual(["tokens", "inflight"]);
+    const all = { tokens: true, effort: true, inflight: true };
+    it("drops tokens first, then the effort, then in-flight", () => {
+      expect(footDroppable(all)).toEqual(["tokens", "effort", "inflight"]);
       expect([...footDropped(0, all)]).toEqual([]);
       expect([...footDropped(1, all)]).toEqual(["tokens"]);
-      expect([...footDropped(2, all)]).toEqual(["tokens", "inflight"]);
+      expect([...footDropped(2, all)]).toEqual(["tokens", "effort"]);
+      expect([...footDropped(3, all)]).toEqual(["tokens", "effort", "inflight"]);
     });
     it("skips items the foot does not hold, so no notch is wasted", () => {
-      const some = { tokens: false, inflight: true };
+      const some = { tokens: false, effort: false, inflight: true };
       expect(footDroppable(some)).toEqual(["inflight"]);
       expect([...footDropped(1, some)]).toEqual(["inflight"]);
     });
-    it("never offers the tool icons, cost, time or the sub-agent count to drop", () => {
-      expect(footDroppable(all)).toEqual(["tokens", "inflight"]);
+    it("never offers the tool icons, cost, time, the model or the sub-agent count to drop", () => {
+      expect(footDroppable(all)).toEqual(["tokens", "effort", "inflight"]);
       const tools = [{ id: "r1", name: "Read", inputPreview: "", startedAt: 1, endedAt: 2 }];
       const out = html({ tools: tools as never, toolCount: 5, usage: SPENT, model: "claude-opus-5-5", childCount: 2, toolErrorCount: 1 });
       for (const kept of ["foot-tools", "cost-meta", 'class="time"', "spawn-badge"]) expect(out).toContain(kept);
@@ -485,6 +578,11 @@ describe("fixes found in the browser", () => {
       expect(footNotchOnResize(2, { from: 200, to: 256 })).toBe(0);
       expect(footNotchOnResize(2, { from: 256, to: 220 })).toBe(2);
       expect(footNotchOnResize(2, { from: 256, to: 256 })).toBe(2);
+    });
+    it("measures again when the card narrows, though the notch it keeps is no change of state", () => {
+      // Without the beat a narrower card was never measured again: the same
+      // notch is no new state, React skips the render, and the foot stayed cut.
+      expect(node).toMatch(/if \(clockMoved \|\| to < from\) setFootBeat\(b => b \+ 1\);/);
     });
     it("draws every item at notch 0 (the server markup)", () => {
       const tools = [{ id: "b1", name: "Bash", inputPreview: "", startedAt: 1 }];

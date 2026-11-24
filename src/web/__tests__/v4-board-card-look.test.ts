@@ -132,6 +132,11 @@ describe("the foot", () => {
     expect((icons.match(/<svg/g) ?? []).length).toBe(3);
     expect(icons).toContain('width="14" height="14"');
     expect(foot.indexOf("foot-tools")).toBeLessThan(foot.indexOf("cost-meta"));
+    // CHANGED ON PURPOSE (the owner's call, 2026-11-24): the model is shown in
+    // the foot on purpose, after the cost and the clock, in the muted ink.
+    expect(foot.indexOf('class="time"')).toBeLessThan(foot.indexOf('class="model-meta"'));
+    expect(foot).toContain(">opus 5.5</span>");
+    expect(decl(".agent-node .foot .model-meta", "color")).toBe("var(--muted)");
     expect(html({})).not.toContain("foot-tools");
     expect(decl(".agent-node .foot .foot-tools", "gap")).toBe("2px");
     expect(decl(".agent-node .foot .foot-tools", "color")).toBe("var(--muted)");
