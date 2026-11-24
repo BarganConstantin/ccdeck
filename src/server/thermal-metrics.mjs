@@ -582,19 +582,28 @@ export function darwinThermal({ cpuC = null, gpuC = null, throttle = null, macmo
  * difference between two counts, so the count rides along on the reading as
  * `throttleCount` and the sampler hands it back on the next call. The first
  * reading after a start therefore has no throttle yet, the same way `cpu` is
- * null until two samples exist.
+ * null until two samples exist. On a machine with no temperature sensor that
+ * first reading is an empty one that carries the count, never null.
+ *
+ * `roots` points the Linux walks at other folders, for a test that builds the
+ * tree on disk; a running deck never passes it.
  */
-export async function readThermal(platform = process.platform, since = null) {
+export async function readThermal(platform = process.platform, since = null, roots = {}) {
   if (platform === "linux") {
-    const sensors = await readHwmon();
+    const sensors = await readHwmon(roots.hwmon);
     const celsius = pickThermalRows(sensors);
-    const rows = celsius.length ? celsius : await readThermalZones();
-    const held = await readThrottleTime();
+    const rows = celsius.length ? celsius : await readThermalZones(roots.zones);
+    const held = await readThrottleTime(roots.cpu);
     // performance.now rather than Date.now: a clock that NTP steps backwards
     // between two samples would otherwise divide by a negative ten seconds.
     const throttleCount = held ? { atMs: performance.now(), held } : null;
     const throttle = throttleFromTime(since?.throttleCount, throttleCount);
-    if (!rows.length && !throttle) return null;
+    // With no row to draw yet, the count alone still has to reach the next
+    // call: null would drop it, every later call would be a first reading
+    // again, and a machine whose kernel counts throttling but has no
+    // temperature sensor would never draw the row. Windows keeps its
+    // `zonesSeen` across an empty reading the same way.
+    if (!rows.length && !throttle) return throttleCount ? { celsius: [], throttle: null, throttleCount } : null;
     return { celsius: rows, throttle, ...(throttleCount ? { throttleCount } : {}) };
   }
 
