@@ -20,7 +20,7 @@ import ProviderAvatar from "../ProviderAvatar";
 import { providerLabel } from "../../provider-copy";
 import ChatMarkdown from "./ChatMarkdown";
 import { useEffect, useId, useState } from "react";
-import { answerable, MAX_ASK_TEXT, picksComplete, type AskPick } from "../../ask-keys";
+import { answerable, MAX_ASK_TEXT, offersChat, picksComplete, type AskPick } from "../../ask-keys";
 import type { AskSendResult } from "../../use-terminal-session";
 import { copyText } from "../../copy-text";
 import { CopyGlyph } from "../terminal/stage-icons";
@@ -311,10 +311,13 @@ export function readAnswer(question: ChatQuestion, answer: string): { chosen: Se
   return { chosen, other: rest.join(", ") };
 }
 
-export type AskState = "waiting" | "answered" | "unanswered";
+export type AskState = "waiting" | "answered" | "unanswered" | "chatted";
 
+/** Where a question card stands. Set aside with "Chat about this", it went
+ *  without an answer on purpose: the card says so, not "Not answered". */
 export function askState(turn: Extract<Turn, { kind: "ask" }>): AskState {
   if (turn.running) return "waiting";
+  if (turn.chat) return "chatted";
   return turn.reply || (turn.answers ?? []).some(Boolean) ? "answered" : "unanswered";
 }
 
@@ -340,7 +343,17 @@ const RESULT_KEYS: Record<AskSendResult, string> = {
 
 /** The questions the assistant asked you, their options, and what you chose.
  *  While one waits and the stage can answer it, its options are picked here and
- *  sent as the keys Term takes; otherwise the card is read only. */
+ *  sent as the keys Term takes; otherwise the card is read only.
+ *
+ *  CHAT ABOUT THIS. Claude Code ends its question prompt with a row that sets
+ *  the questions aside to talk them over first (ask-keys.ts). The card offers
+ *  it the same way, last and apart from the answers: a quiet link at the end of
+ *  the row that holds Send answer, never a row of its own. Pressed, it sends
+ *  that row's keys through the same send as an answer, and the card says the
+ *  questions were set aside; Claude then asks what you would like to clarify,
+ *  and the reply goes in the box under the conversation. It shows only while
+ *  it can be pressed: the question waits, the stage can write, and nothing
+ *  went from the card yet. */
 export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; ask?: ChatAsk }) {
   const t = useT();
   const id = useId();
@@ -351,12 +364,17 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
   const [drafts, setDrafts] = useState<string[]>(() => turn.questions.map(() => ""));
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<AskSendResult | null>(null);
+  // What the last press sent: the picks, or "Chat about this". Its outcome says which.
+  const [chatting, setChatting] = useState(false);
   // Typed text or a number is not picked from a list: such a question is answered in Term.
   const reachable = turn.questions.every(answerable);
   // Once keys went, the same answer is never sent twice from here.
   const done = result === "sent" || result === "partial";
   const locked = !live || sending || done || live.blocked !== undefined || !reachable;
   const ready = !locked && picksComplete(turn.questions, picks);
+  // Set aside, nothing was chosen: a pick made before it wears no mark.
+  const answered = done && !chatting;
+  const canChat = !!live?.chat && !sending && !done && live.blocked === undefined && offersChat(turn.questions);
 
   function update(i: number, pick: AskPick) {
     setPicks(previous => previous.map((old, at) => (at === i ? pick : old)));
@@ -365,10 +383,23 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
 
   async function send() {
     if (!live || !ready) return;
+    setChatting(false);
     setSending(true);
     setResult(null);
     let outcome: AskSendResult;
     try { outcome = await live.send(turn.questions, picks); }
+    catch { outcome = "unavailable"; }
+    setSending(false);
+    setResult(outcome);
+  }
+
+  async function chat() {
+    if (!live?.chat || !canChat) return;
+    setChatting(true);
+    setSending(true);
+    setResult(null);
+    let outcome: AskSendResult;
+    try { outcome = await live.chat(turn.questions); }
     catch { outcome = "unavailable"; }
     setSending(false);
     setResult(outcome);
@@ -404,7 +435,7 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
                       <input type={question.multi ? "checkbox" : "radio"} name={name} checked={on} disabled={locked}
                         onChange={() => update(i, choose(question, pick.text === undefined ? pick : { options: [] }, n))} />
                       {text}
-                      {on && done && <span className="chat-ask-chosen"><DoneGlyph />{t("board.chat.ask.chosen")}</span>}
+                      {on && answered && <span className="chat-ask-chosen"><DoneGlyph />{t("board.chat.ask.chosen")}</span>}
                     </label>
                   </li>
                 );
@@ -423,7 +454,7 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
                   <input type="radio" name={name} checked={pick.text !== undefined} disabled={locked}
                     onChange={() => update(i, { options: [], text: drafts[i] ?? "" })} />
                   <span className="chat-ask-option-label">{t("board.chat.ask.other")}</span>
-                  {pick.text !== undefined && done && <span className="chat-ask-chosen"><DoneGlyph />{t("board.chat.ask.chosen")}</span>}
+                  {pick.text !== undefined && answered && <span className="chat-ask-chosen"><DoneGlyph />{t("board.chat.ask.chosen")}</span>}
                 </label>
                 <input type="text" className="chat-ask-text" value={drafts[i] ?? ""} maxLength={MAX_ASK_TEXT} disabled={locked}
                   aria-label={t("board.chat.ask.other")} placeholder={t("board.chat.ask.otherHint")}
@@ -444,8 +475,10 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
   // Blocked (connecting, offline, read only), the card only locks its options:
   // the reply box under it is handed the same reason and shows it with Show
   // Term, so the card does not say it a second time 150 px above.
-  const message = sending ? t("board.chat.ask.sending")
-    : result ? t(RESULT_KEYS[result])
+  // A failed "Chat about this" says what a failed answer says: nothing went, or
+  // part of it, or it could not go, with Show Term.
+  const message = sending ? t(chatting ? "board.chat.ask.chatSending" : "board.chat.ask.sending")
+    : result ? t(chatting && result === "sent" ? "board.chat.ask.result.chat" : RESULT_KEYS[result])
     : !reachable ? t("board.chat.ask.inTerm")
     : "";
   const showTerm = live?.onShowTerm && !sending && result !== "sent"
@@ -465,6 +498,7 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
             <p id={`${id}-status`} className="chat-ask-status" role="status" aria-live="polite" aria-atomic="true"
               data-result={result ?? undefined}>{message}</p>
             {showTerm && <button className="chat-ask-term" type="button" onClick={live.onShowTerm}>{t("board.chat.showTerm")}</button>}
+            {canChat && <button className="chat-ask-term chat-ask-chat" type="button" onClick={() => { void chat(); }}>{t("board.chat.ask.chat")}</button>}
           </div>
         </form>
       ) : questions}

@@ -318,6 +318,9 @@
 .chat-ask-status[data-result="changed"], .chat-ask-status[data-result="partial"], .chat-ask-status[data-result="unavailable"] { color: var(--warn); }
 .chat-ask-term { flex: none; min-height: 28px; padding: 2px 0; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text-secondary); font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .chat-ask-term:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
+/* "Chat about this" is the prompt's last row, set apart from the answers: the
+   quiet link at the far end of the row, wrapping to its own line's end. */
+.chat-ask-chat { margin-left: auto; }
 .chat-ask-answer { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); white-space: pre-wrap; overflow-wrap: anywhere; }
 .chat-ask-answer-label { margin-right: 6px; color: var(--muted); }
 @media (hover: hover) and (pointer: fine) {

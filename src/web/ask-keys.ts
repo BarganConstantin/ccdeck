@@ -12,6 +12,20 @@
 //   so it is sent only once the words show.
 // - two or more questions, or one with several choices, end on a review
 //   screen where "1" submits.
+// - "Chat about this": a last row under every question, one choice or
+//   several, set apart from the answers by a line (Claude Code 2.1.8 and
+//   later). It answers nothing: Claude Code turns the call down with "The user
+//   wants to clarify these questions…" and what was answered so far, and
+//   Claude asks what you would like to clarify. Its number comes after "Type
+//   something" (the options' count + 2), and since about 2.1.160 that digit
+//   picks it from anywhere in the list (2.1.162 has it; up to 2.1.150 the
+//   number was drawn but only Down and Enter reached the row, and a digit there
+//   does nothing). Beside options with a preview the row has no number: the
+//   last option's digit moves the cursor to it, Down goes on to the row, and
+//   Enter picks it. A screen reader's layout puts the row in the list instead,
+//   with the same number, and leaves it out beside several choices; so its
+//   step waits for the row's words too, and a prompt that does not draw them
+//   takes no key.
 //
 // EACH STEP WAITS FOR THE SCREEN. Before its keys go, the terminal must show
 // what the step expects: the question's opening words and every option's
@@ -39,6 +53,11 @@ export interface AskStep {
 
 /** The review screen's button: the last step waits for it. */
 export const SUBMIT_WORDS = "Submit answers";
+/** The row under the options that sets the questions aside to talk them over. */
+export const CHAT_WORDS = "Chat about this";
+/** The down arrow, as the terminal sends it (sendAsk turns it into ESC O B for
+ *  a program that asked for application cursor keys, as a typed arrow is). */
+export const DOWN_KEY = "\x1b[B";
 /** Words for one answer: one line, as long as a person would type there. */
 export const MAX_ASK_TEXT = 1000;
 const LEAD = 32;
@@ -107,4 +126,24 @@ export function askSteps(questions: readonly ChatQuestion[], picks: readonly (As
   });
   if (questions.length > 1 || questions[0].multi) steps.push({ expect: [SUBMIT_WORDS], keys: [{ input: "1" }] });
   return steps;
+}
+
+/** The step that picks "Chat about this" on the prompt's first question, the
+ *  one it opens on; null when the row has no one-digit way there (a question
+ *  with no options, or more options than a digit reaches). The step waits for
+ *  the question, its options and the row, as an answer's first step does. */
+export function chatSteps(questions: readonly ChatQuestion[]): AskStep[] | null {
+  const first = questions[0];
+  if (!first || !answerable(first)) return null;
+  const count = first.options.length;
+  const expect = [lead(first.question), ...first.options.map(option => lead(option.label)), CHAT_WORDS];
+  if (first.preview) {
+    return count <= 9 ? [{ expect, keys: [{ input: String(count) }, { input: DOWN_KEY }, { input: "\r" }] }] : null;
+  }
+  return count + 2 <= 9 ? [{ expect, keys: [{ input: String(count + 2) }] }] : null;
+}
+
+/** Whether Chat can offer "Chat about this" for these questions. */
+export function offersChat(questions: readonly ChatQuestion[]): boolean {
+  return chatSteps(questions) !== null;
 }
