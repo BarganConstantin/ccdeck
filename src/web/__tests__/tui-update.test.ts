@@ -20,7 +20,7 @@
 //                 same tab and says the update took.
 import { describe, it, expect } from "vitest";
 import { realpathSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { PassThrough, Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
@@ -265,8 +265,9 @@ describe("the reopen's pieces", () => {
     const linked = "/usr/local/lib/node_modules/ccdeck";
     const real = (p: string) => (p === linked ? PKG_ROOT : realpathSync(p));
     expect(tuiEntry({ pkgRoot: linked, real })).toBe(deck);
-    // A root that cannot be resolved is taken as it is.
-    expect(tuiEntry({ pkgRoot: "/nowhere/ccdeck", real: () => { throw new Error("ENOENT"); } })).toBe(join("/nowhere/ccdeck", "bin", "deck.js"));
+    // A root that cannot be resolved is taken as it is, made absolute (on
+    // Windows that adds the current drive).
+    expect(tuiEntry({ pkgRoot: "/nowhere/ccdeck", real: () => { throw new Error("ENOENT"); } })).toBe(join(resolve("/nowhere/ccdeck"), "bin", "deck.js"));
   });
 
   it("reads the note the screen before left, and nothing that is not one", () => {
