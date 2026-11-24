@@ -35,6 +35,7 @@ import {
   TERMINAL_FONT_TOKEN,
   subjectKey,
   useTerminalSession,
+  type AskSendResult,
   type LaunchedSession,
   type SessionDeps,
   type StageSubject,
@@ -80,7 +81,7 @@ import { ChatComposerSlot, useScreenFlags } from "../../use-screens";
 import { fontSizeFor, stepTerminalText, useTerminalTextStep } from "../../terminal-text-size";
 import { chatSessionFor, useSessionTranscript } from "../../use-session-transcript";
 import { isEventOnly } from "../../../server/provider-ids.mjs";
-import { askSteps } from "../../ask-keys";
+import { askSteps, chatSteps, type AskStep } from "../../ask-keys";
 import { stopSteps } from "../../chat-stop";
 import { pendingFor, useChatProgress, waitsInChat, type ChatFacts, type ChatPending } from "../../chat-progress";
 import { noteFeature, useFeatureUse } from "../../feature-use";
@@ -685,19 +686,22 @@ export default function TerminalStage(p: TerminalStageProps) {
   // A question Claude Code asked (AskUserQuestion) is answered from its card
   // with the keys Term takes, each sent only once Term shows what it answers
   // (ask-keys.ts). The answer reads back from the transcript, as a reply does.
+  // "Chat about this" is the prompt's own last row, picked by its keys through
+  // the same send, and counted as an answer from Chat.
+  const answerAsk = async (steps: AskStep[] | null): Promise<AskSendResult> => {
+    if (!steps) return "unavailable";
+    const result = await session.sendAsk(steps, key);
+    if (result === "sent" || result === "partial") {
+      setChatSent(sent => sent + 1);
+      noteFeature("chat-answer");
+    }
+    return result;
+  };
   const chatAsk: ChatAsk | undefined = chatSession === null ? undefined : {
     blocked: chatCannotSend,
     onShowTerm: () => showView("term"),
-    send: async (questions, picks) => {
-      const steps = askSteps(questions, picks);
-      if (!steps) return "unavailable";
-      const result = await session.sendAsk(steps, key);
-      if (result === "sent" || result === "partial") {
-        setChatSent(sent => sent + 1);
-        noteFeature("chat-answer");
-      }
-      return result;
-    },
+    send: (questions, picks) => answerAsk(askSteps(questions, picks)),
+    chat: questions => answerAsk(chatSteps(questions)),
   };
   // Claude Code's permission prompt and plan approval, answered from the
   // Decision card docked under Chat: read off the live screen while the
