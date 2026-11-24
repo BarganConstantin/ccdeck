@@ -50,10 +50,10 @@ function rails({ claude = true, usageOpen = false, unread = 0, onHistory = noop 
 /** The dock exactly as App.tsx composes it from the rails. CHANGED ON PURPOSE
  *  (the owner's phone layout): five doors as the phone frame draws them
  *  (Accounts, Sessions, Usage, Machine, More), so Settings is in More with
- *  the rest. CHANGED ON PURPOSE (V4): Feedback is in the bar's corner on a
- *  phone too, so More has no row for it. */
+ *  the rest. CHANGED ON PURPOSE (a bare glyph was not found): Feedback keeps
+ *  its corner of the bar on a phone, and More lists it by its words too. */
 function dockFor(r: ReturnType<typeof rails>) {
-  return mount(EdgeDock, { items: [...r.left, ...r.right[0]], more: [...r.right.slice(1).flat(), ...r.utilities.filter(item => item !== r.corner)] });
+  return mount(EdgeDock, { items: [...r.left, ...r.right[0]], more: [...r.right.slice(1).flat(), ...r.utilities] });
 }
 
 /** The control elements the dock draws: its RailButtons, then its More. */
@@ -89,7 +89,7 @@ describe("the dock holds the four panels, then More", () => {
     expect(buttons(view.tree).map(b => (b.props.item as { id: string }).id))
       .toEqual(["accounts", "session-list", "usage", "machine"]);
     expect((moreOf(view.tree).props.items as { id: string }[]).map(i => i.id))
-      .toEqual(["history", "browser-watch", "settings"]);
+      .toEqual(["history", "browser-watch", "settings", "feedback"]);
   });
 
   it("puts Codex's own button where Claude's was on a machine without Claude Code", () => {
@@ -116,7 +116,7 @@ describe("the dock holds the four panels, then More", () => {
     // CHANGED ON PURPOSE (phone More › Open the Command Panel): its press is
     // openPanelFromMore, the stage's own press plus the Sessions list making way,
     // which had covered the stage (v4-phone-board-stack.test.tsx).
-    expect(app).toMatch(/\{phone\s*(?:\/\/[^\n]*\s*)*\?\s*<EdgeDock\s+items=\{\[\.\.\.rails\.left, \.\.\.rails\.right\[0\]\]\.map\([^\n]*\)\}\s+more=\{\[rails\.search, \.\.\.commandPanelMore\(stage\.enabled \? openPanelFromMore : undefined\), \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, \.\.\.rails\.utilities\.filter\(item => item !== rails\.corner\)\]\}\s+offline=\{everConnected && !live\} \/>\s*:\s*<EdgeRail side="left" label/);
+    expect(app).toMatch(/\{phone\s*(?:\/\/[^\n]*\s*)*\?\s*<EdgeDock\s+items=\{\[\.\.\.rails\.left, \.\.\.rails\.right\[0\]\]\.map\([^\n]*\)\}\s+more=\{\[rails\.search, \.\.\.commandPanelMore\(stage\.enabled \? openPanelFromMore : undefined\), \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, \.\.\.rails\.utilities\]\}\s+offline=\{everConnected && !live\} \/>\s*:\s*<EdgeRail side="left" label/);
     // CHANGED ON PURPOSE (V4's Figma): two stripes again, the left one drawn in
     // the dock's place, the right one only where there is no phone dock.
     expect(app).toMatch(/<EdgeRail side="left" label/);
@@ -183,13 +183,14 @@ describe("More is a menu button for the rare dialogs and Settings", () => {
     expect(button().props["aria-haspopup"]).toBe("menu");
     expect(button().props["aria-expanded"]).toBe(false);
     expect(button().props["aria-controls"]).toBeUndefined();
-    expect(button().props["aria-label"]).toBe("More: Usage history, Browser watch, not watching, Settings");
+    expect(button().props["aria-label"]).toBe("More: Usage history, Browser watch, not watching, Settings, Send feedback");
     expect(menu()).toBeNull();
   });
 
   it("opens a menu of them by their whole names, focus on the first", () => {
     // CHANGED ON PURPOSE (the phone layout): the rows are the ones More holds,
-    // Settings last now that Feedback is in the bar's corner (V4).
+    // Settings, then Send feedback: the bar's corner keeps Feedback's glyph,
+    // and More says it whole (CHANGED ON PURPOSE: a bare glyph was not found).
     const { button, menu } = openMore(dockFor(rails()).tree);
     (button().props.onClick as () => void)();
     expect(button().props["aria-expanded"]).toBe(true);
@@ -197,16 +198,18 @@ describe("More is a menu button for the rare dialogs and Settings", () => {
     expect(menu()!.props.role).toBe("menu");
     expect(menu()!.props.start).toBe("first");
     const rows = all(menu(), e => e.props.role === "menuitem");
-    expect(rows.map(r => textOf(r))).toEqual(["Usage history", "Browser watch", "Settings"]);
+    expect(rows.map(r => textOf(r))).toEqual(["Usage history", "Browser watch", "Settings", "Send feedback"]);
   });
 
   // Design recommendations (2026-11-09): Settings was the last of a run of
   // dialogs, found by reading every row. The menus' own rule sets it apart.
-  it("sets Settings, still last, apart from the dialogs above it with the menus' rule", () => {
+  // CHANGED ON PURPOSE (a bare glyph was not found): Send feedback follows it,
+  // under the same rule.
+  it("sets Settings and Send feedback apart from the dialogs above them with the menus' rule", () => {
     const { button, menu } = openMore(dockFor(rails()).tree);
     (button().props.onClick as () => void)();
     const parts = all(menu(), e => e.props.role === "menuitem" || e.props.role === "separator");
-    expect(parts.map(e => e.props.role === "separator" ? "—" : textOf(e))).toEqual(["Usage history", "Browser watch", "—", "Settings"]);
+    expect(parts.map(e => e.props.role === "separator" ? "—" : textOf(e))).toEqual(["Usage history", "Browser watch", "—", "Settings", "Send feedback"]);
     expect(parts[2].props.className).toBe("ap-menu-sep");
     // One rule, before Settings only: the separator is no row the arrows land on.
     expect(parts.filter(e => e.props.role === "separator")).toHaveLength(1);
@@ -223,7 +226,7 @@ describe("More is a menu button for the rare dialogs and Settings", () => {
   it("carries Browser watch's unread count, in the chrome's grey, while the row it stands for is folded", () => {
     // CHANGED ON PURPOSE (the phone layout): More's name lists Settings too.
     const { button, menu } = openMore(dockFor(rails({ unread: 2 })).tree);
-    expect(button().props["aria-label"]).toBe("More: Usage history, Browser watch, not watching, 2 unread, Settings");
+    expect(button().props["aria-label"]).toBe("More: Usage history, Browser watch, not watching, 2 unread, Settings, Send feedback");
     expect(textOf(one(button(), e => e.props.className === "rail-badge"))).toBe("2");
     (button().props.onClick as () => void)();
     expect(all(menu(), e => e.props.role === "menuitem").map(r => textOf(r))[1]).toBe("Browser watch · 2 unread");

@@ -240,8 +240,14 @@
 }
 @media (min-width: 641px) {
   /* Feedback keeps the window's corner, 6 in from its edge, at either width of
-     the cell above the right stripe: its centre on a 40 one, its end on a 156. */
-  .topbar .tb-corner > .utility-run { margin-left: auto; margin-right: 5px; }
+     the cell above the right stripe: the stripe's 156 over words, as wide as
+     the button itself over icons (topbar.css). */
+  .topbar .tb-corner > .utility-run { margin-left: auto; margin-right: 5px; min-width: 0; }
+  /* Its words (Send feedback) keep one line, like a stripe's: a language
+     whose words the 156 cannot hold ends them in an ellipsis, whole in the
+     button's name, rather than wrapping them onto a second line. */
+  .tb-corner .rail-btn-bar { min-width: 0; }
+  .tb-corner .rail-btn-bar .rail-word { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 @media (prefers-reduced-motion: reduce) {
   .app:has(> .edge-rail[data-words]) { transition: none; }
