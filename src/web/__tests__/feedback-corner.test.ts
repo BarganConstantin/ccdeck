@@ -4,15 +4,18 @@
 // through the bar beside it, the button on the stripe's column, and Search
 // ending 8 short of the line. In the desktop app on Windows and Linux the OS's
 // window buttons own the corner, so the cell stands just before them; on a
-// phone the cell is the end of the phone's bar and More drops its Feedback row,
-// so there is one entry on every size. The button is the one it was: its name,
-// its hint, its unread count and its press. As a bare glyph it was rarely
-// found, so its hint says what it is for under its name, and while the stripes
-// under it show their words the corner shows Feedback's (CornerRun).
+// phone the cell is the end of the phone's bar. The button is the one it was:
+// its name, its hint, its unread count and its press.
+//
+// CHANGED ON PURPOSE (a bare glyph was not found): on every window wider than
+// a phone the corner says Send feedback beside its glyph (CornerRun), over
+// word stripes in the stripe's 156 cell with its line, over icon ones in a
+// cell as wide as its button, with no line. On a phone the bar keeps the
+// glyph, and More lists Send feedback too.
 //
 // Read from the sources and the sheet, the way the suite reads them; the
 // cascade is sheet-cascade.ts's, at the widths the frames use.
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { cascade, el, selects, type El } from "./sheet-cascade";
@@ -20,6 +23,7 @@ import { sourceOf } from "./client-source";
 import { railItems } from "../rail-items";
 import { CornerRun, UtilityRun, railHint } from "../components/EdgeRails";
 import { setStripeWorkspace, stripeWordsOn } from "../stripe-words";
+import { PHONE_QUERY } from "../phone-load";
 
 const noop = () => {};
 const ref = () => ({ current: null });
@@ -41,7 +45,14 @@ const cellChain = (attrs?: Record<string, string>): El[] => [...barChain(attrs),
 const buttonChain = (attrs?: Record<string, string>): El[] => [...cellChain(attrs), el("div", ["utility-run"]),
   el("button", ["rail-btn", "rail-btn-bar", "rail-btn-icon"], { attrs: { type: "button", "data-rail-item": "feedback" } })];
 const of = (chain: El[]) => (prop: string, width: number) => cascade(s => selects(s, chain), prop, width);
-const cell = of(cellChain());
+/** The one rule for the cell over icon stripes. Whether the stripes show their
+ *  words is a :has() on the app, past what selects() reads, so the rule is
+ *  named, at its weight: .app, .edge-rail[data-words], .topbar, .tb-corner. */
+const ICONS_CELL = ".app:not(:has(> .edge-rail[data-words])) > .topbar .tb-corner";
+const cellOver = (words: boolean) => (prop: string, width: number) =>
+  cascade(s => (s === ICONS_CELL ? (words ? null : 50) : selects(s, cellChain())), prop, width);
+const cell = cellOver(true);
+const iconsCell = cellOver(false);
 const bar = of(barChain());
 const button = of(buttonChain());
 const px = (v: string | null) => {
@@ -85,42 +96,45 @@ describe("where App draws it", () => {
     expect(unread).toContain('<span class="rail-badge" aria-hidden="true">2</span>');
   });
 
-  it("leaves the phone's More, so Feedback has one entry on every size", () => {
-    expect(app).toContain("...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}");
+  it("is in the phone's More by its words too, beside its glyph on the phone's bar", () => {
+    expect(app).toContain("...rails.explore, ...rails.utilities]}");
+    expect(app).not.toContain("rails.utilities.filter(");
     // Quick open still lists it, by name, as it lists every door.
     expect(sourceOf("quick-open-items.tsx")).toContain("...src.rails.utilities,");
     expect(rails().utilities.map(i => i.id)).toEqual(["settings", "feedback"]);
   });
 });
 
-describe("its word", () => {
-  afterEach(() => setStripeWorkspace(false));
+describe("its words", () => {
+  afterEach(() => { setStripeWorkspace(false); vi.unstubAllGlobals(); });
 
-  it("says Feedback beside its glyph while the stripes under it say theirs", () => {
-    expect(stripeWordsOn()).toBe(true);
-    const html = renderToStaticMarkup(createElement(CornerRun, { item: rails().corner }));
-    expect(html).toContain('class="rail-btn rail-btn-bar"');
-    expect(html).not.toContain("rail-btn-icon");
-    expect(html).toContain(">Feedback</span>");
-    expect(html).toContain('aria-label="Send feedback"');
-    expect(html).toContain('aria-haspopup="dialog"');
-    // Its unread count stays on the button, and in its name.
-    const unread = renderToStaticMarkup(createElement(CornerRun, { item: rails(2).corner }));
-    expect(unread).toContain('aria-label="Feedback, 2 unread conversations"');
-    expect(unread).toContain('<span class="rail-badge" aria-hidden="true">2</span>');
+  it("says Send feedback beside its glyph on every window wider than a phone, over word stripes or icon ones", () => {
+    for (const workspace of [false, true]) {
+      setStripeWorkspace(workspace);
+      expect(stripeWordsOn()).toBe(!workspace);
+      const html = renderToStaticMarkup(createElement(CornerRun, { item: rails().corner }));
+      expect(html).toContain('class="rail-btn rail-btn-bar"');
+      expect(html).not.toContain("rail-btn-icon");
+      expect(html).toContain('<span class="rail-word">Send feedback</span>');
+      expect(html).toContain('aria-label="Send feedback"');
+      expect(html).toContain('aria-haspopup="dialog"');
+      // Its unread count stays on the button, and in its name.
+      const unread = renderToStaticMarkup(createElement(CornerRun, { item: rails(2).corner }));
+      expect(unread).toContain('aria-label="Feedback, 2 unread conversations"');
+      expect(unread).toContain('<span class="rail-badge" aria-hidden="true">2</span>');
+    }
   });
 
-  it("is V4's bare glyph while the stripes are icons: Workspace, under 1100px, or words hidden", () => {
-    setStripeWorkspace(true);
-    expect(stripeWordsOn()).toBe(false);
+  it("is V4's bare glyph on a phone, where the bar holds no words and More says them", () => {
+    vi.stubGlobal("window", { matchMedia: (q: string) => ({ matches: q === PHONE_QUERY, addEventListener() {}, removeEventListener() {} }) });
     const html = renderToStaticMarkup(createElement(CornerRun, { item: rails().corner }));
     expect(html).toBe(renderToStaticMarkup(createElement(UtilityRun, { items: [rails().corner] })));
     expect(html).toContain('class="rail-btn rail-btn-bar rail-btn-icon"');
-    expect(html).not.toContain(">Feedback</span>");
+    expect(html).not.toContain("rail-word");
   });
 });
 
-describe("the cell at 1440 wide", () => {
+describe("the cell at 1440 wide, over word stripes", () => {
   const W = 1440;
   const edge = of([root(), el("body"), el("div", ["edge-rail", "edge-rail-right"])]);
 
@@ -134,20 +148,16 @@ describe("the cell at 1440 wide", () => {
     expect(cell("box-sizing", W)).toBe("border-box");
   });
 
-  it("reaches the window's edge, so its line is the stripe's at 1400 and its button the stripe's doors' 1406", () => {
+  it("reaches the window's edge, and its button ends 6 in from it, as the stripe's doors do", () => {
     const margin = cell("margin", W);
     const padding = cell("padding", W);
     // The bar's end padding, given back by the cell's right margin.
     expect(side(bar("padding", W), 1) + side(margin, 1)).toBe(0);
-    const line = W - 40;
-    expect(line).toBe(1400);
-    // The stripe keeps a pixel on its outer side so its 28 doors sit 6 in from
-    // the line; the cell keeps the same pixel, so its button does too.
-    expect(side(padding, 1)).toBe(1);
-    expect(px(button("width", W))).toBe(28);
-    const contentLeft = line + 1;
-    const contentWidth = 40 - 1 - side(padding, 1);
-    expect(contentLeft + (contentWidth - 28) / 2).toBe(1406);
+    // The stripe keeps a pixel on its outer side; the cell keeps the same
+    // pixel, and its run 5 more, so the button's end is 6 in.
+    const run = of([...cellChain(), el("div", ["utility-run"])]);
+    expect(side(padding, 1) + px(run("margin-right", W))).toBe(6);
+    expect(run("margin-left", W)).toBe("auto");
     expect(cell("justify-content", W)).toBe("center");
   });
 
@@ -163,6 +173,36 @@ describe("the cell at 1440 wide", () => {
     expect(side(cell("padding", W), 0)).toBe(1);
     // At Compact's 40: the cell is 0 to 39, its content 1 to 39, the 28 button 6 to 34.
     expect(1 + (40 - 1 - 1 - 28) / 2).toBe(6);
+  });
+});
+
+describe("its words in a cell that cannot hold them", () => {
+  it("keep one line and end in an ellipsis, as a stripe's do, so no language wraps them under the bar", () => {
+    const W = 1440;
+    const run = of([...cellChain(), el("div", ["utility-run"])]);
+    const wordButton = [...cellChain(), el("div", ["utility-run"]), el("button", ["rail-btn", "rail-btn-bar"], { attrs: { type: "button", "data-rail-item": "feedback" } })];
+    const word = of([...wordButton, el("span", ["rail-word"])]);
+    expect(run("min-width", W)).toBe("0");
+    expect(of(wordButton)("min-width", W)).toBe("0");
+    expect(word("white-space", W)).toBe("nowrap");
+    expect(word("overflow", W)).toBe("hidden");
+    expect(word("text-overflow", W)).toBe("ellipsis");
+    expect(word("min-width", W)).toBe("0");
+  });
+});
+
+describe("the cell over icon stripes", () => {
+  it("is as wide as its button and draws no line, which would not meet the stripe's 40 under it", () => {
+    for (const W of [1440, 1024, 720, 641]) {
+      expect(iconsCell("width", W)).toBe("auto");
+      expect(iconsCell("border-left", W)).toBe("0");
+      // The rest is the cell's over words: the window's corner, Search's 8.
+      expect(side(bar("padding", W), 1) + side(cell("margin", W), 1)).toBe(0);
+      expect(px(bar("gap", W)) + side(cell("margin", W), 3)).toBe(8);
+    }
+    // Over words the cell keeps the stripe's width and its line.
+    expect(cell("width", 1440)).toBe("var(--edge-w)");
+    expect(cell("border-left", 1440)).toBe("1px solid var(--line)");
   });
 });
 

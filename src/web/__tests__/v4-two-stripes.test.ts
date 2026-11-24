@@ -409,7 +409,9 @@ describe("the phone keeps its one dock", () => {
     // CHANGED ON PURPOSE (phone More › Open the Command Panel): its press is
     // openPanelFromMore, the stage's own press plus the Sessions list making way,
     // which had covered the stage (v4-phone-board-stack.test.tsx).
-    expect(app).toContain("more={[rails.search, ...commandPanelMore(stage.enabled ? openPanelFromMore : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}");
+    // CHANGED ON PURPOSE (a bare glyph was not found): More lists Send feedback
+    // too, by its words, beside the glyph in the bar's corner.
+    expect(app).toContain("more={[rails.search, ...commandPanelMore(stage.enabled ? openPanelFromMore : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities]}");
     expect(app).toMatch(/\{!phone && <EdgeRail side="right"/);
     // The stripes take nothing on a phone: --edge-w is 0 there.
     expect(decl(":root", "--edge-w", "(max-width: 640px)")).toBe("0px");

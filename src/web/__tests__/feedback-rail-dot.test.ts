@@ -80,9 +80,10 @@ describe("Feedback on the topbar", () => {
 });
 
 describe("a dot behind the phone's More", () => {
-  it("is not Feedback's: More has no Feedback row, its corner on the bar is its one entry", () => {
+  it("can be Feedback's: More lists Send feedback beside its corner on the bar", () => {
+    // CHANGED ON PURPOSE (a bare glyph was not found): More's Feedback row is back.
     const app = read("../App.tsx");
-    expect(app).toMatch(/\.\.\.rails\.utilities\.filter\(item => item !== rails\.corner\)\]\}/);
+    expect(app).toMatch(/\.\.\.rails\.utilities\]\}/);
     expect(app).toContain('<div className="tb-corner"><CornerRun item={rails.corner} /></div>');
   });
 

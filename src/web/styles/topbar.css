@@ -238,6 +238,14 @@
   padding: 1px 1px 0 0;
   border-left: 1px solid var(--line);
 }
+/* Over icon stripes (an older profile's choice, under 1100px, Workspace) the
+   corner still says Send feedback beside its glyph (CornerRun): a 40 cell
+   cannot hold it, so the cell is as wide as its button, keeps the window's
+   corner and Search's 8, and draws no line, which would no longer meet the
+   stripe's under it. Over words the cell stays the stripe's 156 and its line. */
+@media (min-width: 641px) {
+  .app:not(:has(> .edge-rail[data-words])) > .topbar .tb-corner { width: auto; border-left: 0; }
+}
 /* Two providers in an incident at once (#1311). The readout gives from the
    left, so two chips in full — Claude's and Codex's, about 280px — cost the
    wordmark on a 1440px screen with a session waiting, and the stream pill

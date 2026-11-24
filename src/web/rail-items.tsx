@@ -78,8 +78,8 @@ export interface RailItems {
    *  records, the watchers, then Radio. The desktop draws the two stripes. */
   right: RailItem[][];
   /** Settings and Feedback: quick open lists both, pinned to its empty field,
-   *  and the phone's More holds Settings (Feedback is in the bar's corner there
-   *  too). */
+   *  and the phone's More holds both (Feedback's glyph is in the bar's corner
+   *  there too). */
   utilities: RailItem[];
   /** Quick open (quick-open.ts): the bar's search field, ahead of Feedback's
    *  corner, and the first row under the phone's More. */
@@ -278,9 +278,9 @@ export function railItems({
     barLook: "field", fieldText: t(QUICK_OPEN_PLACEHOLDER_MSG),
   };
   // People rarely found Feedback as a bare glyph in the corner, so its hint
-  // says what it is for under its name, quick open pins it, and the corner
-  // draws its word while the stripes under it draw theirs (CornerRun,
-  // EdgeRails.tsx).
+  // says what it is for under its name, quick open pins it, and on every
+  // window wider than a phone the corner says Send feedback beside the glyph
+  // (CornerRun, EdgeRails.tsx).
   const feedback: RailItem = {
     id: "feedback", label: t("board.rail.feedback"), short: t("board.rail.feedback"), menu: t("board.rail.feedback.menu"),
     detail: t("board.rail.feedback.detail"),
