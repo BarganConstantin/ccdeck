@@ -78,12 +78,23 @@ export interface HostsLineView {
 /** The end bar's sentence and its one action. */
 export interface EndView {
   sentence: string;
+  /** The sentence's tooltip: the full path of a folder it names by name. */
+  where?: string;
+  /** The sentence changes where the reader is looking (a Check again on a
+   *  folder still gone): a polite live region. */
+  live?: boolean;
   action: string;
+  /** The action's tooltip, when it says more than the sentence: what
+   *  Choose folder… does with the conversation (folder-gone). */
+  title?: string;
+  /** The action's id, for a popover hung off it (Choose folder…'s New session). */
+  id?: string;
   busy?: boolean;
   onAction(): void;
   /** A second way on, after the action: a new session in the same folder,
-   *  when Reopen here could not resume the session (TerminalStage endView). */
-  alt?: { action: string; title?: string; onAction(): void };
+   *  when Reopen here could not resume the session, or Check again on a
+   *  folder that was gone (TerminalStage endView). */
+  alt?: { action: string; title?: string; busy?: boolean; onAction(): void };
 }
 
 export interface KeysBarProps {
@@ -255,9 +266,9 @@ export default function KeysBar(p: KeysBarProps) {
   if (p.end) {
     left = (
       <div className="ts-keys" data-owner="none" data-split>
-        <span className="ts-end">{p.end.sentence}</span>
-        <button type="button" className="btn" aria-busy={p.end.busy || undefined} data-stage-land onClick={p.end.onAction}>{p.end.action}</button>
-        {p.end.alt && <button type="button" className="btn" title={p.end.alt.title} onClick={p.end.alt.onAction}>{p.end.alt.action}</button>}
+        <span className="ts-end" title={p.end.where} role={p.end.live ? "status" : undefined}>{p.end.sentence}</span>
+        <button type="button" id={p.end.id} className="btn" title={p.end.title} aria-busy={p.end.busy || undefined} data-stage-land onClick={p.end.onAction}>{p.end.action}</button>
+        {p.end.alt && <button type="button" className="btn" title={p.end.alt.title} aria-busy={p.end.alt.busy || undefined} onClick={p.end.alt.onAction}>{p.end.alt.action}</button>}
       </div>
     );
   } else if (p.notice) {

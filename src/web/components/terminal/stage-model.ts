@@ -18,7 +18,7 @@
 // decided there; the stage only prints the chord and
 // says who owns the keys.
 import type { SizeOwner } from "../../terminal-protocol";
-import type { PanelUnavailable, ProjectWorktree, TerminalProvider, TerminalTarget, TmuxProgress } from "../../terminal-api";
+import type { FolderRefusal, PanelUnavailable, ProjectWorktree, TerminalProvider, TerminalTarget, TmuxProgress } from "../../terminal-api";
 import { shortAgo } from "../../relative-time";
 import { elapsed } from "../../duration";
 import { clockShort } from "../../elapsed-short";
@@ -64,6 +64,17 @@ import type { Provider } from "../../types";
  *    and the pane offers to try again or, as an explicit choice, a new
  *    session in the same folder.
  *  - detached: someone else took the pane away; the session runs on.
+ *  - folder-gone: the folder the press needs is not one to start in — gone
+ *    (a removed worktree, a project moved or renamed) or not this account's
+ *    to open — found before anything was started (the stage asked the deck
+ *    first) or said by the deck refusing the launch or the adopt. Named, with
+ *    Choose folder… (a NEW session there, never this conversation in another
+ *    folder) and Check again, which runs the press again only once the folder
+ *    is back; never asked again by itself. `sessionId` for a conversation,
+ *    which stays with its folder; none for a launch. `frame` when it came
+ *    from an ended pane, whose last frame stays and whose end bar offers the
+ *    choices; else a card. `busy` while Check again asks; `checked` once one
+ *    found it still gone.
  *  - error: anything else, said in a sentence, with a way to try again.
  *    `reopen` when it is the deck refusing a Reopen here: Try again reopens
  *    again, and a new session in the same folder is offered beside it.
@@ -78,6 +89,7 @@ export type StagePhase =
   | { kind: "tmux-missing"; reason: string; install?: string; download?: string; busy: boolean }
   | { kind: "ended"; atOpen?: boolean; clean?: boolean; updated?: boolean; busy?: boolean; unresumed?: boolean }
   | { kind: "detached" }
+  | FolderGonePhase
   /** `code`: the engine's refusal, when it is a state of this machine
    *  (terminal-api's PANEL_UNAVAILABLE). Such a card checks again in place,
    *  `busy` while it does, as the tmux card does. `missing`: a Claude
@@ -87,6 +99,32 @@ export type StagePhase =
   | { kind: "error"; message: string; code?: PanelUnavailable; busy?: boolean; missing?: "claude"; reopen?: boolean };
 
 export type StagePhaseKind = StagePhase["kind"];
+
+/** The stage's phase when the folder a press needs is not one to start in. */
+export interface FolderGonePhase {
+  kind: "folder-gone";
+  /** The folder, as the session or the launch names it. */
+  cwd: string;
+  code: FolderRefusal;
+  /** The agent a new session in another folder would start. */
+  agent: TerminalProvider;
+  /** The conversation that stays with the folder; none for a launch. */
+  sessionId?: string;
+  frame?: boolean;
+  busy?: boolean;
+  checked?: boolean;
+}
+
+/** Whether the pane shows no frame and no end bar, only a card: the cards
+ *  that say why there is nothing to type into, and a folder-gone that did
+ *  not come from an ended pane. */
+export function paneless(phase: StagePhase): boolean {
+  switch (phase.kind) {
+    case "empty": case "not-attachable": case "error": case "tmux-missing": case "tmux-installing": return true;
+    case "folder-gone": return phase.frame !== true;
+    default: return false;
+  }
+}
 
 /** How long a pane must have been live before an ending counts as the agent
  *  ending itself (internal #104). Below it, the ending is the start failing,
@@ -110,7 +148,8 @@ export function endedCleanly(exit: { exitStatus?: number; exitSignal?: number },
  *  another session's, and drawing it under this header would be a lie. */
 export function showsFrame(phase: StagePhase): boolean {
   return phase.kind === "live" || phase.kind === "ended" || phase.kind === "detached"
-    || (phase.kind === "attaching" && phase.reconnect);
+    || (phase.kind === "attaching" && phase.reconnect)
+    || (phase.kind === "folder-gone" && phase.frame === true);
 }
 
 /**
@@ -288,6 +327,66 @@ export const START_NEW_TIP_MSG = "board.stage.startNewTip";
 /** The card's first line when the deck refused a Reopen here. */
 export const REOPEN_FAILED_MSG = "board.stage.reopenFailed";
 
+/** The folder-gone card and end bar (StagePhase `folder-gone`): its title, by
+ *  why; what it says for a conversation and for a launch ({name}: the agent);
+ *  Choose folder…; what a Check again that found it still gone adds; the
+ *  header's word ({folder}: the folder's own name); the end bar's sentence
+ *  ({what}: the title, {folder}: the path). */
+export const FOLDER_GONE_MSG = "board.stage.folderGone.title";
+export const FOLDER_DENIED_MSG = "board.stage.folderGone.denied";
+export const FOLDER_GONE_BODY_MSG = "board.stage.folderGone.body";
+export const FOLDER_GONE_LAUNCH_MSG = "board.stage.folderGone.bodyLaunch";
+export const CHOOSE_FOLDER_MSG = "board.stage.folderGone.choose";
+export const STILL_MISSING_MSG = "board.stage.folderGone.stillMissing";
+export const STILL_DENIED_MSG = "board.stage.folderGone.stillDenied";
+export const FOLDER_GONE_PHRASE_MSG = "board.stage.folderGone.phrase";
+export const FOLDER_DENIED_PHRASE_MSG = "board.stage.folderGone.phraseDenied";
+export const FOLDER_GONE_LEAD_MSG = "board.stage.folderGone.lead";
+export const FOLDER_DENIED_LEAD_MSG = "board.stage.folderGone.leadDenied";
+export const FOLDER_GONE_NEXT_MSG = "board.stage.folderGone.next";
+export const FOLDER_GONE_NEXT_LAUNCH_MSG = "board.stage.folderGone.nextLaunch";
+
+/** The folder-gone title: gone, or not this account's to open. */
+export function folderGoneTitle(phase: FolderGonePhase): string {
+  return t(phase.code === "folder-denied" ? FOLDER_DENIED_MSG : FOLDER_GONE_MSG);
+}
+
+/** What the folder-gone card explains. A conversation stays with the folder
+ *  it started in — the agent keeps it there — so another folder is a new
+ *  session, and the old conversation waits for its folder; a launch had no
+ *  conversation yet. */
+export function folderGoneBody(phase: FolderGonePhase): string {
+  return phase.sessionId ? t(FOLDER_GONE_BODY_MSG) : t(FOLDER_GONE_LAUNCH_MSG, { name: agentName(phase.agent) });
+}
+
+/** What a Check again that found the folder still gone adds, or null. */
+export function folderStillGone(phase: FolderGonePhase): string | null {
+  if (!phase.checked || phase.busy) return null;
+  return t(phase.code === "folder-denied" ? STILL_DENIED_MSG : STILL_MISSING_MSG);
+}
+
+/**
+ * The one line a folder-gone pane shows over its kept frame, and its end bar
+ * says: what is gone, by the folder's name (the full path is the line's
+ * tooltip), then what Choose folder… does — a new session elsewhere, the
+ * conversation staying with its folder, or for a launch, the agent started in
+ * another folder. A Check again that found it still gone says that instead of
+ * the first half, so the line changes where the reader is looking.
+ */
+export function folderGoneLine(phase: FolderGonePhase): { lead: string; next: string } {
+  const folder = folderName(phase.cwd);
+  const lead = folderStillGone(phase)
+    ?? t(phase.code === "folder-denied" ? FOLDER_DENIED_LEAD_MSG : FOLDER_GONE_LEAD_MSG, { folder });
+  const next = phase.sessionId ? t(FOLDER_GONE_NEXT_MSG) : t(FOLDER_GONE_NEXT_LAUNCH_MSG, { name: agentName(phase.agent) });
+  return { lead, next };
+}
+
+/** The folder, cut to a line: its end, which tells two projects apart. The
+ *  full path goes in the tooltip. */
+export function folderShown(cwd: string, max = 48): string {
+  return elidePath(cwd, max);
+}
+
 /**
  * What the header says once the stage's own phase is taken into account. The
  * board's sentence stands whenever the pane is up or the stage has nothing
@@ -331,6 +430,14 @@ export function headerStatus(board: StageStatus | null, phase: StagePhase): Stag
       // opened ended some time ago, and the stage cannot say when.
       if (board?.state === "ended") return board;
       return { state: "ended", phrase: phase.atOpen ? t("board.stage.phrase.ended") : t("board.stage.phrase.endedJustNow") };
+    case "folder-gone":
+      // The stage knows what the board cannot: the folder is not there. Its
+      // own name in the word, the whole path in the tooltip.
+      return {
+        state: "ended",
+        phrase: t(phase.code === "folder-denied" ? FOLDER_DENIED_PHRASE_MSG : FOLDER_GONE_PHRASE_MSG, { folder: folderName(phase.cwd) }),
+        arg: phase.cwd,
+      };
     default:
       return board ?? { state: "none", phrase: "" };
   }
@@ -411,6 +518,7 @@ export function stageAnnouncement(name: string, phase: StagePhase): string | nul
     case "not-attachable": return phase.stillRunning ? t("board.stage.announceStillRunning", { name }) : t("board.stage.announceNoPane", { name });
     case "tmux-installing": return t("board.stage.announceTmuxSetup");
     case "tmux-missing": return t("board.stage.announceTmuxMissing");
+    case "folder-gone": return folderStillGone(phase) ?? t("board.stage.announceFolderGone", { name, folder: phase.cwd });
     case "error": return phase.missing === "claude" ? t(CLAUDE_MISSING_MSG) : errorWords(phase.message);
     default: return null;
   }

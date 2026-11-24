@@ -221,6 +221,8 @@ describe("internal #99: the stage shows Term before it gives the pane the keys",
     // CHANGED ON PURPOSE (opencode and Copilot): not for a session the deck
     // only hears events from. Its Term card says it cannot be opened here, so
     // "reply in Term" would send the reader to a pane that takes no keys.
-    expect(ts).toMatch(/const chatCannotType = chatOn && !chatReadOnly && p\.show\.kind === "session" && PANELESS\.has\(phase\.kind\);/);
+    // CHANGED ON PURPOSE (missing folder): a card is `paneless(phase)` now,
+    // which is the same cards, and a folder-gone pane only without its frame.
+    expect(ts).toMatch(/const chatCannotType = chatOn && !chatReadOnly && p\.show\.kind === "session" && paneless\(phase\);/);
   });
 });

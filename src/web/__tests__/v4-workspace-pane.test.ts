@@ -407,9 +407,11 @@ describe("the pane as V4's Workspace page draws it", () => {
     expect(onItsWay(reconnect, "shown"), "a reconnect says so in the bar").toBe(false);
     expect(onItsWay({ kind: "live", sizeOwner: "dock", readOnly: false }, "shown")).toBe(false);
     const ts = withoutComments(sourceOf("components/terminal/TerminalStage.tsx"));
-    expect(ts).toContain("paneless={p.show.kind === \"empty\" || PANELESS.has(phase.kind) || onItsWay(phase, frame)}");
+    // CHANGED ON PURPOSE (missing folder): the phases with no pane are
+    // stage-model's paneless(), where a folder-gone keeps its ended frame.
+    expect(ts).toContain("paneless={p.show.kind === \"empty\" || paneless(phase) || onItsWay(phase, frame)}");
     // The phone's key row is not the strip, and keeps its own rule.
-    expect(ts).toContain("<PhoneKeys canType={typing} paneless={p.show.kind === \"empty\" || PANELESS.has(phase.kind)}");
+    expect(ts).toContain("<PhoneKeys canType={typing} paneless={p.show.kind === \"empty\" || paneless(phase)}");
     // Paneless, the strip is not drawn.
     expect(html(createElement(KeysBar, barProps({ workspace: true, paneless: true })))).toMatch(/<footer class="ts-bar"[^>]*hidden=""/);
   });

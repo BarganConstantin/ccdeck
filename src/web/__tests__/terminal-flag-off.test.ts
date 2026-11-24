@@ -101,6 +101,10 @@ const ROUTES: [string, string, unknown?][] = [
   ["POST", "/api/terminal/background", { sessionId: "0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f", provider: "claude", cwd: "/tmp", check: true }],
   ["POST", "/api/terminal/adopt", { sessionId: "0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f", provider: "claude", cwd: "/tmp" }],
   ["POST", "/api/terminal/launch", { agent: "claude", cwd: "/tmp" }],
+  // A launch or a reopen whose folder is gone: off answers before the folder
+  // is asked about, so it is never a folder-missing either.
+  ["POST", "/api/terminal/launch", { agent: "codex", cwd: join(DIR, "gone-worktree") }],
+  ["POST", "/api/terminal/adopt", { sessionId: "0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f", provider: "claude", cwd: join(DIR, "gone-worktree") }],
   ["POST", "/api/terminal/claim", { key: "launch-k1", sessionId: "0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f", provider: "codex", cwd: "/tmp" }],
   ["GET", "/api/terminal/hosts"],
   ["POST", "/api/terminal/hosts/end", { generation: 1, sessions: ["a".repeat(32)] }],
