@@ -29,7 +29,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { emitKeypressEvents } from "node:readline";
 import {
   EXIT, ask, autoRules, deckTrouble, load, rosterTrouble, silentDecks, switchHere, switchThroughDeck,
@@ -1324,29 +1324,19 @@ const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP", ...(process.platform === "win32"
 
 // ── the screen reopened on new code ─────────────────────────────────────────
 
-/** The two scripts in bin/ that answer `tui`: the supervisor every `ccdeck`
- *  starts as, and the worker it runs the command in. */
-const ENTRIES = Object.freeze(["deck.js", "agent-dag.js"]);
-
 /**
- * The script to start the new screen with: the one this process was started
- * from, inside this package.
- *
- * `ccdeck tui` is the supervisor, bin/agent-dag.js, which runs every command
- * in its worker, bin/deck.js (`flags.command` → bin/cli/commands.js → here) —
- * so argv[1] in this process is bin/deck.js, by the real path the supervisor
- * resolved it to. It is taken when it is one of the package's two entries in
- * PKG_ROOT's bin/, and bin/deck.js otherwise (a test runner, an embedder):
- * never a script outside the package whose version was just proved. Started
- * straight, the worker answers `tui` and `--version` as it does under the
- * supervisor, which adds nothing to a command.
+ * The script to start the new screen with: bin/deck.js in this package, by
+ * its real path — the worker every `ccdeck` command runs in, under the
+ * supervisor (bin/agent-dag.js → bin/deck.js → bin/cli/commands.js → here).
+ * Started straight it answers `tui` and `--version` as it does under the
+ * supervisor, which adds nothing to a command. Always this package's, never a
+ * script outside the package whose version was just proved; and never worked
+ * out from argv, which names what was typed (invoked-as.mjs) rather than which
+ * code is on disk.
  */
-export function tuiEntry({ argv1 = process.argv[1], pkgRoot = PKG_ROOT, real = realpathSync } = {}) {
+export function tuiEntry({ pkgRoot = PKG_ROOT, real = realpathSync } = {}) {
   const realOr = (p) => { try { return real(p); } catch { return resolve(p); } };
-  const bin = join(realOr(pkgRoot), "bin");
-  const given = typeof argv1 === "string" && argv1 ? realOr(resolve(argv1)) : null;
-  if (given && dirname(given) === bin && ENTRIES.includes(basename(given))) return given;
-  return join(bin, "deck.js");
+  return join(realOr(pkgRoot), "bin", "deck.js");
 }
 
 /** The environment the new code starts in: this one, read as a first start

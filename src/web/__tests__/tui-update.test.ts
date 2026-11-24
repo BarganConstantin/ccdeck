@@ -258,19 +258,15 @@ describe("the screen at rest", () => {
 // ── the reopen's pieces ─────────────────────────────────────────────────────
 
 describe("the reopen's pieces", () => {
-  it("starts the new screen from the entry this one was started from, inside the package", () => {
+  it("starts the new screen from this package's own worker, by its real path", () => {
     const deck = join(PKG_ROOT, "bin", "deck.js");
-    const supervisor = join(PKG_ROOT, "bin", "agent-dag.js");
-    expect(tuiEntry({ argv1: deck, pkgRoot: PKG_ROOT })).toBe(deck);
-    expect(tuiEntry({ argv1: supervisor, pkgRoot: PKG_ROOT })).toBe(supervisor);
-    // A test runner, a script elsewhere, nothing at all: the worker that answers commands.
-    expect(tuiEntry({ argv1: "/usr/lib/node_modules/vitest/vitest.mjs", pkgRoot: PKG_ROOT })).toBe(deck);
-    expect(tuiEntry({ argv1: join(PKG_ROOT, "bin", "cli", "tui.js"), pkgRoot: PKG_ROOT })).toBe(deck);
-    expect(tuiEntry({ argv1: undefined, pkgRoot: PKG_ROOT })).toBe(deck);
-    // A link to the entry, as a global install's bin is, resolves to it.
-    const linked = "/usr/local/bin/ccdeck";
-    const real = (p: string) => (p === linked ? supervisor : realpathSync(p));
-    expect(tuiEntry({ argv1: linked, pkgRoot: PKG_ROOT, real })).toBe(supervisor);
+    expect(tuiEntry({ pkgRoot: PKG_ROOT })).toBe(join(realpathSync(PKG_ROOT), "bin", "deck.js"));
+    // A package reached through a link, as a global install's is, resolves to it.
+    const linked = "/usr/local/lib/node_modules/ccdeck";
+    const real = (p: string) => (p === linked ? PKG_ROOT : realpathSync(p));
+    expect(tuiEntry({ pkgRoot: linked, real })).toBe(deck);
+    // A root that cannot be resolved is taken as it is.
+    expect(tuiEntry({ pkgRoot: "/nowhere/ccdeck", real: () => { throw new Error("ENOENT"); } })).toBe(join("/nowhere/ccdeck", "bin", "deck.js"));
   });
 
   it("reads the note the screen before left, and nothing that is not one", () => {
