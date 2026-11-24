@@ -324,12 +324,14 @@ describe("the row's pin and its key (RailRow)", () => {
     return { tree: m.tree, button, key };
   }
 
-  it("is a quiet icon button before the eye, named Pin, its key in its title", () => {
+  it("is a quiet icon button after the eye, at the edge, named Pin, its key in its title", () => {
     const run = vi.fn();
     const { tree } = drawRow({ pinned: false, run }, { kind: "hide", run: () => {} });
     const buttons = all(tree, e => e.type === "button");
-    expect(buttons.map(b => b.props.className)).toEqual(["sl-row", "sl-row-act sl-row-pin", "sl-row-act sl-row-hide"]);
-    const pin = buttons[1];
+    // The pin last, so it is at the edge on every row and stays put when the
+    // eye comes and goes: a second press on it is the pin again, never the eye.
+    expect(buttons.map(b => b.props.className)).toEqual(["sl-row", "sl-row-act sl-row-hide", "sl-row-act sl-row-pin"]);
+    const pin = buttons[2];
     expect(pin.props["aria-label"]).toBe("Pin");
     expect(pin.props.title).toBe(`Pin (${pinChordLabel(platformName())})`);
     expect(one(pin, e => e.type === PinGlyph)!.props.pinned).toBe(false);

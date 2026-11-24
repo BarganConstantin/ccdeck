@@ -261,10 +261,12 @@
 .session-list .sl-row-in:has(> .sl-row[data-one-line]) > .sl-row-act { translate: 0 -50%; }
 .session-list .sl-row-in:has(> .sl-row.selected, > .sl-row[data-pane-active]) > .sl-row-act { background-color: var(--selected); }
 .session-list .sl-row-in:has(> .sl-row-act) > .sl-row { padding-right: 32px; }
-/* Pin and the eye side by side: the pin one act and 2px in from the edge, the
-   eye where it has always been, and room kept for both where they show. */
+/* The eye and the pin side by side: the eye one act and 2px in from the edge,
+   the pin at the edge, where it is on every row, and room kept for both where
+   they show. */
 .session-list .sl-row-act:has(+ .sl-row-act) { right: 29px; }
-.session-list .sl-row-in:has(> .sl-row-act + .sl-row-act) > .sl-row { padding-right: 58px; }
+/* 32 for the act at the edge, as for one, and 26 for the second and its 2px. */
+.session-list .sl-row-in:has(> .sl-row-act + .sl-row-act) > .sl-row { padding-right: calc(32px + 26px); }
 .session-list .sl-row-act:active { transform: scale(var(--press-small)); }
 /* Under a fine pointer, Pin and Hide from list arrive with the pointer or with
    keyboard focus in the row, over the row's time and status, which step aside
@@ -602,6 +604,17 @@
 
 @media (pointer: coarse) {
   .session-list .sl-row[data-compact][data-one-line] { min-height: 44px; }
+}
+
+/* Where nothing hovers (a phone, a tablet), the acts cannot wait for the
+   pointer, and a pin on every row would end each one in two buttons. So there
+   the pin is drawn on the row that is open or selected, and the eye on a
+   finished row stays where it always was, at the edge. */
+@media (hover: none), (pointer: coarse) {
+  .session-list .sl-row-in:not(:has(> .sl-row.selected, > .sl-row[data-pane-active])) > .sl-row-pin { display: none; }
+  .session-list .sl-row-in:not(:has(> .sl-row.selected, > .sl-row[data-pane-active])) > .sl-row-act:has(+ .sl-row-pin) { right: 3px; }
+  .session-list .sl-row-in:not(:has(> .sl-row.selected, > .sl-row[data-pane-active])):has(> .sl-row-pin) > .sl-row { padding-right: 32px; }
+  .session-list .sl-row-in:not(:has(> .sl-row.selected, > .sl-row[data-pane-active])):has(> .sl-row-pin):not(:has(> .sl-row-act + .sl-row-act)) > .sl-row { padding-right: 8px; }
 }
 
 /* REDUCED MOTION: a joining row's space opens at once and only its opacity

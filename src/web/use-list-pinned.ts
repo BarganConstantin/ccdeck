@@ -6,7 +6,7 @@
 // Nothing here reaches a process, a pane or the Board's cards: a pin only
 // decides where the list draws a row.
 import { useCallback, useEffect, useState } from "react";
-import { prunedPinned, readListPinned, saveListPinned, togglePinned, type PinnedIds } from "./list-pinned";
+import { noteUnpinned, prunedPinned, readListPinned, saveListPinned, togglePinned, type PinnedIds } from "./list-pinned";
 import { localStore } from "./storage";
 
 export function useListPinned({ agents, revision, ready }: {
@@ -36,8 +36,13 @@ export function useListPinned({ agents, revision, ready }: {
   }, [ready, agents, revision]);
 
   const isPinned = (id: string) => pinnedIds.includes(id);
-  /** Pins the session, or takes its pin off. */
-  const toggle = useCallback((id: string) => change(previous => togglePinned(previous, id)), [change]);
+  /** Pins the session, or takes its pin off, and then gives it back the grace
+   *  a session gets once it finishes (list-pinned.ts). */
+  const toggle = useCallback((id: string) => {
+    const store = localStore();
+    if (readListPinned(store).includes(id)) noteUnpinned(store, id, Date.now());
+    change(previous => togglePinned(previous, id));
+  }, [change]);
 
   return { pinnedIds, isPinned, toggle };
 }

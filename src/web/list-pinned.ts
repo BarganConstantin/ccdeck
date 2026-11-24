@@ -23,6 +23,13 @@
 // those it counts or evicts (board-sweeps.ts pruneDoneSessions): it stays on
 // top until it is unpinned, like a pinned conversation in Claude's app.
 //
+// AN UNPINNED SESSION GETS ITS GRACE BACK. A pin can outlast the cap by far, so
+// without this the next tick would take an old session the moment its pin came
+// off, with the pointer still on the list and no Undo. For the grace a session
+// gets once it finishes (DONE_SESSION_GRACE_MS) after its pin comes off, the
+// sweep keeps it as it keeps a pinned one; then it is counted like any other.
+// The time is stored beside the pins, so another tab's sweep keeps it too.
+//
 // IT GOES WITH ITS SESSION. When the session leaves the board anyway (the
 // agent cap evicts it, or the board is cleared), its row leaves Pinned and the
 // pin is dropped from storage, once the deck has heard its whole history: a
@@ -32,9 +39,12 @@
 // STORED as an array of ids, oldest pin first, under one agent-dag.* key beside
 // the hidden marks (list-hidden.ts), capped. A store that is missing, blocked
 // or holds anything else reads as nothing pinned.
+import { DONE_SESSION_GRACE_MS } from "./board-limits";
 import { isApplePlatform } from "./platform";
 
 export const LIST_PINNED_KEY = "agent-dag.listPinned";
+/** When each recently unpinned session's pin came off: `{ id: ms }`. */
+export const LIST_UNPINNED_KEY = "agent-dag.listUnpinned";
 
 /** How many pins are kept. Pins go with their sessions, so a list never comes
  *  near it; the cap is for a store that is never pruned, and drops the oldest. */
@@ -79,6 +89,37 @@ export function withoutPinned(ids: PinnedIds, drop: Iterable<string>): PinnedIds
 /** Pinned if it was not, not pinned if it was. */
 export function togglePinned(ids: PinnedIds, id: string): PinnedIds {
   return ids.includes(id) ? withoutPinned(ids, [id]) : withPinned(ids, id);
+}
+
+/** The unpin times in storage; anything else in it reads as none. */
+function readUnpinned(store: Pick<Storage, "getItem"> | null): Record<string, number> {
+  try {
+    const value: unknown = JSON.parse(store?.getItem(LIST_UNPINNED_KEY) ?? "{}");
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    const times: Record<string, number> = {};
+    for (const [id, at] of Object.entries(value)) {
+      if (id !== "" && typeof at === "number" && Number.isFinite(at)) times[id] = at;
+    }
+    return times;
+  } catch { return {}; }
+}
+
+/** Notes that `id`'s pin came off at `at`, dropping the times whose grace has
+ *  run out, so the record stays as short as the grace. */
+export function noteUnpinned(store: Pick<Storage, "getItem" | "setItem"> | null, id: string, at: number): void {
+  const times = Object.fromEntries(Object.entries(readUnpinned(store)).filter(([, t]) => at - t <= DONE_SESSION_GRACE_MS));
+  times[id] = at;
+  try { store?.setItem(LIST_UNPINNED_KEY, JSON.stringify(times)); } catch { /* disabled storage, full quota */ }
+}
+
+/** The sessions the board's sweep keeps whatever the cap says: the pinned
+ *  ones, and the ones unpinned less than the grace ago. */
+export function sweepKeeps(store: Pick<Storage, "getItem"> | null, now: number): Set<string> {
+  const keep = new Set<string>(readListPinned(store));
+  for (const [id, at] of Object.entries(readUnpinned(store))) {
+    if (now - at <= DONE_SESSION_GRACE_MS) keep.add(id);
+  }
+  return keep;
 }
 
 /** The pins without the sessions the deck no longer knows. Asked only once the

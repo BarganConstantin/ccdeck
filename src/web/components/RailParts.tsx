@@ -391,19 +391,10 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
             trailing status, which they replace while they show
             (session-list.css): the row never moves for them. Their own
             controls, never inside the row's button, so the row's click and
-            Enter stay what they were. The pin first, then the eye at the
-            edge, where the eye has always been. */}
-        {pin && (
-          <button
-            type="button"
-            className="sl-row-act sl-row-pin"
-            aria-label={pinWords}
-            title={withKey(pinWords, pinChordLabel(platformName()), true)}
-            onClick={e => pin.run(r.sessionId, e.currentTarget)}
-          >
-            <PinGlyph pinned={pin.pinned} />
-          </button>
-        )}
+            Enter stay what they were. The eye first, then the pin at the
+            edge: the pin is the act every row has, so it stays where it is
+            when the eye comes and goes, and a second press on it is the pin
+            again, never the eye. */}
         {act && (
           <button
             type="button"
@@ -413,6 +404,17 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
             onClick={e => act.run(r.sessionId, e.currentTarget)}
           >
             <BrowserWatchGlyph watching={act.kind === "show"} />
+          </button>
+        )}
+        {pin && (
+          <button
+            type="button"
+            className="sl-row-act sl-row-pin"
+            aria-label={pinWords}
+            title={withKey(pinWords, pinChordLabel(platformName()), true)}
+            onClick={e => pin.run(r.sessionId, e.currentTarget)}
+          >
+            <PinGlyph pinned={pin.pinned} />
           </button>
         )}
       </div>

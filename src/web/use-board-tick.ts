@@ -8,7 +8,7 @@
 // it tells the server, and the selection and modals it closes behind them.
 import { useEffect, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import { sweepTick } from "./prune";
-import { readListPinned } from "./list-pinned";
+import { sweepKeeps } from "./list-pinned";
 import { localStore } from "./storage";
 import { inTerminalPanel } from "./terminal-keys";
 
@@ -43,8 +43,9 @@ export function useBoardTick({ stateRef, rerender, pruneSelectionToBoard, setCon
       // where the order, the constants and the #1024 collection can be run by
       // a test (#1175).
       // The pins are read from storage on the tick itself, so a pin put on in
-      // the list (or in another tab) holds its session from the next tick on.
-      const pinned = new Set(readListPinned(localStore()));
+      // the list (or in another tab) holds its session from the next tick on,
+      // and a pin just taken off holds it for its grace (list-pinned.ts).
+      const pinned = sweepKeeps(localStore(), t);
       const { changed, forgotten } = sweepTick(stateRef.current, t, pinned);
       if (forgotten.length > 0) {
         // The server drops its change-gated name and model caches for these,
