@@ -27,6 +27,15 @@
 // conhost, which passes on only what changed; clearing the screen takes it off
 // everywhere. So a frame that leaves a wrapped row behind is written whole.
 //
+// THE CLIPBOARD, on a key and never otherwise: `copy` asks the terminal to put
+// a text on the clipboard of the machine the person sits at (OSC 52), which is
+// the only clipboard that matters over SSH. Nothing answers it — a terminal
+// that allows it, one that refuses it and one that never heard of it all stay
+// silent — so what the screen says after it is that it was sent, never that it
+// landed. It is written between frames, in a write of its own, and moves no
+// cursor; the next frame is written whole all the same, so a terminal that
+// printed the sequence instead of taking it has it painted over.
+//
 // Pure in the sense that matters for a test: everything goes through `write`,
 // and nothing reads the terminal.
 import { CURSOR_HIDE, CURSOR_SHOW } from "./term.mjs";
@@ -45,11 +54,33 @@ const HOME = "\x1b[H";
 export const framesHeld = (platform = process.platform) => platform !== "win32";
 
 /**
+ * OSC 52: set the clipboard (`c`) to `text`, base64 of its UTF-8, ended by BEL,
+ * the terminator the widest set of terminals takes.
+ *
+ * The same bare sequence inside tmux, never wrapped in tmux's DCS passthrough
+ * (`ESC P tmux; … ESC \`), and never both. tmux takes an application's OSC 52
+ * only with `set-clipboard on` — its default, `external`, drops it — and then
+ * keeps it as a paste buffer and passes it on to the terminal outside. The
+ * passthrough is off by default since tmux 3.3 (`allow-passthrough`), so the
+ * wrapper is dropped there just the same, and turning it on is a wider door
+ * than this needs. And `$TMUX` only tells of a tmux on this machine: one on the
+ * machine the person came in from over SSH is invisible from here, and takes
+ * the bare sequence alone. Sending both would set the clipboard twice wherever both get
+ * through (a tmux before 3.3 with `set-clipboard on`). So one rule everywhere,
+ * and one setting to name when the copy does not arrive.
+ */
+export function clipboardSequence(text) {
+  return `\x1b]52;c;${Buffer.from(String(text), "utf8").toString("base64")}\x07`;
+}
+
+/**
  * A screen over `write`. `enter` takes the terminal, `paint(lines, run)` shows
  * a frame, `invalidate` forgets what is on screen so the next frame is written
  * whole (a resize, Ctrl+L), and `leave` puts the terminal back. `leave` is
  * safe to call twice and before `enter`, since every way out calls it.
- * `held` says whether a frame goes between the synchronized-output marks.
+ * `copy(text)` asks the terminal to put `text` on the clipboard, while the
+ * screen is up. `held` says whether a frame goes between the
+ * synchronized-output marks.
  *
  * `run` is `{ row, rows, text, full }`: `text` written from the start of `row`
  * with wrapping on, over the `rows` rows whose `lines` are its pieces, and
@@ -98,6 +129,12 @@ export function createScreen(write, { held = framesHeld() } = {}) {
       if (out) send(held ? `${SYNC_ON}${out}${SYNC_OFF}` : out);
     },
     invalidate() { shown = null; shownRun = null; },
+    copy(text) {
+      if (!on) return;
+      send(clipboardSequence(text));
+      shown = null;
+      shownRun = null;
+    },
     leave() {
       if (!on) return;
       on = false;

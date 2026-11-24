@@ -844,6 +844,9 @@ export async function runTui(flags, out, deps = {}) {
     "signin-code": (e) => doSigninCode(e.code),
     "signin-cancel": (e) => doSigninCancel(e),
     "signin-done": (e) => doSigninDone(e.account),
+    // The sign-in's link or code, to the terminal's clipboard: written to the
+    // terminal alone, never to the deck, a log or a count.
+    copy: (e) => screen.copy(e.text),
   };
 
   return new Promise(resolve => {
