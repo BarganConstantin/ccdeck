@@ -294,12 +294,16 @@ describe("what the column folds, and when it does not", () => {
     expect(rowCode).not.toMatch(/\b(menuFor|openLanes|issueOpen|swapNote|roster)\b|(?<![-\w])(failure|switched)(?![-\w])/);
   });
 
-  it("opens shut, every time, and stays open across a switch", () => {
-    // A fold that remembered being open would give a reader who unfolded it
-    // once a panel that never folds again. A switch is the one thing that does
-    // not close it: the account just left is in that list, and it moved there
-    // under the reader's own press.
-    expect(panel).toMatch(/const \[restOpen, setRestOpen\] = useState\(false\);/);
+  it("opens as the reader last left it on this side, and stays open across a switch", () => {
+    // CHANGED ON PURPOSE (remembered fold, 2026-11-24): the fold used to open
+    // shut every time, and a reader who keeps it open had to open it again
+    // after every restart, in Claude and in Codex. It is read from Claude's own
+    // key and written back on every change; a first run still opens it shut
+    // (accounts-fold-remembered.test.ts runs it). A switch is still the one
+    // thing that does not close it: the account just left is in that list, and
+    // it moved there under the reader's own press.
+    expect(panel).toMatch(/const \[restOpen, setRestOpen\] = useState<boolean>\(\(\) => loadFoldOpen\("claude"\)\);/);
+    expect(panel).toMatch(/useEffect\(\(\) => \{ saveFoldOpen\("claude", restOpen\); \}, \[restOpen\]\);/);
     expect(accountsSurface()).not.toMatch(/setRestOpen\(false\)/);
   });
 

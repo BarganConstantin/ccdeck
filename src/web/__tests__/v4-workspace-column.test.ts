@@ -190,7 +190,10 @@ describe("nothing is forced at render", () => {
     // CHANGED ON PURPOSE (#2591): the column also draws the resize edge, moved
     // off the Sessions list, so Accounts and Sessions share one width and one
     // edge; nothing about when the column is drawn changed.
-    expect(app).toContain("<LeftColumn width={leftColumnTarget} listWidth={phone ? undefined : listWidth}\n          edge={phone ? undefined : <RailEdge width={listWidth} cap={railCapNow} onWidth={railChoice.choose} onReset={railChoice.reset} />}>");
+    // CHANGED ON PURPOSE (2026-11-24): the column also carries Sessions' share
+    // of its height, for the split between Sessions and Accounts; nothing
+    // about when the column is drawn changed.
+    expect(app).toContain("<LeftColumn width={leftColumnTarget} listWidth={phone ? undefined : listWidth}\n          stackShare={phone ? null : stackChoice.share}\n          edge={phone ? undefined : <RailEdge width={listWidth} cap={railCapNow} onWidth={railChoice.choose} onReset={railChoice.reset} />}>");
     expect(app).toContain("useWorkspaceColumn({ active: inWorkspace && stage.enabled,");
     expect(app).not.toContain("columnDrawn");
     expect(app).not.toContain("workspaceColumnWidth");

@@ -30,6 +30,8 @@ const catalog: Catalog = {
   "shell.side.widthHint": "拖曳以加寬或收窄側欄 · 方向鍵可移動",
   "shell.list.width": "工作階段清單寬度",
   "shell.list.widthHint": "拖曳以加寬或收窄清單 · 方向鍵可移動 · 按兩下恢復預設",
+  "shell.list.stack": "「工作階段」與「帳號」的高度分配",
+  "shell.list.stackHint": "拖曳以分配高度 · 方向鍵可移動 · 按兩下恢復預設",
   "shell.side.usageSum": "{amount} {period}",
   "shell.side.usageTokens": "{n} token {period}",
   "shell.side.machineSum": "CPU {cpu}% · {memory}",

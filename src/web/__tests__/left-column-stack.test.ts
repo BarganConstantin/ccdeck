@@ -293,9 +293,11 @@ describe("Accounts stands under Sessions, as This machine stands under Usage", (
     expect(decl(".accounts-panel", "min-height")).toBe("0");
   });
 
-  it("adds no splitter and no motion of its own", () => {
+  it("keeps one width edge and adds no motion of its own", () => {
     const sheet = sourceOf("components/LeftColumn.tsx");
-    // The one edge is the column's width's (RailEdge), as before.
+    // The one edge is the column's width's (RailEdge), as before. The line
+    // between the two parts became a split later (2026-11-24): its own
+    // test is stack-split-126.test.ts.
     expect(sheet).toContain("{children}");
     expect(sheet).toContain("{edge}");
     const part = (sheetParts().find(([path]) => path === "styles/left-column.css")?.[1] ?? "").replace(/\/\*[\s\S]*?\*\//g, "");

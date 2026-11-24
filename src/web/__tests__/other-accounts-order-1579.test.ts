@@ -342,8 +342,13 @@ describe("the panel's wiring", () => {
     expect(panel).toMatch(/if \(listShown\) return;\s*pointerIn\.current = keysIn\.current = popoverIn\.current = false;\s*setHeld\(null\);/);
   });
 
-  it("still shuts the fold every time the panel opens", () => {
-    expect(panel).toContain("const [restOpen, setRestOpen] = useState(false);");
+  it("opens the fold as it was left on Claude's side, and keeps nothing else about it", () => {
+    // CHANGED ON PURPOSE (remembered fold, 2026-11-24): the fold no longer shuts
+    // every time the panel opens. Only its own open or shut is kept, under
+    // Claude's key; the rows behind it still open folded (above), and no order
+    // is stored.
+    expect(panel).toContain('const [restOpen, setRestOpen] = useState<boolean>(() => loadFoldOpen("claude"));');
+    expect(panel).not.toContain('loadFoldOpen("codex")');
   });
 
   it("orders the Codex column by the same rule, with its own row's issue", () => {

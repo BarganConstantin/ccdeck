@@ -30,6 +30,8 @@ const catalog: Catalog = {
   "shell.side.widthHint": "Arraste para alargar ou estreitar a coluna · as setas a movem",
   "shell.list.width": "Largura da lista de sessões",
   "shell.list.widthHint": "Arraste para alargar ou estreitar a lista · as setas a movem · clique duplo a restaura",
+  "shell.list.stack": "Divisão da altura entre Sessões e Contas",
+  "shell.list.stackHint": "Arraste para dividir a altura · as setas a movem · clique duplo a restaura",
   "shell.side.usageSum": "{amount} {period}",
   "shell.side.usageTokens": "{n} tokens {period}",
   "shell.side.machineSum": "CPU {cpu}% · {memory}",

@@ -13,9 +13,11 @@
 // they stand one under the other in it, Sessions on top (left-column.css), so
 // opening the second moves neither the board nor the terminal beside the
 // column. Larger text still widens the shared column by --ui-panel-increase.
+// The split between the two shares the height (StackSplit.tsx): the reader's
+// share, when one is kept, is the column's --stack-share.
 import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
 
-export default function LeftColumn({ width, listWidth, children, edge }: {
+export default function LeftColumn({ width, listWidth, stackShare = null, children, edge }: {
   /** The width the column is moving to, from leftColumnWidth. */
   width: number;
   /** The Sessions list's own width, the reader's (rail-width.ts, internal
@@ -23,6 +25,10 @@ export default function LeftColumn({ width, listWidth, children, edge }: {
    * the screen's width. The column holds it even while Accounts is open, so a
    * list arriving is at its own width from its first frame. */
   listWidth?: number;
+  /** Sessions' share of the height it has with Accounts, the reader's
+   * (stack-split.ts), or null for the column's own layout. It counts only
+   * while the split is drawn (left-column.css). */
+  stackShare?: number | null;
   children: ReactNode;
   edge?: ReactNode;
 }) {
@@ -36,9 +42,11 @@ export default function LeftColumn({ width, listWidth, children, edge }: {
   });
   return (
     <div ref={ref} className={`left-column${width === 0 ? " closing" : ""}`}
+      data-stack-share={stackShare === null ? undefined : ""}
       style={{
         "--left-col-w": width === 0 ? "0px" : `calc(${width}px + var(--ui-panel-increase, 0px))`,
         ...(listWidth === undefined ? null : { "--list-w": `calc(${listWidth}px + var(--ui-panel-increase, 0px))` }),
+        ...(stackShare === null ? null : { "--stack-share": String(stackShare) }),
       } as CSSProperties}>
       {children}
       {edge}

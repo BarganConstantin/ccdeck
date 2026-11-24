@@ -30,6 +30,7 @@ import {
   NONE_OPEN, allOpen, byAvailability, holdOrder, isOpen, toggleAll, toggleOne, trimOpenness,
   type Openness,
 } from "../other-accounts-order";
+import { loadFoldOpen, saveFoldOpen } from "../accounts-prefs";
 import { focusDropped, rescueSelectors } from "../panel-press";
 import { copyText } from "../copy-text";
 import { accountIssue } from "../account-issue";
@@ -153,12 +154,14 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   // or null while nobody is there: a poll that moves the numbers does not move
   // the rows under a reader's hand. See holdOrder.
   const [held, setHeld] = useState<string[] | null>(null);
-  /** Whether the accounts behind the fold are drawn. Shut on open, every time:
-   *  the column's first screen is the live account, and a fold that remembered
-   *  being open would give a reader who unfolded it once a panel that never
-   *  folds again. It is kept across a switch on purpose — the account just left
+  /** Whether the accounts behind the fold are drawn. Shut on a first run, and
+   *  after that as the reader last left it on this side: it used to shut on
+   *  every open, so a reader who keeps it open had to open it again after each
+   *  restart or update. Kept in this browser apart from Codex's side
+   *  (accounts-prefs.ts loadFoldOpen); the rows inside still open folded on
+   *  every visit. It is kept across a switch on purpose — the account just left
    *  is in that list, and it moved there under the reader's own press. */
-  const [restOpen, setRestOpen] = useState(false);
+  const [restOpen, setRestOpen] = useState<boolean>(() => loadFoldOpen("claude"));
 
   // What the store holds and the auto-switch status beside it, whether a
   // reload the reader asked for is out, and the one line that says what went
@@ -255,6 +258,9 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   // poll, as it always was, a tick and a poll due at the same moment still run
   // in that order. See use-panel-clock.ts.
   const nowSec = usePanelClock();
+  // The fold's open or shut, written for the next visit on this side. Below
+  // the clock, which keeps its place as this panel's first effect.
+  useEffect(() => { saveFoldOpen("claude", restOpen); }, [restOpen]);
 
   // WHAT LOCAL NETWORK KNOWS about each account's copies elsewhere, from the
   // status its own section already polls: a dead login no paired deck can

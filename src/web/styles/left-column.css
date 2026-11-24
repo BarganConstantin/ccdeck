@@ -97,11 +97,64 @@
    half; Accounts, under it, takes its content's height up to the rest, and
    past that its own roster scrolls inside it (accounts-panel.css) while its
    header and foot stand. One surface, the column's, with a 1px --line between
-   the two and no gap. No splitter: the column has one edge, its width's. */
+   the two and no gap. */
 .left-column > .session-list:has(~ .accounts-panel) { min-height: 50%; }
 .left-column > .session-list ~ .accounts-panel {
   flex: 0 1 auto;
   border-top: 1px solid var(--line);
+}
+/* THE SPLIT BETWEEN THE TWO (the owner, 2026-11-24): the line between them is a split
+   the reader drags (StackSplit.tsx, stack-split.ts), drawn as the one between
+   Usage and This machine in Workspace's side column (workspace.css): 8px, a
+   line on each side and a short grip in its middle that darkens when it is
+   pointed at, held or focused. Its own lines replace Accounts' top border. */
+.left-column > .stack-split {
+  position: relative;
+  flex: 0 0 8px;
+  height: 8px;
+  z-index: 1;
+  background: var(--panel);
+  border-block: 1px solid var(--line);
+  cursor: row-resize;
+  touch-action: none;
+  /* It comes and goes with the panel that brings it (the arrival and leaving
+     rules below and above). */
+  transition: opacity var(--dur-base) var(--ease) var(--delay-step);
+}
+.left-column > .stack-split::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 24px;
+  height: 2px;
+  margin: -1px 0 0 -12px;
+  border-radius: var(--r-ctl);
+  background: var(--line);
+}
+.left-column > .stack-split:focus-visible::after,
+.left-column[data-stack-resizing] > .stack-split::after { background: var(--muted); }
+@media (hover: hover) and (pointer: fine) {
+  .left-column > .stack-split:hover::after { background: var(--muted); }
+}
+.left-column > .stack-split:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
+.left-column[data-stack-resizing] { user-select: none; }
+.left-column > .stack-split ~ .accounts-panel { border-top: 0; }
+/* THE READER'S SHARE: kept (or being dragged), Sessions is that share of the
+   height the two have, and Accounts the rest, its roster scrolling inside it.
+   Each keeps its least (140 and 160, stack-split.ts), and a column too short
+   for both gives Sessions 140/300 of it, as stackShareFor does. Only while the
+   split is drawn: alone, a panel still has the whole column. */
+.left-column[data-stack-share] > .session-list:has(~ .stack-split) {
+  flex: 0 0 clamp(
+    min(140px, (100% - 8px) * 140 / 300),
+    (100% - 8px) * var(--stack-share),
+    max(100% - 168px, (100% - 8px) * 140 / 300));
+  min-height: 0;
+}
+.left-column[data-stack-share] > .stack-split ~ .accounts-panel {
+  flex: 1 1 0;
+  min-height: 0;
 }
 /* THE LIST'S OWN WIDTH (internal #103): the reader's, dragged at its right edge
    and kept in the browser (rail-width.ts), or the density's when nothing is
