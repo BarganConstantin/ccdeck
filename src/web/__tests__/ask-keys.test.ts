@@ -3,7 +3,7 @@
 // screen to show what it answers.
 import { describe, expect, it } from "vitest";
 import {
-  askSteps, askText, flatScreen, lead, MAX_ASK_TEXT, picksComplete, screenShows, SUBMIT_WORDS,
+  askSteps, askText, CHAT_WORDS, chatSteps, DOWN_ARROW, flatScreen, lead, MAX_ASK_TEXT, offersChat, picksComplete, screenShows, SUBMIT_WORDS,
 } from "../ask-keys";
 import type { ChatQuestion } from "../components/chat/chat-model";
 
@@ -108,5 +108,64 @@ describe("the keys", () => {
     expect(askSteps([], [])).toBeNull();
     expect(askSteps([DB, FEATURES], [{ options: [0] }, { options: [] }])).toBeNull();
     expect(askSteps([FEATURES], [{ options: [], text: "Billing" }])).toBeNull();
+  });
+});
+
+// "Chat about this", as Claude Code 2.1.331 draws it: the last row, under a
+// line, numbered after "Type something", and picked by that digit from
+// anywhere in the list. Beside a preview it has no number: the last option's
+// digit, Down, Enter.
+describe("the keys for Chat about this", () => {
+  const shows = (question: ChatQuestion) => [lead(question.question), ...question.options.map(o => lead(o.label)), CHAT_WORDS];
+  const SCREEN = [
+    " ☐ Database", "", " Which database should the service use?", "",
+    " ❯ 1. Postgres", "   2. SQLite", "   3. DynamoDB", "   4. Type something.",
+    " ─────────────────────────────────", "   5. Chat about this", "",
+    " Enter to select · ↑/↓ to navigate · Esc to cancel",
+  ].join("\n");
+
+  it("one question, one choice: the digit after Type something, once the question, its options and the row show", () => {
+    expect(chatSteps([DB])).toEqual([{ expect: shows(DB), keys: [{ input: "5" }] }]);
+    expect(screenShows(SCREEN, chatSteps([DB])![0].expect)).toBe(true);
+  });
+
+  it("a prompt that does not draw the row takes no key: the step waits for its words", () => {
+    const without = SCREEN.split("\n").filter(line => !line.includes(CHAT_WORDS)).join("\n");
+    expect(screenShows(without, chatSteps([DB])![0].expect)).toBe(false);
+  });
+
+  it("several choices: the same digit, with no Tab and no review screen", () => {
+    expect(chatSteps([FEATURES])).toEqual([{ expect: shows(FEATURES), keys: [{ input: "5" }] }]);
+  });
+
+  it("several questions: only the first one's, the question the prompt opens on", () => {
+    expect(chatSteps([DB, FEATURES])).toEqual([{ expect: shows(DB), keys: [{ input: "5" }] }]);
+    expect(chatSteps([q("Pick one", ["A", "B"]), DB])).toEqual([
+      { expect: [lead("Pick one"), "A", "B", CHAT_WORDS], keys: [{ input: "4" }] },
+    ]);
+  });
+
+  it("options with a preview: the last option's digit, Down to the row, Enter", () => {
+    expect(chatSteps([LAYOUT])).toEqual([
+      { expect: shows(LAYOUT), keys: [{ input: "2" }, { input: DOWN_ARROW }, { input: "\r" }] },
+    ]);
+    expect(DOWN_ARROW).toBe("\x1b[B");
+  });
+
+  it("nothing when no single digit reaches the row, or the first question has no options", () => {
+    const many = (n: number) => q("Which one?", Array.from({ length: n }, (_, i) => `Option ${i + 1}`));
+    expect(chatSteps([many(7)])?.[0].keys).toEqual([{ input: "9" }]);
+    expect(chatSteps([many(8)])).toBeNull();
+    expect(chatSteps([q("Which?", Array.from({ length: 9 }, (_, i) => `P${i}`), { preview: true })])?.[0].keys[0]).toEqual({ input: "9" });
+    expect(chatSteps([q("Your name?", [])])).toBeNull();
+    expect(chatSteps([])).toBeNull();
+    expect(offersChat([DB])).toBe(true);
+    expect(offersChat([many(8)])).toBe(false);
+  });
+
+  it("leaves the answers' keys as they were: options, several choices and Type something", () => {
+    expect(askSteps([DB], [{ options: [2] }])).toEqual([{ expect: shows(DB).slice(0, -1), keys: [{ input: "3" }] }]);
+    expect(askSteps([DB], [{ options: [], text: "MySQL" }])![0]).toEqual({ expect: shows(DB).slice(0, -1), keys: [{ input: "4" }] });
+    expect(askSteps([FEATURES], [{ options: [0] }])![0].expect).not.toContain(CHAT_WORDS);
   });
 });
