@@ -36,7 +36,9 @@ const view = await import("../../server/tui-view.mjs");
 // @ts-expect-error — plain .mjs module, no types
 const { codexRows, codexLiveSaid } = await import("../../server/tui-codex.mjs");
 // @ts-expect-error — plain .mjs module, no types
-const { createScreen, framesHeld, clipboardSequence, ALT_SCREEN_ON, ALT_SCREEN_OFF, SYNC_ON, WRAP_ON, WRAP_OFF } = await import("../../server/tui-screen.mjs");
+const share = await import("../../server/tui-share.mjs");
+// @ts-expect-error — plain .mjs module, no types
+const { createScreen, framesHeld, clipboardSequence, ALT_SCREEN_ON, ALT_SCREEN_OFF, SYNC_ON, WRAP_ON, WRAP_OFF, PASTE_ON, PASTE_OFF } = await import("../../server/tui-screen.mjs");
 // @ts-expect-error — plain .mjs module, no types
 const { fitPainted, sliceCells, textWidth } = await import("../../server/cli-lines.mjs");
 // @ts-expect-error — plain .mjs module, no types
@@ -160,6 +162,30 @@ function lanState(over: State = {}, lan: Row = {}): State {
   return { ...view.withLan(deckState(), { ...LAN, ...lan }), lanPrefs: LAN_PREFS, side: "lan", ...over };
 }
 
+// Shares as the decks make them: printable ASCII, long enough to wrap. Made
+// up here — not one character of a real login.
+const BLOB = `ccdeck2:${"G0x+Rk9/bWFpbC1zaGFyZQ".repeat(70)}=`;
+const CBLOB = `ccdeck-codex-v1.${"eyJ2IjoxLCJhY2NvdW50cyI6-_".repeat(40)}`;
+/** What an import answered: one new, one already here, one that did not arrive. */
+const RESULTS = [
+  { email: "erin@new.example", org: "org-9", num: 5, state: "imported" },
+  { email: "bob@home.example", org: "org-2", num: 2, state: "present" },
+  { email: "fay@far.example", org: "org-8", num: null, state: "failed" },
+];
+/** The page a share of #2 opens, `over` on its share. */
+function shownState(over: Row = {}, body: Row = {}, s: State = deckState({ at: 1 })): State {
+  const made = share.shareMade(s, { codex: false, nums: [2], from: "list", several: false }, { ok: true, blob: BLOB, expiresAt: NOW + 600_000, shared: [{ num: 2 }], failed: [], ...body });
+  return { ...made, share: { ...made.share, ...over } };
+}
+function codexShown(): State {
+  return share.shareMade(codexState({ side: "codex" }), { codex: true, ids: [CXA], from: "list", several: false }, { ok: true, blob: CBLOB, count: 1 });
+}
+/** An import's results, the share kept for "update anyway". */
+function resultsState(results: Row[] = RESULTS): State {
+  const base = view.withRoster(deckState(), { ok: true, activeNum: 1, accounts: [...ROWS, row(5, "erin@new.example", null)] });
+  return share.withImported({ ...base, share: { ...share.openPaste(false), sending: true } }, { codex: false, results, blob: BLOB });
+}
+
 describe("the frame", () => {
   const states: [string, State][] = [
     ["a deck", deckState()],
@@ -196,6 +222,27 @@ describe("the frame", () => {
     ["an invite pasted", lanState({ lanForm: { view: "join", draft: `ccdeck1.${"y".repeat(300)}`, error: null, tried: [{ addr: "192.168.1.20:54340", why: "no answer" }] } })],
     ["unpairing", lanState({ lanForm: { view: "unpair", fp: "peer-1", name: "studio-mac", twins: 1 } })],
     ["the invite to send", lanState({ lanForm: { view: "invite", error: null } }, { invite: INVITE })],
+    ["the share picker", { ...deckState(), share: share.openPick(false) }],
+    ["the share picker, many accounts and a refusal", {
+      ...view.withRoster(deckState(), { ok: true, accounts: Array.from({ length: 14 }, (_, i) => row(i + 1, `user${i + 1}@a-rather-long-domain.example`, `alias-${i + 1}`)) }),
+      share: { ...share.openPick(false), at: 12, error: "claude-swap took too long and was stopped — try again" },
+    }],
+    ["the Codex share picker, to be secured first", codexState({ side: "codex", share: share.openPick(true, { picked: [CXA], protect: true, error: "Windows permissions prevent sharing this login. Secure the selected profiles, then try again." }) })],
+    ["a share", shownState()],
+    ["a share of several, one left out", shownState({ several: true, count: 3, failed: [{ num: "3", email: "carol@side.example" }] })],
+    ["a share that expired, its new one refused", shownState({ expiresAt: NOW - 1_000, error: "claude-swap could not be run — it is not on this deck's PATH" })],
+    ["a share alone", shownState({ alone: true })],
+    ["a share alone, its second part", shownState({ alone: true, part: 1, parts: 9 })],
+    ["a Codex share", codexShown()],
+    ["the paste field", { ...deckState(), share: share.openPaste(false) }],
+    ["the paste field, a share in it, refused", { ...deckState(), share: { ...share.openPaste(false, "carol@side.example"), draft: BLOB, error: "that share is incomplete — copy the whole thing" } }],
+    ["the paste field, importing", { ...deckState(), share: { ...share.openPaste(false), draft: BLOB, sending: true } }],
+    ["the Codex paste field", codexState({ side: "codex", share: { ...share.openPaste(true), draft: CBLOB } })],
+    ["an import's results", (() => {
+      const s = resultsState([...RESULTS, { email: "gus@mac.example", org: "org-7", num: 6, state: "imported", check: "unreadable_here" }]);
+      return { ...s, share: { ...s.share, at: 1, rowError: { key: "bob@home.example|org-2", text: "that account could not be updated" } } };
+    })()],
+    ["a Codex import's results", share.withImported(codexState({ side: "codex", share: share.openPaste(true) }), { codex: true, results: [{ id: CXA, status: "already_imported" }, { id: CXB, status: "imported" }] })],
   ];
   for (const [what, s] of states) {
     for (const [columns, rows] of [[40, 12], [64, 16], [80, 24], [104, 30], [120, 32], [160, 50]]) {
@@ -517,9 +564,9 @@ describe("an account's actions", () => {
 
   it("offers the deck's menu items, by the deck's rules", () => {
     const s = deckState();
-    expect(ids(s, ROWS[1])).toEqual(["switch", "rename", "move", "hold", "home", "remove"]);
+    expect(ids(s, ROWS[1])).toEqual(["switch", "rename", "move", "share", "hold", "home", "remove"]);
     // The account in use: nothing to switch to, and it is not held out.
-    expect(ids(s, ROWS[0])).toEqual(["rename", "move", "home", "remove"]);
+    expect(ids(s, ROWS[0])).toEqual(["rename", "move", "share", "home", "remove"]);
     // An expired login offers its sign-in where the switch would be.
     expect(view.menuItems(s, ROWS[2])[0].label).toBe("Sign in again");
     // Home and rotation say which way they go.
@@ -727,14 +774,14 @@ describe("the Codex side", () => {
     expect(s.menu).toMatchObject({ id: CXB, view: "menu" });
     expect(lines(s).some(l => /│ › Switch to this account +enter │/.test(l))).toBe(true);
     // The default, Codex's own login: no switch, no rotation, no removal.
-    expect(items(0)).toEqual(["Sign in again", "Rename…", "Set as home"]);
+    expect(items(0)).toEqual(["Sign in again", "Rename…", "Share…", "Set as home"]);
     // Added in the deck and held out: everything, the way back into rotation among it.
-    expect(items(1)).toEqual(["Switch to this account", "Sign in again", "Rename…", "Put back in rotation", "Set as home", "Remove…"]);
-    // Signed out: no switch to it, its sign-in first.
+    expect(items(1)).toEqual(["Switch to this account", "Sign in again", "Rename…", "Share…", "Put back in rotation", "Set as home", "Remove…"]);
+    // Signed out: no switch to it, its sign-in first, and no login to share.
     expect(items(2)).toEqual(["Sign in", "Rename…", "Hold out of rotation", "Set as home", "Remove…"]);
     // Home is Codex Auto-switch's: not offered before it is read, removable once set.
     const unread = onCodex({ codexAuto: null });
-    expect(view.menuItems(unread, codexRows(unread)[0]).map((i: Row) => i.label)).toEqual(["Sign in again", "Rename…"]);
+    expect(view.menuItems(unread, codexRows(unread)[0]).map((i: Row) => i.label)).toEqual(["Sign in again", "Rename…", "Share…"]);
     const homed = onCodex({ codexAuto: { ...CAUTO, homeId: CXB } });
     expect(view.menuItems(homed, codexRows(homed)[1]).map((i: Row) => i.label)).toContain("Remove home");
   });
@@ -1031,11 +1078,12 @@ describe("the sign-in", () => {
   it("says what will happen first: enter asks for the link, esc and q go back", () => {
     const s = key(deckState(), "+").state;
     const lines = text(frame(s).lines);
-    expect(lines[1]).toMatch(/^╭─ Add a Claude account ─+╮$/);
+    // The Add dialog's two tabs on its border, the one shown first.
+    expect(lines[1]).toMatch(/^╭─ Add a Claude account ─+ Sign in · Paste a share ─╮$/);
     expect(inside(lines[2])).toBe("Sign in to Anthropic");
     expect(prose(frame(s).lines)).toContain("anywhere else the page shows a code to paste here.");
     expect(prose(frame(s).lines)).toContain("the account you use now stays active.");
-    expect(lines[23]).toMatch(/^ {2}enter +get the sign-in link +esc +back/);
+    expect(lines[23]).toMatch(/^ {2}enter +get the sign-in link +tab +paste a share +esc +back/);
     expect(enter(s).effect).toEqual({ type: "signin-start" });
     for (const back of [esc(s), key(s, "q")]) {
       expect(back.state.signin).toBeNull();
@@ -1404,7 +1452,456 @@ describe("copying what the sign-in gives", () => {
   });
 });
 
+describe("sharing accounts", () => {
+  const key = (s: State, str: string | undefined, k: Row = {}) => view.tuiKey(s, str, { name: str, ...k }, { now: NOW, g: U });
+  const enter = (s: State) => key(s, "\r", { name: "return" });
+  const esc = (s: State) => key(s, undefined, { name: "escape" });
+  const tab = (s: State) => key(s, "\t", { name: "tab" });
+  const space = (s: State) => key(s, " ", { name: "space" });
+  const down = (s: State) => key(s, undefined, { name: "down" });
+  const paste = (s: State, str: string) => key(s, str, { name: "paste" });
+  const lines = (s: State, cols = 100, rows = 30, unicode = true) => text(frame(s, cols, rows, unicode).lines);
+  const shows = (s: State, want: string, cols = 100, rows = 30) => lines(s, cols, rows).some(l => l.includes(want));
+  const onCodex = (over: State = {}) => key(codexState(over), "c").state;
+  const SENT = "sent to your terminal's clipboard — if nothing pastes, tab shows it alone";
+  const SENT_ALONE = "sent to your terminal's clipboard — if nothing pastes, select it here";
+  const NAME_2 = "#2 bob@home.example (home)";
+
+  it("offers Share… in an account's menu and e on the list, both asking for that one account", () => {
+    expect(view.menuItems(deckState(), ROWS[1]).find((i: Row) => i.id === "share")).toEqual({ id: "share", key: "e", label: "Share…" });
+    const want = { type: "share", codex: false, nums: [2], several: false, name: NAME_2 };
+    expect(key(deckState({ at: 1 }), "e")).toMatchObject({ effect: { ...want, from: "list" } });
+    const menu = key(deckState({ at: 1 }), "m").state;
+    expect(lines(menu).some(l => /│ {3}Share… +e │/.test(l))).toBe(true);
+    expect(key(menu, "e").effect).toEqual({ ...want, from: "menu" });
+    // The list's footer names it where there is room; the help always does.
+    expect(lines(deckState(), 120, 30).at(-1)).toMatch(/ \+ {2}add {3}e {2}share /);
+    expect(lines(deckState({ help: true }), 80, 24).some(l => /n {2}v {2}e {2}x +rename {2}· {2}move to a slot {2}· {2}share {2}· {2}remove/.test(l))).toBe(true);
+    expect(lines(deckState({ help: true }), 80, 24).some(l => /\+ {2}E +add an account or paste one {2}· {2}share several/.test(l))).toBe(true);
+  });
+
+  it("shares a Codex account through Codex's own route, and not one with no login to share", () => {
+    const s = onCodex();
+    const rows = codexRows(s);
+    expect(view.menuItems(s, rows[0]).map((i: Row) => i.label)).toContain("Share…");
+    expect(view.menuItems(s, rows[2]).map((i: Row) => i.label)).not.toContain("Share…");
+    // e opens Codex's picker with that account ticked: its warning is read
+    // before a code is made, and enter makes it.
+    const e = key(s, "e");
+    expect(e.effect).toBeNull();
+    expect(e.state.share).toMatchObject({ view: "pick", codex: true, picked: [CXA], protect: false });
+    expect(enter(e.state).effect).toMatchObject({ type: "share", codex: true, ids: [CXA], protect: false, from: "pick", several: true });
+    const signedOut = key({ ...s, codexAt: 2 }, "e");
+    expect(signedOut.effect).toBeNull();
+    expect(signedOut.state.notice.text).toMatch(/cal@openai\.example is not signed in — there is no login to share; i signs it in$/);
+  });
+
+  it("with no deck running, says sharing goes through the deck, as the other actions do", () => {
+    const noDeck = deckState({ deck: null, at: 1 });
+    const e = key(noDeck, "e");
+    expect(e.effect).toBeNull();
+    expect(e.state.notice.text).toBe("the account's actions go through the deck — d starts one");
+    expect(key(noDeck, "E").state).toMatchObject({ share: null, notice: { text: "accounts are shared through the deck — d starts one" } });
+    expect(key({ ...onCodex(), deck: null }, "E").state.notice.text).toBe("Codex accounts are shared through the deck — d starts one");
+    expect(key(deckState({ busy: { text: "removing", since: NOW } }), "E").state.notice.text).toBe("removing — one thing at a time");
+    // A deck gone while a page is up: the page says so where enter was pressed.
+    const picking = { ...key(deckState(), "E").state, deck: null };
+    expect(enter(picking)).toMatchObject({ effect: null, state: { share: { error: "sharing goes through the deck — esc, then d starts one" } } });
+    const pasted = { ...deckState({ deck: null }), share: { ...share.openPaste(false), draft: BLOB } };
+    expect(enter(pasted)).toMatchObject({ effect: null, state: { share: { error: "an import goes through the deck — esc, then d starts one" } } });
+    const dead = { ...shownState({ expiresAt: NOW - 1 }), deck: null };
+    expect(enter(dead)).toMatchObject({ effect: null, state: { share: { error: "a new share goes through the deck — esc, then d starts one" } } });
+    const results = { ...resultsState(), deck: null };
+    expect(key(down(results).state, "u")).toMatchObject({ effect: null, state: { share: { rowError: { text: "an update goes through the deck — esc, then d starts one" } } } });
+  });
+
+  it("shows the share whole, edge to edge, with its warning and how long another deck takes it", () => {
+    const s = shownState();
+    expect(s.menu).toBeNull();
+    const f = frame(s, 100, 30);
+    const l = text(f.lines);
+    expect(l).toContain("  Share account  ·  1 account, ready to paste");
+    expect(l).toContain("  this is the password · expires in 10m");
+    // One run the terminal wraps: a selection takes it whole.
+    expect(stripAnsi(f.run.text)).toBe(BLOB);
+    expect(l.some(x => x.includes("Paste it into the other deck with + → Paste a share."))).toBe(true);
+    expect(l.at(-1)).toMatch(/^ {2}c +copy +tab +text alone +esc +close$/);
+    // Under a minute it counts seconds, by the deck's clock.
+    expect(shows(shownState({ expiresAt: NOW + 42_000 }), "this is the password · expires in 42s")).toBe(true);
+    expect(shows({ ...shownState({ expiresAt: NOW + 42_000 }), skew: 60_000 }, "This share has expired")).toBe(true);
+    // Several, one of them not in it.
+    const set = shownState({ several: true, count: 2, failed: [{ num: "3", email: "carol@side.example" }] });
+    expect(shows(set, "Share accounts  ·  2 accounts, ready to paste")).toBe(true);
+    expect(shows(set, "this is 2 passwords")).toBe(true);
+    expect(shows(set, "One account is not in this bundle:")).toBe(true);
+    expect(lines(set).some(x => /carol@side\.example {2}could not be exported/.test(x))).toBe(true);
+    // A screen too short for the text says where it is instead of cutting it.
+    const short = frame(s, 40, 12);
+    expect(short.run).toBeNull();
+    expect(text(short.lines).join(" ").replace(/ +/g, " ")).toMatch(/the text needs \d+ rows here — tab shows it alone, c sends it to your clipboard/);
+  });
+
+  it("c sends the share to the terminal's clipboard and says only that it was sent", () => {
+    const s = shownState();
+    for (const r of [key(s, "c"), key(s, "\x0f", { name: "o", ctrl: true }), enter(s)]) {
+      expect(r.effect).toEqual({ type: "copy", text: BLOB });
+      expect(r.state.notice).toMatchObject({ tone: "info", text: SENT, until: null, copy: true });
+    }
+    const after = key(s, "c").state;
+    expect(lines(after).at(-2)).toBe(`  →  ${SENT}`);
+    // esc closes the page, and the share and the copy's notice go with it.
+    const closed = esc(after).state;
+    expect(closed.share).toBeNull();
+    expect(closed.notice).toBeNull();
+    expect(JSON.stringify(closed)).not.toContain(BLOB.slice(8, 48));
+    expect(key(s, "q").state.share).toBeNull();
+  });
+
+  it("tab shows the text alone, in parts where the screen cannot hold it, and the parts make the whole", () => {
+    const alone = tab(shownState()).state;
+    expect(alone.share).toMatchObject({ alone: true, part: 0 });
+    const f = frame(alone, 100, 30);
+    expect(text(f.lines)).toContain("  Select this text to copy it:");
+    expect(stripAnsi(f.run.text)).toBe(BLOB);
+    expect(text(f.lines).at(-1)).toMatch(/^ {2}c +copy +esc +back$/);
+    const sent = key(alone, "c");
+    expect(sent.effect).toEqual({ type: "copy", text: BLOB });
+    expect(sent.state.notice.text).toBe(SENT_ALONE);
+    for (const back of [esc(alone), tab(alone), enter(alone)]) expect(back.state.share).toMatchObject({ view: "shown", alone: false });
+    // On 40x12 it takes several screens: n and p walk them, the loop telling the page how many.
+    const { parts } = frame(alone, 40, 12);
+    expect(parts).toBeGreaterThan(1);
+    let s = { ...alone, share: { ...alone.share, parts } };
+    expect(text(frame(s, 40, 12).lines).at(-1)).toMatch(/^ {2}←→ +parts +c +copy +esc +back$/);
+    const got: string[] = [];
+    for (let i = 0; i < parts; i++) {
+      const at = frame(s, 40, 12);
+      expect(text(at.lines).some(l => l.includes(`Part ${i + 1} of ${parts}`))).toBe(true);
+      got.push(stripAnsi(at.run.text));
+      s = key(s, "n").state;
+    }
+    expect(got.join("")).toBe(BLOB);
+    expect(s.share.part).toBe(parts - 1);
+    expect(key(s, undefined, { name: "left" }).state.share.part).toBe(parts - 2);
+  });
+
+  it("an expired share copies nothing, and enter asks for a new one of the same accounts", () => {
+    const s = shownState({ expiresAt: NOW - 1_000, several: true, nums: [1, 3] });
+    expect(shows(s, "This share has expired")).toBe(true);
+    expect(shows(s, "Another deck will refuse this text now. Make a new one — the same accounts are still picked.")).toBe(true);
+    expect(lines(s).at(-1)).toMatch(/^ {2}enter +make a new share +esc +close$/);
+    const c = key(s, "c");
+    expect(c.effect).toBeNull();
+    expect(c.state.notice.text).toBe("this share has expired — enter makes a new one");
+    expect(enter(s).effect).toEqual({ type: "share", codex: false, nums: [1, 3], from: "again", several: true });
+  });
+
+  it("E opens the picker with every account ticked; space and a choose, and enter asks for one share", () => {
+    let s = key(deckState(), "E").state;
+    expect(s.share).toMatchObject({ view: "pick", codex: false });
+    expect(shows(s, "Which accounts go to the other ccdeck?")).toBe(true);
+    expect(shows(s, "4 accounts — 4 sign-in tokens will be on your clipboard.")).toBe(true);
+    expect(lines(s).some(l => /› \[✓\] work {2}alice@corp\.example/.test(l))).toBe(true);
+    expect(enter(s).effect).toEqual({ type: "share", codex: false, nums: [1, 2, 3, 4], from: "pick", several: true });
+    s = space(down(s).state).state;
+    expect(lines(s).some(l => /› \[ \] home/.test(l))).toBe(true);
+    expect(enter(s).effect).toEqual({ type: "share", codex: false, nums: [1, 3, 4], from: "pick", several: true });
+    expect(lines(s).at(-1)).toMatch(/a +select all/);
+    s = key(s, "a").state;
+    expect(enter(s).effect.nums).toEqual([1, 2, 3, 4]);
+    s = key(s, "a").state;
+    expect(shows(s, "Nothing picked yet.")).toBe(true);
+    expect(enter(s).effect).toBeNull();
+    expect(esc(s).state.share).toBeNull();
+  });
+
+  it("the Codex picker starts with none ticked, as the Codex panel's does, and takes twenty at most", () => {
+    let s = key(onCodex(), "E").state;
+    expect(s.share).toMatchObject({ view: "pick", codex: true, picked: [] });
+    expect(shows(s, "Share Codex accounts")).toBe(true);
+    expect(enter(s).effect).toBeNull();
+    s = space(s).state;
+    expect(enter(s).effect).toEqual({ type: "share", codex: true, ids: [CXA], protect: false, from: "pick", several: true });
+    const many = Array.from({ length: 21 }, (_, i) => cx(String(i).padStart(20, "0"), `u${i}@openai.example`));
+    const full = { ...view.withCodex(deckState(), { ...CODEX, profiles: many }), side: "codex" };
+    const over = enter({ ...full, share: share.openPick(true, { picked: many.map(p => p.id) }) });
+    expect(over.effect).toBeNull();
+    expect(over.state.share.error).toBe("Choose up to 20 accounts. Only ChatGPT logins stored in auth.json can be shared.");
+  });
+
+  it("a Codex login Windows guards opens the picker on it, offering to secure it first", () => {
+    const e = { type: "share", codex: true, ids: [CXA], from: "list", several: false, name: "#1 ann@openai.example" };
+    const why = share.shareTrouble({ ok: false, status: 409, body: { ok: false, reason: "windows_permissions_required" } }, { codex: true, fallback: "x" });
+    const s = share.shareFailed(onCodex(), e, why, "windows_permissions_required", { note: view.note, now: NOW, g: U });
+    expect(s.share).toMatchObject({ view: "pick", codex: true, picked: [CXA], protect: true, error: why });
+    expect(lines(s).at(-1)).toMatch(/enter +secure and share/);
+    expect(enter(s).effect).toMatchObject({ type: "share", ids: [CXA], protect: true });
+  });
+
+  it("a tick changed in Codex's picker drops the offer to secure first, and enter then shares as plainly asked", () => {
+    const e = { type: "share", codex: true, ids: [CXA], from: "list", several: false, name: "#1 ann@openai.example" };
+    const why = share.shareTrouble({ ok: false, status: 409, body: { ok: false, reason: "windows_permissions_required" } }, { codex: true, fallback: "x" });
+    const guarded = share.shareFailed(onCodex(), e, why, "windows_permissions_required", { note: view.note, now: NOW, g: U });
+    const off = space(guarded).state;
+    expect(off.share).toMatchObject({ picked: [], protect: false, error: null });
+    const on = space(off).state;
+    expect(on.share).toMatchObject({ picked: [CXA], protect: false });
+    expect(lines(on).at(-1)).toMatch(/enter +make the share/);
+    expect(enter(on).effect).toMatchObject({ type: "share", ids: [CXA], protect: false });
+  });
+
+  it("a picker with nothing ticked offers no enter, and enter there sends nothing", () => {
+    const none = key(key(deckState(), "E").state, "a").state;
+    expect(share.pickedOf(none)).toEqual([]);
+    expect(lines(none).at(-1)).not.toMatch(/enter/);
+    expect(lines(none).at(-1)).toMatch(/a +select all/);
+    expect(enter(none).effect).toBeNull();
+    const codexNone = { ...onCodex(), share: share.openPick(true) };
+    expect(lines(codexNone).at(-1)).not.toMatch(/enter/);
+    expect(enter(codexNone).effect).toBeNull();
+  });
+
+  it("an expired share shown alone says so in place of the text's lead, and c copies nothing", () => {
+    const dead = tab(shownState({ expiresAt: NOW - 1 })).state;
+    expect(dead.share).toMatchObject({ alone: true });
+    const said = text(frame(dead, 120, 30).lines).map(l => l.trim()).join(" ");
+    expect(said).toContain("This share has expired — the other deck will refuse it. tab goes back, where enter makes a new one.");
+    expect(text(frame(dead, 120, 30).lines).at(-1)).toMatch(/^ {2}esc +back$/);
+    const c = key(dead, "c");
+    expect(c.effect).toBeNull();
+    expect(c.state.notice.text).toBe("this share has expired — tab goes back, where enter makes a new one");
+    // On the page itself enter is right there.
+    const page = key(shownState({ expiresAt: NOW - 1 }), "c");
+    expect(page.effect).toBeNull();
+    expect(page.state.notice.text).toBe("this share has expired — enter makes a new one");
+  });
+
+  it("claude-swap's own sentence for an account it could not export is said, unless it carries a share or a key", () => {
+    const refused = (detail: string) => ({ ok: false, status: 500, body: { ok: false, reason: "export_failed", detail } });
+    expect(share.shareTrouble(refused("account 2 has no stored login"), { fallback: "x", detail: true })).toBe("account 2 has no stored login");
+    // Asked without it, and for every other answer, the reason's words.
+    expect(share.shareTrouble(refused("account 2 has no stored login"), { fallback: "x" })).toBe("claude-swap could not export that account");
+    for (const leak of [`cswap: ${BLOB}`, `refresh ${"k".repeat(48)}`, `${CBLOB}`]) {
+      expect(share.shareTrouble(refused(leak), { fallback: "x", detail: true })).toBe("claude-swap could not export that account");
+    }
+    // A terminal's controls in it are spaces, and Codex never says its detail.
+    expect(share.shareTrouble(refused("no\x1b]52;c;eA==\x07 login"), { fallback: "x", detail: true })).not.toMatch(/[\x00-\x1f]/);
+    expect(share.shareTrouble({ ok: false, status: 500, body: { ok: false, detail: "plain words" } }, { codex: true, fallback: "x", detail: true }))
+      .toBe("The transfer could not finish. Reload the accounts and try again.");
+    // An account left out of a share made of several: its row says claude-swap's reason, or that it could not be exported.
+    const s = shownState({}, { failed: [{ num: 3, email: "carol@side.example", detail: "no stored login" }, { num: 4, email: "dan@far.example", detail: BLOB }] });
+    expect(s.share.failed).toEqual([{ num: "3", email: "carol@side.example", detail: "no stored login" }, { num: "4", email: "dan@far.example", detail: "" }]);
+    expect(shows(s, "carol@side.example  no stored login")).toBe(true);
+    expect(shows(s, "dan@far.example  could not be exported")).toBe(true);
+    expect(JSON.stringify(s.share.failed)).not.toContain(BLOB.slice(8, 48));
+  });
+
+  it("says a refusal by its reason code, never by the deck's own text", () => {
+    const leak = { ok: false, status: 500, body: { ok: false, reason: "import_failed", detail: `cswap: ${BLOB}`, error: BLOB } };
+    expect(share.shareTrouble(leak, { fallback: "the import failed" })).toBe("claude-swap refused the import");
+    expect(share.shareTrouble({ ...leak, body: { ...leak.body, reason: "something_new" } }, { fallback: "the import failed" })).toBe("the import failed");
+    expect(share.shareTrouble({ ok: false, status: 404, body: null }, { fallback: "x", deck: { port: 4317 } })).toBe("the deck on 4317 predates sharing from here — an update of ccdeck brings it");
+    expect(share.shareTrouble({ ok: false, status: 400, body: { ok: false, reason: "invalid_share", detail: CBLOB } }, { codex: true, fallback: "x" }))
+      .toBe("Invalid share code. Paste the entire ccdeck-codex-v1. code, with no extra text.");
+    expect(share.shareTrouble({ ok: false, status: 500, body: { ok: false, detail: CBLOB } }, { codex: true, fallback: "x" })).toBe("The transfer could not finish. Reload the accounts and try again.");
+    // From the list a refusal is a notice: the account and the words.
+    const e = { type: "share", codex: false, nums: [2], from: "list", several: false, name: NAME_2 };
+    const why = share.shareTrouble({ ok: false, status: 500, body: { ok: false, reason: "timeout", detail: BLOB } }, { fallback: "x" });
+    const s = share.shareFailed(deckState({ at: 1 }), e, why, "timeout", { note: view.note, now: NOW, g: U });
+    expect(s.notice.text).toBe(`could not share ${NAME_2} — claude-swap took too long and was stopped — try again`);
+    // From the menu, under it.
+    const m = share.shareFailed(key(deckState({ at: 1 }), "m").state, { ...e, from: "menu" }, why, "timeout", { note: view.note, now: NOW, g: U });
+    expect(m.menu.error).toBe(why);
+    // An answer that is not a share as the deck makes one is not drawn.
+    expect(share.shareMade(deckState(), e, { ok: true, blob: "ccdeck2:\x1b]52;c;eA==\x07" })).toBeNull();
+    expect(share.shareMade(deckState(), e, { ok: true, blob: "" })).toBeNull();
+  });
+
+  it("+ then tab is the paste field: one bracketed paste whole, its newlines dropped, and enter imports it", () => {
+    let s = key(deckState(), "+").state;
+    expect(lines(s).at(-1)).toMatch(/^ {2}enter +get the sign-in link +tab +paste a share +esc +back$/);
+    s = tab(s).state;
+    expect(s.signin).toBeNull();
+    expect(s.share).toMatchObject({ view: "paste", codex: false, draft: "" });
+    expect(view.takesPaste(s)).toBe(true);
+    const l = lines(s);
+    expect(l.some(x => /^╭─ Add a Claude account ─+ Sign in · Paste a share ─╮$/.test(x))).toBe(true);
+    expect(l.some(x => x.includes("Paste an account shared from another deck"))).toBe(true);
+    expect(l.some(x => x.includes("› ▏ccdeck2:…"))).toBe(true);
+    expect(l.at(-1)).toMatch(/^ {2}enter +import +tab +sign in +esc +close$/);
+    // As a terminal brackets it: copied off wrapped rows, a newline at each row's end.
+    s = paste(s, `${BLOB.slice(0, 99)}\n${BLOB.slice(99, 500)}\r\n${BLOB.slice(500)}\n`).state;
+    expect(s.share.draft).toBe(BLOB);
+    expect(shows(s, `${BLOB.length.toLocaleString("en-US")} characters`)).toBe(true);
+    // Its two ends only: the field is not where it is read.
+    expect(lines(s).join("")).not.toContain(BLOB.slice(0, 120));
+    const r = enter(s);
+    expect(r.effect).toEqual({ type: "share-import", codex: false, blob: BLOB });
+    expect(r.state.share.sending).toBe(true);
+    expect(shows(r.state, "claude-swap is adding the accounts in this share.")).toBe(true);
+    // While it goes in, the field takes nothing more.
+    expect(key(r.state, "x").state.share.draft).toBe(BLOB);
+    expect(paste(r.state, "more").state.share.draft).toBe(BLOB);
+    expect(esc(r.state).state.share).not.toBeNull();
+  });
+
+  it("the field takes typing too, and its keys: backspace, ctrl+u, tab back to the sign-in, esc out", () => {
+    let s = { ...deckState(), share: share.openPaste(false) };
+    for (const c of "ccdeck2:q") s = key(s, c).state;
+    expect(s.share.draft).toBe("ccdeck2:q");
+    s = key(s, undefined, { name: "backspace" }).state;
+    expect(s.share.draft).toBe("ccdeck2:");
+    expect(key(s, "\x15", { name: "u", ctrl: true }).state.share.draft).toBe("");
+    expect(tab(s).state).toMatchObject({ share: null, signin: { started: false } });
+    expect(esc(s).state.share).toBeNull();
+    // No more than the import route reads, and the field says why it stopped.
+    const long = paste(s, "A".repeat(70_000)).state.share;
+    expect(long.draft).toHaveLength(63_900);
+    expect(long.error).toBe("that is longer than a share can be — ctrl+u clears it, then paste the share alone");
+    expect(enter({ ...s, share: { ...s.share, draft: "" } }).effect).toBeNull();
+    // From "Sign in again", tab goes back to that account's sign-in.
+    const again = tab(tab({ ...deckState(), signin: view.openSignin("carol@side.example") }).state).state;
+    expect(again.signin.email).toBe("carol@side.example");
+  });
+
+  it("Codex's add page has the same second tab, and its import sends the list's revision", () => {
+    let s = key(onCodex(), "+").state;
+    expect(s.codexSignin).toMatchObject({ adding: true, started: false });
+    expect(lines(s).at(-1)).toMatch(/tab +paste a share/);
+    s = tab(s).state;
+    expect(s.share).toMatchObject({ view: "paste", codex: true });
+    expect(shows(s, "› ▏ccdeck-codex-v1.…")).toBe(true);
+    s = paste(s, `${CBLOB}\n`).state;
+    expect(enter(s).effect).toEqual({ type: "share-import", codex: true, blob: CBLOB, revision: 7 });
+    const unread = { ...s, codex: { ...s.codex, revision: undefined } };
+    expect(enter(unread)).toMatchObject({ effect: null, state: { share: { error: "reading the Codex accounts… try again in a moment" } } });
+    expect(tab(s).state.codexSignin).toMatchObject({ adding: true, started: false });
+    // A Codex code is longer than a Claude share may be.
+    expect(paste({ ...s, share: share.openPaste(true) }, "A".repeat(70_000)).state.share.draft).toHaveLength(70_000);
+  });
+
+  it("a share made on the other tab is said as such, as it is pasted and on enter, and nothing goes to the deck", () => {
+    const codexHere = paste({ ...deckState(), share: share.openPaste(false) }, `${CBLOB}\n`).state;
+    expect(codexHere.share.error).toBe("that is a Codex share — paste it on the Codex tab");
+    expect(shows(codexHere, "that is a Codex share — paste it on the Codex tab")).toBe(true);
+    expect(enter(codexHere)).toMatchObject({ effect: null, state: { share: { error: "that is a Codex share — paste it on the Codex tab" } } });
+    const claudeHere = paste({ ...onCodex(), share: share.openPaste(true) }, BLOB).state;
+    expect(claudeHere.share.error).toBe("that is a Claude share — paste it on the Claude tab");
+    expect(enter(claudeHere).effect).toBeNull();
+    // Its own kind goes in as before, typed or pasted.
+    expect(paste({ ...deckState(), share: share.openPaste(false) }, BLOB).state.share.error).toBeNull();
+    expect(enter(paste({ ...deckState(), share: share.openPaste(false) }, BLOB).state).effect).toEqual({ type: "share-import", codex: false, blob: BLOB });
+  });
+
+  it("a paste goes as text only into a Network field: this deck's name, a name, an address, an invite", () => {
+    for (const v of ["name", "alias", "address", "join"]) expect(view.takesText(lanState({ lanForm: { view: v, draft: "", error: null } }))).toBe(true);
+    for (const v of ["add", "invite", "unpair"]) expect(view.takesText(lanState({ lanForm: { view: v, error: null } }))).toBe(false);
+    expect(view.takesText(lanState())).toBe(false);
+    expect(view.takesText({ ...deckState(), share: share.openPaste(false) })).toBe(false);
+  });
+
+  it("the import's results, account by account in the deck's words; u updates one already here", () => {
+    let s = resultsState();
+    const l = lines(s);
+    expect(l.some(x => x.includes("1 of 3 imported, 1 already here, 1 did not arrive."))).toBe(true);
+    expect(l.some(x => /› erin@new\.example +imported/.test(x))).toBe(true);
+    expect(l.some(x => /bob@home\.example +already here/.test(x))).toBe(true);
+    expect(l.some(x => /fay@far\.example +not imported/.test(x))).toBe(true);
+    expect(l.at(-1)).toMatch(/^ {2}↑↓ +move +a +import another +enter +done$/);
+    s = down(s).state;
+    expect(shows(s, "u overwrites the stored login for bob@home.example with the one in this share.")).toBe(true);
+    expect(lines(s).at(-1)).toMatch(/u +update anyway/);
+    const u = key(s, "u");
+    expect(u.effect).toEqual({ type: "share-update", key: "bob@home.example|org-2" });
+    expect(shows(u.state, "updating…")).toBe(true);
+    s = share.withUpdated(u.state, "bob@home.example|org-2", { email: "bob@home.example", org: "org-2", num: 2, state: "updated" });
+    expect(lines(s).some(x => /bob@home\.example +updated/.test(x))).toBe(true);
+    expect(key(s, "u").effect).toBeNull();
+    // A Mac that could not read what arrived says so under the account.
+    const mac = resultsState([{ email: "gus@mac.example", org: "", num: 6, state: "imported", check: "unreadable_here" }]);
+    expect(shows(mac, "1 of 1 imported, Keychain locked on this Mac.")).toBe(true);
+    expect(shows(mac, "claude-swap could not read the login keychain")).toBe(true);
+    // a: another paste. Done: the page and its share go, the one account that came selected.
+    expect(key(s, "a").state.share).toMatchObject({ view: "paste", draft: "" });
+    const done = enter(s).state;
+    expect(done.share).toBeNull();
+    expect(done.at).toBe(4);
+    expect(JSON.stringify(done)).not.toContain(BLOB.slice(8, 48));
+  });
+
+  it("Codex's results say what was added and what it already had", () => {
+    const s = share.withImported({ ...onCodex(), share: share.openPaste(true) }, { codex: true, results: [{ id: CXA, status: "already_imported" }, { id: CXB, status: "imported" }] });
+    const l = lines(s);
+    expect(l.some(x => x.includes("Added: 1. Already imported: 1."))).toBe(true);
+    expect(l.some(x => /ann@openai\.example +already imported/.test(x))).toBe(true);
+    expect(l.some(x => /ben@openai\.example \(side\) +added/.test(x))).toBe(true);
+    expect(key(s, "u").effect).toBeNull();
+    expect(enter(s).state.share).toBeNull();
+  });
+
+  it("draws the pages in plain ASCII where the console has nothing more", () => {
+    const pick = text(frame(key(deckState(), "E").state, 80, 24, false).lines);
+    expect(pick.some(l => /> \[x\] work/.test(l))).toBe(true);
+    expect(pick.some(l => l.includes("4 accounts - 4 sign-in tokens will be on your clipboard."))).toBe(true);
+    const shown = frame(shownState(), 100, 30, false);
+    expect(text(shown.lines)).toContain("  Share account  -  1 account, ready to paste");
+    expect(stripAnsi(shown.run.text)).toBe(BLOB);
+    expect(text(shown.lines).some(l => l.includes("Paste it into the other deck with + -> Paste a share."))).toBe(true);
+    const field = text(frame({ ...deckState(), share: share.openPaste(false) }, 80, 24, false).lines);
+    expect(field.some(l => /^\+- Add a Claude account -+ Sign in - Paste a share -\+$/.test(l))).toBe(true);
+    expect(field.some(l => l.includes("> _ccdeck2:..."))).toBe(true);
+    expect(text(frame(resultsState(), 80, 24, false).lines).at(-1)).toMatch(/^ {2}up\/down +move/);
+  });
+
+  it("never puts a share in a notice, whatever key is pressed on whatever page", () => {
+    const secrets = [BLOB.slice(20, 60), CBLOB.slice(20, 60)];
+    const pages: State[] = [
+      shownState(), shownState({ expiresAt: NOW - 1 }), tab(shownState()).state, codexShown(), tab(codexShown()).state,
+      { ...deckState(), share: { ...share.openPaste(false), draft: BLOB } },
+      codexState({ side: "codex", share: { ...share.openPaste(true), draft: CBLOB } }),
+      down(resultsState()).state,
+    ];
+    const presses: [string | undefined, Row][] = [
+      ["c", {}], ["\x0f", { name: "o", ctrl: true }], ["\r", { name: "return" }], ["\t", { name: "tab" }], [undefined, { name: "escape" }],
+      ["q", {}], ["n", {}], ["p", {}], ["u", {}], ["a", {}], [" ", { name: "space" }], [undefined, { name: "backspace" }], ["?", {}],
+    ];
+    for (const page of [...pages, ...pages.map(p => ({ ...p, deck: null })), ...pages.map(p => ({ ...p, busy: { text: "importing the share", since: NOW } }))]) {
+      for (const [str, k] of presses) {
+        const r = key(page, str, k);
+        const said = [JSON.stringify(r.state.notice ?? null), text(frame(r.state, 100, 30).lines).at(-2) ?? "", JSON.stringify(r.state.share?.error ?? null)];
+        if (r.effect && r.effect.type !== "copy" && r.effect.type !== "share-import") said.push(JSON.stringify(r.effect));
+        for (const secret of secrets) for (const s of said) expect(s).not.toContain(secret);
+      }
+    }
+  });
+});
+
 describe("the screen", () => {
+  // A paste into a share's field comes whole between the terminal's brackets,
+  // and only while that field is up: anywhere else a paste is keys, as before.
+  it("brackets a paste only while asked, writes it once, and turns it off on the way out", () => {
+    const writes: string[] = [];
+    const screen = createScreen((s: string) => writes.push(s));
+    screen.bracketPaste(true);
+    expect(writes).toEqual([]);
+    screen.enter();
+    screen.bracketPaste(true);
+    screen.bracketPaste(true);
+    expect(writes.filter(w => w === PASTE_ON)).toHaveLength(1);
+    screen.bracketPaste(false);
+    expect(writes.at(-1)).toBe(PASTE_OFF);
+    screen.bracketPaste(true);
+    screen.leave();
+    expect(writes.at(-1)!.startsWith(PASTE_OFF)).toBe(true);
+    expect(writes.at(-1)).toContain(ALT_SCREEN_OFF);
+    // A screen that never turned it on leaves it alone.
+    const quiet: string[] = [];
+    const plain = createScreen((s: string) => quiet.push(s));
+    plain.enter();
+    plain.leave();
+    expect(quiet.join("")).not.toContain(PASTE_OFF);
+  });
+
   it("writes only the rows that changed, and everything after a resize", () => {
     const writes: string[] = [];
     const screen = createScreen((s: string) => writes.push(s));
@@ -2243,6 +2740,28 @@ describe("the loop", () => {
     expect(await done).toBe(0);
   });
 
+  it("an invite pasted bracketed into the Network's invite field goes in as one line, its line end not enter", async () => {
+    const term = fakeTerminal();
+    const deck = lanDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes(" Network "));
+    term.input.write("l");
+    await until(() => term.screenText().includes("╭─ Local network"));
+    term.input.write("+");
+    term.input.write("p");
+    await until(() => term.screenText().includes("Pasting one pairs both decks on the spot"));
+    term.input.write(`\x1b[200~${INVITE.token}\n\x1b[201~`);
+    await new Promise(r => setTimeout(r, 80));
+    expect(posts(deck.calls, "/api/lan/invite")).toEqual([]);
+    term.input.write("\r");
+    await until(() => posts(deck.calls, "/api/lan/invite").length === 1);
+    expect(posts(deck.calls, "/api/lan/invite")[0].body).toMatchObject({ action: "join", token: INVITE.token });
+    await until(() => term.screenText().includes("paired with that deck"));
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
   it("reads Local network as its Network tab while the tab is on screen, so the deck counts the tab as used", async () => {
     const term = fakeTerminal();
     const deck = lanDeck();
@@ -2303,6 +2822,332 @@ describe("the loop", () => {
     expect(term.screenText()).toContain("192.168.1.20:54340: no answer");
     expect(posts(deck.calls, "/api/lan/invite").map(c => c.body)).toEqual([{ action: "join", token: INVITE.token }]);
     // Ctrl+C leaves from inside a form too.
+    term.input.write("\x03");
+    expect(await done).toBe(0);
+  });
+
+  // ── sharing ─────────────────────────────────────────────────────────────
+
+  type Asked = { method?: string; path: string; body?: unknown };
+  type Answer = { status: number; body: unknown };
+  /** The fake deck's share and import, on the admin route: a share of the
+   *  slots asked, and an import that answers RESULTS' first two. */
+  function shareDeck(over: { share?: (b: Row) => Answer; imp?: (b: Row) => Answer } = {}) {
+    const deck = fakeDeck();
+    const ask = deck.source.ask;
+    const bodies: Row[] = [];
+    deck.source.ask = async (d: unknown, o: Asked) => {
+      const b = (o.body ?? {}) as Row;
+      if (o.method === "POST" && o.path === "/api/claude-accounts/admin" && (b.action === "share" || b.action === "import")) {
+        deck.calls.push({ method: "POST", path: o.path, body: o.body });
+        bodies.push(b);
+        const r = b.action === "share"
+          ? over.share?.(b) ?? { status: 200, body: { ok: true, blob: BLOB, expiresAt: Date.now() + 600_000, shared: (b.accounts as number[]).map(num => ({ num })), failed: [] } }
+          : over.imp?.(b) ?? { status: 200, body: { ok: true, results: b.force ? [{ email: "bob@home.example", org: "org-2", num: 2, state: "updated" }] : RESULTS.slice(0, 2) } };
+        return { ok: r.status < 400, ...r };
+      }
+      return ask(d, o);
+    };
+    return { ...deck, bodies };
+  }
+  /** What reached the screen since `from` characters had been written. */
+  const since = (term: ReturnType<typeof fakeTerminal>, from: number) => stripAnsi(term.written().slice(from));
+
+  it("e shares the account through the deck, and c sends it to the terminal's clipboard", async () => {
+    const term = fakeTerminal();
+    const deck = shareDeck();
+    const { out, failed } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("\x1b[B");
+    term.input.write("e");
+    await until(() => term.screenText().includes("1 account, ready to paste"));
+    expect(deck.bodies).toEqual([{ action: "share", accounts: [2] }]);
+    expect(term.screenText()).toContain("this is the password · expires in 10m");
+    // Written whole, edge to edge, for a selection to take.
+    expect(term.screenText()).toContain(BLOB);
+    expect(term.written()).not.toContain(clipboardSequence(BLOB));
+    term.input.write("c");
+    await until(() => term.written().includes(clipboardSequence(BLOB)));
+    await until(() => term.screenText().includes("sent to your terminal's clipboard — if nothing pastes, tab shows it alone"));
+    const before = term.written().length;
+    term.input.write("\x1b");
+    await until(() => since(term, before).includes("alice@corp.example"));
+    term.input.write("q");
+    expect(await done).toBe(0);
+    expect(failed).toEqual([]);
+  });
+
+  it("E shares the accounts left ticked, in one share", async () => {
+    const term = fakeTerminal();
+    const deck = shareDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("E");
+    await until(() => term.screenText().includes("Which accounts go to the other ccdeck?"));
+    term.input.write("\x1b[B");
+    term.input.write(" ");
+    term.input.write("\r");
+    await until(() => term.screenText().includes("3 accounts, ready to paste"));
+    expect(deck.bodies).toEqual([{ action: "share", accounts: [1, 3, 4] }]);
+    expect(term.screenText()).toContain("this is 3 passwords");
+    term.input.write("\x03");
+    expect(await done).toBe(0);
+  });
+
+  it("a share refused from the list is a notice of the reason's words, nothing of the deck's text", async () => {
+    const term = fakeTerminal();
+    const deck = shareDeck({ share: () => ({ status: 500, body: { ok: false, reason: "keychain_unavailable", detail: `cswap export: ${BLOB}` } }) });
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("\x1b[B");
+    term.input.write("e");
+    await until(() => term.screenText().includes("could not share #2 bob@home.example (home) — claude-swap could not read the login keychain"));
+    expect(term.screenText()).not.toContain("cswap export");
+    expect(term.screenText()).not.toContain(BLOB.slice(20, 60));
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("a share pasted whole goes in on enter, the newlines inside it not taken for enter, and u updates one", async () => {
+    const term = fakeTerminal();
+    const deck = shareDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("+");
+    await until(() => term.screenText().includes("Add a Claude account"));
+    // The terminal brackets a paste from the start: one anywhere else is set aside whole.
+    expect(term.written()).toContain(PASTE_ON);
+    term.input.write("\t");
+    await until(() => term.screenText().includes("Paste an account shared from another deck"));
+    term.input.write(`\x1b[200~${BLOB.slice(0, 700)}\r\n${BLOB.slice(700)}\n\x1b[201~`);
+    await until(() => term.screenText().includes(`${BLOB.length.toLocaleString("en-US")} characters`));
+    expect(deck.bodies).toEqual([]);
+    term.input.write("\r");
+    await until(() => term.screenText().includes("1 of 2 imported, 1 already here."));
+    expect(deck.bodies).toEqual([{ action: "import", blob: BLOB }]);
+    // The field is gone; the brackets stay on while the screen is up.
+    expect(term.written()).not.toContain(PASTE_OFF);
+    term.input.write("\x1b[B");
+    term.input.write("u");
+    await until(() => deck.bodies.length === 2);
+    expect(deck.bodies[1]).toEqual({ action: "import", blob: BLOB, force: true, only: { email: "bob@home.example", org: "org-2" } });
+    await until(() => /bob@home\.example +updated/.test(term.screenText()));
+    // The whole share never reached the screen: the field shows its ends.
+    expect(term.screenText()).not.toContain(BLOB);
+    const before = term.written().length;
+    term.input.write("\r");
+    await until(() => since(term, before).includes("alice@corp.example"));
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("a paste over the list is set aside whole: none of its characters is a key, and the notice says where a share goes", async () => {
+    const term = fakeTerminal();
+    const deck = shareDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("bob@home.example"));
+    await until(() => term.written().includes(PASTE_ON));
+    const from = deck.calls.length;
+    term.input.write(`\x1b[200~${BLOB}\x1b[201~`);
+    await until(() => term.screenText().includes("nothing was pasted — to take in that share, press + on the Claude tab, then tab"));
+    term.input.write(`\x1b[200~${CBLOB}\x1b[201~`);
+    await until(() => term.screenText().includes("nothing was pasted — to take in that share, press + on the Codex tab, then tab"));
+    // Keys this screen answers — quit, best, update, auto-switch, share, switch — pasted: none of them runs.
+    term.input.write("\x1b[200~qbuaex\r\x1b[201~");
+    await until(() => term.screenText().includes("nothing was pasted — only a field takes a paste"));
+    await new Promise(r => setTimeout(r, 80));
+    expect(deck.calls.slice(from).filter(c => c.method === "POST")).toEqual([]);
+    expect(deck.bodies).toEqual([]);
+    expect(term.screenText()).toContain("bob@home.example");
+    expect(term.screenText()).not.toContain(BLOB.slice(8, 48));
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("takes a long bracketed paste as one key: one redraw of the field, not one a character", async () => {
+    const term = fakeTerminal();
+    const deck = shareDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("+");
+    term.input.write("\t");
+    await until(() => term.screenText().includes("Paste an account shared from another deck"));
+    const before = term.written().length;
+    const long = `ccdeck2:${"x".repeat(60_000)}`;
+    term.input.write(`\x1b[200~${long}\x1b[201~`);
+    await until(() => term.screenText().includes("60,008 characters"));
+    expect(since(term, before).split("characters").length - 1).toBe(1);
+    term.input.write("\x03");
+    expect(await done).toBe(0);
+  });
+
+  it("an import the deck refuses is said by its reason, never by claude-swap's text", async () => {
+    const term = fakeTerminal();
+    const deck = shareDeck({ imp: () => ({ status: 400, body: { ok: false, reason: "expired", detail: `cswap import: ${BLOB}` } }) });
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("+");
+    term.input.write("\t");
+    await until(() => term.screenText().includes("Paste an account shared from another deck"));
+    term.input.write(`\x1b[200~${BLOB}\x1b[201~`);
+    await until(() => term.screenText().includes(`${BLOB.length.toLocaleString("en-US")} characters`));
+    term.input.write("\r");
+    await until(() => term.screenText().includes("that share has expired — make a new one"));
+    expect(term.screenText()).not.toContain("cswap import");
+    expect(term.screenText()).not.toContain(BLOB);
+    const before = term.written().length;
+    term.input.write("\x1b");
+    await until(() => since(term, before).includes("alice@corp.example"));
+    term.input.write("q");
+    expect(await done).toBe(0);
+    // Handed back as it was found: no brackets after the screen.
+    expect(term.written().lastIndexOf(PASTE_OFF)).toBeGreaterThan(term.written().lastIndexOf(PASTE_ON));
+  });
+
+  it("a terminal that does not bracket a paste: the share's own line ends are not enter, a later enter imports it", async () => {
+    const term = fakeTerminal();
+    const deck = shareDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("bob@home.example"));
+    term.input.write("+");
+    term.input.write("\t");
+    await until(() => term.screenText().includes("Paste an account shared from another deck"));
+    // One chunk, as a terminal without bracketed paste types a paste: every
+    // character a key, the line ends among them, and one at the end.
+    term.input.write(`${BLOB.slice(0, 700)}\r${BLOB.slice(700)}\r`);
+    await until(() => term.screenText().includes(`${BLOB.length.toLocaleString("en-US")} characters`));
+    await new Promise(r => setTimeout(r, 80));
+    expect(deck.bodies).toEqual([]);
+    term.input.write("\r");
+    await until(() => term.screenText().includes("1 of 2 imported, 1 already here."));
+    expect(deck.bodies).toEqual([{ action: "import", blob: BLOB }]);
+    term.input.write("\x03");
+    expect(await done).toBe(0);
+  });
+
+  it("the text alone on a small screen, at its last part, keeps to the parts there are once the screen grows, and starts over from there", async () => {
+    const term = fakeTerminal(50, 16);
+    const deck = shareDeck();
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes("bob@h"));
+    term.input.write("\x1b[B");
+    term.input.write("e");
+    await until(() => term.screenText().includes("1 account, ready to paste"));
+    term.input.write("\t");
+    await until(() => term.screenText().includes("Part 1 of 3"));
+    for (let i = 0; i < 5; i++) term.input.write("n");
+    await until(() => term.screenText().includes("Part 3 of 3"));
+    const before = term.written().length;
+    term.output.columns = 120;
+    term.output.rows = 40;
+    term.output.emit("resize");
+    // The whole share on one screen again: its first part, which is all of it.
+    await until(() => since(term, before).includes("Select this text to copy it:"));
+    expect(since(term, before)).toContain(BLOB);
+    expect(since(term, before)).not.toMatch(/Part \d of/);
+    // Small again: the part on screen was the first, and the first comes back.
+    const grown = term.written().length;
+    term.output.columns = 50;
+    term.output.rows = 16;
+    term.output.emit("resize");
+    await until(() => /Part \d of 3/.test(since(term, grown)));
+    expect(since(term, grown)).toContain("Part 1 of 3");
+    term.input.write("\x03");
+    expect(await done).toBe(0);
+  });
+
+  it("Codex: e shares through Codex's route, and a pasted code goes in against the list's revision", async () => {
+    const term = fakeTerminal();
+    const deck = codexDeck();
+    const ask = deck.source.ask;
+    deck.source.ask = async (d: unknown, o: Asked) => {
+      if (o.path === "/api/codex-accounts-share") {
+        deck.calls.push({ method: o.method ?? "GET", path: o.path, body: o.body });
+        return { ok: true, status: 200, body: { ok: true, blob: CBLOB, count: 1 } };
+      }
+      if (o.path === "/api/codex-accounts-import") {
+        deck.calls.push({ method: o.method ?? "GET", path: o.path, body: o.body });
+        return { ok: true, status: 200, body: { ok: true, results: [{ id: CXB, status: "already_imported" }, { id: "d".repeat(20), status: "imported" }], revision: 8 } };
+      }
+      return ask(d, o);
+    };
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes(" Codex "));
+    term.input.write("c");
+    await until(() => term.screenText().includes("ann@openai.example"));
+    term.input.write("e");
+    // The picker first, with its warning, and nothing asked of the deck yet.
+    await until(() => term.screenText().includes("Share Codex accounts"));
+    expect(term.screenText()).toContain("The share code contains live sign-in credentials.");
+    expect(posts(deck.calls, "/api/codex-accounts-share")).toEqual([]);
+    term.input.write("\r");
+    await until(() => term.screenText().includes(CBLOB));
+    expect(posts(deck.calls, "/api/codex-accounts-share").map(c => c.body)).toEqual([{ ids: [CXA] }]);
+    expect(term.screenText()).toContain("The share code contains live sign-in credentials.");
+    const before = term.written().length;
+    term.input.write("\x1b");
+    await until(() => since(term, before).includes("ann@openai.example"));
+    term.input.write("+");
+    await until(() => term.screenText().includes("Add a Codex account"));
+    term.input.write("\t");
+    await until(() => term.screenText().includes("Paste an account shared from another deck"));
+    term.input.write(`\x1b[200~${CBLOB}\n\x1b[201~`);
+    await until(() => term.screenText().includes(`${CBLOB.length.toLocaleString("en-US")} characters`));
+    term.input.write("\r");
+    await until(() => term.screenText().includes("Added: 1. Already imported: 1."));
+    expect(posts(deck.calls, "/api/codex-accounts-import").map(c => c.body)).toEqual([{ blob: CBLOB, expectedRevision: 7 }]);
+    expect(posts(deck.calls, "/api/claude-accounts/admin")).toEqual([]);
+    term.input.write("q");
+    term.input.write("q");
+    expect(await done).toBe(0);
+  });
+
+  it("Codex: an import refused because the list moved reads the list again, and enter sends the new revision", async () => {
+    const term = fakeTerminal();
+    const deck = codexDeck();
+    const ask = deck.source.ask;
+    let tries = 0;
+    deck.source.ask = async (d: unknown, o: Asked) => {
+      if (o.path === "/api/codex-accounts-import") {
+        deck.calls.push({ method: o.method ?? "GET", path: o.path, body: o.body });
+        tries += 1;
+        if (tries === 1) {
+          deck.box.codex = { ...deck.box.codex, revision: 9 };
+          return { ok: false, status: 409, body: { ok: false, reason: "selection_conflict" } };
+        }
+        return { ok: true, status: 200, body: { ok: true, results: [{ id: "d".repeat(20), status: "imported" }], revision: 10 } };
+      }
+      return ask(d, o);
+    };
+    const { out } = quietOut();
+    const done = runTui({}, out, { input: term.input, output: term.output, source: deck.source, tickMs: 20, ...LOOK });
+    await until(() => term.screenText().includes(" Codex "));
+    term.input.write("c");
+    await until(() => term.screenText().includes("ann@openai.example"));
+    term.input.write("+");
+    await until(() => term.screenText().includes("Add a Codex account"));
+    term.input.write("\t");
+    await until(() => term.screenText().includes("Paste an account shared from another deck"));
+    term.input.write(`\x1b[200~${CBLOB}\x1b[201~`);
+    await until(() => term.screenText().includes(`${CBLOB.length.toLocaleString("en-US")} characters`));
+    const reads = () => deck.calls.filter(c => c.path === "/api/codex-profiles").length;
+    const before = reads();
+    term.input.write("\r");
+    await until(() => term.screenText().includes("The account list changed. It has been read again — enter tries once more."));
+    expect(reads()).toBeGreaterThan(before);
+    term.input.write("\r");
+    await until(() => posts(deck.calls, "/api/codex-accounts-import").length === 2);
+    expect(posts(deck.calls, "/api/codex-accounts-import").map(c => (c.body as Row).expectedRevision)).toEqual([7, 9]);
     term.input.write("\x03");
     expect(await done).toBe(0);
   });

@@ -109,6 +109,7 @@ export async function runTui(flags, out, deps = {}) {
   const { HISTORY_GROUPS, historyMachine, withReading } = await load("src/server/tui-machine.mjs");
   const { CODEX_REFUSED, codexLiveSaid, codexSigninRunning } = await load("src/server/tui-codex.mjs");
   const { LAN_REFUSED } = await load("src/server/tui-network.mjs");
+  const share = await load("src/server/tui-share.mjs");
   const { isOlder } = await load("src/server/version-order.mjs");
   const own = deps.own ?? PKG_VERSION;
   const onDisk = deps.versionOnDisk ?? versionOnDisk;
@@ -204,6 +205,15 @@ export async function runTui(flags, out, deps = {}) {
     if (done) return;
     const frame = view.tuiFrame(state, { ...size(), ...look, now: clock() });
     if (frame.top !== state.top) set({ top: frame.top });
+    if (frame.parts != null && state.share?.view === "shown" && state.share.parts !== frame.parts) {
+      // A resize changes how many parts there are; the one shown stays one of them.
+      const part = Math.min(state.share.part ?? 0, Math.max(0, frame.parts - 1));
+      set({ share: { ...state.share, parts: frame.parts, part } });
+    }
+    // On while the screen is up, not only under a share's field: a paste
+    // anywhere else then comes bracketed, and is set aside whole rather than
+    // run a character a key (pasted).
+    screen.bracketPaste(true);
     screen.paint(frame.lines, frame.run);
   };
 
@@ -770,6 +780,83 @@ export async function runTui(flags, out, deps = {}) {
     tell("ok", "signed in to Codex");
   }
 
+  // ── sharing, through the deck's own routes ──────────────────────────────
+  //
+  // What the Accounts panel's Share, its ↗ and its Paste a share post, and the
+  // Codex panel's two. The share comes back in the answer and goes on the
+  // page and nowhere else: not into a notice, and a refusal is said by its
+  // reason code alone (tui-share.mjs shareTrouble), never by the route's text.
+
+  async function doShare(e) {
+    if (!deck) return;
+    const codex = e.codex === true;
+    const n = codex ? e.ids.length : e.nums.length;
+    set({ busy: { text: "making the share", since: clock() }, notice: null });
+    render();
+    // One `cswap export` an account, each with claude-swap's own minute.
+    const r = codex
+      ? await src.ask(deck, { method: "POST", path: "/api/codex-accounts-share", body: { ids: e.ids, ...(e.protect ? { preparePermissions: true } : {}) }, timeoutMs: 60_000 })
+      : await src.ask(deck, { method: "POST", path: ADMIN, body: { action: "share", accounts: e.nums }, timeoutMs: Math.min(600_000, 60_000 + 30_000 * n) });
+    set({ busy: null });
+    if (r.status === 0) lost();
+    const made = r.ok && r.body?.ok !== false ? share.shareMade(state, e, r.body) : null;
+    if (made) {
+      state = made;
+      return;
+    }
+    const why = share.shareTrouble(r, { codex, fallback: "the share could not be made", deck, detail: true });
+    state = share.shareFailed(state, e, why, r.body?.reason, { note: view.note, now: clock(), g });
+  }
+
+  async function doShareImport(e) {
+    if (!deck || state.share?.view !== "paste") return;
+    const codex = e.codex === true;
+    set({ busy: { text: "importing the share", since: clock() }, notice: null });
+    render();
+    const r = codex
+      ? await src.ask(deck, { method: "POST", path: "/api/codex-accounts-import", body: { blob: e.blob, expectedRevision: e.revision }, timeoutMs: 60_000 })
+      : await src.ask(deck, { method: "POST", path: ADMIN, body: { action: "import", blob: e.blob }, timeoutMs: 150_000 });
+    set({ busy: null });
+    if (r.status === 0) lost();
+    if (r.ok && r.body?.ok === true) {
+      // The field's text goes with the field. Claude's results keep it while
+      // they are up, for "update anyway", as the Add dialog keeps it.
+      if (state.share?.view === "paste") state = share.withImported(state, { codex, results: r.body.results, blob: codex ? null : e.blob });
+      await (codex ? readCodex() : readRoster(true));
+      return;
+    }
+    // A list that moved under the paste is read again, for enter to try once more.
+    if (codex && r.body?.reason === "selection_conflict") await readCodex();
+    const why = share.shareTrouble(r, { codex, fallback: "the import failed", deck });
+    if (state.share?.view === "paste") set({ share: { ...state.share, sending: false, error: why } });
+  }
+
+  /** "update anyway": the one account named, overwritten from the share
+   *  still held by the results (AddAccountDialog.tsx forceOne). */
+  async function doShareUpdate(e) {
+    const sh = state.share;
+    if (!deck || sh?.view !== "results" || sh.codex || !sh.blob) return;
+    const row = sh.results.find(r => share.importRowKey(r) === e.key);
+    if (!row) return;
+    set({ busy: { text: `updating ${row.email || "the account"}`, since: clock() }, notice: null });
+    render();
+    const r = await src.ask(deck, {
+      method: "POST", path: ADMIN, timeoutMs: 150_000,
+      body: { action: "import", blob: sh.blob, force: true, only: { email: row.email, org: row.org ?? "" } },
+    });
+    set({ busy: null });
+    if (r.status === 0) lost();
+    if (r.ok && r.body?.ok === true) {
+      const fresh = Array.isArray(r.body.results) ? r.body.results[0] : null;
+      state = fresh ? share.withUpdated(state, e.key, fresh)
+        : state.share?.view === "results" ? { ...state, share: { ...state.share, forcing: null } } : state;
+    } else if (state.share?.view === "results") {
+      const why = share.shareTrouble(r, { fallback: "that account could not be updated", deck });
+      set({ share: { ...state.share, forcing: null, rowError: { key: e.key, text: why } } });
+    }
+    await readRoster(true);
+  }
+
   // ── the Local network ────────────────────────────────────────────────────
 
   /** The decks that asked to pair, so each one is said once. */
@@ -1106,18 +1193,32 @@ export async function runTui(flags, out, deps = {}) {
     "signin-code": (e) => doSigninCode(e.code),
     "signin-cancel": (e) => doSigninCancel(e),
     "signin-done": (e) => doSigninDone(e.account),
-    // The sign-in's link or code, to the terminal's clipboard: written to the
-    // terminal alone, never to the deck, a log or a count.
+    share: (e) => doShare(e),
+    "share-import": (e) => doShareImport(e),
+    "share-update": (e) => doShareUpdate(e),
+    // The sign-in's link or code, or a share, to the terminal's clipboard:
+    // written to the terminal alone, never to the deck, a log or a count.
     copy: (e) => screen.copy(e.text),
   };
 
   return new Promise(resolve => {
     const wasRaw = input.isRaw === true;
     let timer = null;
+    // A redraw after a key, once for every key that arrived together: a paste
+    // that the terminal did not bracket comes a character a key.
+    let soonTimer = null;
+    const soon = () => { soonTimer ??= setImmediate(() => { soonTimer = null; render(); }); };
+    // A bracketed paste being gathered: `{ text, at }` (screen.bracketPaste).
+    let pasting = null;
+    // A paste the terminal did not bracket, into a share's field: the keys
+    // that came with the last character, or hard on its heels.
+    const burst = { at: -Infinity, open: false };
     /** The terminal handed back as it was found: what q does, and what the
      *  reopen onto new code does before the new screen takes the terminal. */
     const release = () => {
       clearInterval(timer);
+      if (soonTimer) clearImmediate(soonTimer);
+      pasting = null;
       input.off("keypress", onKey);
       output.off?.("resize", onResize);
       output.off?.("error", onGone);
@@ -1173,11 +1274,69 @@ export async function runTui(flags, out, deps = {}) {
       process.stderr.write(`${COMMAND} tui: ${e?.stack ?? e}\n`);
     };
     const onResize = () => { screen.invalidate(); render(); };
+    // A paste into a share's field, whole: the terminal brackets it while that
+    // field is up, and what comes between the brackets is gathered here and
+    // handed over as one key — a newline inside it is a character, and a
+    // paste of thousands of characters is one redraw. Anywhere else a paste
+    // arrives as it always did, a character a key.
     function onKey(str, key) {
       if (done || leaving) return;
       lastKey = clock();
       // A key before the tab came back: the person has moved on from it.
       resumeSide = null;
+      const name = key?.name;
+      if (name === "paste-start") {
+        pasting = { text: "", at: clock() };
+        return;
+      }
+      if (pasting) {
+        if (name === "paste-end") return pasted();
+        if (typeof str === "string" && pasting.text.length < PASTE_GATHER_MAX) pasting.text += str;
+        pasting.at = clock();
+        return;
+      }
+      if (name === "paste-end") return;
+      if (view.takesPaste(state) && inBurst(str, key)) return;
+      press(str, key);
+    }
+    // A terminal that does not bracket a paste (one over an older SSH client,
+    // a paste that beat the field's switch to it) types it: a character a key,
+    // all in one read or a few close together. An enter among them is a line
+    // end in what was copied — a share copied with its newline, or one part of
+    // several — not the import; the enter pressed after it is. Wall time, not
+    // the screen's clock: it is how close together the keys came that counts.
+    function inBurst(str, key) {
+      const t = performance.now();
+      const enter = key?.name === "return" || key?.name === "enter";
+      if (enter) return burst.open || t - burst.at < PASTE_BURST_MS;
+      if (typeof str === "string" && str.length > 0 && !key?.ctrl && !key?.meta && key?.name !== "escape") {
+        burst.at = t;
+        if (!burst.open) { burst.open = true; setImmediate(() => { burst.open = false; }); }
+      }
+      return false;
+    }
+    // A paste goes whole into a share's field, as one line into a Network
+    // field, and nowhere else: its characters are not keys. A share pasted
+    // over the list (or a line of anything) would otherwise switch accounts,
+    // turn auto-switch, start an update.
+    function pasted() {
+      const text = pasting?.text ?? "";
+      pasting = null;
+      if (!text) return;
+      if (view.takesPaste(state)) return press(text, { name: "paste" });
+      if (view.takesText(state)) {
+        const line = text.replace(/[\x00-\x1f\x7f]+/g, " ").trim();
+        if (line) press(line, {});
+        return;
+      }
+      const lead = text.trimStart();
+      const where = lead.startsWith("ccdeck2:") ? "Claude" : lead.startsWith("ccdeck-codex-v1.") ? "Codex" : null;
+      tell("info", where
+        ? `nothing was pasted ${g.dash} to take in that share, press + on the ${where} tab, then tab`
+        : `nothing was pasted ${g.dash} only a field takes a paste`);
+      soon();
+    }
+    function press(str, key) {
       const { state: next, effect } = view.tuiKey(state, str, key ?? {}, { now: clock(), g });
       // The Local network's tab opened: read it now, with the settings it needs.
       const opened = view.onLan(next) && !view.onLan(state);
@@ -1191,7 +1350,7 @@ export async function runTui(flags, out, deps = {}) {
         try { work = effects[effect.type](effect); } catch (e) { work = Promise.reject(e); }
         Promise.resolve(work).catch(e => tell("err", String(e?.message ?? e))).finally(() => { keyWork--; render(); });
       }
-      render();
+      soon();
     }
 
     // ── following an update onto the new code ─────────────────────────────
@@ -1268,6 +1427,8 @@ export async function runTui(flags, out, deps = {}) {
     const tick = () => {
       if (done) return;
       const now = clock();
+      // A paste whose closing bracket never came is taken as it stands.
+      if (pasting && now - pasting.at > PASTE_SETTLE_MS) pasted();
       if (!deck) {
         if (!state.starting && now - last.find >= POLL_MS.find) lookForDeck();
         if (now - last.roster >= POLL_MS.roster * 2) readRoster(false);
@@ -1313,6 +1474,15 @@ const KEPT = Object.freeze({
   home: "your home account",
   rules: "the account Auto-switch's rules keep",
 });
+
+/** The most of a bracketed paste gathered, past the longest share any import
+ *  route reads; and how long one may go quiet before it is taken as it is. */
+const PASTE_GATHER_MAX = 600_000;
+const PASTE_SETTLE_MS = 1_500;
+/** How close behind a typed character an enter is still part of a paste the
+ *  terminal did not bracket: well under any hand's, well over a slow link's
+ *  gap between two reads of one paste. */
+const PASTE_BURST_MS = 30;
 
 /** What each reading is called when it fails; looking for a deck that is not
  *  there is not a failure. */

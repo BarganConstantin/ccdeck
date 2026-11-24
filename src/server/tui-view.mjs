@@ -29,10 +29,15 @@ import {
 } from "./tui-codex.mjs";
 import { machinePanel } from "./tui-machine.mjs";
 import {
-  hasLan, lanAsking, lanFooterKeys, lanFormSpec, lanInviteKeys, lanInviteLines, lanInvitePage, lanKey, lanLines, onLan,
+  hasLan, lanAsking, lanFooterKeys, lanFormSpec, lanInviteKeys, lanInviteLines, lanInvitePage, lanKey, lanLines, lanTakesText, onLan,
 } from "./tui-network.mjs";
+import {
+  addTabs, openPaste, openPick, shareKey, shareKeys, sharePage, sharePageLines, sharePickSpec, sharePicking, shareValue, takesPaste,
+} from "./tui-share.mjs";
 
-export { hasLan, onLan };
+export { hasLan, onLan, takesPaste };
+/** Whether a field that takes typed text is up, a share's aside. */
+export const takesText = lanTakesText;
 
 /** Text from elsewhere — the deck's own sentences, an alias — on a console
  *  that draws ASCII alone: its punctuation in ASCII's, anything else a "?". */
@@ -83,6 +88,7 @@ export function initialState() {
     codexAuto: null,    // GET /api/codex-auto, or null
     codexAt: null,      // the selected Codex account, by index; null until the side is first shown
     codexSignin: null,  // the Codex sign-in page while it is up: { id, name, adding, started, login }
+    share: null,        // a share while it is up (tui-share.mjs): the picker, the text, the paste, the results
     update: null,       // GET /api/version, the little of it this screen says and acts on (withUpdate), or null
   };
 }
@@ -189,6 +195,9 @@ export function withRoster(state, roster, trouble = null) {
  *   { type: "alias", account, alias }   rename it ("" takes the alias away)
  *   { type: "move", account, slot }
  *   { type: "remove", account }
+ *   { type: "share", codex, nums | ids, from, several, name? }   make a share
+ *   { type: "share-import", codex, blob, revision? }             take one in
+ *   { type: "share-update", key }       "update anyway" on one imported account
  *   { type: "update" }                  u: ask npm now, or take the update the
  *                                       deck names (updateKey)
  *
@@ -203,6 +212,7 @@ export function tuiKey(state, str, key = {}, { now = 0, g } = {}) {
   if (key.ctrl && name === "l") return { state, effect: { type: "redraw" } };
   if (state.signin) return signinKey(state, str, key, { now, g });
   if (state.codexSignin) return codexSigninKey(state, str, key, { now, g });
+  if (state.share) return shareKey(state, str, key, { now, g, note, copied: (s, text, alone) => copied(s, text, alone, { now, g }), forgetCopied, signinTab, selectSlot });
   // Help is a page over the view: any key puts the view back, and the key is
   // spent doing it — q there closes the page, it does not quit.
   if (state.help) return { state: { ...state, help: false }, effect: null };
@@ -251,6 +261,7 @@ export function tuiKey(state, str, key = {}, { now = 0, g } = {}) {
   }
   if (str === "a") return autoKey(s, { now, g });
   if (str === "+") return onCodex(state) ? codexAddKey(s, { now, g }) : addKey(s, { now, g });
+  if (str === "E") return sharePickKey(s, { now, g });
   // The account's own actions: the menu, or one of them straight from the list.
   const row = rows[at];
   if (row && (str === "m" || str === ".")) return menuOpen(s, row, "menu", { now, g });
@@ -409,6 +420,8 @@ function codexSigninKey(state, str, key, { now, g }) {
   const login = si.login?.state;
   if (!si.started || login === "failed" || login === "expired" || login === "cancelled") {
     if (enter) return { state: { ...forgetCopied(state), codexSignin: { ...si, started: true, login: null, alone: false } }, effect: { type: "codex-signin-start" } };
+    // A new account has the Codex panel's second way in: a pasted share.
+    if (name === "tab" && si.adding && !si.started) return { state: { ...state, codexSignin: null, share: openPaste(true) }, effect: null };
     return back ? close() : stay;
   }
   if (login === "done") return enter || back ? close({ type: "codex-signin-done" }) : stay;
@@ -423,6 +436,23 @@ function codexSigninKey(state, str, key, { now, g }) {
   // Leaving while it runs lets the deck's codex login go: no process stays behind.
   if (back) return close(si.id ? { type: "codex-signin-cancel", id: si.id } : null);
   return stay;
+}
+
+/** E: several accounts in one share, the deck's ↗ above its list — Claude's
+ *  every one ticked, Codex's none, as each panel opens its picker. */
+function sharePickKey(state, { now, g }) {
+  const told = (tone, text) => ({ state: { ...state, notice: note(tone, text, now) }, effect: null });
+  const codex = onCodex(state);
+  if (!state.deck) return told("info", `${codex ? "Codex accounts" : "accounts"} are shared through the deck ${g.dash} d starts one`);
+  if (state.busy) return told("info", `${state.busy.text} ${g.dash} one thing at a time`);
+  return { state: { ...state, share: openPick(codex) }, effect: null };
+}
+
+/** The Add page's other tab, from the paste field: the sign-in it came from. */
+function signinTab(state, sh) {
+  const next = { ...state, share: null };
+  if (sh.codex) return { ...next, codexSignin: { id: null, name: null, adding: true, started: false, login: null } };
+  return { ...next, signin: openSignin(sh.email ?? null) };
 }
 
 function addKey(state, { now, g }) {
@@ -442,13 +472,21 @@ function addKey(state, { now, g }) {
 // The deck's ⋯ menu on an account row (AccountMenuPopover.tsx), item for item
 // and by the same rules: hold out is offered on every account but the one in
 // use, putting one back whenever it is out; home whenever the account has an
-// address or already is home; remove asks first. Share and Projects stay in
-// the deck: one hands over a login as text, the other is a chart. Each item
-// has a key that works from the list too, so the menu is where they are
-// learnt, not the only way to them.
+// address or already is home; share on every Claude account and on a Codex
+// one that has a login to hand over; remove asks first. Projects stays in the
+// deck: it is a chart. Share hands over a login as text, drawn on a page of
+// its own (tui-share.mjs) and copied on a key, as the deck's popover does.
+// Each item has a key that works from the list too, so the menu is where they
+// are learnt, not the only way to them.
 
 /** The keys that reach an item straight from the list. */
-const ACTION_KEYS = Object.freeze({ n: "rename", v: "move", o: "hold", h: "home", x: "remove" });
+const ACTION_KEYS = Object.freeze({ n: "rename", v: "move", o: "hold", h: "home", x: "remove", e: "share" });
+
+/** Share, in the deck's menu as in its words. */
+const SHARE_ITEM = Object.freeze({ id: "share", key: "e", label: "Share…" });
+
+/** A Codex account the Codex panel offers to share: one with a login. */
+const codexShareable = (row) => row.issue?.word !== "not signed in";
 
 /** What claude-swap takes as an alias (cswap-admin.mjs ALIAS_OK). */
 const ALIAS_OK = /^(?!-)[A-Za-z0-9 ._-]{1,64}$/;
@@ -457,12 +495,20 @@ const ALIAS_OK = /^(?!-)[A-Za-z0-9 ._-]{1,64}$/;
  *  a Codex account. */
 export function menuItems(state, row) {
   const home = homeSlot(state) === row.num;
-  if (row.codex) return codexMenuItems(row, { home, homeable: state.codexAuto?.ok === true });
+  if (row.codex) {
+    // The Codex panel's order: Share after the sign-in and the name, and only
+    // on an account with a login to share.
+    const items = codexMenuItems(row, { home, homeable: state.codexAuto?.ok === true });
+    if (!codexShareable(row)) return items;
+    const at = items.findIndex(i => i.id === "rename") + 1;
+    return [...items.slice(0, at), SHARE_ITEM, ...items.slice(at)];
+  }
   const dead = !switchable(row) && !row.disabled;
   return [
     !row.active || dead ? { id: "switch", key: "enter", label: dead ? "Sign in again" : "Switch to this account" } : null,
     { id: "rename", key: "n", label: "Rename…" },
     { id: "move", key: "v", label: "Move to slot…" },
+    SHARE_ITEM,
     !row.active || row.disabled ? { id: "hold", key: "o", label: row.disabled ? "Put back in rotation" : "Hold out of rotation" } : null,
     home || row.email ? { id: "home", key: "h", label: home ? "Remove home" : "Set as home" } : null,
     { id: "remove", key: "x", label: "Remove…", danger: true },
@@ -493,6 +539,16 @@ function menuAct(state, row, id, { now, g }) {
   } else if (id === "switch") return switchKey({ ...state, menu: null }, row, { now, g });
   if (!state.deck || state.busy) return menuOpen(state, row, "menu", { now, g });
   if (id === "signin" && row.codex) return codexSigninOpen(state, row);
+  if (id === "share") {
+    if (row.codex && !codexShareable(row)) {
+      return { state: { ...state, notice: note("info", `${accountName(row)} is not signed in ${g.dash} there is no login to share; i signs it in`, now) }, effect: null };
+    }
+    // A Codex login leaves only after its warnings are read: the picker opens
+    // with this account ticked and enter makes the code, as the Codex panel's
+    // Share opens its dialog. Claude's share says its warning on its own page.
+    if (row.codex) return { state: { ...state, menu: null, share: openPick(true, { picked: [row.id] }) }, effect: null };
+    return { state, effect: { type: "share", codex: false, nums: [row.num], from: state.menu ? "menu" : "list", several: false, name: accountName(row) } };
+  }
   if (id === "rename" || id === "move" || id === "remove") {
     const open = menuOpen(state, row, id, { now, g });
     // Back from a form lands on the item it came from.
@@ -792,17 +848,21 @@ export function tuiFrame(state, { columns = 80, rows = 24, tone, g, unicode = tr
   // `plain` is for text from elsewhere that is measured inside a panel: in
   // ASCII it has to be ASCII before it is cut, or "…" grows past the border.
   const look = { tone, g, unicode, now, links, plain, skin: skinOf(profile ?? (tone.reset ? "ansi16" : "none")) };
-  if (state.signin || state.codexSignin || lanInvitePage(state)) {
+  if (state.signin || state.codexSignin || sharePage(state) || lanInvitePage(state)) {
     const page = state.signin ? signinLines(state, rows - 3, width, columns, look)
       : state.codexSignin ? codexSigninLines(state, rows - 3, width, columns, look)
+      : sharePage(state) ? sharePageLines(state, rows - 3, width, columns, { ...look, box: (w, h, spec) => panel(w, h, spec, look) })
       : lanInviteLines(state, rows - 3, width, columns, look);
     const run = page.run ? { ...page.run, row: page.run.row + 1 } : null;
     const lines = [titleBar(state, width, look), ...page.lines, noticeLine(state, look, width), footerLine(state, width, look)];
-    return { lines: fill(lines, run), top: state.top, run };
+    // `parts`: how many the share's text is cut into on its own at this size,
+    // kept by the app as `top` is, for the keys that walk them.
+    return { lines: fill(lines, run), top: state.top, run, parts: page.parts ?? null };
   }
   const body = bodyLines(state, rows - 3, width, look);
   const lines = [titleBar(state, width, look), ...body.lines, noticeLine(state, look, width), footerLine(state, width, look)];
-  const over = state.help ? withHelp(lines, state, width, look) : state.menu ? withMenu(lines, state, width, look)
+  const over = state.help ? withHelp(lines, state, width, look) : sharePicking(state) ? withSharePicker(lines, state, width, look)
+    : state.menu ? withMenu(lines, state, width, look)
     : state.lanForm ? withLanForm(lines, state, width, look) : lines;
   return { lines: fill(over), top: body.top, run: null };
 }
@@ -971,7 +1031,7 @@ function noticeLine(state, { tone, g, unicode, now }, width = Infinity) {
   if (!n || (n.until != null && now > n.until)) return "";
   // That a link or a code was sent to the clipboard, said for as long as it is
   // the one on the page: not past the sign-in that had it.
-  if (n.copy && !signinValue(state)) return "";
+  if (n.copy && !signinValue(state) && !shareValue(state)) return "";
   const [toneName, glyph] = NOTICE_MARK[n.tone] ?? NOTICE_MARK.info;
   // A notice with a short form says that one where the long one would be cut:
   // a copy's hint is read on a phone over SSH, where the screen is narrowest.
@@ -991,6 +1051,7 @@ function footerLine(state, width, look) {
   // says what, and this says how. With none named it is in ? alone.
   const update = updateNotice(state) ? [["u", "update"]] : [];
   const keys = state.signin ? signinKeys(state.signin) : state.codexSignin ? codexSigninKeys(state.codexSignin)
+    : state.share ? shareKeys(state, { unicode, now: look.now })
     : lanInvitePage(state) ? lanInviteKeys() : onLan(state) ? [
     ...lanFooterKeys(state, { now: look.now, unicode }),
     ...tabs,
@@ -1005,6 +1066,7 @@ function footerLine(state, width, look) {
     ["b", "best"],
     state.deck ? ["a", "auto-switch"] : ["d", "start the deck"],
     ["+", "add"],
+    ["e", "share"],
     ["r", "refresh"],
     ...update,
     ["?", "keys"],
@@ -1018,8 +1080,9 @@ function footerLine(state, width, look) {
   // before the copy keys: the page itself says to press it after the paste,
   // and nothing else there tells of ctrl+o or tab on a narrow screen. u stays
   // past the tabs, which the title bar draws anyway, while nothing but this
-  // says which key takes the update it names.
-  for (const drop of ["r", unicode ? "↑↓" : "up/down", "b", "+", "a", "d", "m", tabsKey, "u", "n", "x", "space", "enter", "tab", "ctrl+o"]) {
+  // says which key takes the update it names. e goes before all of them: m's
+  // menu lists it, with its key.
+  for (const drop of ["e", "r", unicode ? "↑↓" : "up/down", "b", "+", "a", "d", "m", tabsKey, "u", "n", "x", "space", "enter", "tab", "ctrl+o"]) {
     if (textWidth(draw(list)) <= width) break;
     const i = list.findIndex(([k]) => k === drop);
     if (i !== -1) list.splice(i, 1);
@@ -1210,6 +1273,14 @@ function lanBody(state, room, width, look) {
 function withLanForm(base, state, width, look) {
   const boxW = Math.min(width - 2, 64);
   const spec = lanFormSpec(state, boxW - 4, look);
+  const height = Math.min(base.length - 2, spec.lines.length + 2);
+  return overlay(base, panel(boxW, height, spec, look), boxW, width, look);
+}
+
+/** The share picker, in a box over the screen as an account's menu is. */
+function withSharePicker(base, state, width, look) {
+  const boxW = Math.min(width - 2, 64);
+  const spec = sharePickSpec(state, boxW - 4, base.length - 4, look);
   const height = Math.min(base.length - 2, spec.lines.length + 2);
   return overlay(base, panel(boxW, height, spec, look), boxW, width, look);
 }
@@ -1555,6 +1626,8 @@ function signinKey(state, str, key, { now, g }) {
   const close = (effect = null) => ({ state: { ...forgetCopied(state), signin: null }, effect });
   if (!si.started) {
     if (enter) return { state, effect: { type: "signin-start" } };
+    // The Add dialog's second tab: an account shared from another deck.
+    if (name === "tab") return { state: { ...state, signin: null, share: openPaste(false, si.email ?? null) }, effect: null };
     return back ? close() : stay;
   }
   const at = signinStage(si);
@@ -1609,7 +1682,7 @@ function signinKey(state, str, key, { now, g }) {
 
 /** The page's keys, for the footer. */
 function signinKeys(si) {
-  if (!si.started) return [["enter", "get the sign-in link"], ["esc", "back"]];
+  if (!si.started) return [["enter", "get the sign-in link"], ["tab", "paste a share"], ["esc", "back"]];
   const at = signinStage(si);
   if (at.done) return [["enter", "done"]];
   if (at.failed) return [["enter", "try again"], ["esc", "back"]];
@@ -1747,7 +1820,7 @@ function signinLines(state, room, width, columns, look) {
       "",
       ...wrap(what, inner),
     ].map((l, i) => (i ? `${tone.muted}${l}${tone.reset}` : l));
-    return out(panel(width, Math.min(room, lines.length + 2), { title, lines }, look));
+    return out(panel(width, Math.min(room, lines.length + 2), { title, note: addTabs(false, look), lines }, look));
   }
 
   const at = signinStage(si);
@@ -1839,7 +1912,7 @@ function signinLines(state, room, width, columns, look) {
 /** The footer's keys while the Codex sign-in page is up. */
 function codexSigninKeys(si) {
   const login = si.login?.state;
-  if (!si.started) return [["enter", "get the code"], ["esc", "back"]];
+  if (!si.started) return [["enter", "get the code"], ...(si.adding ? [["tab", "paste a share"]] : []), ["esc", "back"]];
   if (login === "done") return [["enter", "done"]];
   if (login === "failed" || login === "expired" || login === "cancelled") return [["enter", "try again"], ["esc", "back"]];
   if (!codexValue(si)) return [["esc", "cancel"]];
@@ -1871,7 +1944,7 @@ function codexSigninLines(state, room, width, columns, look) {
       ...wrap(si.adding
         ? "The deck adds a new account for it. Codex keeps running on the account it runs on now."
         : "Signing in replaces this account's login in place: it keeps its name, settings and history.", inner),
-    ].map(quiet)));
+    ].map(quiet), si.adding ? addTabs(false, look) : ""));
   }
   const frames = spinnerFrames(unicode);
   const spin = frames[Math.floor(now / 100) % frames.length];
@@ -1992,10 +2065,11 @@ function withHelp(base, state, width, look) {
     ["enter  s", "switch to it, or sign it in again"],
     ["m", "its actions, as in the deck's account menu"],
     ["h  o", `set or clear home  ${g.bullet}  hold out, or put back`],
-    ["n  v  x", `rename  ${g.bullet}  move to another slot  ${g.bullet}  remove`],
+    ["n  v  e  x", `rename  ${g.bullet}  move to a slot  ${g.bullet}  share  ${g.bullet}  remove`],
     ["b", "select the account Auto-switch would pick"],
     ["a", "turn Auto-switch on or off"],
-    ["+", "add an account, signed in from any browser"],
+    // The deck's two buttons above its list: + and ↗.
+    ["+  E", `add an account or paste one  ${g.bullet}  share several`],
     // On r's line rather than one of its own: at 80 by 24 the box is full.
     ["r  u", `read the usage again  ${g.bullet}  ${n ? `update to ${n.to}` : "check for an update"}`],
     [unicode ? "← →" : "left right", `the tabs  ${g.bullet}  c Codex  ${g.bullet}  l Local network`],
