@@ -1031,6 +1031,7 @@ const catalog: Catalog = {
   "board.railGroup.new": "Terminé · nouveau",
   "board.railGroup.done": "Terminé",
   "board.railGroup.ready": "Prêt",
+  "board.railGroup.pinned": "Épinglées",
   "board.rail.held.one": "{count} déplacement attend que vous quittiez la liste",
   "board.rail.held.other": "{count} déplacements attendent que vous quittiez la liste",
   "board.nav.none": "Aucune session",
@@ -1087,6 +1088,9 @@ const catalog: Catalog = {
   "board.list.hiddenRow": "{name} masquée de la liste",
   "board.list.hiddenSaid": "{name} masquée de la liste. Annulation possible.",
   "board.list.hiddenCount": "Masquées · {n}",
+  "board.list.pinRow": "Épingler",
+  "board.list.unpinRow": "Désépingler",
+  "board.list.pinnedSuffix": ", épinglée",
 };
 
 export default catalog;

@@ -1031,6 +1031,7 @@ const catalog: Catalog = {
   "board.railGroup.new": "完了 · 新着",
   "board.railGroup.done": "完了",
   "board.railGroup.ready": "準備完了",
+  "board.railGroup.pinned": "ピン留め",
   "board.rail.held.one": "一覧を離れるまで、{count}件の移動が保留されています",
   "board.rail.held.other": "一覧を離れるまで、{count}件の移動が保留されています",
   "board.nav.none": "セッションなし",
@@ -1087,6 +1088,9 @@ const catalog: Catalog = {
   "board.list.hiddenRow": "{name} を一覧から非表示にしました",
   "board.list.hiddenSaid": "{name} を一覧から非表示にしました。元に戻せます。",
   "board.list.hiddenCount": "非表示 · {n}",
+  "board.list.pinRow": "ピン留めする",
+  "board.list.unpinRow": "ピン留めを外す",
+  "board.list.pinnedSuffix": "、ピン留め中",
 };
 
 export default catalog;

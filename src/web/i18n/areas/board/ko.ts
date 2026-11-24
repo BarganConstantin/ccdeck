@@ -1031,6 +1031,7 @@ const catalog: Catalog = {
   "board.railGroup.new": "완료 · 신규",
   "board.railGroup.done": "완료",
   "board.railGroup.ready": "준비됨",
+  "board.railGroup.pinned": "고정됨",
   "board.rail.held.one": "목록에서 나가면 이동 {count}건이 적용됩니다",
   "board.rail.held.other": "목록에서 나가면 이동 {count}건이 적용됩니다",
   "board.nav.none": "세션 없음",
@@ -1087,6 +1088,9 @@ const catalog: Catalog = {
   "board.list.hiddenRow": "{name} 세션을 목록에서 숨겼습니다",
   "board.list.hiddenSaid": "{name} 세션을 목록에서 숨겼습니다. 실행 취소할 수 있습니다.",
   "board.list.hiddenCount": "숨김 · {n}",
+  "board.list.pinRow": "고정",
+  "board.list.unpinRow": "고정 해제",
+  "board.list.pinnedSuffix": ", 고정됨",
 };
 
 export default catalog;

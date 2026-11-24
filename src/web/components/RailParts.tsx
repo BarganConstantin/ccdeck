@@ -7,7 +7,7 @@ import type { Row } from "./SessionList";
 import { AlertMark, StateMark } from "./StateMark";
 import { stateLabel } from "../agent-copy";
 import { modelChipText, modelChipTitle } from "../model-label";
-import { RAIL_GROUP_LABEL_MSGS, type RailGroup } from "../rail-model";
+import { railSectionLabelMsg, type RailGroup, type RailSection } from "../rail-model";
 import { railFailed, railGlyph, railLine, railTime, rowSpoken, rowTooltip, twinStart, type CompactRowContext, type RailGlyphKind, type RailLine } from "../rail-row-copy";
 import { fadeIn, tokenMs } from "../rail-motion";
 import { useT } from "../i18n";
@@ -15,10 +15,12 @@ import SessionNameField, { useRenaming } from "./SessionNameField";
 import { isRenameKey, type RenameFacts } from "../session-rename";
 import { beginDrag, endDrag } from "../split-drag";
 import ProviderAvatar from "./ProviderAvatar";
-import { BrowserWatchGlyph } from "./rail-glyphs";
+import { BrowserWatchGlyph, PinGlyph } from "./rail-glyphs";
 import type { PaneLink } from "../workspace-split";
 import { providerLabel } from "../provider-copy";
 import { withKey } from "../single-key-shortcuts";
+import { isPinChord, pinChordLabel } from "../list-pinned";
+import { platformName } from "../platform";
 import type { Provider } from "../types";
 
 /** The key that hides a focused row from the list. A named key, so it works
@@ -101,6 +103,14 @@ export interface RowAct {
   run: (sessionId: string, from: HTMLElement) => void;
 }
 
+/** A row's pin (list-pinned.ts), drawn before its act at the same trailing
+ *  edge: Pin on a row that is not pinned, Unpin on one that is. `run` pins or
+ *  unpins; `from` is the control or the row the press came from. */
+export interface RowPin {
+  pinned: boolean;
+  run: (sessionId: string, from: HTMLElement) => void;
+}
+
 export interface RailRowProps {
   compact?: boolean;
   showContext?: boolean;
@@ -128,9 +138,12 @@ export interface RailRowProps {
    *  or F2 on it, opens the field where its name is. Left out (a row on its
    *  way out), the row only selects. */
   rename?: RenameFacts | null;
-  /** The row's trailing act. Absent on a working or waiting row, and on one
-   *  on its way out. */
+  /** The row's trailing act. Absent on a working or waiting row, on a
+   *  pinned one, and on one on its way out. */
   act?: RowAct;
+  /** The row's pin, before the act. Absent on a row on its way out and on one
+   *  the Hidden line lists. */
+  pin?: RowPin;
 }
 
 /** Whether focus came to this control by the keyboard (Tab, or handed on from
@@ -163,6 +176,25 @@ export function hideOnDelete(
     e.preventDefault();
     e.stopPropagation();
     hide(sessionId, e.target as HTMLElement);
+    return true;
+  };
+}
+
+/** A row's keydown for its pin: Alt+P (⌥P on a Mac; list-pinned.ts
+ *  isPinChord says why that chord) pins the focused row or takes its pin off,
+ *  and is stopped here. Unlike Delete it is nobody else's key, so it answers a
+ *  row however focus came to it, the mouse's included. False for any other
+ *  key, which stays the row's. */
+export function pinOnKey(
+  sessionId: string,
+  pin: RowPin["run"] | undefined,
+): ((e: { key: string; code?: string; repeat: boolean; shiftKey: boolean; ctrlKey: boolean; altKey: boolean; metaKey: boolean; target: unknown; preventDefault(): void; stopPropagation(): void }) => boolean) | undefined {
+  if (!pin) return undefined;
+  return e => {
+    if (!isPinChord(e)) return false;
+    e.preventDefault();
+    e.stopPropagation();
+    pin(sessionId, e.target as HTMLElement);
     return true;
   };
 }
@@ -200,7 +232,7 @@ export function openBesideOnShiftEnter(
   };
 }
 
-export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys, onOpenBeside, rename, act, compact = false, showContext = false, context, pane }: RailRowProps) {
+export function RailRow({ row: r, group, now, selected, removed, leaving, landNonce, onSelect, onOpenKeys, onOpenBeside, rename, act, pin, compact = false, showContext = false, context, pane }: RailRowProps) {
   const t = useT();
   const failed = railFailed(r, group, t);
   // Keep a second line where it explains an action or tells sessions apart.
@@ -241,6 +273,8 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
   // already knows.
   const focusByKeyRef = useRef(false);
   const hideKey = hideOnDelete(r.sessionId, act?.kind === "hide" ? act.run : undefined, () => focusByKeyRef.current);
+  const pinKey = pinOnKey(r.sessionId, pin?.run);
+  const pinWords = t(pin?.pinned ? "board.list.unpinRow" : "board.list.pinRow");
   // A row the Hidden line lists is not one of the list's own: it carries its
   // id under another name, so the list's motion and its landing never take it
   // for the row it was (rail-motion.ts reads data-rail-id).
@@ -261,8 +295,8 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
     <li className={`sl-row-item${leaving ? " leaving" : ""}`} data-rail-id={inHidden ? undefined : r.sessionId}
       data-hidden-id={inHidden ? r.sessionId : undefined}
       ref={el => { if (el) el.inert = leaving; }}>
-      {/* F2, ⇧↵ and Delete on the row, caught here as they bubble: the row's
-          own keydown is the Workspace's Enter (openKeysOnEnter). */}
+      {/* F2, ⇧↵, Delete and the pin key on the row, caught here as they
+          bubble: the row's own keydown is the Workspace's Enter (openKeysOnEnter). */}
       <div
         className="sl-row-in"
         data-dragging={dragging || undefined}
@@ -274,9 +308,10 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
         onDragEnd={beside ? () => { setDragging(false); endDrag(); } : undefined}
         onFocus={e => { if ((e.target as EventTarget) === rowRef.current) focusByKeyRef.current = keyboardFocused(e.target); }}
         onBlur={e => { if ((e.target as EventTarget) === rowRef.current) focusByKeyRef.current = false; }}
-        onKeyDown={rename || besideKey || hideKey ? e => {
+        onKeyDown={rename || besideKey || hideKey || pinKey ? e => {
           if (e.target !== rowRef.current) return;
           if (hideKey?.(e)) return;
+          if (pinKey?.(e)) return;
           if (besideKey?.(e)) return;
           if (rename && isRenameKey(e)) { e.preventDefault(); renaming.start(); }
         } : undefined}
@@ -317,6 +352,9 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
                 {/* Said after the name, as the Feedback list says an unread
                     conversation; the dot is for the eye. */}
                 {unread && <span className="vis-hidden">{t("shell.feedback.unreadSuffix")}</span>}
+                {/* Said after the name too: a reader moving row to row by Tab
+                    never hears the Pinned header the eye sees above them. */}
+                {pin?.pinned && <span className="vis-hidden">{t("board.list.pinnedSuffix")}</span>}
               </span>
               {pane && <span className="vis-hidden">{t(pane.active ? "board.stage.split.activePane" : "board.stage.split.paneNumber", { number: pane.number })}</span>}
               {/* The unread dot, in the accent the stripes' doors use for
@@ -349,10 +387,14 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
             </span>}
           </span>
         </button>
-        {/* The row's one act, after the row in Tab order and drawn over its
-            trailing status, which it replaces while it shows (session-list.css):
-            the row never moves for it. Its own control, never inside the row's
-            button, so the row's click and Enter stay what they were. */}
+        {/* The row's acts, after the row in Tab order and drawn over its
+            trailing status, which they replace while they show
+            (session-list.css): the row never moves for them. Their own
+            controls, never inside the row's button, so the row's click and
+            Enter stay what they were. The eye first, then the pin at the
+            edge: the pin is the act every row has, so it stays where it is
+            when the eye comes and goes, and a second press on it is the pin
+            again, never the eye. */}
         {act && (
           <button
             type="button"
@@ -362,6 +404,17 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
             onClick={e => act.run(r.sessionId, e.currentTarget)}
           >
             <BrowserWatchGlyph watching={act.kind === "show"} />
+          </button>
+        )}
+        {pin && (
+          <button
+            type="button"
+            className="sl-row-act sl-row-pin"
+            aria-label={pinWords}
+            title={withKey(pinWords, pinChordLabel(platformName()), true)}
+            onClick={e => pin.run(r.sessionId, e.currentTarget)}
+          >
+            <PinGlyph pinned={pin.pinned} />
           </button>
         )}
       </div>
@@ -393,14 +446,15 @@ function RowWords({ removed, failed, line }: { removed: boolean; failed: string 
 /** A group's label and how many rows it holds. A group that can fold is a
  *  button: closed it points right, open it has turned. */
 export function GroupHead({ group, count, spaced, fold }: {
-  group: RailGroup;
+  /** Pinned, or one of the five groups. */
+  group: RailSection;
   count: number;
   /** Not the first thing in the list: 8px of space above. */
   spaced: boolean;
   fold?: { open: boolean; motion: FoldMode; onToggle: (e: MouseEvent<HTMLButtonElement>) => void };
 }) {
   const t = useT();
-  const label = t(RAIL_GROUP_LABEL_MSGS[group]);
+  const label = t(railSectionLabelMsg(group));
   return (
     <li className={`sl-group-head${spaced ? " spaced" : ""}`}>
       {fold
