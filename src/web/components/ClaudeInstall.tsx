@@ -1,6 +1,9 @@
 // Install Claude Code, where the deck found none: the session pane's card for a
 // Claude session that could not start, and the Accounts sign-in whose `claude`
-// could not be run. One component, so the two say and do the same thing.
+// could not be run. One component, so the two say and do the same thing. And
+// Install Codex, the same card for a Codex session (`agent`): its own words,
+// npm's install (codex-install.mjs), and npm's command by hand, the one
+// OpenAI's README gives for every platform.
 //
 // THE OFFER, THEN THE WAY BY HAND. The host's sentence on what is missing, a
 // primary Install Claude Code beside the host's own buttons (Try again and Not
@@ -22,7 +25,7 @@
 import { useState, type ReactNode } from "react";
 import { copyText } from "../copy-text";
 import { useT } from "../i18n";
-import { REASON_KEYS } from "../claude-install-api";
+import { INSTALL_WORDS, type InstallAgent } from "../claude-install-api";
 import { useClaudeInstall, type ClaudeInstallView } from "../use-claude-install";
 import { useHoldThen } from "../use-engine-install";
 import { Loader } from "./Loader";
@@ -34,6 +37,8 @@ export const INSTALLED_HOLD_MS = 900;
 export interface ClaudeInstallProps {
   /** The session pane's centred card, or the sign-in dialog's column. */
   place: "stage" | "dialog";
+  /** Which CLI it installs; Claude Code unless it says. */
+  agent?: InstallAgent;
   /** Called once, after an install this card watched is done. */
   onInstalled?(): void;
   /** The host's sentence on what is missing, first; gone once installed. */
@@ -87,9 +92,10 @@ function ByHand({ command, shell, place }: { command: string; shell: "terminal" 
   );
 }
 
-export default function ClaudeInstall({ place, onInstalled, lead, actions, note, fallback }: ClaudeInstallProps) {
+export default function ClaudeInstall({ place, agent = "claude", onInstalled, lead, actions, note, fallback }: ClaudeInstallProps) {
   const t = useT();
-  const { view, pending, install } = useClaudeInstall();
+  const { view, pending, install } = useClaudeInstall(agent);
+  const words = INSTALL_WORDS[agent];
   const [told, setTold] = useState(false);
   useHoldThen(view.state === "done" && !told, INSTALLED_HOLD_MS, () => { setTold(true); onInstalled?.(); });
 
@@ -110,8 +116,8 @@ export default function ClaudeInstall({ place, onInstalled, lead, actions, note,
     <button type="button" className="btn primary" data-stage-land={stage || undefined} aria-busy={running || pending || undefined}
       onClick={() => { if (!running && !pending) void install(); }}>
       {running
-        ? <span className="ci-busy"><Loader /><span>{t("accounts.claudeInstall.installing")}</span></span>
-        : t(failed ? "accounts.claudeInstall.again" : "accounts.claudeInstall.install")}
+        ? <span className="ci-busy"><Loader /><span>{t(words.installing)}</span></span>
+        : t(failed ? "accounts.claudeInstall.again" : words.install)}
     </button>
   ) : null;
 
@@ -123,11 +129,11 @@ export default function ClaudeInstall({ place, onInstalled, lead, actions, note,
   return (
     <>
       {done ? null : lead}
-      {done ? <p className={stage ? "ts-text" : "aa-note"} role="status">{t("accounts.claudeInstall.done")}</p> : null}
-      {failed ? <p className={stage ? "ts-note" : "aa-err"} role="alert">{t(REASON_KEYS[failed.reason])}</p> : null}
+      {done ? <p className={stage ? "ts-text" : "aa-note"} role="status">{t(words.done)}</p> : null}
+      {failed ? <p className={stage ? "ts-note" : "aa-err"} role="alert">{t(words.reasons[failed.reason])}</p> : null}
       {failed?.detail ? <pre className="ci-detail">{failed.detail}</pre> : null}
       {row(own)}
-      <span className="vis-hidden" role="status">{running ? t("accounts.claudeInstall.installing") : ""}</span>
+      <span className="vis-hidden" role="status">{running ? t(words.installing) : ""}</span>
       {manual ? <ByHand command={manual.command} shell={manual.shell} place={place} /> : null}
       {done || running ? null : note}
     </>

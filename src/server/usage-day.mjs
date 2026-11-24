@@ -77,6 +77,8 @@ export const FEATURES = Object.freeze([
   "codex-account-switch", "codex-accounts-manage", "codex-auto-switch",
   // `ccdeck tui` on its Network tab (feature-use.mjs, CLIENT_FEATURES).
   "tui-network",
+  // Codex installed from the deck, as Claude Code is above (codex-install.mjs).
+  "codex-install",
 ]);
 const FEATURE_SET = new Set(FEATURES);
 

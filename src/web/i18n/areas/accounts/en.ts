@@ -665,6 +665,12 @@ const catalog: Catalog = {
   "accounts.claudeInstall.fail.timeout": "The installer took too long and was stopped.",
   "accounts.claudeInstall.fail.notFound": "The installer finished, but ccdeck cannot find Claude Code.",
   "accounts.claudeInstall.fail.other": "Claude Code could not be installed.",
+  "accounts.codexInstall.install": "Install Codex",
+  "accounts.codexInstall.installing": "Installing Codex…",
+  "accounts.codexInstall.done": "Codex is installed.",
+  "accounts.codexInstall.fail.npm": "ccdeck cannot find npm on this machine. Codex is installed with npm, which comes with Node.js.",
+  "accounts.codexInstall.fail.notFound": "The installer finished, but ccdeck cannot find Codex.",
+  "accounts.codexInstall.fail.other": "Codex could not be installed.",
   "accounts.fail.login.tookLong": "{what} took too long and was stopped",
 };
 

@@ -25,7 +25,7 @@
 // [data-terminal-panel], which only the terminal's own host carries
 // (StageBody) — the header and the keys bar are where focus lands when the
 // keys go back to the board, and from there j, k and n are the board's.
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type RefObject } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type RefObject } from "react";
 import { terminalTarget, type LaunchOptions, type SessionRef, type TerminalProvider } from "../../terminal-api";
 import { terminalTheme } from "../../terminal-palette";
 import { releaseChordLabel } from "../../terminal-keys";
@@ -42,10 +42,14 @@ import {
 import {
   agentName,
   canType as phaseTakesKeys,
+  CHOOSE_FOLDER_MSG,
+  folderGoneBody,
+  folderGoneLine,
   frameState,
   headerStatus,
   NOT_RESUMED_MSG,
   onItsWay,
+  paneless,
   REOPENING_MSG,
   START_NEW_MSG,
   START_NEW_TIP_MSG,
@@ -53,11 +57,12 @@ import {
   stageAnnouncement,
   type FrameState,
   type KeysOwner,
-  type StagePhase, type StagePhaseKind,
+  type StagePhase,
   type StageStatus,
 } from "./stage-model";
+import { canChooseFolder, chooseFolder } from "../../desktop-folder";
 import StageHeader, { metaRest } from "./StageHeader";
-import StageBody, { catchKeys, type StageContext } from "./StageBody";
+import StageBody, { catchKeys, handoffReason, type HandoffReason, type StageContext } from "./StageBody";
 import type { HeldKeys } from "../../type-ahead";
 import { useFocusRequest, type FocusRequest } from "./use-focus-request";
 import { paneHoldsKeys } from "../../pane-keys";
@@ -91,11 +96,6 @@ import { useRenaming } from "../SessionNameField";
 /** One empty transcript for every render, so the card's words are not rebuilt for nothing. */
 const NO_TURNS: readonly ChatTurn[] = [];
 
-/** The phases with no pane to type into, whose cards carry no keys bar. */
-const PANELESS: ReadonlySet<StagePhaseKind> = new Set<StagePhaseKind>([
-  "empty", "not-attachable", "error", "tmux-missing", "tmux-installing",
-]);
-
 /** How long the keys bar holds a refusal before its hints come back. */
 const NOTICE_MS = 6000;
 
@@ -106,7 +106,7 @@ const NOTICE_MS = 6000;
  *  card's Reopen here while it works, and an ended pane's. */
 export function settlesFocus(phase: StagePhase): boolean {
   return phase.kind !== "attaching" && phase.kind !== "starting" && phase.kind !== "tmux-installing"
-    && !((phase.kind === "tmux-missing" || phase.kind === "error" || phase.kind === "not-attachable" || phase.kind === "ended") && phase.busy)
+    && !((phase.kind === "tmux-missing" || phase.kind === "error" || phase.kind === "not-attachable" || phase.kind === "ended" || phase.kind === "folder-gone") && phase.busy)
     && !(phase.kind === "live" && !phase.readOnly);
 }
 
@@ -243,8 +243,16 @@ export interface TerminalStageProps {
   onClose(): void;
   onToggleExpand(): void;
   onFirstRunDone(): void;
-  /** Open the New session popover, hung off the control with this id. */
-  onNewSession(anchorId: string): void;
+  /** Open the New session popover, hung off the control with this id.
+   *  `elsewhere`: the folder-gone card's Choose folder… where the desktop
+   *  app's folder dialog is not there — its agent chosen, and the folder that
+   *  is gone (`gone`) never offered nor chosen, so the reader picks one. */
+  onNewSession(anchorId: string, elsewhere?: { agent: TerminalProvider; gone: string }): void;
+  /** A NEW session of `agent` in `cwd`, in this pane: the folder-gone card's
+   *  Choose folder…, once the desktop app's dialog chose one. Never a
+   *  conversation resumed in another folder. Left out, Choose folder… opens
+   *  New session instead. */
+  onStartIn?(agent: TerminalProvider, cwd: string): void;
   /** The divider moved; `settled` once the gesture is over (persist then). */
   onCols(cols: number, settled: boolean): void;
   onColsReset(): void;
@@ -333,12 +341,36 @@ export const EMPTY_PANE_NAME_MSG = "board.stage.emptyPane";
  * reopened could not resume the conversation (`unresumed`): the bar says so,
  * offers Try again, and beside it a new session in the same folder
  * (`startNew`) — never started without that press.
+ *
+ * An ended pane whose folder is gone (folder-gone with its frame) offers
+ * neither: the bar names the folder, Choose folder… starts a new session
+ * elsewhere (`chooseFolder`, its tooltip saying what becomes of the
+ * conversation), and Check again (`checkAgain`) runs the press again only
+ * once the folder is back. Without its frame, the card says all that instead.
  */
 export function endView(
   phase: StagePhase,
   show: StageShow,
-  act: { reopen(): void; launchAgain?: () => void; attachAgain(): void; startNew?: () => void },
+  act: {
+    reopen(): void; launchAgain?: () => void; attachAgain(): void; startNew?: () => void;
+    chooseFolder?: () => void; chooseId?: string; checkAgain?: () => void;
+  },
 ): EndView | null {
+  if (phase.kind === "folder-gone") {
+    if (!phase.frame) return null;
+    // One line, said where it is drawn (folderGoneLine): what is gone, then
+    // what Choose folder… does; a Check again that found it still gone
+    // changes its first half. The full path is its tooltip.
+    const line = folderGoneLine(phase);
+    const said = { sentence: `${line.lead} ${line.next}`, where: phase.cwd, live: true };
+    const check = tNow(phase.busy ? "board.stage.checking" : "board.stage.checkAgain");
+    const checkAgain = act.checkAgain ?? act.attachAgain;
+    if (!act.chooseFolder) return { ...said, action: check, busy: phase.busy, onAction: checkAgain };
+    return {
+      ...said, action: tNow(CHOOSE_FOLDER_MSG), title: folderGoneBody(phase), id: act.chooseId, onAction: act.chooseFolder,
+      alt: { action: check, busy: phase.busy, onAction: checkAgain },
+    };
+  }
   if (phase.kind === "ended") {
     if (show.kind === "launch" && act.launchAgain) {
       const name = agentName(show.agent);
@@ -470,16 +502,22 @@ export default function TerminalStage(p: TerminalStageProps) {
   });
   const { phase } = session;
   const [handoffFrom, setHandoffFrom] = useState<string | null>(null);
-  const [handoffFailed, setHandoffFailed] = useState(false);
+  // Why the last move of this source did not happen, or why it still waits.
+  const [handoffIssue, setHandoffIssue] = useState<{ source: string; reason: HandoffReason } | null>(null);
   const handoffRequest = useRef<AbortController | null>(null);
+  // The source whose move Ghostty took: its wait running out is a slow
+  // arrival, not a failure, and Look again asks nothing of Ghostty.
+  const handoffSent = useRef<string | null>(null);
   const continuationRef = useRef(p.onContinuation);
   continuationRef.current = p.onContinuation;
   const claudeSource = chatRef?.provider === "claude" && !p.windows ? chatRef.sessionId : null;
   const handoffCwd = chatRef?.cwd ?? "";
   const couldMove = !!p.onContinuation && !!claudeSource && !!handoffCwd && phase.kind === "not-attachable";
-  // The move works only for Claude in a Ghostty window on a Mac. The server
-  // makes every lookup of the real move without sending anything, and the
-  // button shows only when it says yes, so nobody gets a button that fails.
+  // The move works only for Claude in a Ghostty window on a Mac, with a
+  // Ghostty whose scripting can find Claude's surface. The server makes every
+  // lookup of the real move without sending anything, and the button shows
+  // only when it says yes, so nobody gets a button that fails. A later no
+  // takes back an earlier yes.
   const [movableFor, setMovableFor] = useState<string | null>(null);
   useEffect(() => {
     if (!couldMove || !claudeSource) return;
@@ -493,30 +531,43 @@ export default function TerminalStage(p: TerminalStageProps) {
           body: JSON.stringify({ sessionId: claudeSource, provider: "claude", cwd: handoffCwd, check: true }),
         });
         if (!response.ok) return;
-        const { movable } = await response.json() as { movable?: unknown };
-        if (!controller.signal.aborted && movable === true) setMovableFor(claudeSource);
-      } catch { /* No answer: the button stays hidden. */ }
+        const { movable, reason } = await response.json() as { movable?: unknown; reason?: unknown };
+        if (controller.signal.aborted) return;
+        if (movable === true) setMovableFor(claudeSource);
+        else setMovableFor(was => was === claudeSource ? null : was);
+        // A Ghostty too old to find Claude's surface: say so before anyone
+        // looks for a Move button, with the way by hand, and offer no move.
+        if (movable !== true && reason === "ghostty-unsupported") {
+          setHandoffIssue(was => was?.source === claudeSource ? was : { source: claudeSource, reason: "ghostty-unsupported" });
+        }
+      } catch { /* No answer: the button stays as it was. */ }
     })();
     return () => controller.abort();
   }, [couldMove, claudeSource, handoffCwd]);
-  const canMove = couldMove && movableFor === claudeSource;
-  const moving = canMove && handoffFrom === claudeSource;
+  // A move under way, or one that stopped, keeps its card after a later check
+  // says no: Claude leaving Ghostty is what a move that worked looks like.
+  const moving = couldMove && handoffFrom === claudeSource;
+  const handoffStopped = handoffIssue && handoffIssue.source === claudeSource ? handoffIssue.reason : undefined;
+  const handoffShown = couldMove && (movableFor === claudeSource || moving || handoffStopped !== undefined);
   useEffect(() => {
     setHandoffFrom(null);
-    setHandoffFailed(false);
+    setHandoffIssue(null);
+    handoffSent.current = null;
     return () => handoffRequest.current?.abort();
   }, [claudeSource]);
   const toggleHandoff = async () => {
     if (moving) {
       handoffRequest.current?.abort();
       setHandoffFrom(null);
+      setHandoffIssue(null);
       return;
     }
     if (!claudeSource || handoffRequest.current) return;
     const controller = new AbortController();
     handoffRequest.current = controller;
-    setHandoffFailed(false);
+    setHandoffIssue(null);
     setHandoffFrom(claudeSource);
+    let said: unknown;
     try {
       const response = await fetch("/api/terminal/background", {
         method: "POST",
@@ -524,12 +575,24 @@ export default function TerminalStage(p: TerminalStageProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId: claudeSource, provider: "claude", cwd: handoffCwd }),
       });
-      if (response.ok) return;
+      if (response.ok) { handoffSent.current = claudeSource; return; }
+      said = (await response.json().catch(() => null) as { reason?: unknown } | null)?.reason;
     } catch { /* The source remains where it was if the request failed. */ }
     finally { handoffRequest.current = null; }
     if (controller.signal.aborted) return;
+    const reason = handoffReason(said);
+    setHandoffIssue({ source: claudeSource, reason });
+    // Sent before, from here or another tab: keep waiting for it, send nothing.
+    if (reason === "already-sent") { handoffSent.current = claudeSource; return; }
     setHandoffFrom(null);
-    setHandoffFailed(true);
+    if (reason === "ghostty-unsupported") setMovableFor(null);
+  };
+  // After a move that was sent and has not arrived: wait for it again, and
+  // never ask Ghostty a second time.
+  const lookAgain = () => {
+    if (!claudeSource || handoffSent.current !== claudeSource) return;
+    setHandoffIssue(null);
+    setHandoffFrom(claudeSource);
   };
   useEffect(() => {
     if (!moving || !claudeSource) return;
@@ -539,7 +602,7 @@ export default function TerminalStage(p: TerminalStageProps) {
       handoffRequest.current?.abort();
       controller.abort();
       setHandoffFrom(null);
-      setHandoffFailed(true);
+      setHandoffIssue({ source: claudeSource, reason: handoffSent.current === claudeSource ? "continuation-timeout" : "failed" });
     }, 40_000);
     const findContinuation = async () => {
       try {
@@ -555,6 +618,7 @@ export default function TerminalStage(p: TerminalStageProps) {
                 continuationRef.current?.(sessionId, handoffCwd)) {
               setView("term");
               setHandoffFrom(null);
+              setHandoffIssue(null);
               return;
             }
           }
@@ -611,7 +675,7 @@ export default function TerminalStage(p: TerminalStageProps) {
     if (next === "chat" && session.keysOwner === "pane") session.release();
     setView(next);
   };
-  const chatCannotType = chatOn && !chatReadOnly && p.show.kind === "session" && PANELESS.has(phase.kind);
+  const chatCannotType = chatOn && !chatReadOnly && p.show.kind === "session" && paneless(phase);
   // Why nothing can be sent to the session from Chat: not yet or no longer
   // attached, or read only. A question it asked is answered all the same.
   const chatCannotSend = session.subject !== key ? t("board.chat.connecting") : phase.kind === "live"
@@ -708,6 +772,8 @@ export default function TerminalStage(p: TerminalStageProps) {
   const onAnnounce = useRef(p.onAnnounce);
   onAnnounce.current = p.onAnnounce;
   const unresumed = phase.kind === "ended" && phase.unresumed === true;
+  // A Check again that found the folder still gone is said too.
+  const stillGone = phase.kind === "folder-gone" && phase.checked === true && !phase.busy;
   useEffect(() => {
     const said = stageAnnouncement(name, phase);
     if (said) onAnnounce.current?.(said);
@@ -715,7 +781,7 @@ export default function TerminalStage(p: TerminalStageProps) {
     // re-render may rebuild with the same meaning. A reopen that could not
     // resume is said too: it can follow an ended pane without a live one.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase.kind, key, unresumed]);
+  }, [phase.kind, key, unresumed, stillGone]);
 
   // AN AGENT THAT ENDED ITSELF closes its pane (internal #104): /exit, Ctrl+D,
   // anything that exited with status 0 while this pane watched it run
@@ -766,7 +832,7 @@ export default function TerminalStage(p: TerminalStageProps) {
   // Not while a check is running: the session refuses that press, and a
   // request made for it would have let go of what the first one held.
   const retry = () => {
-    if ((phase.kind === "tmux-missing" || (phase.kind === "error" && phase.reopen)) && phase.busy) return;
+    if ((phase.kind === "tmux-missing" || phase.kind === "folder-gone" || (phase.kind === "error" && phase.reopen)) && phase.busy) return;
     session.retry();
     p.onWantKeys?.();
   };
@@ -781,7 +847,43 @@ export default function TerminalStage(p: TerminalStageProps) {
     p.onWantKeys?.();
   };
 
-  const end = endView(phase, p.show, { reopen, launchAgain: p.onLaunchAgain, startNew: p.onStartNew, attachAgain: retry });
+  // THE FOLDER FIRST. Start again and a new session here start an agent in
+  // the pane's own folder: the deck is asked about it before (Reopen here
+  // asks in the session hook), and a folder that went away — a removed
+  // worktree, a project moved or renamed — is named, with Choose folder… and
+  // Check again (folder-gone), never a start the engine could put elsewhere.
+  const show = p.show;
+  const launchAgain = p.onLaunchAgain;
+  const startAgain = launchAgain && show.kind === "launch"
+    ? () => session.startIfFolder(show.cwd, { agent: show.agent }, launchAgain)
+    : launchAgain;
+  const sessionRef = show.kind === "session" ? show.session.ref : null;
+  const freshAgent = sessionRef?.provider === "claude" ? "claude" : sessionRef?.provider === "codex" ? "codex" : null;
+  const startNewHere = p.onStartNew;
+  const startNew = startNewHere && sessionRef && freshAgent
+    ? () => session.startIfFolder(sessionRef.cwd, { agent: freshAgent }, startNewHere)
+    : startNewHere;
+  // Choose folder…: a NEW session of the same agent in the folder chosen,
+  // never this conversation resumed somewhere else, and only on that choice.
+  // The desktop app's own dialog where there is one; elsewhere — a browser,
+  // an app without the dialog — New session, with the agent chosen.
+  const chooseId = `ts-choose-${useId()}`;
+  const chooseFolderFor = (agent: TerminalProvider, gone: string) => {
+    const startIn = p.onStartIn;
+    if (startIn && canChooseFolder()) {
+      void chooseFolder().then(cwd => {
+        if (typeof cwd === "string") startIn(agent, cwd);
+        else if (cwd === undefined) p.onNewSession(chooseId, { agent, gone });
+      });
+      return;
+    }
+    p.onNewSession(chooseId, { agent, gone });
+  };
+  const goneAt = phase.kind === "folder-gone" ? { agent: phase.agent, cwd: phase.cwd } : null;
+  const chooseFolderHere = goneAt ? () => chooseFolderFor(goneAt.agent, goneAt.cwd) : undefined;
+
+  const end = endView(phase, p.show, {
+    reopen, launchAgain: startAgain, startNew, chooseFolder: chooseFolderHere, chooseId, checkAgain: retry, attachAgain: retry });
 
   // A CODEX THAT UPDATED ITSELF comes back by itself. Its own "Update now"
   // installs the new version, asks to be restarted and exits; the session
@@ -904,8 +1006,8 @@ export default function TerminalStage(p: TerminalStageProps) {
         view={chatSession !== null ? { current: view, onChange: showView } : undefined}
         // Only while a terminal is on the stage to size: not on the empty
         // pane, a card that has none, or Chat.
-        textSize={p.show.kind === "empty" || PANELESS.has(phase.kind) || chatOn ? undefined : { step: textStep, onStep: stepTerminalText }}
-        nothingRunning={p.show.kind === "empty" || phase.kind === "ended"
+        textSize={p.show.kind === "empty" || paneless(phase) || chatOn ? undefined : { step: textStep, onStep: stepTerminalText }}
+        nothingRunning={p.show.kind === "empty" || phase.kind === "ended" || phase.kind === "folder-gone"
           || (subject.kind === "launch" && (phase.kind === "error" || phase.kind === "tmux-missing" || phase.kind === "tmux-installing"))}
         onKeys={() => {
           if (session.keysOwner === "pane") { session.release(); p.onRelease?.(); }
@@ -924,10 +1026,16 @@ export default function TerminalStage(p: TerminalStageProps) {
         launched={p.show.kind === "session" && (p.show.session.launched === true || !!p.show.launch)}
         boardState={board?.state ?? null}
         onAdopt={reopen}
-        handoff={canMove ? { moving, failed: handoffFailed, toggle: toggleHandoff } : undefined}
+        handoff={handoffShown ? { moving, reason: handoffStopped, toggle: toggleHandoff, lookAgain } : undefined}
         onNotNow={p.onClose}
         onRetry={retry}
-        onStartNew={p.onStartNew}
+        onStartNew={startNew}
+        onChooseFolder={chooseFolderHere}
+        chooseFolderId={chooseId}
+        // Beside a mouse the end bar's buttons are in the header and its
+        // sentence only a tooltip there: the kept frame carries the line.
+        // On a phone the keys bar in the pane says it (endPlacement).
+        frameNote={endAt.header && phase.kind === "folder-gone" && phase.frame ? { ...folderGoneLine(phase), where: phase.cwd } : undefined}
         startNewTip={p.show.kind === "session" ? t(START_NEW_TIP_MSG, { name: agentName(p.show.session.ref.provider) }) : undefined}
         onNewSession={p.onNewSession}
         workspace={workspace && p.show.kind === "empty"}
@@ -950,7 +1058,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         notice={notice}
         firstRun={p.firstRun}
         workspace={workspace}
-        paneless={p.show.kind === "empty" || PANELESS.has(phase.kind) || onItsWay(phase, frame)}
+        paneless={p.show.kind === "empty" || paneless(phase) || onItsWay(phase, frame)}
         onFirstRunDone={p.onFirstRunDone}
         chat={chatOn}
         composer={composer}
@@ -966,7 +1074,7 @@ export default function TerminalStage(p: TerminalStageProps) {
       />
       {/* The phone's key row (640 and under; hidden by the sheet elsewhere):
           the pane's own input, six keys a screen keyboard lacks. */}
-      <PhoneKeys canType={typing} paneless={p.show.kind === "empty" || PANELESS.has(phase.kind)} onKey={session.press} holdsFocus={session.holdsFocus} />
+      <PhoneKeys canType={typing} paneless={p.show.kind === "empty" || paneless(phase)} onKey={session.press} holdsFocus={session.holdsFocus} />
       <DialogPresence when={hosts.open && hosts.view}>{view => (
         <HostsDialog
           view={view}

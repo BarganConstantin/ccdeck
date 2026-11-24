@@ -10,11 +10,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import { all, textOf, type Drawn } from "./fake-react";
 import { sheetText } from "./sheet-source";
-import { claudeInstallStatusOf, type ClaudeInstallStatus } from "../claude-install-api";
+import { CODEX_REASON_KEYS, claudeInstallStatusOf, type ClaudeInstallStatus } from "../claude-install-api";
 import { claudeInstallView, type ClaudeInstall as Install, type ClaudeInstallView } from "../use-claude-install";
 import ClaudeInstall, { commandEnd } from "../components/ClaudeInstall";
 import { StateCard, type StageBodyProps } from "../components/terminal/StageBody";
-import { CLAUDE_MISSING_MSG, type StagePhase } from "../components/terminal/stage-model";
+import { CLAUDE_MISSING_MSG, CODEX_MISSING_MSG, stageAnnouncement, type StagePhase } from "../components/terminal/stage-model";
 import { en } from "../i18n/en";
 import { resetLanguageForTest } from "../i18n";
 
@@ -299,13 +299,121 @@ describe("the pane's card for a Claude session with no Claude Code", () => {
     expect(out.split(en[CLAUDE_MISSING_MSG])).toHaveLength(2);
   });
 
-  it("leaves every other refusal as it was: Codex's, and any without the mark", () => {
+  // CHANGED ON PURPOSE (Install Codex): this said "Codex's, and any without
+  // the mark", and Codex's refusal was never marked. It is now (missing:
+  // "codex"), with a card of its own below; what stays plain is a refusal
+  // without the mark, whatever its words.
+  it("leaves every refusal without the mark as it was", () => {
     showing(ask());
     for (const message of ["Codex is not installed on this machine.", "Claude Code is not installed on this machine."]) {
       const card = StateCard(bodyProps({ kind: "error", message }));
       expect(all(card, el => el.type === ClaudeInstall), message).toHaveLength(0);
       expect(all(card, el => el.type === "button").map(b => textOf(b)), message).toEqual(["Try again", "Not now"]);
-      expect(html(createElement(StateCard, bodyProps({ kind: "error", message })))).not.toContain(en["accounts.claudeInstall.install"]);
+      const out = html(createElement(StateCard, bodyProps({ kind: "error", message })));
+      expect(out).not.toContain(en["accounts.claudeInstall.install"]);
+      expect(out).not.toContain(en["accounts.codexInstall.install"]);
     }
+  });
+});
+
+describe("the pane's card for a Codex session with no Codex", () => {
+  const NPM = "npm install -g @openai/codex";
+  const phase: StagePhase = { kind: "error", message: "Codex is not installed on this machine.", missing: "codex" };
+  const askCodex = (over: Partial<Extract<ClaudeInstallView, { state: "ask" }>> = {}): ClaudeInstallView =>
+    ({ state: "ask", command: NPM, shell: "terminal", download: true, ...over });
+  const draw = (view: ClaudeInstallView) => {
+    showing(view);
+    return html(createElement(ClaudeInstall, { place: "stage", agent: "codex", actions: createElement("button", { type: "button", className: "btn" }, "Not now") }));
+  };
+
+  it("says so in the reader's language, offers Install Codex, Try again and Not now, and npm's command by hand", () => {
+    showing(askCodex());
+    const out = html(createElement(StateCard, bodyProps(phase)));
+    expect(out).toContain('data-missing="codex"');
+    expect(out).toContain(en[CODEX_MISSING_MSG]);
+    expect(out).not.toContain(en[CLAUDE_MISSING_MSG]);
+    expect(out).toContain(`>${en["accounts.codexInstall.install"]}</button>`);
+    expect(out).not.toContain(en["accounts.claudeInstall.install"]);
+    expect(out).toContain(`>${en["board.stage.tryAgain"]}</button>`);
+    expect(out).toContain(`>${en["common.notNow"]}</button>`);
+    expect(out).toContain('<code>npm install -g </code><span class="ci-end"><code>@openai/codex</code>');
+    expect(out).toContain(en["accounts.claudeInstall.byHand"]);
+    const at = (s: string) => out.indexOf(s);
+    expect(at(en["accounts.codexInstall.install"])).toBeLessThan(at(`>${en["board.stage.tryAgain"]}<`));
+    expect(at(`>${en["board.stage.tryAgain"]}<`)).toBeLessThan(at(`>${en["common.notNow"]}<`));
+    expect(out.match(/class="ts-card/g), "one card").toHaveLength(1);
+  });
+
+  it("hands the card Codex, the stage's retry for once it is installed, and the same buttons as Claude's", () => {
+    const props = bodyProps(phase);
+    const card = StateCard(props) as unknown as Drawn;
+    const install = all(card, el => el.type === ClaudeInstall)[0];
+    expect(install.props.agent).toBe("codex");
+    expect(install.props.onInstalled).toBe(props.onRetry);
+    expect(textOf(install.props.lead)).toBe(en[CODEX_MISSING_MSG]);
+    const actions = install.props.actions as (state: string) => Drawn;
+    for (const state of ["ask", "failed", "unavailable", "loading"]) {
+      expect(all(actions(state), el => el.type === "button").map(b => textOf(b)), state).toEqual(["Try again", "Not now"]);
+    }
+    for (const state of ["running", "done"]) {
+      expect(all(actions(state), el => el.type === "button").map(b => textOf(b)), state).toEqual(["Not now"]);
+    }
+    // Try again, for Codex installed by hand or a PATH fixed since: what was refused, asked again.
+    (all(actions("failed"), el => el.type === "button")[0].props.onClick as () => void)();
+    expect(props.onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps Try again and Not now under the same sentence where the deck cannot say", () => {
+    showing({ state: "unavailable" });
+    const out = html(createElement(StateCard, bodyProps(phase)));
+    expect(out).toContain(en[CODEX_MISSING_MSG]);
+    expect(out).toContain(`>${en["board.stage.tryAgain"]}</button>`);
+    expect(out).toContain(`>${en["common.notNow"]}</button>`);
+    expect(out).not.toContain(en["accounts.codexInstall.install"]);
+  });
+
+  it("says Installing Codex… on the busy button while it runs, and that Codex is installed once done", () => {
+    const running = draw({ state: "running", command: NPM, shell: "terminal" });
+    expect(running).toContain(`<span>${en["accounts.codexInstall.installing"]}</span></span></button>`);
+    expect(running).toContain(`<span class="vis-hidden" role="status">${en["accounts.codexInstall.installing"]}</span>`);
+    expect(running).not.toContain(en["accounts.claudeInstall.installing"]);
+    const done = draw({ state: "done" });
+    expect(done).toContain(en["accounts.codexInstall.done"]);
+    expect(done).not.toContain(en["accounts.claudeInstall.done"]);
+  });
+
+  it("says why it failed, npm's last lines, Install again, and keeps the command", () => {
+    const failed = draw({ state: "failed", reason: "exit-failed", detail: "npm error code EACCES", command: NPM, shell: "terminal", download: true });
+    expect(failed).toContain(en["accounts.claudeInstall.fail.exit"]);
+    expect(failed).toContain('<pre class="ci-detail">npm error code EACCES</pre>');
+    expect(failed).toContain(`>${en["accounts.claudeInstall.again"]}</button>`);
+    expect(failed).toContain("<code>npm install -g </code>");
+  });
+
+  it("says there is no npm, with the command to run where there is one", () => {
+    const out = draw({ state: "failed", reason: "npm-missing", detail: null, command: NPM, shell: "terminal", download: true });
+    expect(out).toContain(en["accounts.codexInstall.fail.npm"]);
+    expect(out).toContain('role="alert"');
+    expect(out).toContain("<code>npm install -g </code>");
+  });
+
+  it("says it installed but ccdeck cannot find it", () => {
+    const out = draw({ state: "failed", reason: "installed-but-not-found", detail: null, command: NPM, shell: "terminal", download: true });
+    expect(out).toContain(en["accounts.codexInstall.fail.notFound"]);
+    expect(out).not.toContain("Claude Code");
+  });
+
+  it("has a sentence of Codex's for every failure the deck names, none of them Claude Code's", () => {
+    for (const reason of ["download-failed", "start-failed", "exit-failed", "timed-out", "installed-but-not-found", "npm-missing", "failed"] as const) {
+      expect(en[CODEX_REASON_KEYS[reason]], reason).toBeTruthy();
+      expect(en[CODEX_REASON_KEYS[reason]], reason).not.toContain("Claude");
+      const out = draw({ state: "failed", reason, detail: null, command: NPM, shell: "terminal", download: true });
+      expect(out, reason).not.toContain("accounts.");
+    }
+  });
+
+  it("is announced in the deck's own words", () => {
+    expect(stageAnnouncement("demo", phase)).toBe(en[CODEX_MISSING_MSG]);
+    expect(stageAnnouncement("demo", { ...phase, missing: "claude" })).toBe(en[CLAUDE_MISSING_MSG]);
   });
 });

@@ -19,7 +19,7 @@ import { withoutComments } from "./tsx-scan";
 import { sheetText } from "./sheet-source";
 import TerminalStage, { endPlacement, endView, stageName, subjectOf, type StageShow, type TerminalStageProps } from "../components/terminal/TerminalStage";
 import StageHeader, { BACK_EMPTY_LABEL_MSG, BACK_LABEL_MSG, CLOSE_EMPTY_LABEL_MSG, CLOSE_LABEL_MSG, FULL_LABEL_MSG, FULL_LEAVE_LABEL_MSG, type StageHeaderProps } from "../components/terminal/StageHeader";
-import StageBody, { EMPTY_NEW_SESSION_ID, StateCard, downloadNote, setupLine, setupShare, tmuxFact, type StageBodyProps } from "../components/terminal/StageBody";
+import StageBody, { EMPTY_NEW_SESSION_ID, HANDOFF_LOOK_AGAIN_MSG, HANDOFF_MANUAL_MSG, HANDOFF_REASON_MSG, StateCard, downloadNote, handoffReason, setupLine, setupShare, tmuxFact, type HandoffReason, type StageBodyProps } from "../components/terminal/StageBody";
 import EngineCard from "../components/terminal/EngineCard";
 import { en } from "../i18n/en";
 import KeysBar, { ArrivalNote, AsksTrack, type KeysBarProps } from "../components/terminal/KeysBar";
@@ -227,6 +227,20 @@ describe("the body's state cards, each at the terminal's origin", () => {
     expect(html(createElement(StateCard, bodyProps({ kind: "attaching", reconnect: true })))).toBe("");
   });
 
+  it("draws a folder-gone line over an ended pane's kept frame: one line, the path on hover, a live region", () => {
+    const gone = { kind: "folder-gone", cwd: "/w/paycore", code: "folder-missing", agent: "claude", sessionId: "s1", frame: true } as StagePhase;
+    const note = { lead: "paycore is not there any more.", next: "Choose folder… starts a new session elsewhere; this conversation stays with its folder.", where: "/w/paycore" };
+    const out = html(createElement(StageBody, bodyProps(gone, { frameNote: note })));
+    expect(out).toContain('<p class="ts-frame-note" role="status" title="/w/paycore"><span class="ts-frame-note-lead">paycore is not there any more.</span> Choose folder… starts a new session elsewhere; this conversation stays with its folder.</p>');
+    expect(out, "no card over the frame: the line and the end bar speak").not.toContain("ts-card");
+    expect(html(createElement(StageBody, bodyProps(gone))), "no line unless the stage hands one (a phone's bar says it)").not.toContain("ts-frame-note");
+    const css = sheetText().replace(/\/\*[\s\S]*?\*\//g, "");
+    const rule = /\.ts-frame-note \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    for (const decl of ["position: absolute", "top: 0", "white-space: nowrap", "overflow: hidden", "text-overflow: ellipsis"]) {
+      expect(rule, decl).toContain(decl);
+    }
+  });
+
   it("says where a new session is starting", () => {
     expect(html(createElement(StateCard, bodyProps({ kind: "starting", agent: "claude", cwd: "/home/u/personal/ccdeck" }))))
       .toContain("Starting Claude Code in /home/u/personal/ccdeck");
@@ -333,9 +347,85 @@ describe("the body's state cards, each at the terminal's origin", () => {
     expect(plain).not.toContain(en["board.stage.handoff.offer"]);
     const stage = withoutComments(readFileSync(fileURLToPath(new URL("../components/terminal/TerminalStage.tsx", import.meta.url)), "utf8"));
     expect(stage).toMatch(/cwd: handoffCwd, check: true \}/);
-    expect(stage).toMatch(/if \(!controller\.signal\.aborted && movable === true\) setMovableFor\(claudeSource\);/);
-    expect(stage).toMatch(/const canMove = couldMove && movableFor === claudeSource;/);
-    expect(stage).toMatch(/handoff=\{canMove \? \{/);
+    expect(stage).toMatch(/if \(movable === true\) setMovableFor\(claudeSource\);/);
+    // A later no takes back an earlier yes.
+    expect(stage).toMatch(/else setMovableFor\(was => was === claudeSource \? null : was\);/);
+    expect(stage).toMatch(/const handoffShown = couldMove && \(movableFor === claudeSource \|\| moving \|\| handoffStopped !== undefined\);/);
+    expect(stage).toMatch(/handoff=\{handoffShown \? \{/);
+  });
+
+  it("says a Ghostty too old to hand over is the limit as soon as the check answers, before any press", () => {
+    // Ghostty 1.3 lists terminals but not their pid and tty: the check answers
+    // movable false with that reason, and the card shows the limit and the way
+    // by hand with no Move button, instead of a button that can only fail.
+    const stage = withoutComments(readFileSync(fileURLToPath(new URL("../components/terminal/TerminalStage.tsx", import.meta.url)), "utf8"));
+    expect(stage).toMatch(/const \{ movable, reason \} = await response\.json\(\)/);
+    expect(stage).toMatch(/if \(movable !== true && reason === "ghostty-unsupported"\) \{\s*setHandoffIssue\(was => was\?\.source === claudeSource \? was : \{ source: claudeSource, reason: "ghostty-unsupported" \}\);/);
+    const target = { kind: "C" as const, label: "External session", adoptable: true };
+    const external = { kind: "not-attachable" as const, target, stillRunning: true, busy: false };
+    const props = bodyProps(external, { handoff: { moving: false, reason: "ghostty-unsupported", toggle: vi.fn(), lookAgain: vi.fn() } });
+    const out = html(createElement(StateCard, props));
+    expect(out).toContain(en["board.stage.handoff.unsupported"]);
+    expect(out).toContain(en[HANDOFF_MANUAL_MSG]);
+    expect(button(StateCard(props), "Move session here")).toBeNull();
+  });
+
+  it("says why a move did not happen, in one sentence per reason, with the way by hand", () => {
+    const target = { kind: "C" as const, label: "External session", adoptable: true };
+    const external = { kind: "not-attachable" as const, target, stillRunning: true, busy: false };
+    const reasons = Object.keys(HANDOFF_REASON_MSG) as HandoffReason[];
+    expect(reasons.sort()).toEqual(["already-sent", "automation-denied", "claude-not-ready", "continuation-timeout", "failed", "ghostty-unsupported", "surface-changed"]);
+    for (const reason of reasons.filter(r => r !== "already-sent")) {
+      const props = bodyProps(external, { handoff: { moving: false, reason, toggle: vi.fn(), lookAgain: vi.fn() } });
+      const out = html(createElement(StateCard, props));
+      // As markup: "Privacy & Security" is drawn "&amp;".
+      expect(out, reason).toContain(en[HANDOFF_REASON_MSG[reason]].replace(/&/g, "&amp;"));
+      expect(out, reason).toContain(en[HANDOFF_MANUAL_MSG]);
+      expect(out, `${reason}: not the offer`).not.toContain(en["board.stage.handoff.offer"]);
+      const tree = StateCard(props);
+      // Press again where it can help; never where this Ghostty cannot do it,
+      // or after the move went and only its arrival is missing.
+      const again = reason !== "ghostty-unsupported" && reason !== "continuation-timeout";
+      expect(button(tree, "Move session here") !== null, reason).toBe(again);
+      expect(button(tree, en[HANDOFF_LOOK_AGAIN_MSG]) !== null, reason).toBe(reason === "continuation-timeout");
+    }
+    expect(en[HANDOFF_REASON_MSG["ghostty-unsupported"]]).toMatch(/Ghostty 1\.4 or later/);
+    expect(en[HANDOFF_REASON_MSG["automation-denied"]]).toMatch(/Privacy & Security → Automation/);
+    // The server's reasons, and anything else, read as the card's.
+    expect(handoffReason("automation-denied")).toBe("automation-denied");
+    for (const other of ["not-mac", "not-ghostty", "toString", undefined, 7]) expect(handoffReason(other)).toBe("failed");
+  });
+
+  it("looks again for a move that was sent, and only waits, never sends, while one already went", () => {
+    const toggle = vi.fn(), lookAgain = vi.fn();
+    const target = { kind: "C" as const, label: "External session", adoptable: true };
+    const external = { kind: "not-attachable" as const, target, stillRunning: true, busy: false };
+    const late = StateCard(bodyProps(external, { handoff: { moving: false, reason: "continuation-timeout", toggle, lookAgain } }));
+    press(button(late, en[HANDOFF_LOOK_AGAIN_MSG]));
+    expect(lookAgain).toHaveBeenCalledOnce();
+    expect(toggle).not.toHaveBeenCalled();
+    // Claude has left Ghostty: Reopen here leads, Look again stays beside it.
+    const gone = { ...external, target: { ...target, kind: "gone" as const }, stillRunning: false };
+    const left = StateCard(bodyProps(gone, { handoff: { moving: false, reason: "continuation-timeout", toggle, lookAgain } }));
+    expect(button(left, "Reopen here")?.props.className).toBe("btn primary");
+    expect(button(left, en[HANDOFF_LOOK_AGAIN_MSG])?.props.className).toBe("btn");
+    // Already sent, from another press or tab: the card waits, with Cancel.
+    const sent = bodyProps(external, { handoff: { moving: true, reason: "already-sent", toggle, lookAgain } });
+    const out = html(createElement(StateCard, sent));
+    expect(out).toContain(en[HANDOFF_REASON_MSG["already-sent"]]);
+    expect(out).not.toContain(en["board.stage.handoff.waiting"]);
+    expect(button(StateCard(sent), "Cancel")).not.toBeNull();
+    expect(button(StateCard(sent), en[HANDOFF_LOOK_AGAIN_MSG])).toBeNull();
+  });
+
+  it("asks the server why, waits again without sending again, and tells a slow arrival from a failure", () => {
+    const stage = withoutComments(readFileSync(fileURLToPath(new URL("../components/terminal/TerminalStage.tsx", import.meta.url)), "utf8"));
+    expect(stage).toMatch(/const reason = handoffReason\(said\);/);
+    expect(stage).toMatch(/reason: handoffSent\.current === claudeSource \? "continuation-timeout" : "failed"/);
+    // Look again restarts the wait for the continued session and posts nothing.
+    const look = stage.slice(stage.indexOf("const lookAgain = () => {"), stage.indexOf("};", stage.indexOf("const lookAgain = () => {")));
+    expect(look).toContain("setHandoffFrom(claudeSource);");
+    expect(look).not.toContain("fetch(");
   });
 
   it("says what a session outside the deck is doing there and how to bring it here, by the board's state (#97)", () => {
@@ -806,6 +896,46 @@ describe("the stage as a whole", () => {
     expect(endView({ kind: "live", sizeOwner: "panel", readOnly: false } as StagePhase, session, act)).toBeNull();
   });
 
+  it("offers Choose folder… and Check again on the ended frame of a pane whose folder is gone, naming the folder", () => {
+    const act = { reopen: vi.fn(), launchAgain: vi.fn(), attachAgain: vi.fn(), startNew: vi.fn(), chooseFolder: vi.fn(), chooseId: "ts-choose-1", checkAgain: vi.fn() };
+    const cwd = "/home/u/code/worktrees/paycore-fix-login";
+    const gone = { kind: "folder-gone", cwd, code: "folder-missing", agent: "codex", sessionId: "s1", frame: true } as StagePhase;
+    const end = endView(gone, session, act)!;
+    // One line: what is gone, by name (the path on hover), then what Choose
+    // folder… does; a live region, as it changes after a Check again.
+    expect(end).toMatchObject({
+      sentence: "paycore-fix-login is not there any more. Choose folder… starts a new session elsewhere; this conversation stays with its folder.",
+      where: cwd, live: true, action: "Choose folder…", id: "ts-choose-1",
+      title: en["board.stage.folderGone.body"], alt: { action: "Check again" },
+    });
+    end.onAction();
+    expect(act.chooseFolder, "a new session elsewhere, only on this press").toHaveBeenCalledTimes(1);
+    end.alt!.onAction();
+    expect(act.checkAgain).toHaveBeenCalledTimes(1);
+    expect(act.reopen, "never a reopen, nor a launch, from here").not.toHaveBeenCalled();
+    expect(act.launchAgain).not.toHaveBeenCalled();
+    const launch: StageShow = { kind: "launch", agent: "codex", cwd, name: "paycore", hue: 3, key: "n1" };
+    const launched = endView({ ...gone, sessionId: undefined } as StagePhase, launch, act);
+    expect(launched?.title, "a launch has no conversation to keep").toBe("Choose another folder to start Codex there.");
+    expect(launched?.sentence).toBe("paycore-fix-login is not there any more. Choose folder… starts Codex in another folder.");
+    expect(endView({ ...gone, code: "folder-denied" } as StagePhase, session, act)?.sentence)
+      .toBe("This account may not open paycore-fix-login. Choose folder… starts a new session elsewhere; this conversation stays with its folder.");
+    expect(endView({ ...gone, busy: true } as StagePhase, session, act)?.alt).toMatchObject({ action: "Checking…", busy: true });
+    expect(endView({ ...gone, checked: true } as StagePhase, session, act)?.sentence, "asked again, still gone: the line changes")
+      .toBe("The folder is still not there. Choose folder… starts a new session elsewhere; this conversation stays with its folder.");
+    const alone = endView(gone, session, { ...act, chooseFolder: undefined });
+    expect(alone?.action, "nothing to choose with: Check again alone").toBe("Check again");
+    expect(alone?.alt).toBeUndefined();
+    expect(endView({ ...gone, frame: undefined } as StagePhase, session, act), "no frame: the card says it, not the bar").toBeNull();
+  });
+
+  it("hands New session the folder that is gone when Choose folder… opens it, so that folder is never chosen first", () => {
+    const shell = withoutComments(readFileSync(fileURLToPath(new URL("../components/terminal/StageShell.tsx", import.meta.url)), "utf8"));
+    expect(shell).toContain("onNewSession={(anchor, elsewhere) => { keysHere(); setNewWith(elsewhere ? { anchor, ...elsewhere } : null); stage.openPopover(anchor); }}");
+    expect(shell).toContain("initialAgent={newWith?.anchor === shell.popover ? newWith.agent : undefined}");
+    expect(shell).toContain("gone={newWith?.anchor === shell.popover ? newWith.gone : undefined}");
+  });
+
   it("draws the end action in the pane's header where the keys bar is out in the status bar, in the bar on a phone, never both", () => {
     const end = { sentence: "The session ended.", action: "Reopen here", onAction: vi.fn() };
     expect(endPlacement(true, end), "beside a mouse: the status bar is far from the pane").toEqual({ header: end, bar: null });
@@ -880,7 +1010,9 @@ describe("asking for the session again from the stage", () => {
     const stage = web("components/terminal/TerminalStage.tsx");
     // CHANGED ON PURPOSE (ended-pane restart): a refused Reopen here's Try again
     // is refused the same way while it reopens (busy), as a running check is.
-    expect(stage).toMatch(/const retry = \(\) => \{\s*if \(\(phase\.kind === "tmux-missing" \|\| \(phase\.kind === "error" && phase\.reopen\)\) && phase\.busy\) return;\s*session\.retry\(\);\s*p\.onWantKeys\?\.\(\);\s*\};/);
+    // CHANGED ON PURPOSE (missing folder): and a folder-gone Check again while
+    // it asks about the folder.
+    expect(stage).toMatch(/const retry = \(\) => \{\s*if \(\(phase\.kind === "tmux-missing" \|\| phase\.kind === "folder-gone" \|\| \(phase\.kind === "error" && phase\.reopen\)\) && phase\.busy\) return;\s*session\.retry\(\);\s*p\.onWantKeys\?\.\(\);\s*\};/);
     expect(stage).toContain("onRetry={retry}");
     // CHANGED ON PURPOSE (the UI in every language): the button's words are a catalog key now.
     expect(stage).toMatch(/action: tNow\("board\.stage\.attachAgain"\), onAction: act\.attachAgain \}/);
@@ -897,7 +1029,12 @@ describe("asking for the session again from the stage", () => {
     // CHANGED ON PURPOSE (internal #102): per pane, and that pane takes the keys first.
     expect(web("components/terminal/StageShell.tsx"))
       .toContain('onLaunchAgain={ps.kind === "launch" ? () => { keysHere(); stage.launch(ps.agent, ps.cwd, ps.options); } : undefined}');
-    expect(web("components/terminal/TerminalStage.tsx")).toContain("launchAgain: p.onLaunchAgain");
+    // CHANGED ON PURPOSE (missing folder): the same press, once the deck says
+    // its folder is still there (startIfFolder); else the folder-gone choices.
+    const stage = web("components/terminal/TerminalStage.tsx");
+    expect(stage).toContain("const launchAgain = p.onLaunchAgain;");
+    expect(stage).toContain("() => session.startIfFolder(show.cwd, { agent: show.agent }, launchAgain)");
+    expect(stage).toContain("launchAgain: startAgain");
   });
 
   it("reports a recognised Codex with the launch it was recognised for", () => {

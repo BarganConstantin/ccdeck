@@ -63,11 +63,10 @@ export function startupWork({ wantClaude, installHooks, leftoverCodexHooks }) {
     ? installHooks({ provider: "claude" }).then(v => ({ ok: true, v }), err => ({ ok: false, err }))
     : Promise.resolve(null);
 
-  // GitHub Copilot CLI's hooks file, once the job above has put hook.js in
-  // place — with or without Claude Code. It never rejects, and does nothing
-  // where Copilot is absent or turned off (src/server/copilot-hooks.mjs).
-  hooks.then(() => import(pathToFileURL(join(PKG_ROOT, "src/server/copilot-hooks.mjs")).href))
-    .then(m => m.installCopilotHooks()).catch(() => {});
+  // GitHub Copilot CLI's hooks file and opencode's plugin, once the job above
+  // has put hook.js in place — with or without Claude Code. See
+  // installProviderForwarders, which a respawn runs too.
+  const forwarders = installProviderForwarders(hooks);
 
   // claude-swap backs the multi-account panel, and an empty store leaves that
   // panel useless even when the tool is there — so the account already signed
@@ -143,16 +142,65 @@ export function startupWork({ wantClaude, installHooks, leftoverCodexHooks }) {
   // watching the rollouts, and one file read is the whole cost.
   const codexHooks = leftoverCodexHooks().catch(() => null);
 
-  // ccdeck's plugin in opencode's plugins folder, on a machine with opencode
-  // (src/server/opencode-plugin.mjs). After the hooks job, because the plugin
-  // runs the hook.js that job installs; it installs that script itself when
-  // there is no Claude Code. Its answer never throws, and nothing here prints.
-  const opencode = hooks
+  return {
+    hooks, cswap, cswapInstalling, cswapQuiet, ccusage, update, codexHooks,
+    opencode: forwarders.opencode, forwarders,
+  };
+}
+
+/**
+ * The forwarders of the providers that are not Claude Code: GitHub Copilot
+ * CLI's hooks file (src/server/copilot-hooks.mjs) and ccdeck's plugin in
+ * opencode's plugins folder (src/server/opencode-plugin.mjs). Without them a
+ * Copilot or opencode session never reaches the deck, however long it runs.
+ *
+ * Both start after `after` settles — the Claude hook job — because both run the
+ * hook.js that job installs (each installs that script itself when there is no
+ * Claude Code). Both read their own switches, config roots and detection when
+ * they run: each does nothing where its CLI is absent or turned off, leaves a
+ * file the user wrote alone, and writes nothing that is already identical.
+ *
+ * Every boot runs it, a respawn included. A respawn used to skip it with the
+ * rest of startupWork, so a forwarder the first boot never wrote stayed
+ * missing, and one an older package wrote stayed old, for as long as the
+ * supervisor lived.
+ *
+ * Never rejects: each answers its installer's `{ state, ... }`, or null when
+ * the installer could not even be loaded.
+ */
+export function installProviderForwarders(after) {
+  const ready = Promise.resolve(after).then(() => {}, () => {});
+  // Each import names its file whole, so what the deck loads can be followed.
+  const copilot = ready
+    .then(() => import(pathToFileURL(join(PKG_ROOT, "src/server/copilot-hooks.mjs")).href))
+    .then(m => m.installCopilotHooks())
+    .catch(() => null);
+  const opencode = ready
     .then(() => import(pathToFileURL(join(PKG_ROOT, "src/server/opencode-plugin.mjs")).href))
     .then(m => m.installOpencodePlugin())
     .catch(() => null);
+  return { copilot, opencode };
+}
 
-  return { hooks, cswap, cswapInstalling, cswapQuiet, ccusage, update, codexHooks, opencode };
+const FORWARDER_NAMES = {
+  copilot: { who: "GitHub Copilot CLI", what: "hooks" },
+  opencode: { who: "opencode", what: "plugin" },
+};
+
+/**
+ * One stderr line per forwarder that could not be written — the only one of
+ * its answers the user can act on. It names the provider and the error code,
+ * never a path or a message: both can carry the user's home folder, and a
+ * deck in the background writes this to its log.
+ */
+export async function sayForwarderTrouble(forwarders) {
+  for (const [key, job] of Object.entries(forwarders ?? {})) {
+    const said = await job;
+    if (said?.state !== "failed") continue;
+    const name = FORWARDER_NAMES[key] ?? { who: key, what: "forwarder" };
+    const code = typeof said.why === "string" && /^[A-Z][A-Z0-9_]*$/.test(said.why) ? said.why : "error";
+    console.error(`${PRODUCT}: ${name.who} sessions will not show ${G.dash} ${name.what} not written (${code})`);
+  }
 }
 
 /**

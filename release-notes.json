@@ -1,4 +1,26 @@
 {
+  "4.3.8": [
+    {
+      "title": "⬇️ Install Codex from the session pane",
+      "body": "When a Codex session cannot start because Codex is not installed, the pane now offers Install Codex. It runs OpenAI's own command, npm install -g @openai/codex, and starts the session once Codex is there. If npm is missing or the install fails, the pane says why and shows the command to run yourself."
+    },
+    {
+      "title": "🏷️ Each Graph card says which model it runs",
+      "body": "A Graph card's foot now names its model with its reasoning effort, for example opus 5.5 · xhigh. When the card is tight, the token count goes first, then the effort; the model stays, and its full name is in the tooltip. A card that gets narrower, as in the Inspector, no longer has its foot cut at the edge."
+    },
+    {
+      "title": "🧭 Copilot and opencode sessions show on the Graph after an update",
+      "body": "On some machines, Copilot CLI and opencode sessions worked in the terminal but stopped appearing on the Graph after ccdeck updated or restarted. ccdeck now sets them up again each time it starts, so new sessions show on the Graph. Files you changed yourself are left as they are."
+    },
+    {
+      "title": "📁 A missing project folder is named, with Choose folder… and Check again",
+      "body": "When a session's project folder was moved or deleted, the pane now names the folder and says it is no longer there, instead of failing to start. Check again looks once more, for a folder you put back, and Choose folder… starts a new session in another folder."
+    },
+    {
+      "title": "👻 Clearer answers when moving a session out of Ghostty",
+      "body": "On a Mac, Move session here no longer shows for a Claude session in a Ghostty too old to hand it over; the pane says to update to Ghostty 1.4 or later instead. When a move cannot be done, the pane says why, for example that Automation is not allowed in System Settings, and how to do it by hand. A second press never sends the move twice."
+    }
+  ],
   "4.3.7": [
     {
       "title": "↕️ Drag the line between Sessions and Accounts",
@@ -372,6 +394,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.3.8": "Install Codex from the session pane, and each Graph card says which model it runs",
     "4.3.7": "Drag the line between Sessions and Accounts, and Reopen brings back an ended Codex pane",
     "4.3.6": "A lighter line beside Sessions on sharp screens",
     "4.3.5": "Hide finished sessions from the Sessions list, and Accounts opens under Sessions",

@@ -212,6 +212,8 @@ export interface ApiFailure {
   error: string;
   /** The deck's refusal code, when the Command Panel's engine refused. */
   code?: PanelRefusal;
+  /** With a folder refusal (FOLDER_REFUSALS): the folder, as the deck was asked it. */
+  cwd?: string;
 }
 
 /** Refusals that are a state of this machine (HTTP 409): the panel says so
@@ -231,10 +233,24 @@ export const PANEL_SAID_REFUSALS = ["agent-missing", "exists", "full", "stopping
  *  on it changed since the reader looked, or it has gone (HTTP 409), or the
  *  end itself failed (HTTP 500), which the reader may press again. */
 export const HOSTS_REFUSALS = ["consent-outdated", "host-gone", "end-failed"] as const;
+/** The deck's refusals of a launch or an adopt whose folder is not one to
+ *  start in (HTTP 409, terminal-routes.mjs): gone — deleted, moved, renamed, a
+ *  removed worktree — or not this account's to open. The failure carries the
+ *  folder (`cwd`), so the stage can name it; never asked again by itself. */
+export const FOLDER_REFUSALS = ["folder-missing", "folder-denied"] as const;
+export type FolderRefusal = typeof FOLDER_REFUSALS[number];
 export type PanelUnavailable = typeof PANEL_UNAVAILABLE[number];
-export type PanelRefusal = PanelUnavailable | typeof PANEL_RECOVERING[number] | typeof PANEL_SAID_REFUSALS[number] | typeof HOSTS_REFUSALS[number];
+export type PanelRefusal = PanelUnavailable | typeof PANEL_RECOVERING[number] | typeof PANEL_SAID_REFUSALS[number] | typeof HOSTS_REFUSALS[number] | FolderRefusal;
 
-const REFUSALS: ReadonlySet<string> = new Set([...PANEL_UNAVAILABLE, ...PANEL_RECOVERING, ...PANEL_SAID_REFUSALS, ...HOSTS_REFUSALS]);
+const REFUSALS: ReadonlySet<string> = new Set([...PANEL_UNAVAILABLE, ...PANEL_RECOVERING, ...PANEL_SAID_REFUSALS, ...HOSTS_REFUSALS, ...FOLDER_REFUSALS]);
+
+/** Whether `code` is the deck saying the folder is not one to start in. */
+export const folderRefusal = (code?: string | null): code is FolderRefusal =>
+  (FOLDER_REFUSALS as readonly string[]).includes(code ?? "");
+
+/** The JS backend's word for a folder that is not one (terminal-sessions.mjs
+ *  checkCwd), read as the deck's own folder-missing. */
+const JS_BAD_FOLDER = "bad-cwd";
 
 /** Whether `code` is a state of this machine rather than of a moment. */
 export const panelUnavailable = (code?: string | null): code is PanelUnavailable =>
@@ -311,6 +327,8 @@ const CANCELLED_MSG = "board.api.cancelled";
 const SWITCHED_OFF_MSG = "board.api.switchedOff";
 const REFUSED_MSG = "board.api.refused";
 const UNREADABLE_MSG = "board.api.unreadable";
+const FOLDER_MISSING_MSG = "board.stage.folderGone.title";
+const FOLDER_DENIED_MSG = "board.stage.folderGone.denied";
 
 const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
@@ -342,7 +360,16 @@ function failureFrom(status: number, body: unknown): ApiFailure {
   if (status === 401 || status === 403) return { ok: false, status, error: t(REFUSED_MSG) };
   // A launch the deck's tmux refused may say what to do about it.
   const hint = isObject(body) && typeof body.hint === "string" ? body.hint : "";
-  const code = isObject(body) && typeof body.code === "string" && REFUSALS.has(body.code) ? body.code as PanelRefusal : null;
+  const raw = isObject(body) && typeof body.code === "string" ? (body.code === JS_BAD_FOLDER ? "folder-missing" : body.code) : "";
+  const code = REFUSALS.has(raw) ? raw as PanelRefusal : null;
+  // A folder refusal has no sentence of its own: the stage names the folder
+  // in the language on show (stage-model.ts). The words here are for anyone
+  // who reads the failure as a sentence.
+  if (folderRefusal(code)) {
+    const cwd = isObject(body) && typeof body.cwd === "string" && body.cwd ? body.cwd : null;
+    const error = said || t(code === "folder-denied" ? FOLDER_DENIED_MSG : FOLDER_MISSING_MSG);
+    return { ok: false, status, error, code, ...(cwd ? { cwd } : {}) };
+  }
   if (said) return { ok: false, status, error: hint ? `${said} ${hint}` : said, ...(code ? { code } : {}) };
   return { ok: false, status, error: t(UNREADABLE_MSG) };
 }

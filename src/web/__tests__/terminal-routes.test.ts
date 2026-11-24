@@ -48,6 +48,8 @@ const { createTicketStore } = await import("../../server/terminal-socket.mjs");
 const { TerminalSessionError } = await import("../../server/terminal-sessions.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { describeTarget } = await import("../../server/terminal-target.mjs");
+// @ts-expect-error — plain .mjs server module, no types
+const { checkFolder: realCheckFolder } = await import("../../server/terminal-folder.mjs");
 
 const SID = "0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f";
 const DECK_SOCKET = { name: "ccdeck-test-routes" };
@@ -88,6 +90,10 @@ let ttyAnswer: { cols: number; rows: number } | null;
 // route passed on, and what the stand-in answers.
 let codexAsked: unknown[];
 let codexReplacedImpl: (liveForMs: number) => Promise<boolean>;
+// The deck's folder question (terminal-folder.mjs): the real one, on this
+// sandbox's folders, unless a case answers in its place; every folder asked.
+let folderAsked: string[];
+let folderImpl: ((cwd: string) => Promise<unknown>) | null;
 const tickets = createTicketStore();
 
 class FakeControl extends EventEmitter {
@@ -129,6 +135,8 @@ beforeEach(() => {
   ttyAnswer = null;
   codexAsked = [];
   codexReplacedImpl = async () => false;
+  folderAsked = [];
+  folderImpl = null;
   js.resetPruneClock();
   js.resetWrappers();
 });
@@ -161,6 +169,7 @@ beforeAll(async () => {
       pruneDeadDeckSessions: async (o: any) => { pruned.push(o); return []; },
       now: () => clock,
       codexReplaced: (liveForMs: number) => { codexAsked.push(liveForMs); return codexReplacedImpl(liveForMs); },
+      checkFolder: (cwd: string) => { folderAsked.push(cwd); return folderImpl ? folderImpl(cwd) : realCheckFolder(cwd); },
     },
   });
   port = (server.address() as { port: number }).port;
@@ -794,6 +803,68 @@ describe("POST /api/terminal/folder", () => {
   });
 });
 
+describe("a launch or an adopt whose folder is gone", () => {
+  // A removed git worktree, a project moved or renamed: the folder a pane
+  // starts in, or reopens its conversation in, is asked about before anything
+  // is started, and refused with the folder named — never started in the home
+  // folder instead, and never by asking tmux or the target first.
+  it("refuses a launch in a folder that is not there, or is a file, with folder-missing and the folder, and starts nothing", async () => {
+    writeFileSync(join(DIR, "a-file"), "x");
+    for (const cwd of [join(DIR, "gone-worktree"), join(DIR, "a-file"), `${join(DIR, "gone-worktree")}/`]) {
+      const got = await ask("POST", "/api/terminal/launch", { agent: "claude", cwd, key: "k-gone-1" });
+      expect(got.status, cwd).toBe(409);
+      expect(got.body, cwd).toEqual({ ok: false, code: "folder-missing", cwd });
+    }
+    expect(launches, "nothing started").toEqual([]);
+    expect(lists, "not even the launch's listing by its key").toEqual([]);
+    expect(resolved).toEqual([]);
+  });
+
+  it("refuses an adopt the same way, before it looks for the session or closes a dead pane", async () => {
+    target = { kind: "gone", adoptable: true, deadSessions: ["ccdeck-claude-00000001"] };
+    const cwd = join(DIR, "moved-project");
+    const got = await ask("POST", "/api/terminal/adopt", session({ cwd }));
+    expect(got.status).toBe(409);
+    expect(got.body).toEqual({ ok: false, code: "folder-missing", cwd });
+    expect(resolved, "the session was not looked for").toEqual([]);
+    expect(killed).toEqual([]);
+    expect(launches, "never resumed anywhere else").toEqual([]);
+  });
+
+  it("says folder-denied for a folder this account may not open, for a launch and an adopt alike", async () => {
+    folderImpl = async () => ({ ok: false, code: "denied" });
+    const cwd = join(DIR, "locked");
+    const launch = await ask("POST", "/api/terminal/launch", { agent: "codex", cwd });
+    expect([launch.status, launch.body]).toEqual([409, { ok: false, code: "folder-denied", cwd }]);
+    const adopt = await ask("POST", "/api/terminal/adopt", session({ cwd }));
+    expect([adopt.status, adopt.body]).toEqual([409, { ok: false, code: "folder-denied", cwd }]);
+    expect(folderAsked).toEqual([cwd, cwd]);
+    expect(launches).toEqual([]);
+    expect(resolved).toEqual([]);
+  });
+
+  it("starts as before in a folder that is there, and leaves a path that is no full path to the backend", async () => {
+    const got = await ask("POST", "/api/terminal/launch", { agent: "claude", cwd: PROJECT });
+    expect(got.status).toBe(200);
+    expect(launches).toHaveLength(1);
+    expect(launches[0].cwd).toBe(PROJECT);
+    target = { kind: "gone", adoptable: true };
+    expect((await ask("POST", "/api/terminal/adopt", session())).status).toBe(200);
+    expect(folderAsked, "each asked about its own folder").toEqual([PROJECT, PROJECT]);
+    const relative = await ask("POST", "/api/terminal/adopt", session({ cwd: "relative/path" }));
+    expect(relative.status).toBe(400);
+    expect(relative.body.code, "the backend's own refusal, as before").not.toBe("folder-missing");
+  });
+
+  it("asks nothing about a folder for an open, a claim or the target", async () => {
+    const gone = join(DIR, "gone-again");
+    await ask("POST", "/api/terminal/open", session({ cwd: gone }));
+    await ask("POST", "/api/terminal/claim", { key: "launch-k1", ...session({ cwd: gone }) });
+    await ask("GET", `/api/terminal/target?session=${SID}&provider=claude&cwd=${encodeURIComponent(gone)}`);
+    expect(folderAsked).toEqual([]);
+  });
+});
+
 describe("POST /api/terminal/codex-updated", () => {
   // The pane's question when a Codex it watched exits with status 0: was
   // that Codex's own "Update now"? Answered by the deck from the codex on
@@ -1038,7 +1109,10 @@ describe("POST /api/terminal/launch", () => {
     const agent = await ask("POST", "/api/terminal/launch", { agent: "bash", cwd: PROJECT });
     expect(agent.status).toBe(400);
     expect(agent.body.error).toBe("The deck can start Claude or Codex sessions only.");
-    for (const cwd of ["relative", join(DIR, "nope"), "", 7]) {
+    // CHANGED ON PURPOSE (missing folder): a full path to a folder that is
+    // not there is the deck's own folder-missing now ("a launch or an adopt
+    // whose folder is gone", below); what is no path at all stays the backend's.
+    for (const cwd of ["relative", "", 7]) {
       const got = await ask("POST", "/api/terminal/launch", { agent: "claude", cwd });
       expect(got.status, String(cwd)).toBe(400);
       expect(got.body.code).toBe("bad-cwd");

@@ -192,7 +192,10 @@ describe("a Codex launch that updated itself before it had a session", () => {
     await s.runThenEnd(20_000, UPDATED_EXIT);
     expect(s.phase()).toEqual({ kind: "ended", updated: true });
     expect(s.onLaunchAgain, "never a second time by itself").toHaveBeenCalledTimes(1);
-    expect(s.bar().end?.onAction, "the button is still there to press").toBe(s.onLaunchAgain);
+    // CHANGED ON PURPOSE (missing folder): the button asks about the folder
+    // first, then does the same; the suite's API has no folder question.
+    s.bar().end?.onAction();
+    expect(s.onLaunchAgain, "the button is still there to press").toHaveBeenCalledTimes(2);
     expect(s.onClose).not.toHaveBeenCalled();
     s.view.unmount();
   });

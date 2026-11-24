@@ -31,7 +31,11 @@ import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } f
 import { copyText } from "../../copy-text";
 import { CAUGHT_KEYS_ATTR } from "../../shortcuts";
 import type { TmuxProgress } from "../../terminal-api";
-import { CLAUDE_MISSING_MSG, LAUNCHED_UNREACHABLE_MSG, PROVENANCE_UNKNOWN_MSG, REOPEN_FAILED_MSG, REOPENING_MSG, START_NEW_MSG, agentName, elsewhereLine, errorWords, frameRun, launchedUnreachable, provenanceUnknown, type FrameRun, type StagePhase, type StageState } from "./stage-model";
+import {
+  CHOOSE_FOLDER_MSG, LAUNCHED_UNREACHABLE_MSG, MISSING_MSGS, PROVENANCE_UNKNOWN_MSG, REOPEN_FAILED_MSG, REOPENING_MSG, START_NEW_MSG,
+  agentName, elsewhereLine, errorWords, folderGoneBody, folderGoneTitle, folderShown, folderStillGone, frameRun, launchedUnreachable, provenanceUnknown,
+  type FolderGonePhase, type FrameRun, type StagePhase, type StageState,
+} from "./stage-model";
 import { CopyGlyph, StageGlyph } from "./stage-icons";
 import EngineCard, { engineCardCode } from "./EngineCard";
 import ClaudeInstall from "../ClaudeInstall";
@@ -58,6 +62,36 @@ export interface StageContext {
   fact?: string | null;
 }
 
+/** Why a move of Claude out of Ghostty did not happen, or why it is still
+ *  waiting: the server's reasons (POST /api/terminal/background), and the
+ *  pane's own `continuation-timeout` — the move was sent, and the continued
+ *  session has not shown up in time. */
+export type HandoffReason =
+  | "ghostty-unsupported" | "automation-denied" | "claude-not-ready" | "surface-changed"
+  | "already-sent" | "continuation-timeout" | "failed";
+
+/** One sentence for each reason. */
+export const HANDOFF_REASON_MSG: Readonly<Record<HandoffReason, string>> = {
+  "ghostty-unsupported": "board.stage.handoff.unsupported",
+  "automation-denied": "board.stage.handoff.automationDenied",
+  "claude-not-ready": "board.stage.handoff.notReady",
+  "surface-changed": "board.stage.handoff.surfaceChanged",
+  "already-sent": "board.stage.handoff.alreadySent",
+  "continuation-timeout": "board.stage.handoff.timeout",
+  failed: "board.stage.handoff.failed",
+};
+/** The way by hand, after every move that did not happen. */
+export const HANDOFF_MANUAL_MSG = "board.stage.handoff.manual";
+export const HANDOFF_LOOK_AGAIN_MSG = "board.stage.handoff.lookAgain";
+/** Where pressing Move again cannot help: this Ghostty cannot do it, or the
+ *  move already went and only its arrival is missing. */
+const HANDOFF_NO_RETRY: ReadonlySet<HandoffReason> = new Set(["ghostty-unsupported", "already-sent", "continuation-timeout"]);
+
+/** A server's reason as one of the card's; anything else is the generic failure. */
+export function handoffReason(value: unknown): HandoffReason {
+  return typeof value === "string" && Object.hasOwn(HANDOFF_REASON_MSG, value) ? value as HandoffReason : "failed";
+}
+
 export interface StageBodyProps {
   hostRef: MutableRefObject<HTMLDivElement | null>;
   /** The name the header shows for this session; the pane carries it for the
@@ -73,7 +107,10 @@ export interface StageBodyProps {
    *  that runs somewhere the stage cannot reach (#97). */
   boardState?: StageState | null;
   onAdopt(): void;
-  handoff?: { moving: boolean; failed?: boolean; toggle(): void };
+  /** "Move session here", for Claude in a Ghostty window (TerminalStage):
+   *  whether the move is under way, why the last one did not happen, and
+   *  Look again after one that was sent and has not arrived yet. */
+  handoff?: { moving: boolean; reason?: HandoffReason; toggle(): void; lookAgain?(): void };
   /** "Not now": leave the stage, the session untouched. */
   onNotNow(): void;
   onRetry(): void;
@@ -82,6 +119,16 @@ export interface StageBodyProps {
    *  and its tooltip, which names the agent. */
   onStartNew?(): void;
   startNewTip?: string;
+  /** The folder-gone card's Choose folder…: a NEW session of the same agent in
+   *  a folder the reader chooses (TerminalStage), and the id of its button,
+   *  which New session hangs off where there is no folder dialog. */
+  onChooseFolder?(): void;
+  chooseFolderId?: string;
+  /** The folder-gone line over an ended pane's kept frame, where the end
+   *  bar's buttons are in the header and its sentence would be only a
+   *  tooltip (TerminalStage): what is gone, by name, with the full path
+   *  (`where`) on hover, and what Choose folder… does. */
+  frameNote?: { lead: string; next: string; where: string };
   onNewSession(anchorId: string): void;
   /** WORKSPACE: this is the pane with nothing in it, and says so (Figma,
    *  "Empty workspace"), instead of the Board stage's "click a session on the
@@ -219,6 +266,44 @@ export function WorkspaceEmpty({ waiting, onOpen, onNewSession }: {
   );
 }
 
+/**
+ * The folder-gone card (StagePhase `folder-gone`, without its frame): the
+ * folder, cut to its end with the whole path in its tooltip; why, in a title;
+ * what becomes of the conversation, or what a launch can do; then Choose
+ * folder… — a NEW session elsewhere, only on that press — Check again, for a
+ * folder put back, and Not now. The keys land on Choose folder… where it is
+ * offered, else on Check again.
+ */
+function FolderGoneCard({ phase, onChoose, chooseId, onCheck, onNotNow }: {
+  phase: FolderGonePhase;
+  onChoose?: () => void;
+  chooseId?: string;
+  onCheck(): void;
+  onNotNow(): void;
+}) {
+  const t = useT();
+  const still = folderStillGone(phase);
+  return (
+    <div className="ts-card" data-folder-gone={phase.code}>
+      <div className="ts-ctx" title={phase.cwd}>{folderShown(phase.cwd)}</div>
+      <div className="ts-title">{folderGoneTitle(phase)}</div>
+      <p className="ts-text">{folderGoneBody(phase)}</p>
+      {still && <p className="ts-note" role="status">{still}</p>}
+      <div className="ts-acts">
+        {onChoose && (
+          <button type="button" id={chooseId} className="btn primary" data-stage-land onClick={onChoose}>
+            {t(CHOOSE_FOLDER_MSG)}
+          </button>
+        )}
+        <button type="button" className="btn" aria-busy={phase.busy || undefined} data-stage-land={onChoose ? undefined : true} onClick={onCheck}>
+          {t(phase.busy ? "board.stage.checking" : "board.stage.checkAgain")}
+        </button>
+        <button type="button" className="btn" onClick={onNotNow}>{t("common.notNow")}</button>
+      </div>
+    </div>
+  );
+}
+
 /** The card for a phase with no pane to show, or null when the frame is
  *  what the body shows. `held`: a switch is holding the last frame up.
  *  Exported so the suite can draw each one. */
@@ -265,6 +350,11 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
       const elsewhere = phase.stillRunning && !ours && !unsure;
       const handoff = adoptable ? p.handoff : undefined;
       const offer = adoptable && !phase.stillRunning && !handoff?.moving;
+      // A move that did not happen: why, in one sentence, and the way by hand.
+      const stopped = handoff && !handoff.moving ? handoff.reason : undefined;
+      // Sent and not arrived: look again, never send again.
+      const lookAgain = stopped === "continuation-timeout" ? handoff?.lookAgain : undefined;
+      const moveAgain = handoff && (handoff.moving || (elsewhere && !(stopped && HANDOFF_NO_RETRY.has(stopped))));
       // Held after this pane's own Reopen here: the way on that does not wait
       // is a new session in the same folder, only ever on its own press.
       const fresh = phase.held && phase.stillRunning && !handoff ? p.onStartNew : undefined;
@@ -272,9 +362,9 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
         <div className="ts-card">
           {p.context?.prompt && <div className="ts-ctx"><span className="ts-prompt">❯ </span>{p.context.prompt}</div>}
           {handoff?.moving
-            ? <p className="ts-text" role="status">{t("board.stage.handoff.waiting")}</p>
-            : handoff?.failed
-            ? <p className="ts-text" role="status">{t("board.stage.handoff.failed")}</p>
+            ? <p className="ts-text" role="status">{t(handoff.reason === "already-sent" ? HANDOFF_REASON_MSG["already-sent"] : "board.stage.handoff.waiting")}</p>
+            : stopped
+            ? <p className="ts-text" role="status">{t("board.stage.twoSentences", { first: t(HANDOFF_REASON_MSG[stopped]), second: t(HANDOFF_MANUAL_MSG) })}</p>
             // With the move offered, the line says so instead of "quit it there
             // and Reopen here", which would sit above a button that does it for
             // you. The header still says whether it is working or waiting.
@@ -282,7 +372,7 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
             ? <p className="ts-text" role="status">{t(handoff ? "board.stage.handoff.offer" : elsewhereLine(p.boardState, phase.held))}</p>
             : <p className="ts-text">{ours ? t(LAUNCHED_UNREACHABLE_MSG) : unsure ? t(PROVENANCE_UNKNOWN_MSG) : target.label}</p>}
           <div className="ts-acts">
-            {handoff && (elsewhere || handoff.moving) && (
+            {moveAgain && (
               <button type="button" className="btn primary" data-stage-land onClick={handoff.toggle}>
                 {t(handoff.moving ? "common.cancel" : "board.stage.handoff.move")}
               </button>
@@ -290,6 +380,11 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
             {offer && (
               <button type="button" className="btn primary" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onAdopt}>
                 {t(phase.busy ? REOPENING_MSG : "board.stage.reopenHere")}
+              </button>
+            )}
+            {lookAgain && (
+              <button type="button" className={offer ? "btn" : "btn primary"} data-stage-land={offer ? undefined : true} onClick={lookAgain}>
+                {t(HANDOFF_LOOK_AGAIN_MSG)}
               </button>
             )}
             {fresh && <button type="button" className="btn" title={p.startNewTip} onClick={fresh}>{t(START_NEW_MSG)}</button>}
@@ -321,6 +416,11 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
         </div>
       );
     }
+    case "folder-gone":
+      // From an ended pane its last frame stays, and the end bar offers the
+      // same choices (TerminalStage endView): no card over the frame.
+      if (phase.frame) return null;
+      return <FolderGoneCard phase={phase} onChoose={p.onChooseFolder} chooseId={p.chooseFolderId} onCheck={p.onRetry} onNotNow={p.onNotNow} />;
     case "tmux-missing":
       return (
         <div className="ts-card">
@@ -388,20 +488,23 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
           <EngineCard code={phase.code ?? ""} message={errorWords(phase.message)} busy={phase.busy} onRetry={p.onRetry} onNotNow={p.onNotNow} plain={plain} />
         );
       }
-      // Claude Code is not installed: said in the deck's own words, with
-      // Install Claude Code, Try again for one installed by hand, Not now,
-      // and the command to run by hand. Once an install this card started is
-      // done, the sentence goes and the session is asked for again, once;
-      // while one runs, only Not now. Where the deck cannot say anything of
-      // the install, Try again and Not now as before, under the same
-      // sentence. The keys land on the first of Install, Try again, Not now
-      // that is offered.
-      if (phase.missing === "claude") {
+      // Claude Code or Codex is not installed: said in the deck's own words,
+      // with Install Claude Code (Install Codex), Try again for one installed
+      // by hand or a PATH fixed since, Not now, and the command to run by
+      // hand. Once an install this card started is done, the sentence goes
+      // and what was refused (the launch, or the open) is asked for again,
+      // once; while one runs, only Not now. Where the deck cannot say
+      // anything of the install, Try again and Not now as before, under the
+      // same sentence. The keys land on the first of Install, Try again, Not
+      // now that is offered. Keyed by the CLI, so a card for one never
+      // carries the other's install.
+      if (phase.missing) {
         return (
-          <div className="ts-card" data-missing="claude">
+          <div className="ts-card" data-missing={phase.missing} key={phase.missing}>
             <ClaudeInstall
               place="stage"
-              lead={<p className="ts-text">{t(CLAUDE_MISSING_MSG)}</p>}
+              agent={phase.missing}
+              lead={<p className="ts-text">{t(MISSING_MSGS[phase.missing])}</p>}
               onInstalled={p.onRetry}
               actions={state => (
                 <>
@@ -497,7 +600,7 @@ export default function StageBody(p: StageBodyProps) {
   const run = frameRun(last.current, p.phase);
   const { state, afterHold } = run;
   useEffect(() => { last.current = run; });
-  const { hostRef, paneName: _paneName, screens, ...card } = p;
+  const { hostRef, paneName: _paneName, screens, frameNote, ...card } = p;
   // `workspace` is the EMPTY Workspace pane; a pane handed `screens` is a
   // session's in Workspace (the stage hands them only there).
   const flags = useScreenFlags(p.workspace === true || screens !== undefined);
@@ -560,6 +663,14 @@ export default function StageBody(p: StageBodyProps) {
         ? (wait.draw ? <StateCard {...card} held={false} timed={wait.leaving ? "out" : "in"} /> : null)
         : <StateCard {...card} held={state === "held"} />}
       {lingering && <StateCard {...card} phase={{ kind: "attaching", reconnect: false }} held={false} timed={wait.leaving ? "out" : "in"} />}
+      {/* One line across the top of the kept frame, cut with an ellipsis
+          in a narrow pane; it changes when a Check again finds the folder
+          still gone, so it is a polite live region. */}
+      {frameNote && !inChat && (
+        <p className="ts-frame-note" role="status" title={frameNote.where}>
+          <span className="ts-frame-note-lead">{frameNote.lead}</span> {frameNote.next}
+        </p>
+      )}
       <ScreensSlot screens={screens} flags={flags} />
     </div>
   );

@@ -33,6 +33,7 @@ const ROUTE_FEATURES = new Map([
   ["POST /api/terminal/adopt", "session-reopen"],
   ["POST /api/session-name", "session-rename"],
   ["POST /api/claude-install", "claude-install"],
+  ["POST /api/codex-install", "codex-install"],
   ["POST /api/claude-settings", "claude-settings"],
   ["POST /api/codex-profile-select", "codex-account-switch"],
   ["POST /api/codex-profile-add", "codex-accounts-manage"],
