@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { codexLanAccounts, type SharedMark } from "../account-lan";
 import type { LanAccount } from "../lan-types";
 import { NONE_OPEN, allOpen, byAvailability, isOpen, toggleAll, toggleOne, type Openness } from "../other-accounts-order";
+import { loadFoldOpen, saveFoldOpen } from "../accounts-prefs";
 import { laneKey, toggleLane } from "../lane-open";
 import { sentence } from "../account-issue";
 import { isAutoArmed, pastThreshold } from "../account-fold";
@@ -125,8 +126,10 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
   const [dialog, setDialog] = useState<null | { id?: string; label?: string; account?: string | null }>(null);
   /** The account whose Remove has been pressed once and is waiting for the second. */
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
-  /** The "Other accounts" row: shut on open, every time, as Claude's is. */
-  const [restOpen, setRestOpen] = useState(false);
+  /** The "Other accounts" row: shut on a first run, then as the reader last
+   *  left it on this side, kept apart from Claude's (accounts-prefs.ts). */
+  const [restOpen, setRestOpen] = useState<boolean>(() => loadFoldOpen("codex"));
+  useEffect(() => { saveFoldOpen("codex", restOpen); }, [restOpen]);
   /** Whose warning has its explanation open, and which control it hangs from. */
   const [issueOpen, setIssueOpen] = useState<{ id: string; anchor: string } | null>(null);
   // Local network took the column (#2472): a menu or a warning left open
