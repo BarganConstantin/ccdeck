@@ -151,7 +151,7 @@ export interface SweepResult {
  * back to back and a cap coming down by six is six ids, not six requests. An
  * empty list is the caller's signal to send nothing at all.
  */
-export function sweepTick(state: GraphState, t: number): SweepResult {
+export function sweepTick(state: GraphState, t: number, pinned?: ReadonlySet<string>): SweepResult {
   let changed = sweepStaleTools(state, t, STALE_SESSION_MS);
   if (sweepStaleSessions(state, t, STALE_SESSION_MS)) changed = true;
   const forgotten: string[] = [];
@@ -160,6 +160,7 @@ export function sweepTick(state: GraphState, t: number): SweepResult {
   if (pruneOldAgents(state, t, AGENT_CAP, AGENT_GRACE_MS, forget)) changed = true;
   // And keep the canvas to the last few finished sessions, so a long day of
   // work does not bury the running ones under everything already done.
-  if (pruneDoneSessions(state, t, DONE_SESSION_CAP, DONE_SESSION_GRACE_MS, forget)) changed = true;
+  // Pinned sessions are not among them: the Sessions list keeps those on top.
+  if (pruneDoneSessions(state, t, DONE_SESSION_CAP, DONE_SESSION_GRACE_MS, forget, pinned)) changed = true;
   return { changed, forgotten };
 }

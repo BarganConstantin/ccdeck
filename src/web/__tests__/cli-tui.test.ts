@@ -275,7 +275,7 @@ describe("the frame", () => {
 
   it("puts the screen in panels under a title bar, the last panel reaching the foot", () => {
     const lines = text(frame(deckState()).lines);
-    expect(lines[0]).toMatch(/^ {2}ccdeck {2}Claude accounts +● live · deck 4317 {2}$/);
+    expect(lines[0]).toMatch(/^ {2}ccdeck 3\.46\.0 {2}Claude accounts +● live · deck 4317 {2}$/);
     expect(lines[1]).toMatch(/^╭─ Accounts ─+╮$/);
     expect(lines.some(l => l.startsWith("╭─ #1 alice@corp.example (work) ─"))).toBe(true);
     expect(lines.some(l => /^╭─ Waiting on you · 2 ─+ 1 working ─╮$/.test(l))).toBe(true);
@@ -288,6 +288,34 @@ describe("the frame", () => {
     expect(text(frame(deckState({ readAt: NOW - 25_000 })).lines)[0]).toContain("○ read 25s ago · deck 4317");
     expect(text(frame(deckState({ readAt: null })).lines)[0]).toMatch(/accounts +deck 4317 {2}$/);
     expect(text(frame(deckState({ deck: null, source: "local" })).lines)[0]).toContain("no deck · claude-swap's store");
+  });
+
+  it("names the version beside ccdeck: the deck's while one answers, the screen's own while none does", () => {
+    // The deck's, which is the one an update moves: it follows a restart onto
+    // a new release with no reopening, the deck record being read again then.
+    expect(text(frame(deckState({ own: "3.45.0" })).lines)[0]).toMatch(/^ {2}ccdeck 3\.46\.0 {2}Claude accounts /);
+    const restarted = deckState({ own: "3.45.0", deck: { port: 4317, version: "3.47.0" } });
+    expect(text(frame(restarted).lines)[0]).toMatch(/^ {2}ccdeck 3\.47\.0 {2}Claude accounts /);
+    // No deck, or a deck whose record names no version: this screen's own.
+    expect(text(frame(deckState({ own: "3.45.0", deck: null, source: "local" })).lines)[0]).toMatch(/^ {2}ccdeck 3\.45\.0 {2}Claude accounts /);
+    expect(text(frame(deckState({ own: "3.45.0", deck: { port: 4317, version: null } })).lines)[0]).toMatch(/^ {2}ccdeck 3\.45\.0 {2}Claude accounts /);
+    // Neither known: the name alone, as before.
+    expect(text(frame(deckState({ deck: { port: 4317, version: null } })).lines)[0]).toMatch(/^ {2}ccdeck {2}Claude accounts /);
+    // ASCII and no colour read the same words, with not one escape.
+    const plain = frame(deckState(), 80, 24, false, "none").lines[0];
+    expect(plain).toMatch(/^ {2}ccdeck 3\.46\.0 {2}Claude accounts /);
+    expect(plain).not.toContain("\x1b");
+  });
+
+  it("keeps the version at the narrowest screen, and gives it up before the tabs", () => {
+    const narrow = text(frame(deckState(), 40, 12).lines)[0];
+    expect(narrow).toMatch(/^ {2}ccdeck 3\.46\.0 {2}Claude accounts/);
+    expect(textWidth(narrow)).toBeLessThanOrEqual(39);
+    // Three tabs and a long version do not fit 40 columns together: the tabs stay.
+    const lan = { ...codexState(), deck: { port: 4317, version: "10.20.30-beta.4" } };
+    const tabs = text(frame(lan, 40, 12).lines)[0];
+    expect(tabs).toContain("Claude");
+    expect(tabs).not.toContain("10.20.30");
   });
 
   it("points at the selected account, and marks the live one and the home one", () => {
@@ -376,7 +404,7 @@ describe("the frame", () => {
     expect(lines.some(l => l.includes("●  in use    ⌂  Auto-switch's home    ‖  held out of rotation"))).toBe(true);
     expect(lines[bottom][lines[top].indexOf("╭─ Keys")]).toBe("╰");
     // The screen around it is still there, faded.
-    expect(lines[0]).toContain("ccdeck  Claude accounts");
+    expect(lines[0]).toContain("ccdeck 3.46.0  Claude accounts");
     expect(f[0].startsWith("\x1b[38;2;92;95;102m")).toBe(true);
   });
 
@@ -643,14 +671,14 @@ describe("the Codex side", () => {
   const lines = (s: State, cols = 100, rows = 30, unicode = true, profile?: string) => text(frame(s, cols, rows, unicode, profile).lines);
 
   it("puts Claude | Codex at the top once the deck has a Codex account, and c turns the list over", () => {
-    expect(lines(deckState(), 100, 30, false, "none")[0]).toMatch(/^ {2}ccdeck {2}Claude accounts /);
-    expect(lines(codexState(), 100, 30, false, "none")[0]).toMatch(/^ {2}ccdeck {2}\[Claude\] Codex /);
+    expect(lines(deckState(), 100, 30, false, "none")[0]).toMatch(/^ {2}ccdeck 3\.46\.0 {2}Claude accounts /);
+    expect(lines(codexState(), 100, 30, false, "none")[0]).toMatch(/^ {2}ccdeck 3\.46\.0 {2}\[Claude\] Codex /);
     const s = onCodex();
     expect(s.side).toBe("codex");
     // The first look lands on the account Codex runs on.
     expect(s.codexAt).toBe(0);
     const shown = lines(s, 100, 30, false, "none");
-    expect(shown[0]).toMatch(/^ {2}ccdeck {3}Claude \[Codex\] /);
+    expect(shown[0]).toMatch(/^ {2}ccdeck 3\.46\.0 {3}Claude \[Codex\] /);
     expect(shown.some(l => l.includes("ann@openai.example"))).toBe(true);
     expect(shown.some(l => l.includes("alice@corp.example"))).toBe(false);
     expect(shown.at(-1)).toContain("left/right tabs");
@@ -843,7 +871,7 @@ describe("the Local network", () => {
 
   it("is a tab of its own once the deck serves it: l opens it, and l goes back where it came from", () => {
     const s = view.withLan(deckState(), LAN);
-    expect(lines(s, 100, 30, false, "none")[0]).toMatch(/^ {2}ccdeck {2}\[Claude\] Network 1 /);
+    expect(lines(s, 100, 30, false, "none")[0]).toMatch(/^ {2}ccdeck 3\.46\.0 {2}\[Claude\] Network 1 /);
     const open = key(s, "l").state;
     expect(open.side).toBe("lan");
     expect(lines(open, 100, 30, false, "none")[0]).toMatch(/\[Network 1\]/);

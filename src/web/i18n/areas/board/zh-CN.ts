@@ -1026,6 +1026,7 @@ const catalog: Catalog = {
   "board.railGroup.new": "已完成 · 新",
   "board.railGroup.done": "已完成",
   "board.railGroup.ready": "就绪",
+  "board.railGroup.pinned": "已置顶",
   "board.rail.held.one": "有 {count} 项移动，待您离开列表后执行",
   "board.rail.held.other": "有 {count} 项移动，待您离开列表后执行",
   "board.nav.none": "没有会话",
@@ -1082,6 +1083,9 @@ const catalog: Catalog = {
   "board.list.hiddenRow": "已从列表中隐藏 {name}",
   "board.list.hiddenSaid": "已从列表中隐藏 {name}，可以撤销。",
   "board.list.hiddenCount": "已隐藏 · {n}",
+  "board.list.pinRow": "置顶",
+  "board.list.unpinRow": "取消置顶",
+  "board.list.pinnedSuffix": "，已置顶",
 };
 
 export default catalog;
