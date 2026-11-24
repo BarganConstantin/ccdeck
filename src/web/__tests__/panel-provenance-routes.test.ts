@@ -120,6 +120,18 @@ describe("the deck's record through its routes (F6-R)", () => {
     expect((await target(REFUSED)).json.target.provenance).toBe("unknown");
   });
 
+  it("asks the engine nothing, and records nothing, for a launch or an adopt whose folder is gone", async () => {
+    const cwd = join(DIR, "gone-worktree");
+    answers.launch = { status: 200, body: { ok: true, sessionId: REFUSED, name: "deck-claude-x", ticket: null } };
+    answers.adopt = { status: 200, body: { ok: true, ticket: null } };
+    const launch = await ask("POST", "/api/terminal/launch", { agent: "claude", cwd, key: "k-route-gone" });
+    expect([launch.status, launch.json]).toEqual([409, { ok: false, code: "folder-missing", cwd }]);
+    const adopt = await ask("POST", "/api/terminal/adopt", { sessionId: REFUSED, provider: "codex", cwd });
+    expect([adopt.status, adopt.json]).toEqual([409, { ok: false, code: "folder-missing", cwd }]);
+    expect(asked, "the engine was never asked").toEqual([]);
+    expect((await target(REFUSED)).json.target.provenance).toBe("unknown");
+  });
+
   it("refuses the record from POST /api/event, the door without the deck's token", async () => {
     for (const launch of ["bound", "held", "started"]) {
       const forged = await ask("POST", "/api/event", {

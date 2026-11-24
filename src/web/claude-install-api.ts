@@ -1,21 +1,31 @@
 // Claude Code's install from the deck, as the page asks about it (the server
-// half is claude-install.mjs):
+// half is claude-install.mjs), and Codex's, which answers the same way
+// (codex-install.mjs):
 //
 //   GET  /api/claude-install   where the install stands, and the command to run by hand
 //   POST /api/claude-install   start one
+//   GET  /api/codex-install    the same two for Codex
+//   POST /api/codex-install
 //
-// The session pane's card for a Claude that is not installed and the Accounts
-// sign-in that could not run `claude` both use it, through ClaudeInstall.tsx.
-// Every answer is a value: a refusal, a network failure and a deck without the
-// route all come back as null or `{ ok: false, code }`.
+// The session pane's card for a Claude or a Codex that is not installed, and
+// the Accounts sign-in that could not run `claude`, use it through
+// ClaudeInstall.tsx. Every answer is a value: a refusal, a network failure and
+// a deck without the route all come back as null or `{ ok: false, code }`.
 
 export const CLAUDE_INSTALL_ROUTE = "/api/claude-install";
+export const CODEX_INSTALL_ROUTE = "/api/codex-install";
+
+/** Which CLI an install is for. */
+export type InstallAgent = "claude" | "codex";
+
+const ROUTES: Readonly<Record<InstallAgent, string>> = { claude: CLAUDE_INSTALL_ROUTE, codex: CODEX_INSTALL_ROUTE };
 
 export type ClaudeInstallState = "idle" | "running" | "done" | "failed";
 
-/** Why an install failed, as the deck names it. */
+/** Why an install failed, as the deck names it. `npm-missing` is Codex's
+ *  alone: no npm to install it with. */
 export type ClaudeInstallReason =
-  | "download-failed" | "start-failed" | "exit-failed" | "timed-out" | "installed-but-not-found" | "failed";
+  | "download-failed" | "start-failed" | "exit-failed" | "timed-out" | "installed-but-not-found" | "npm-missing" | "failed";
 
 export interface ClaudeInstallStatus {
   state: ClaudeInstallState;
@@ -40,7 +50,7 @@ const defaultFetch: FetchFn = (input, init) => fetch(input, init);
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const STATES: readonly string[] = ["idle", "running", "done", "failed"];
-const REASONS: readonly string[] = ["download-failed", "start-failed", "exit-failed", "timed-out", "installed-but-not-found", "failed"];
+const REASONS: readonly string[] = ["download-failed", "start-failed", "exit-failed", "timed-out", "installed-but-not-found", "npm-missing", "failed"];
 
 /** A status the deck sent, or null for anything else. */
 export function claudeInstallStatusOf(v: unknown): ClaudeInstallStatus | null {
@@ -57,9 +67,9 @@ export function claudeInstallStatusOf(v: unknown): ClaudeInstallStatus | null {
 }
 
 /** Where the install stands, or null when the deck cannot say. */
-export async function claudeInstallStatus(fetchFn: FetchFn = defaultFetch): Promise<ClaudeInstallStatus | null> {
+export async function claudeInstallStatus(fetchFn: FetchFn = defaultFetch, agent: InstallAgent = "claude"): Promise<ClaudeInstallStatus | null> {
   try {
-    const res = await fetchFn(CLAUDE_INSTALL_ROUTE, { method: "GET" });
+    const res = await fetchFn(ROUTES[agent], { method: "GET" });
     if (!res.ok) return null;
     return claudeInstallStatusOf(await res.json().catch(() => null));
   } catch {
@@ -68,9 +78,9 @@ export async function claudeInstallStatus(fetchFn: FetchFn = defaultFetch): Prom
 }
 
 /** Starts the install. */
-export async function startClaudeInstall(fetchFn: FetchFn = defaultFetch): Promise<ClaudeInstallAnswer> {
+export async function startClaudeInstall(fetchFn: FetchFn = defaultFetch, agent: InstallAgent = "claude"): Promise<ClaudeInstallAnswer> {
   try {
-    const res = await fetchFn(CLAUDE_INSTALL_ROUTE, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    const res = await fetchFn(ROUTES[agent], { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
     const body: unknown = await res.json().catch(() => null);
     if (isObject(body) && body.ok === true && typeof body.id === "string") return { ok: true, id: body.id };
     return { ok: false, code: isObject(body) && typeof body.code === "string" ? body.code : "failed" };
@@ -79,12 +89,52 @@ export async function startClaudeInstall(fetchFn: FetchFn = defaultFetch): Promi
   }
 }
 
-/** The sentence for a failure, by its reason. */
+/** The sentence for a failure, by its reason. Claude Code's install never
+ *  needs npm, so a reason it cannot give reads as its plain failure. */
 export const REASON_KEYS: Readonly<Record<ClaudeInstallReason, string>> = {
   "download-failed": "accounts.claudeInstall.fail.download",
   "start-failed": "accounts.claudeInstall.fail.start",
   "exit-failed": "accounts.claudeInstall.fail.exit",
   "timed-out": "accounts.claudeInstall.fail.timeout",
   "installed-but-not-found": "accounts.claudeInstall.fail.notFound",
+  "npm-missing": "accounts.claudeInstall.fail.other",
   failed: "accounts.claudeInstall.fail.other",
+};
+
+/** Codex's: the installer's sentences where they name no CLI, its own where
+ *  they do. The deck fetches nothing itself for Codex (npm does), so
+ *  `download-failed`, which its install never gives, reads as its plain
+ *  failure. */
+export const CODEX_REASON_KEYS: Readonly<Record<ClaudeInstallReason, string>> = {
+  "download-failed": "accounts.codexInstall.fail.other",
+  "start-failed": "accounts.claudeInstall.fail.start",
+  "exit-failed": "accounts.claudeInstall.fail.exit",
+  "timed-out": "accounts.claudeInstall.fail.timeout",
+  "installed-but-not-found": "accounts.codexInstall.fail.notFound",
+  "npm-missing": "accounts.codexInstall.fail.npm",
+  failed: "accounts.codexInstall.fail.other",
+};
+
+/** What the card says for each CLI: its button, the button while it runs,
+ *  the line once it is done, and why it failed. */
+export interface InstallWords {
+  install: string;
+  installing: string;
+  done: string;
+  reasons: Readonly<Record<ClaudeInstallReason, string>>;
+}
+
+export const INSTALL_WORDS: Readonly<Record<InstallAgent, InstallWords>> = {
+  claude: {
+    install: "accounts.claudeInstall.install",
+    installing: "accounts.claudeInstall.installing",
+    done: "accounts.claudeInstall.done",
+    reasons: REASON_KEYS,
+  },
+  codex: {
+    install: "accounts.codexInstall.install",
+    installing: "accounts.codexInstall.installing",
+    done: "accounts.codexInstall.done",
+    reasons: CODEX_REASON_KEYS,
+  },
 };

@@ -511,8 +511,10 @@ export const GUARDED_READS = new Set([
   // an install's progress and why one failed. The same one caller.
   "/api/terminal/engine",
   // And Claude Code's install from the deck (claude-install.mjs), beside it:
-  // where it stands, and the last lines a failed installer printed.
+  // where it stands, and the last lines a failed installer printed. Codex's
+  // the same (codex-install.mjs), npm's last lines for a failure.
   "/api/claude-install",
+  "/api/codex-install",
   "/api/radio-stations",
   "/api/radio-click",
   // The trackers this deck is connected to (#2178): the list of connections

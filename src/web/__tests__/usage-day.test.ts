@@ -239,6 +239,9 @@ describe("the features a day used", () => {
       "session-launch", "session-reopen", "session-rename", "claude-install", "claude-settings", "jira-change",
       "codex-account-switch", "codex-accounts-manage", "codex-auto-switch",
       "tui-network",
+      // CHANGED ON PURPOSE (Install Codex): Codex installed from the deck,
+      // added at the end like every name before it.
+      "codex-install",
     ]);
     expect(new Set(FEATURES).size).toBe(FEATURES.length);
   });

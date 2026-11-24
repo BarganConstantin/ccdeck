@@ -707,6 +707,10 @@ describe("what was migrated to the secondary tier", () => {
       // its "Ends" fact.
       ".ts-end",
       ".ts-first",
+      // A folder-gone pane's one line over its kept frame: what is not there
+      // any more and what Choose folder… does, read once before acting. Its
+      // lead (the folder) steps up to --text.
+      ".ts-frame-note",
       // The read-only Chat footer explains where to reply before its action.
       ".ts-chat-handoff > .ts-chat-reply-note",
       ".oh-intro",

@@ -277,6 +277,22 @@ describe("reading the answers", () => {
     expect(await adoptTerminal(SESSION, { fetchFn })).toEqual({ ok: false, status: 409, error: STILL_RUNNING });
   });
 
+  it("keeps a launch's or an adopt's folder refusal with the folder it names, the backend's bad folder among them", async () => {
+    const cwd = "/home/u/code/worktrees/paycore-fix";
+    const launched = await launchTerminal({ agent: "codex", cwd, key: "n1" }, { fetchFn: answering(409, { ok: false, code: "folder-missing", cwd }).fetchFn });
+    expect(launched).toMatchObject({ ok: false, status: 409, code: "folder-missing", cwd });
+    expect((launched as { error: string }).error, "a sentence for anyone who reads it as one").toBe("This folder is not there any more");
+    expect(await adoptTerminal(SESSION, { fetchFn: answering(409, { ok: false, code: "folder-denied", cwd }).fetchFn }))
+      .toMatchObject({ ok: false, status: 409, code: "folder-denied", cwd });
+    const said = "That project folder does not exist.";
+    expect(await launchTerminal({ agent: "claude", cwd }, { fetchFn: answering(400, { ok: false, error: said, code: "bad-cwd" }).fetchFn }), "the JS backend's own word for it")
+      .toEqual({ ok: false, status: 400, error: said, code: "folder-missing" });
+    for (const code of ["folder-missing", "folder-denied"]) {
+      expect(panelUnavailable(code), `${code}: never checked again by itself`).toBe(false);
+      expect((PANEL_SAID_REFUSALS as readonly string[]).includes(code), `${code}: not the engine's sentence card`).toBe(false);
+    }
+  });
+
   it("returns a launch's session id, which is empty for Codex until it has written a rollout", async () => {
     const claude = answering(200, { ok: true, sessionId: SESSION.sessionId, name: "ccdeck-claude-0b7c4e2a", ticket: "tk" });
     expect(await launchTerminal({ agent: "claude", cwd: "/srv" }, { fetchFn: claude.fetchFn }))

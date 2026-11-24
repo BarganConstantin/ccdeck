@@ -234,6 +234,23 @@ export function commandPanelEngine({
     return exiting ? settlesWithin(exiting, exitWaitMs) : true;
   }
 
+  /** The deck's PATH grew (a CLI installed from the page, codex-install.mjs)
+   *  and the engine running now was started with the old one, so it would
+   *  still not find what was just installed: it is let go once it has
+   *  answered the questions it is answering, and the next question starts one
+   *  with the deck's environment as it is now. The sessions it showed keep
+   *  running and its panels reconnect, as after a switch-off and on. Answers
+   *  whether the old one's process exited. Never rejects. */
+  async function renew() {
+    cancelStop();
+    if (making) await making.catch(() => {});
+    const was = held;
+    if (!was) return true;
+    while (held === was && was.asking.size) await Promise.allSettled([...was.asking]);
+    if (held === was) drop();
+    return exiting ? settlesWithin(exiting, exitWaitMs) : true;
+  }
+
   const install = installer ?? createEngineInstaller({ platform, arch, env, keys: [...keys], importPackage, beforeChange: release });
 
   return Object.freeze({
@@ -241,6 +258,7 @@ export function commandPanelEngine({
     /** The page's Install: status, install, a file, cancel, remove. */
     installer: install,
     release,
+    renew,
     async route(method, body) {
       cancelStop();
       const r = await ready();

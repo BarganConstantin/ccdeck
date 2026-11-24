@@ -112,7 +112,7 @@ describe("the features added after 4.3.0", () => {
     expect(Object.fromEntries([
       "/api/terminal/launch", "/api/terminal/adopt", "/api/session-name", "/api/claude-install", "/api/claude-settings",
       "/api/codex-profile-select", "/api/codex-profile-add", "/api/codex-profile-remove", "/api/codex-profile-rename",
-      "/api/codex-profile-replace-login", "/api/codex-auto",
+      "/api/codex-profile-replace-login", "/api/codex-auto", "/api/codex-install",
     ].map(path => [path, routeFeature("POST", path)]))).toEqual({
       "/api/terminal/launch": "session-launch",
       "/api/terminal/adopt": "session-reopen",
@@ -125,13 +125,15 @@ describe("the features added after 4.3.0", () => {
       "/api/codex-profile-rename": "codex-accounts-manage",
       "/api/codex-profile-replace-login": "codex-accounts-manage",
       "/api/codex-auto": "codex-auto-switch",
+      // CHANGED ON PURPOSE (Install Codex): Codex's install, as Claude Code's.
+      "/api/codex-install": "codex-install",
     });
   });
 
   it("never count a pane attaching by itself, or a read a panel makes on its own", () => {
     for (const [method, path] of [
       ["POST", "/api/terminal/open"], ["POST", "/api/terminal/claim"], ["GET", "/api/terminal/status"],
-      ["GET", "/api/terminal/target"], ["GET", "/api/claude-settings"], ["GET", "/api/claude-install"],
+      ["GET", "/api/terminal/target"], ["GET", "/api/claude-settings"], ["GET", "/api/claude-install"], ["GET", "/api/codex-install"],
       ["GET", "/api/codex-auto"], ["GET", "/api/codex-profiles"], ["GET", "/api/codex-profile-login-state"],
       ["POST", "/api/codex-profile-login-start"],
     ]) expect(routeFeature(method, path)).toBeUndefined();

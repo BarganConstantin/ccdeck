@@ -1,7 +1,8 @@
-// Claude Code's install as one card sees it: the deck's status, read again
-// while an install runs, the jobs this card watched, and the one screen the
-// card shows for all of that (claudeInstallView). The session pane and the
-// Accounts sign-in both use it, through ClaudeInstall.tsx.
+// Claude Code's install as one card sees it, or Codex's: the deck's status,
+// read again while an install runs, the jobs this card watched, and the one
+// screen the card shows for all of that (claudeInstallView). The session pane
+// and the Accounts sign-in both use it, through ClaudeInstall.tsx. Each CLI's
+// install is its own job on the deck, read from its own route.
 //
 // AN OUTCOME IS SHOWN ONLY TO WHO WATCHED IT. The deck keeps the last job's
 // outcome; a card shows it only for a job it started or saw running, so a
@@ -9,7 +10,7 @@
 // from before is not a reason to start anything again.
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  claudeInstallStatus, startClaudeInstall, type ClaudeInstallReason, type ClaudeInstallStatus,
+  claudeInstallStatus, startClaudeInstall, type ClaudeInstallReason, type ClaudeInstallStatus, type InstallAgent,
 } from "./claude-install-api";
 
 /** How often the status is read while an install runs. */
@@ -61,7 +62,7 @@ export interface ClaudeInstall {
   install(): Promise<void>;
 }
 
-export function useClaudeInstall(): ClaudeInstall {
+export function useClaudeInstall(agent: InstallAgent = "claude"): ClaudeInstall {
   const [status, setStatus] = useState<ClaudeInstallStatus | null | undefined>(undefined);
   const [pending, setPending] = useState(false);
   const [refused, setRefused] = useState<string | null>(null);
@@ -74,11 +75,11 @@ export function useClaudeInstall(): ClaudeInstall {
   }, []);
 
   const refresh = useCallback(async () => {
-    const next = await claudeInstallStatus();
+    const next = await claudeInstallStatus(undefined, agent);
     if (!alive.current) return;
     if (next?.state === "running" && next.id) watched.current.add(next.id);
     setStatus(next);
-  }, []);
+  }, [agent]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -93,13 +94,13 @@ export function useClaudeInstall(): ClaudeInstall {
   const install = useCallback(async () => {
     setPending(true);
     setRefused(null);
-    const answer = await startClaudeInstall();
+    const answer = await startClaudeInstall(undefined, agent);
     if (!alive.current) return;
     if (answer.ok) watched.current.add(answer.id);
     else setRefused(answer.code);
     await refresh();
     if (alive.current) setPending(false);
-  }, [refresh]);
+  }, [agent, refresh]);
 
   return { view: claudeInstallView({ status, watched: watched.current, refused }), pending, install };
 }

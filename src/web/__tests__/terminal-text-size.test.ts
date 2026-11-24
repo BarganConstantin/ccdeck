@@ -185,7 +185,9 @@ describe("the header's Aa", () => {
   });
 
   it("is drawn only while there is a terminal to size: not on the empty pane, a card, or Chat", () => {
-    expect(stage).toContain('textSize={p.show.kind === "empty" || PANELESS.has(phase.kind) || chatOn ? undefined');
+    // CHANGED ON PURPOSE (missing folder): a card is `paneless(phase)` now,
+    // which is the same cards, and a folder-gone pane only without its frame.
+    expect(stage).toContain('textSize={p.show.kind === "empty" || paneless(phase) || chatOn ? undefined');
     expect(stage).toContain("fontSize: fontSizeFor(textStep)");
   });
 

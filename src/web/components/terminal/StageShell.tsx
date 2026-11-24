@@ -46,6 +46,7 @@ import type { Stage } from "../../use-stage";
 import { beginDrag, currentDrag, endDrag, isOurDrag } from "../../split-drag";
 import type { StageTarget } from "../../stage-shell";
 import type { AgentNodeData } from "../../types";
+import type { TerminalProvider } from "../../terminal-api";
 import { prefersReducedMotion } from "../../viewport-motion";
 import { tabStripMove } from "../../tablist-keys";
 import { MAX_PANES, paneIds, paneTarget, zoneAt, zoneRect, type DropZone, type Rect } from "../../workspace-split";
@@ -221,6 +222,9 @@ export function StageDock(p: StageDockProps) {
   const onFound = useCallback((sessionId: string, key: string) => stage.onLaunched({ sessionId, key }), [stage]);
   const fill = g?.fill === true;
   const [drop, setDrop] = useState<DropView | null>(null);
+  // The agent New session opens with when a pane's folder-gone card opened
+  // it (Choose folder… with no folder dialog): only for that popover.
+  const [newWith, setNewWith] = useState<{ anchor: string; agent: TerminalProvider; gone: string } | null>(null);
   // A drag that ends anywhere, dropped or not, takes its zone away.
   useEffect(() => {
     if (!drop) return;
@@ -541,7 +545,10 @@ export function StageDock(p: StageDockProps) {
         waiting={own && fill && ps.kind === "empty" ? waitingCardFor(p.waitingSessions, p.now) : null}
         onToggleExpand={stage.toggleExpand}
         onFirstRunDone={stage.firstRunDone}
-        onNewSession={anchor => { keysHere(); stage.openPopover(anchor); }}
+        onNewSession={(anchor, elsewhere) => { keysHere(); setNewWith(elsewhere ? { anchor, ...elsewhere } : null); stage.openPopover(anchor); }}
+        // The folder-gone card's Choose folder…, with a folder chosen in the
+        // desktop app's dialog: a new session there, in this pane.
+        onStartIn={(agent, cwd) => { keysHere(); stage.launch(agent, cwd); }}
         onCols={stage.onCols}
         onColsReset={stage.onColsReset}
         onRelease={stage.release}
@@ -688,6 +695,10 @@ export function StageDock(p: StageDockProps) {
       {shell.popover && (
         <NewSessionPopover
           anchorId={shell.popover}
+          initialAgent={newWith?.anchor === shell.popover ? newWith.agent : undefined}
+          // Choose folder… is for ANOTHER folder: the one that is gone is
+          // neither offered nor chosen first (NewSessionForm `gone`).
+          gone={newWith?.anchor === shell.popover ? newWith.gone : undefined}
           projects={boardProjects(agents.values(), currentCwd)}
           onStart={stage.launch}
           onClose={stage.closePopover}

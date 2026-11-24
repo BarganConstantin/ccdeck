@@ -203,6 +203,24 @@ describe("the New session form", () => {
     expect(p.onStart).toHaveBeenCalledWith("claude", "/home/u/code/paycore");
   });
 
+  it("never offers nor chooses the folder that is gone, for a pane's Choose folder…: the reader picks another", async () => {
+    const store = memStore();
+    store.setItem(RECENT_KEY, JSON.stringify([{ cwd: "/home/u/code/paycore", at: 900 }]));
+    const p = props({ gone: "/home/u/code/paycore/", initialAgent: "codex" }, { store });
+    const m = mount(NewSessionForm, p);
+    expect(names(m.tree), "not a row, from the board or from the folders kept").toEqual(["ccdeck"]);
+    expect(textOf(startButton(m.tree)), "no folder chosen yet").toBe("Start Codex");
+    expect(startButton(m.tree).props.disabled).toBe(true);
+    expect(one(m.tree, el => el.props.className === "ns-where"), "nothing said chosen").toBeNull();
+    expect(agents(m.tree).map(r => r.props["aria-pressed"]), "the pane's agent").toEqual([false, true]);
+    press(m, "Enter");
+    expect(textOf(startButton(m.tree)), "the reader's own pick").toBe("Start Codex in ccdeck");
+    click(startButton(m.tree));
+    await flush();
+    expect(p.onStart).toHaveBeenCalledWith("codex", "/home/u/personal/ccdeck");
+    m.unmount();
+  });
+
   it("offers a new Claude its model, how it asks, and a worktree, each Default until chosen", async () => {
     const p = props();
     const m = mount(NewSessionForm, p);
