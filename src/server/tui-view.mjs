@@ -51,6 +51,7 @@ export const NOTICE_MS = 8_000;
 export function initialState() {
   return {
     deck: null,         // { port, version } while a deck answers
+    own: null,          // the version this screen's own code is (tui.js), for when no deck says one
     readAt: null,       // when the deck last answered a reading, for "live"
     source: null,       // "deck" | "local": where the roster was read
     silent: [],         // decks alive but not answering, which hold the store's lock
@@ -759,7 +760,15 @@ function titleBar(state, width, { tone, g, unicode, now, skin }) {
   const what = sides.length > 1
     ? sides.map(side => (side === "claude" ? tab("Claude", state.side === "claude") : side === "codex" ? tab("Codex", onCodex(state)) : lanTab(onLan(state)))).join("")
     : `${tone.bold}Claude accounts${tone.reset}`;
-  const left = `  ${tone.accent}${tone.bold}ccdeck${tone.reset}  ${what}`;
+  // The version beside the name, so a screen over SSH, often the only window
+  // on the deck, says which release it is on: the running deck's while one
+  // answers — it follows the deck through a restart, as an update makes one —
+  // and this screen's own while none does. Left out only when the line has no
+  // room for it, the tabs being the one thing here a key needs.
+  const version = state.deck?.version ?? state.own;
+  const name = `  ${tone.accent}${tone.bold}ccdeck${tone.reset}`;
+  const versioned = version ? `${name} ${tone.muted}${version}${tone.reset}  ${what}` : null;
+  const left = versioned && textWidth(versioned) <= width ? versioned : `${name}  ${what}`;
   let right = "";
   if (state.deck) {
     const ago = state.readAt == null ? null : now - state.readAt;
