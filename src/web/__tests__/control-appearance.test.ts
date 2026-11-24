@@ -85,9 +85,19 @@ const selectors = (list: string) => list.split(",").map(s => s.replace(/\s+/g, "
 
 interface Decl { prop: string; value: string }
 
-const declarations = (body: string): Decl[] =>
-  [...body.matchAll(/(?:^|[;{])\s*([a-z-]+)\s*:\s*([^;]*)/g)]
-    .map(m => ({ prop: m[1], value: m[2].replace(/\s+/g, " ").trim() }));
+/** Each body is read once: the sweeps below ask every control about every
+ *  rule, and reading a rule again for each control is what took two of them
+ *  past 20 seconds under a full run. The answer is the same either way. */
+const declarationsRead = new Map<string, Decl[]>();
+const declarations = (body: string): Decl[] => {
+  let read = declarationsRead.get(body);
+  if (!read) {
+    read = [...body.matchAll(/(?:^|[;{])\s*([a-z-]+)\s*:\s*([^;]*)/g)]
+      .map(m => ({ prop: m[1], value: m[2].replace(/\s+/g, " ").trim() }));
+    declarationsRead.set(body, read);
+  }
+  return read;
+};
 
 // ── what counts as an appearance ────────────────────────────────────────────
 
@@ -159,22 +169,47 @@ const finalCompound = (sel: string) => {
  * theme block is a cascade, not a state, so it is allowed as an ancestor.
  */
 function restingMatch(sel: string, classes: readonly string[]): boolean {
-  const parts = sel.split(/\s*[\s>+~]\s*/).filter(Boolean);
-  const last = finalCompound(sel);
-  if (!last || /[:[]/.test(last)) return false;
-  for (const part of parts.slice(0, -1)) {
-    if (part.startsWith(":root")) continue;
-    if (/[:[]/.test(part)) return false;
-  }
-  const tag = /^[a-zA-Z][\w-]*/.exec(last);
-  if (tag && tag[0] !== "button") return false;
-  const names = [...last.matchAll(/\.([\w-]+)/g)].map(m => m[1]);
-  if (!names.length && !tag) return false;
-  return names.every(n => classes.includes(n));
+  const names = restingNames(sel);
+  return names !== null && names.every(n => classes.includes(n));
 }
 
-const rulesFor = (classes: readonly string[]) =>
-  RULES.filter(r => selectors(r.selector).some(s => restingMatch(s, classes)));
+/** What restingMatch asks of a selector, read once per selector: null when it
+ *  can never describe a control at rest, else the classes its final compound
+ *  needs the control to wear (none, for a bare `button`). */
+const restingRead = new Map<string, string[] | null>();
+function restingNames(sel: string): string[] | null {
+  if (restingRead.has(sel)) return restingRead.get(sel)!;
+  const read = ((): string[] | null => {
+    const parts = sel.split(/\s*[\s>+~]\s*/).filter(Boolean);
+    const last = finalCompound(sel);
+    if (!last || /[:[]/.test(last)) return null;
+    for (const part of parts.slice(0, -1)) {
+      if (part.startsWith(":root")) continue;
+      if (/[:[]/.test(part)) return null;
+    }
+    const tag = /^[a-zA-Z][\w-]*/.exec(last);
+    if (tag && tag[0] !== "button") return null;
+    const names = [...last.matchAll(/\.([\w-]+)/g)].map(m => m[1]);
+    if (!names.length && !tag) return null;
+    return names;
+  })();
+  restingRead.set(sel, read);
+  return read;
+}
+
+/** Each rule's selectors split once, and each class set's rules found once:
+ *  many buttons share a class set, and the sweeps ask about each of them. */
+const RULE_SELECTORS = RULES.map(r => selectors(r.selector));
+const rulesWorn = new Map<string, typeof RULES>();
+const rulesFor = (classes: readonly string[]) => {
+  const key = [...classes].sort().join(" ");
+  let worn = rulesWorn.get(key);
+  if (!worn) {
+    worn = RULES.filter((_, i) => RULE_SELECTORS[i].some(s => restingMatch(s, classes)));
+    rulesWorn.set(key, worn);
+  }
+  return worn;
+};
 
 // ── the markup ──────────────────────────────────────────────────────────────
 
