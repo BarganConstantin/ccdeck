@@ -8,6 +8,21 @@ import { join } from 'node:path';
 import { liveError } from './codex-live-rpc.mjs';
 import { ensureWindowsPrivateDirectory, holdWindowsPrivatePath } from './codex-windows-private.mjs';
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (e) { return e.code !== 'ESRCH'; } };
+// The recovery mutex is one loopback port per home. Its range sits below every default
+// ephemeral range (Linux 32768-60999, macOS and Windows 49152-65535), so a closed client
+// connection waiting in TIME-WAIT cannot hold it for a minute. Another socket can still
+// hold it for a moment, so recovery tries a few times before it reports the lease as busy.
+const MUTEX_PORT_BASE = 20000, MUTEX_PORT_SPAN = 12768, MUTEX_TRIES = 10, MUTEX_WAIT_MS = 100;
+export const codexLiveLeaseRecoveryPort = home => MUTEX_PORT_BASE + parseInt(createHash('sha256').update(home).digest('hex').slice(0, 4), 16) % MUTEX_PORT_SPAN;
+async function holdMutex(port) {
+  for (let attempt = 1; ; attempt++) {
+    const mutex = createServer(s => s.destroy());
+    const locked = await new Promise(resolve => { mutex.once('error', () => resolve(false)); mutex.listen({ host: '127.0.0.1', port, exclusive: true }, () => resolve(true)); });
+    if (locked) return mutex;
+    if (attempt >= MUTEX_TRIES) return null;
+    await new Promise(resolve => setTimeout(resolve, MUTEX_WAIT_MS));
+  }
+}
 async function record(file, options) {
   let guard;
   try {
@@ -47,9 +62,8 @@ export async function acquireCodexLiveLease(home, options = {}) {
       if (e.code !== 'EEXIST') throw liveError('native_control_unavailable');
       const observed = await record(file, options);
       if (observed && !alive(observed.pid)) {
-        const mutex = createServer(s => s.destroy());
-        const locked = await new Promise(resolve => { mutex.once('error', () => resolve(false)); mutex.listen({ host: '127.0.0.1', port: 49152 + parseInt(key.slice(0, 4), 16) % 16384, exclusive: true }, () => resolve(true)); });
-        if (locked) {
+        const mutex = await holdMutex(options.recoveryPort ?? codexLiveLeaseRecoveryPort(home));
+        if (mutex) {
           try { const current = await record(file, options); if (same(observed, current) && !alive(current.pid)) await unlink(file); }
           finally { await new Promise(resolve => mutex.close(resolve)); }
         }
