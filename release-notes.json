@@ -1,4 +1,14 @@
 {
+  "4.3.10": [
+    {
+      "title": "🧾 Subagent costs count requests that ran side by side",
+      "body": "When one subagent had two requests writing their replies at the same time, the first request was counted from an early moment of its reply, so most of its output was left out of the deck's token and cost counts. Each of them is now counted from its finished reply. Projects counts its history again once after the update, so past days come out right too."
+    },
+    {
+      "title": "🌡️ Throttling shows on Linux machines with no temperature sensor",
+      "body": "On a Linux computer that reports when the CPU slows down to cool off, but has no temperature sensor the deck can read, the Machine panel never showed its Throttling row. It now shows it from its second reading on, about 10 seconds after the deck starts."
+    }
+  ],
   "4.3.9": [
     {
       "title": "📋 Copy the sign-in link from ccdeck tui over SSH",
@@ -404,6 +414,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.3.10": "Subagent costs count requests that ran side by side, and Throttling shows on Linux machines with no temperature sensor",
     "4.3.9": "Copy the TUI sign-in link over SSH, and Send feedback is named in the top bar",
     "4.3.8": "Install Codex from the session pane, and each Graph card says which model it runs",
     "4.3.7": "Drag the line between Sessions and Accounts, and Reopen brings back an ended Codex pane",
