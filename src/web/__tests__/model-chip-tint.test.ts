@@ -81,8 +81,10 @@ describe("the sheet", () => {
 describe("every surface that draws a chip stamps the family on it", () => {
   const surfaces: Array<[string, string]> = [
     // AgentNode is not here any more: V4's card drew the model as plain mono
-    // text, no chip and no tint, and since V4 top-10 #2 draws no model at all —
-    // v4-agent-card.test.ts holds it.
+    // text, no chip and no tint, then (V4 top-10 #2) no model at all.
+    // CHANGED ON PURPOSE (the owner's call, 2026-11-24): the model and its
+    // effort are shown again, in the card's foot as plain muted text
+    // (.model-meta), still no chip and no tint — v4-agent-card.test.ts holds it.
     ["Detail hero", "../components/Detail.tsx"],
     // (The session list left this table with V4's Attention rail: a rail row
     // names its model as a plain mono tag in --muted, Figma's Rail / Row, so it

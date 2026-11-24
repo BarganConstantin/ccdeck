@@ -131,11 +131,17 @@ describe("one frame, and its colour is a state", () => {
 });
 
 describe("the card says its task, not the machinery", () => {
-  it("names no model and no effort on the card or its face", () => {
+  // CHANGED ON PURPOSE (the owner's call, 2026-11-24): this held no model and
+  // no effort anywhere on the card. They are shown again in the foot, and
+  // still not in the head or on the face drawn from a distance.
+  it("names the model and its effort in the foot only, not in the head or on its face", () => {
     const out = card({});
     expect(out).not.toContain("model-text");
-    expect(out).not.toContain("opus 5.5");
-    expect(out).not.toMatch(/· high\b/);
+    expect(/<div class="title">([\s\S]*?)<\/div>/.exec(out)![1]).not.toContain("opus 5.5");
+    expect(/<div class="foot">([\s\S]*?)<\/div>/.exec(out)![1]).toContain(">opus 5.5 · high</span>");
+    const face = out.slice(out.indexOf('class="lod-face"'));
+    expect(face).not.toContain("opus 5.5");
+    expect(face).not.toMatch(/· high\b/);
   });
 
   it("still tells a Codex card from a Claude one: a muted \"Codex\" where the model sat, nothing for Claude", () => {
