@@ -14,7 +14,7 @@ import { planSpoken } from "./agent-plan";
 import { salientField } from "./tool-input";
 import type { Row } from "./components/SessionList";
 import { ageShort } from "./elapsed-short";
-import type { RailGroup } from "./rail-model";
+import type { RailGroup, RailSection } from "./rail-model";
 import { distinctIdTail } from "./session-id-tail";
 import { sessionDisplay, sessionListName } from "./session-display";
 import { injectedPrompt } from "./injected-prompt";
@@ -195,7 +195,9 @@ export interface CompactRowContext {
   idTail?: string;
 }
 
-export function compactRowContexts(rows: readonly Row[], groups?: ReadonlyMap<string, RailGroup>): Map<string, CompactRowContext> {
+/** `groups` is the place each row is drawn in, Pinned included: two rows
+ *  alike are told apart among the rows under the same header. */
+export function compactRowContexts(rows: readonly Row[], groups?: ReadonlyMap<string, RailSection>): Map<string, CompactRowContext> {
   const names = new Map<string, Row[]>();
   for (const row of rows) {
     const label = row.label.trim().toLowerCase();

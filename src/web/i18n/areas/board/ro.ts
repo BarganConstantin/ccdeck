@@ -1059,6 +1059,7 @@ const catalog: Catalog = {
   "board.railGroup.new": "Gata · noi",
   "board.railGroup.done": "Gata",
   "board.railGroup.ready": "Pregătite",
+  "board.railGroup.pinned": "Fixate",
   "board.rail.held.one": "{count} mutare așteaptă până ieși din listă",
   "board.rail.held.few": "{count} mutări așteaptă până ieși din listă",
   "board.rail.held.other": "{count} de mutări așteaptă până ieși din listă",
@@ -1117,6 +1118,9 @@ const catalog: Catalog = {
   "board.list.hiddenRow": "{name} a fost ascunsă din listă",
   "board.list.hiddenSaid": "{name} a fost ascunsă din listă. Se poate anula.",
   "board.list.hiddenCount": "Ascunse · {n}",
+  "board.list.pinRow": "Fixează",
+  "board.list.unpinRow": "Anulează fixarea",
+  "board.list.pinnedSuffix": ", fixată",
 };
 
 export default catalog;

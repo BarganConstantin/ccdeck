@@ -401,6 +401,7 @@ describe("the threshold and the wiring", () => {
     const sweep = readFileSync(fileURLToPath(new URL("../prune.ts", import.meta.url)), "utf8");
     expect(sweep).toMatch(/sweepStaleSessions\(state, t, STALE_SESSION_MS\)/);
     expect(sweep).toMatch(/import \{[\s\S]*?sweepStaleSessions[\s\S]*?\} from "\.\/reducer"/);
-    expect(app).toMatch(/sweepTick\(stateRef\.current, t\)/);
+    // The board's pins ride along as a third argument (list-pinned.ts).
+    expect(app).toMatch(/sweepTick\(stateRef\.current, t(?:, \w+)?\)/);
   });
 });
