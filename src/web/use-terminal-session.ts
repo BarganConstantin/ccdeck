@@ -684,17 +684,16 @@ const folderProblem = (answer: FolderAnswer): FolderRefusal | null =>
       : answer.code === "denied" ? "folder-denied" : null;
 
 /** A failure as the card draws it. A refusal that is a state of this machine
- *  keeps its code, so the card checks again in place. A Claude session
- *  refused because Claude Code is not installed is said so, and the card
- *  offers to install it; Codex's keeps the engine's sentence. A launch or an
- *  adopt refused for its folder (`at`: the folder it named, and the
- *  conversation for an adopt) is the folder-gone phase, never asked again by
- *  itself. */
+ *  keeps its code, so the card checks again in place. A Claude or a Codex
+ *  session refused because its CLI is not installed is said so, and the card
+ *  offers to install it (ClaudeInstall.tsx). A launch or an adopt refused for
+ *  its folder (`at`: the folder it named, and the conversation for an adopt)
+ *  is the folder-gone phase, never asked again by itself. */
 const failed = (f: ApiFailure, agent?: Provider, at?: { cwd: string; sessionId?: string }): StagePhase => {
   const starts = startable(agent);
   if (folderRefusal(f.code) && at && starts) return folderGone(f.code, f.cwd || at.cwd, { agent: starts, sessionId: at.sessionId });
   return panelUnavailable(f.code) ? { kind: "error", message: f.error, code: f.code, busy: false }
-    : f.code === "agent-missing" && agent === "claude" ? { kind: "error", message: f.error, missing: "claude" }
+    : f.code === "agent-missing" && (agent === "claude" || agent === "codex") ? { kind: "error", message: f.error, missing: agent }
       : { kind: "error", message: f.error };
 };
 

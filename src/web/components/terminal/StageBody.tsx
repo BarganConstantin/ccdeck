@@ -32,7 +32,7 @@ import { copyText } from "../../copy-text";
 import { CAUGHT_KEYS_ATTR } from "../../shortcuts";
 import type { TmuxProgress } from "../../terminal-api";
 import {
-  CHOOSE_FOLDER_MSG, CLAUDE_MISSING_MSG, LAUNCHED_UNREACHABLE_MSG, PROVENANCE_UNKNOWN_MSG, REOPEN_FAILED_MSG, REOPENING_MSG, START_NEW_MSG,
+  CHOOSE_FOLDER_MSG, LAUNCHED_UNREACHABLE_MSG, MISSING_MSGS, PROVENANCE_UNKNOWN_MSG, REOPEN_FAILED_MSG, REOPENING_MSG, START_NEW_MSG,
   agentName, elsewhereLine, errorWords, folderGoneBody, folderGoneTitle, folderShown, folderStillGone, frameRun, launchedUnreachable, provenanceUnknown,
   type FolderGonePhase, type FrameRun, type StagePhase, type StageState,
 } from "./stage-model";
@@ -488,20 +488,23 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
           <EngineCard code={phase.code ?? ""} message={errorWords(phase.message)} busy={phase.busy} onRetry={p.onRetry} onNotNow={p.onNotNow} plain={plain} />
         );
       }
-      // Claude Code is not installed: said in the deck's own words, with
-      // Install Claude Code, Try again for one installed by hand, Not now,
-      // and the command to run by hand. Once an install this card started is
-      // done, the sentence goes and the session is asked for again, once;
-      // while one runs, only Not now. Where the deck cannot say anything of
-      // the install, Try again and Not now as before, under the same
-      // sentence. The keys land on the first of Install, Try again, Not now
-      // that is offered.
-      if (phase.missing === "claude") {
+      // Claude Code or Codex is not installed: said in the deck's own words,
+      // with Install Claude Code (Install Codex), Try again for one installed
+      // by hand or a PATH fixed since, Not now, and the command to run by
+      // hand. Once an install this card started is done, the sentence goes
+      // and what was refused (the launch, or the open) is asked for again,
+      // once; while one runs, only Not now. Where the deck cannot say
+      // anything of the install, Try again and Not now as before, under the
+      // same sentence. The keys land on the first of Install, Try again, Not
+      // now that is offered. Keyed by the CLI, so a card for one never
+      // carries the other's install.
+      if (phase.missing) {
         return (
-          <div className="ts-card" data-missing="claude">
+          <div className="ts-card" data-missing={phase.missing} key={phase.missing}>
             <ClaudeInstall
               place="stage"
-              lead={<p className="ts-text">{t(CLAUDE_MISSING_MSG)}</p>}
+              agent={phase.missing}
+              lead={<p className="ts-text">{t(MISSING_MSGS[phase.missing])}</p>}
               onInstalled={p.onRetry}
               actions={state => (
                 <>

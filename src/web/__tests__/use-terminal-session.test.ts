@@ -2097,25 +2097,47 @@ describe("the Command Panel's engine refusing (pro-engine-host-v1.md, Refusals)"
     expect(r.launch, "and no more").toHaveBeenCalledTimes(2);
   });
 
-  it("says a Codex launch refused for want of Codex as it always has: its sentence, with Try again", async () => {
+  it("marks a Codex launch refused for want of Codex, so the card can offer to install it, and asks for that launch again once", async () => {
     const said = "Codex is not installed on this machine.";
     const { r, ctl } = rig();
     answered(r, { ok: false, error: said, code: "agent-missing" });
     ctl.show({ kind: "launch", agent: "codex", cwd: "/w", key: "n11" });
     await flush();
     await flush();
-    expect(r.last().phase).toEqual({ kind: "error", message: said });
+    // CHANGED ON PURPOSE (Install Codex): a Codex launch kept only the
+    // engine's sentence, with Try again and Not now, and no way to install
+    // Codex from the card. It is marked as Claude's is, and the card offers
+    // Install Codex; the sentence is kept.
+    expect(r.last().phase).toEqual({ kind: "error", message: said, missing: "codex" });
+    expect(r.status, "not tmux's").not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+    expect(r.launch, "never launched again by itself").toHaveBeenCalledTimes(1);
+
+    // Installed: the card asks once (its onInstalled is the stage's retry),
+    // and that is the same launch, by its key, once.
+    ctl.retry();
+    await flush();
+    expect(r.launch).toHaveBeenCalledTimes(2);
+    expect(r.launch.mock.calls[1][0]).toMatchObject({ agent: "codex", key: "n11" });
+    await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+    expect(r.launch, "and no more").toHaveBeenCalledTimes(2);
   });
 
-  it("marks a Claude session's open refused for want of Claude, and a Codex one's not", async () => {
+  it("marks a Claude or a Codex session's open refused for want of its CLI, and opens it again once asked", async () => {
     for (const provider of ["claude", "codex"] as const) {
       const { r, ctl } = rig();
       r.open.mockResolvedValueOnce(refusal(409, "agent-missing", "not installed"));
       ctl.show({ kind: "session", ref: { ...REF, provider } });
       await flush();
-      expect(r.last().phase, provider).toEqual(provider === "claude"
-        ? { kind: "error", message: "not installed", missing: "claude" }
-        : { kind: "error", message: "not installed" });
+      // CHANGED ON PURPOSE (Install Codex): a Codex session's open was left
+      // unmarked, its card with no install. Both are marked by their CLI.
+      expect(r.last().phase, provider).toEqual({ kind: "error", message: "not installed", missing: provider });
+      expect(r.open, provider).toHaveBeenCalledTimes(1);
+      // Installed: the card's retry opens the same session again, once.
+      ctl.retry();
+      await flush();
+      expect(r.open, provider).toHaveBeenCalledTimes(2);
+      expect(r.open.mock.calls[1][0], provider).toMatchObject({ provider });
       ctl.dispose();
     }
   });

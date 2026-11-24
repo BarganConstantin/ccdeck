@@ -570,6 +570,7 @@ const catalog: Catalog = {
   "board.stage.checking": "Comprobando…",
   "board.stage.tryAgain": "Reintentar",
   "board.stage.claudeMissing": "Claude Code no está instalado en este equipo.",
+  "board.stage.codexMissing": "Codex no está instalado en este equipo.",
   "board.stage.tmuxSettingUp": "tmux · preparando",
   "board.stage.tmuxFetching": "Este equipo no tiene un tmux que el Command Panel pueda usar, así que ccdeck descarga el suyo: alrededor de un megabyte, una sola vez. Se queda en la carpeta de ccdeck; no se instala nada en el sistema.",
   "board.stage.tmuxFetchingLabel": "Descargando tmux",
