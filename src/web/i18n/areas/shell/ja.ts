@@ -30,6 +30,8 @@ const catalog: Catalog = {
   "shell.side.widthHint": "ドラッグで列の幅を変更 · 矢印キーで移動",
   "shell.list.width": "セッション一覧の幅",
   "shell.list.widthHint": "ドラッグで一覧の幅を変更 · 矢印キーで移動 · ダブルクリックで元に戻す",
+  "shell.list.stack": "「セッション」と「アカウント」の高さの配分",
+  "shell.list.stackHint": "ドラッグで高さを配分 · 矢印キーで移動 · ダブルクリックで元に戻す",
   "shell.side.usageSum": "{amount} {period}",
   "shell.side.usageTokens": "{n} トークン {period}",
   "shell.side.machineSum": "CPU {cpu}% · {memory}",

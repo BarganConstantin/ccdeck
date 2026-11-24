@@ -22,6 +22,7 @@ import type { CapacityView } from "./components/AccountsUsageReport";
 import CodexAccountsPanel from "./components/CodexAccountsPanel";
 import LeftColumn from "./components/LeftColumn";
 import RailEdge from "./components/RailEdge";
+import StackSplit from "./components/StackSplit";
 import { useDragTrash } from "./use-drag-trash";
 import { useBubbleAnimation, useClosingGap } from "./use-bubble-animation";
 import { useZoomLod } from "./use-zoom-lod";
@@ -96,6 +97,7 @@ import { useAccountAttention } from "./use-account-attention";
 import { useMeterQuota } from "./use-quota";
 import { leftColumnWidth, useColumnSettle, useLeftColumn, useRailWidth, useWorkspaceColumn } from "./use-left-column";
 import { fitRailWidth, useRailCap, useRailWidthChoice } from "./rail-width";
+import { useStackShare } from "./stack-split";
 import { foldAwarePress, foldAwareSet, useOneSideColumn } from "./one-side-column";
 import { sessionsOf, useMarkSeen } from "./use-mark-seen";
 import { useRightPanels } from "./use-right-panels";
@@ -208,6 +210,9 @@ function Inner() {
   const railChoice = useRailWidthChoice();
   const railCapNow = useRailCap(railWidth);
   const listWidth = fitRailWidth(railChoice.chosen, railWidth, railCapNow);
+  // The height Sessions and Accounts share, one under the other: the split's
+  // to drag and kept in the browser (stack-split.ts).
+  const stackChoice = useStackShare();
   // The detail, Usage and Machine panels' open flags, each kept in the browser
   // across a refresh — use-right-panels.ts. Called ahead of the selection
   // below, because a plain selection opens the detail panel (#814). A load in
@@ -1521,6 +1526,7 @@ function Inner() {
       {phone && accountsNodes}
       {(sessionListDrawn || accountsDrawn) && (
         <LeftColumn width={leftColumnTarget} listWidth={phone ? undefined : listWidth}
+          stackShare={phone ? null : stackChoice.share}
           edge={phone ? undefined : <RailEdge width={listWidth} cap={railCapNow} onWidth={railChoice.choose} onReset={railChoice.reset} />}>
           {sessionListDrawn && (
             <SessionList
@@ -1542,6 +1548,11 @@ function Inner() {
               offline={phone && everConnected && !live && !restart.restarting ? <OfflineCard lastNewsAt={lastNewsAt} /> : undefined}
               emptyNotice={heroInList ? emptyHero(0) : undefined}
             />
+          )}
+          {/* The split between the two, while both are drawn (StackSplit.tsx). */}
+          {!phone && sessionListDrawn && accountsDrawn && (
+            <StackSplit share={stackChoice.share} onShare={stackChoice.choose} onReset={stackChoice.reset}
+              leaving={isLeaving(listOnScreen, sessionListPhase) || isLeaving(accountsOnScreen, accountsPhase)} />
           )}
           {!phone && accountsNodes}
         </LeftColumn>

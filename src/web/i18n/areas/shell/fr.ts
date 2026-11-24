@@ -30,6 +30,8 @@ const catalog: Catalog = {
   "shell.side.widthHint": "Glissez pour élargir ou rétrécir la colonne · les flèches la déplacent",
   "shell.list.width": "Largeur de la liste des sessions",
   "shell.list.widthHint": "Glissez pour élargir ou rétrécir la liste · les flèches la déplacent · un double-clic la rétablit",
+  "shell.list.stack": "Partage de la hauteur entre Sessions et Comptes",
+  "shell.list.stackHint": "Glissez pour partager la hauteur · les flèches la déplacent · un double-clic la rétablit",
   "shell.side.usageSum": "{amount} {period}",
   "shell.side.usageTokens": "{n} jetons {period}",
   "shell.side.machineSum": "CPU {cpu} % · {memory}",

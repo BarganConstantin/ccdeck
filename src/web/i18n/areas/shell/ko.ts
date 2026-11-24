@@ -30,6 +30,8 @@ const catalog: Catalog = {
   "shell.side.widthHint": "끌어서 열을 넓히거나 좁히기 · 화살표 키로 이동",
   "shell.list.width": "세션 목록 너비",
   "shell.list.widthHint": "끌어서 목록을 넓히거나 좁히기 · 화살표 키로 이동 · 두 번 클릭하면 초기화",
+  "shell.list.stack": "세션과 계정의 높이 배분",
+  "shell.list.stackHint": "끌어서 높이 배분 · 화살표 키로 이동 · 두 번 클릭하면 초기화",
   "shell.side.usageSum": "{amount} {period}",
   "shell.side.usageTokens": "토큰 {n}개 {period}",
   "shell.side.machineSum": "CPU {cpu}% · {memory}",
