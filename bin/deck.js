@@ -38,7 +38,8 @@ import {
 } from "./cli/screen.js";
 // The once-per-session work and the rows that report it.
 import {
-  reportClaudeArrived, reportReady, reportRestarted, reportStartup, respawnHooks, startupWork,
+  installProviderForwarders, reportClaudeArrived, reportReady, reportRestarted, reportStartup,
+  respawnHooks, sayForwarderTrouble, startupWork,
 } from "./cli/startup.js";
 import { restartLatch } from "./cli/restart.js";
 import { startPulse } from "./cli/pulse.js";
@@ -451,29 +452,39 @@ const starting = startServer({
 // skips the lot and prints one line instead. This is the difference between a
 // restart that feels instant and one that makes you wonder whether it worked.
 // The hooks are the exception, when the respawn runs a different package from
-// the one the session started on — see respawnHooks.
+// the one the session started on — see respawnHooks. So are the other
+// providers' forwarders, which every boot puts in place — see
+// installProviderForwarders.
 if (!RESPAWN) {
   const jobs = startupWork({ wantClaude, installHooks, leftoverCodexHooks });
   handDownSetup(noteSetup({ claude: jobs.hooks, codex: wantCodex }));
   jobs.cswapQuiet.then(settleCswap);
   await printBanner();
   await reportStartup(jobs, { workspace, wantClaude, wantCodex, CODEX_SESSIONS_DIR });
+  await sayForwarderTrouble(jobs.forwarders);
 } else if (claudeArrived) {
   const jobs = startupWork({ wantClaude, installHooks, leftoverCodexHooks });
   handDownSetup(noteSetup({ claude: jobs.hooks, codex: wantCodex }));
   jobs.cswapQuiet.then(settleCswap);
   await reportClaudeArrived(jobs);
+  await sayForwarderTrouble(jobs.forwarders);
 } else {
   settleCswap();
   // What a respawn says about the hooks is what it saw: its own re-install when
   // the package changed under the session, else the first boot's answer as the
   // supervisor handed it down — never an "ok" it assumed. See respawnHooksJob.
   const reinstall = respawnHooks({ wantClaude, installHooks, bootVersion: process.env.AGENTS_DECK_BOOT_VERSION });
+  // Copilot's hooks file and opencode's plugin, after that re-install because
+  // both run the hook.js it puts in place. A forwarder the first boot never
+  // wrote is written now, and one an older package wrote is brought up to this
+  // one; identical files are left as they are, so the same package costs reads.
+  const forwarders = installProviderForwarders(reinstall);
   handDownSetup(noteSetup({
     claude: respawnHooksJob({ wantClaude, reinstall, carried: process.env.AGENTS_DECK_BOOT_HOOKS }),
     codex: wantCodex,
   }));
   await reinstall;
+  await sayForwarderTrouble(forwarders);
 }
 
 /** The hooks' answer, told to the supervisor, which hands it to the next

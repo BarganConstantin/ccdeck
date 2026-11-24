@@ -196,32 +196,46 @@ describe("the chip's words", () => {
 // with it, and the squeeze with nothing left to squeeze. The level a user
 // asked to see (#2155) is still drawn beside the model in the Inspector's
 // chip, which is what this now holds.
-describe("the effort off the card, and on the Inspector's chip", () => {
+// CHANGED ON PURPOSE (the owner's call, 2026-11-24): the model and its effort
+// are back on the card, in its foot, where a narrow foot drops the effort and
+// then the model (card-row-squeeze.ts); the head still measures nothing.
+describe("the effort on the card's foot, and on the Inspector's chip", () => {
   const card = (data: unknown) => renderToStaticMarkup(createElement(ReactFlowProvider, null,
     // NodeProps carries more than the card reads; only data matters here.
     createElement(AgentNode as never, { id: "s", data, selected: false } as never)));
   const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
-  it("draws neither the model nor the effort on the card, though the session stated both", () => {
+  it("draws the model and the effort the session stated on the card's foot", () => {
     const state = run([
       { hook_event_name: "SessionStart", session_id: "card", cwd: "/w/docs", model: "claude-opus-5-5" },
       { hook_event_name: "PreToolUse", session_id: "card", tool_name: "Read", tool_use_id: "c1", tool_input: {}, effort: { level: "high" } },
     ]);
     const agent = state.agents.get("card")!;
-    // The reducer still holds the level, for the Inspector to say.
     expect(agent.effort).toBe("high");
     const html = card(agent);
-    expect(html).not.toContain("opus 5.5");
-    expect(html).not.toContain("effort: high");
+    // CHANGED ON PURPOSE: the model and its effort are shown on the card now.
+    expect(html).toContain('<span class="model-meta" title="claude-opus-5-5\neffort: high">opus 5.5 · high</span>');
     expect(html).not.toContain("model-text");
+  });
+
+  it("draws the model alone on the card when the session stated no effort", () => {
+    const state = run([
+      { hook_event_name: "SessionStart", session_id: "plain", cwd: "/w/docs", model: "claude-opus-5-5" },
+      { hook_event_name: "PreToolUse", session_id: "plain", tool_name: "Read", tool_use_id: "c1", tool_input: {} },
+    ]);
+    const agent = state.agents.get("plain")!;
+    expect(agent.effort).toBeUndefined();
+    expect(card(agent)).toContain('<span class="model-meta" title="claude-opus-5-5">opus 5.5</span>');
   });
 
   it("says the effort with the model in the Inspector's chip, words and tooltip", () => {
     const detail = read("../components/Detail.tsx");
     expect(detail).toContain("modelChipText(agent.model, agent.effort)");
     expect(detail).toContain("modelChipTitle(agent.model, agent.effort)");
-    // And the card measures no head for an effort to give up.
+    // CHANGED ON PURPOSE: the card says them too, with the same words and
+    // tooltip; the head still measures nothing for an effort to give up.
     const node = read("../components/AgentNode.tsx");
-    expect(node).not.toMatch(/modelChipText|setSqueeze|labelRef/);
+    expect(node).toContain("modelChipTitle(data.model, data.effort)");
+    expect(node).not.toMatch(/setSqueeze|labelRef/);
   });
 });

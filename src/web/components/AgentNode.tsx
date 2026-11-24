@@ -8,7 +8,9 @@ import { costChip } from "../card-cost";
 import { codexApprovalTell } from "../codex-approval";
 // The provider's printed name, the one the usage panels already print.
 import { providerLabel } from "../provider-copy";
-import { footDropped, footDroppable, footNotchOnResize, nextFootNotch } from "../card-row-squeeze";
+import { footDropped, footDroppable, footModelFits, footNotchOnResize, nextFootNotch } from "../card-row-squeeze";
+// The model's words and their tooltip, as the Sessions list and the peek say them.
+import { modelChipText, modelChipTitle } from "../model-label";
 // The card's words — its state, a block's sentence and label — which the
 // session list, the peek and the topbar say too. See agent-copy.ts.
 import { agentKindLabel, blockedToolTooltip, categoryLabel, spawnBadgeTitle, subRowTitle, waitingLabel, waitingSentence } from "../agent-copy";
@@ -107,12 +109,18 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   const cardTooltip = data.sessionTitle
     ? (data.cwd ? `${data.cwd}\n${data.sessionTitle}` : data.sessionTitle)
     : data.cwd;
-  // NO MODEL ON THE CARD (V4 top-10 #2): the head is the name and the state
-  // (and "Codex" on a Codex card, below), and the task line says what the
-  // session is for. The model and its effort
-  // were mono text after the name, the machinery rather than the work, and
-  // they cut the name on every busy card; the Inspector, the Sessions list and
-  // the peek still say both, with the other models a session's money came from.
+  // THE MODEL AND ITS EFFORT, ON THE FOOT (the owner's call, 2026-11-24): the
+  // card says what the session runs on, "opus 5.5 · xhigh", in the muted ink
+  // after the foot's figures, and the model alone when the session never
+  // stated an effort (never a level read off a setting or a model's default).
+  // They used to be mono text after the name, where they cut the name on every
+  // busy card. In the foot they give way instead: while it is too narrow the
+  // squeeze drops the token figure, then the effort, then the in-flight count,
+  // and only then lets the model's words end in an ellipsis; the model itself
+  // never drops (card-row-squeeze.ts). The span's title and the card's accessible name
+  // (agentAriaLabel) keep the whole label either way. The head stays the name
+  // and the state (and "Codex" on a Codex card, below), and the task line says
+  // what the session is for.
   // A root's two lines keep the one name rule every surface keeps (owner's
   // critique, 2026-11-11, point 2; rail-row-copy.ts sessionNames): the head is
   // the session's name — the name it was given, else Claude Code's title, else
@@ -146,10 +154,20 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   // foot has to be measured again by the card itself.
   const [, setFootBeat] = useState(0);
   const tokenTotal = data.usage.inputTokens + data.usage.outputTokens;
-  const present = { tokens: tokenTotal > 0, inflight: inflight > 0 };
+  // The effort is only ever drawn after its model, so it is only there to drop
+  // when both are.
+  const present = { tokens: tokenTotal > 0, effort: !!data.model && !!data.effort, inflight: inflight > 0 };
   const footMax = footDroppable(present).length;
   const dropped = footDropped(footNotch, present);
   const showTokens = tokenTotal > 0 && !dropped.has("tokens");
+  // The model with its effort, or without it once the squeeze has dropped it;
+  // the title keeps both whatever the foot has room for. The model never drops:
+  // with nothing left to drop, its words shrink to an ellipsis instead.
+  const modelMeta: React.ReactElement | false = !!data.model && (
+    <span key="model" className={footModelFits(footNotch, footMax) ? "model-meta model-meta-fit" : "model-meta"} title={modelChipTitle(data.model, data.effort)}>
+      {modelChipText(data.model, dropped.has("effort") ? undefined : data.effort)}
+    </span>
+  );
   // HOW FULL ITS CONTEXT IS, in the foot beside the token figure with its
   // percent: in the head it was a second circle beside the state mark, two
   // circles with two meanings. It stays when the squeeze drops the
@@ -167,6 +185,7 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
     cost ? `${cost.kind}:${cost.kind === "spent" ? fmtCost(cost.total) + (cost.floor ? "+" : "") : ""}` : "",
     toolKinds.join(","), inflight, fmtTokens(tokenTotal), data.childCount, data.synthetic ? 1 : 0,
     ring ? Math.round(contextFill(data).pct) : "",
+    data.model ? modelChipText(data.model, data.effort) : "",
   ].join("|");
   useBeforePaint(() => { setFootNotch(0); }, [footKey]);
   useBeforePaint(() => {
@@ -191,7 +210,11 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
       if (to === from && !clockMoved) return;
       flushSync(() => {
         setFootNotch(n => footNotchOnResize(n, { from, to }));
-        if (clockMoved) setFootBeat(b => b + 1);
+        // A narrower foot keeps its notch, which is no change of state and so
+        // no render: without the beat nothing measured it again, and a card
+        // drawn narrower than the board's 256 (the Inspector's rows) kept a
+        // foot cut at its edge instead of giving items up.
+        if (clockMoved || to < from) setFootBeat(b => b + 1);
       });
     });
     ro.observe(el);
@@ -209,10 +232,12 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
       <div className="head">
         <div className="title">
           <span className="label" title={cardTooltip}>{headName}</span>
-          {/* WHICH CLI, FOR EVERY CLI BUT CLAUDE (V4 top-10 #2). With the
-              model text gone this word is the board's one way to tell a Codex,
-              OpenCode or GitHub Copilot card from a Claude one, in the place
-              the model sat: muted, no pill. A Claude card, the default
+          {/* WHICH CLI, FOR EVERY CLI BUT CLAUDE (V4 top-10 #2). The model
+              is in the foot now, absent until the session reports one and the
+              first thing a narrow foot gives up, so this word stays the board's
+              one sure way to tell a Codex, OpenCode or GitHub Copilot card from
+              a Claude one, in the place the model once sat: muted, no pill. A
+              Claude card, the default
               provider, says nothing: the reducer stamps "claude" on any event
               that names no provider, so a word for it would print an
               assumption as an observation. */}
@@ -321,8 +346,9 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
 
       {/* THE FOOT (V4): up to three icons for the tool kinds the session used,
           latest first, then cost · time, then the figures that stay (in-flight,
-          tokens and, on a root, the context ring with its percent), a spacer,
-          and at the end the sub-agent count with its icon.
+          tokens and, on a root, the context ring with its percent), then the
+          model and its effort when the session said them, a spacer, and at the
+          end the sub-agent count with its icon.
           Items are separated by a dot, and the row stays one line by dropping
           meta items (see .foot). The icons replace the activity sparkline: same
           calls, said as kinds, and their tooltip says how many calls and how
@@ -359,16 +385,17 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
             {data.synthetic ? "≥ " : ""}<Elapsed start={data.startedAt} end={data.endedAt} />
           </span>,
           inflight > 0 && !dropped.has("inflight") && <span key="inflight" className="inflight-meta"><b>{inflight}</b> {t("board.meta.inflight")}</span>,
-          showTokens && (
+          // The ring right after the token figure, with no dot: "34k tok ◔ 17%".
+          showTokens && [
             <span key="tokens" className="tokens-meta" title={`${t("board.meta.tokensTitle", { input: data.usage.inputTokens, output: data.usage.outputTokens, cacheR: data.usage.cacheReadTokens, cacheC: data.usage.cacheCreateTokens })}${(data.usage.reasoningOutputTokens ?? 0) > 0 ? `  ${t("board.meta.reasoning", { n: data.usage.reasoningOutputTokens ?? 0 })}` : ""}`}>
               <b>{fmtTokens(data.usage.inputTokens + data.usage.outputTokens)}</b> {t("board.meta.tok")}
-            </span>
-          ),
+            </span>,
+            ring,
+          ],
           // With the token figure dropped, the ring is an item of its own.
           !showTokens && ring,
+          modelMeta,
         ])}
-        {/* Right after the token figure, with no dot: "34k tok ◔ 17%". */}
-        {showTokens && ring}
         {data.childCount > 0 && (
           <span className="foot-end">
             <span className="spawn-badge" title={spawnBadgeTitle(data.childCount, t)}>{data.childCount}<KitIcon name="agents" /></span>
@@ -470,13 +497,16 @@ function NodeFace({ data, task }: { data: AgentNodeData & { branch?: BranchSumma
 
 /** The foot's items with the dot between them, none before the first or after
  *  the last, and none for an item that is absent. The dot is decoration: the
- *  items are words of their own. */
-function interleave(items: (React.ReactElement | false)[]): React.ReactNode[] {
+ *  items are words of their own. A group (the token figure and its ring) is
+ *  one item, drawn with no dot inside it. */
+type FootPart = React.ReactElement | false;
+function interleave(items: (FootPart | FootPart[])[]): React.ReactNode[] {
   const out: React.ReactNode[] = [];
   for (const item of items) {
-    if (!item) continue;
+    const group = (Array.isArray(item) ? item : [item]).filter((p): p is React.ReactElement => !!p);
+    if (group.length === 0) continue;
     if (out.length > 0) out.push(<span key={`sep-${out.length}`} className="foot-sep" aria-hidden>·</span>);
-    out.push(item);
+    out.push(...group);
   }
   return out;
 }
