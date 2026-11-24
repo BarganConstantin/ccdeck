@@ -5,10 +5,13 @@
 // panel did: close it, or reload, and every row was shut. The ORDER is no
 // longer a choice to remember — the list stands in availability order
 // (internal #94, other-accounts-order.ts) — so the order once stored under
-// `agent-dag.otherAccountsOrder` is simply not read any more. The fold ITSELF still shuts every time the panel opens — see
-// `restOpen` in AccountsPanel.tsx for why a fold that remembered being open
-// would never fold again — so what is kept is how the rows behind it look,
-// not whether they are shown.
+// `agent-dag.otherAccountsOrder` is simply not read any more.
+//
+// And whether the fold ITSELF is open, one flag for each side of the panel
+// (loadFoldOpen, below). It used to shut every time the panel opened, so a
+// reader who keeps Other accounts open had to open it again after every
+// restart or update, once in Claude and once in Codex. It comes back as it was
+// left on that side now; a first run, with nothing stored, still opens it shut.
 //
 // Per browser, in localStorage, like the usage panel's period and the other
 // view choices this deck keeps: which rows are open on this screen is a
@@ -20,6 +23,7 @@
 // whatever was in the store.
 import { readStored, writeStored } from "./storage";
 import { NONE_OPEN, type Openness } from "./other-accounts-order";
+import type { AccountSide } from "./components/AccountsSwitch";
 
 const OPEN_KEY = "agent-dag.otherAccountsOpen";
 
@@ -44,4 +48,21 @@ export function loadOpenness(scope = ""): Openness {
  *  long as the page is open, as they always were. */
 export function saveOpenness(state: Openness, scope = ""): void {
   writeStored(OPEN_KEY + scope, JSON.stringify({ mode: state.mode, keys: state.keys.filter(k => !k.startsWith("slot:")) }));
+}
+
+/** Under its side's name, `agent-dag.otherAccountsFold.claude` or `.codex`:
+ *  the two sides are separate columns, and open in one says nothing about the
+ *  other. A yes or a no and nothing else — no account, address or number is
+ *  written under these keys. */
+const FOLD_KEY = "agent-dag.otherAccountsFold.";
+
+/** Whether Other accounts was left open on this side. Shut for anything but a
+ *  stored "1": nothing stored (a first run), a store the browser refuses, or a
+ *  value something else wrote. */
+export function loadFoldOpen(side: AccountSide): boolean {
+  return readStored(FOLD_KEY + side) === "1";
+}
+
+export function saveFoldOpen(side: AccountSide, open: boolean): void {
+  writeStored(FOLD_KEY + side, open ? "1" : "0");
 }
