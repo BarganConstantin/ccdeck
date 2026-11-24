@@ -18,11 +18,16 @@
 // pin is taken off by the same press that put it on. A hidden mark another tab
 // left on a pinned session loses to the pin.
 //
-// IT GOES WITH ITS SESSION. When the session leaves the board (the cap on
-// finished sessions or on agents evicts it, or the board is cleared), its row
-// leaves Pinned and the pin is dropped from storage, once the deck has heard
-// its whole history: a session that comes back later under the same id comes
-// back as a new one, not pinned.
+// IT STAYS WHILE THE PIN IS ON. The board keeps only its last few finished
+// sessions (board-limits.ts DONE_SESSION_CAP), and a pinned one is not among
+// those it counts or evicts (board-sweeps.ts pruneDoneSessions): it stays on
+// top until it is unpinned, like a pinned conversation in Claude's app.
+//
+// IT GOES WITH ITS SESSION. When the session leaves the board anyway (the
+// agent cap evicts it, or the board is cleared), its row leaves Pinned and the
+// pin is dropped from storage, once the deck has heard its whole history: a
+// session that comes back later under the same id comes back as a new one,
+// not pinned.
 //
 // STORED as an array of ids, oldest pin first, under one agent-dag.* key beside
 // the hidden marks (list-hidden.ts), capped. A store that is missing, blocked
