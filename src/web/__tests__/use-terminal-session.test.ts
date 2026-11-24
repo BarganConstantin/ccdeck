@@ -24,7 +24,7 @@ import { forgetTerminalTextStep, setTerminalTextStep, terminalTextStep } from ".
 import { MAX_MESSAGE_BYTES, connectTerminal, type TerminalConnection } from "../terminal-protocol";
 import { CLEAN_END_MIN_LIVE_MS } from "../components/terminal/stage-model";
 import { launchTerminal, type ApiFailure, type NotAttachable, type SessionRef, type TerminalStatus, type Ticketed, type Launched } from "../terminal-api";
-import { askSteps, SUBMIT_WORDS } from "../ask-keys";
+import { askSteps, chatSteps, SUBMIT_WORDS } from "../ask-keys";
 import type { ChatQuestion } from "../components/chat/chat-model";
 import {
   ACK_EVERY_BYTES,
@@ -1416,6 +1416,41 @@ describe("answering Claude Code's question from Chat (sendAsk)", () => {
     expect(await done).toBe("sent");
     expect(s.sent.at(-1)).toEqual(enc("\r"));
     ctl.dispose();
+  });
+
+  // Claude Code 2.1.331 draws "Chat about this" under a line after "Type
+  // something", numbered after it; its digit picks it from anywhere in the list.
+  const CHAT_SCREEN = `${DB_SCREEN}\n ─────────────────────────────────\n   5. Chat about this\n\n Enter to select · ↑/↓ to navigate · Esc to cancel`;
+
+  it("Chat about this: its digit alone, once the question, its options and the row show", async () => {
+    const { ctl, s } = await askRig({ screen: CHAT_SCREEN });
+    expect(await ctl.sendAsk(chatSteps([DB, FEATURES])!, REF_SUBJECT)).toBe("sent");
+    expect(s.sent).toEqual([enc("5")]);
+    ctl.dispose();
+  });
+
+  it("Chat about this on a prompt that does not draw the row: nothing goes", async () => {
+    const { r, ctl, s } = await askRig();
+    const done = ctl.sendAsk(chatSteps([DB])!, REF_SUBJECT);
+    await poll(r, ASK_SCREEN_WAIT_MS);
+    expect(await done).toBe("changed");
+    expect(s.sent).toEqual([]);
+    ctl.dispose();
+  });
+
+  it("Chat about this beside a preview: the last option's digit, then Down as the terminal sends it, then Enter", async () => {
+    const LAYOUT = question("Which layout reads best?", ["Cards", "Table"], { preview: true });
+    const screen = " Which layout reads best?\n\n ❯ 1. Cards    ┌──────┐\n   2. Table    │ card │\n\n Notes: press n to add notes\n ──────────\n   Chat about this";
+    for (const appKeys of [false, true]) {
+      const { r, ctl, s } = await askRig({ screen });
+      r.terminal().appKeys = appKeys;
+      const done = ctl.sendAsk(chatSteps([LAYOUT])!, REF_SUBJECT);
+      await poll(r, ASK_KEY_GAP_MS);
+      await poll(r, ASK_KEY_GAP_MS);
+      expect(await done).toBe("sent");
+      expect(s.sent).toEqual([enc("2"), enc(appKeys ? "\x1bOB" : "\x1b[B"), enc("\r")]);
+      ctl.dispose();
+    }
   });
 
   it("a screen that never shows the question sends nothing and says it changed", async () => {

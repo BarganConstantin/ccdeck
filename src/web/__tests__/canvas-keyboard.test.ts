@@ -476,13 +476,18 @@ describe("nothing else in the deck invents a focus stop", () => {
     // CHANGED ON PURPOSE: the Sessions list's heading is where focus goes when
     // Hide from list takes the list's last row from under the keyboard
     // (list-hidden.ts focusAfterLeaving). It is never a Tab stop.
-    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/DialogResize.tsx", "components/IntegrationConnectionDetails.tsx", "components/IntegrationsSection.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/QuickOpen.tsx", "components/RadioFilter.tsx", "components/SessionList.tsx", "components/SettingsSearch.tsx", "components/SkillInspector.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/forge/DetailParts.tsx", "components/forge/RepoPicker.tsx"]);
+    // CHANGED ON PURPOSE: Chat's question card moves focus onto its status
+    // line when Send answer or Chat about this is pressed, because the control
+    // pressed is disabled or gone a moment later and focus would fall to the
+    // page; the line then announces what happened. It is never a Tab stop.
+    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/DialogResize.tsx", "components/IntegrationConnectionDetails.tsx", "components/IntegrationsSection.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/QuickOpen.tsx", "components/RadioFilter.tsx", "components/SessionList.tsx", "components/SettingsSearch.tsx", "components/SkillInspector.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/chat/ChatTurn.tsx", "components/forge/DetailParts.tsx", "components/forge/RepoPicker.tsx"]);
     expect(code(readFileSync(join(web, "components/forge/RepoPicker.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/forge/DetailParts.tsx"), "utf8"))).toMatch(/<article ref=\{ref\} className="fd"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/JiraIssueDetail.tsx"), "utf8"))).toMatch(/<h2 id="jira-detail-title" tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/RadioFilter.tsx"), "utf8"))).toMatch(/role="option" tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/SettingsSearch.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/QuickOpen.tsx"), "utf8"))).toMatch(/role="listbox"[^>]*tabIndex=\{-1\}/);
+    expect(code(readFileSync(join(web, "components/chat/ChatTurn.tsx"), "utf8"))).toMatch(/className="chat-ask-status" role="status"[^>]*tabIndex=\{-1\}|tabIndex=\{-1\} className="chat-ask-status" role="status"/);
     expect(code(readFileSync(join(web, "components/CanvasMain.tsx"), "utf8"))).toMatch(/<main\n\s+id="canvas"\n\s+tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/TelemetryCapture.tsx"), "utf8"))).toMatch(/<section className="tr-inspector"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/DialogResize.tsx"), "utf8"))).toMatch(/className="ig-rs-keys"[^>]*tabIndex=\{-1\}/);

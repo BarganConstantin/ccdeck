@@ -82,6 +82,28 @@ describe("a question card", () => {
     expect(turn).toEqual({ kind: "ask", questions: [CARD_DB], answers: [""] });
   });
 
+  // "Chat about this" is a refusal too, with Claude Code 2.1.331's words for
+  // it after the refusal's own (and a sub-agent's shorter refusal before them).
+  it("set aside with Chat about this: nothing chosen, and marked as set aside to chat", () => {
+    const clarify = `The user wants to clarify these questions.
+    This means they may have additional information, context or questions for you.
+    Take their response into account and then reformulate the questions if appropriate.
+    Start by asking them what they would like to clarify.
+
+    Questions asked:
+- "${DB.question}"
+  (No answer provided)
+- "${FEATURES.question}"
+  (No answer provided)`;
+    const refused = "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). To tell you how to proceed, the user said:\n";
+    const [turn] = transcriptTurns([ask("q1", [DB, FEATURES]), answer("q1", [{ type: "text", text: refused + clarify }])]);
+    expect(turn).toEqual({ kind: "ask", questions: [CARD_DB, CARD_FEATURES], answers: ["", ""], chat: true });
+    const agent = "Permission for this tool use was denied. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). The user said:\n";
+    expect(transcriptTurns([ask("q1", [DB]), answer("q1", agent + clarify)])[0]).toMatchObject({ answers: [""], chat: true });
+    const plain = transcriptTurns([ask("q1", [DB]), answer("q1", "The user doesn't want to proceed with this tool use.")])[0];
+    expect(plain.chat, "a plain refusal is not a chat").toBeUndefined();
+  });
+
   it("an answer for another call does not answer this one", () => {
     expect(transcriptTurns([ask("q1", [DB]), answer("q2", "The user responded: no")])[0]).toMatchObject({ running: true });
   });
