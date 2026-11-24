@@ -244,17 +244,17 @@ describe("the topbar's Feedback button", () => {
     expect(edgeSheet).not.toMatch(/\.utility-run[^{]*\{[^}]*display:\s*none/);
   });
 
-  it("is on the phone's bar too, in the same corner, and not behind More", () => {
+  it("is on the phone's bar too, in the same corner, and in More by its words", () => {
     // CHANGED ON PURPOSE (V4): under 641px the dock stands in for the stripes
-    // and Search, and Feedback keeps its corner of the bar, so there is one
-    // entry on every size: More drops its row (it says "Send feedback" whole
-    // wherever a menu still lists it, as quick open does).
+    // and Search, and Feedback keeps its corner of the bar. CHANGED ON PURPOSE
+    // (a bare glyph was not found): More lists it too, saying "Send feedback"
+    // whole, as quick open does.
     expect(item).toMatch(/menu: t\("board\.rail\.feedback\.menu"\)/);
     // CHANGED ON PURPOSE (critique 3, point 7): the Command Panel's row follows Search.
     // CHANGED ON PURPOSE (phone More › Open the Command Panel): its press is
     // openPanelFromMore, the stage's own press plus the Sessions list making way,
     // which had covered the stage (v4-phone-board-stack.test.tsx).
-    expect(app).toMatch(/more=\{\[rails\.search, \.\.\.commandPanelMore\(stage\.enabled \? openPanelFromMore : undefined\), \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, \.\.\.rails\.utilities\.filter\(item => item !== rails\.corner\)\]\}/);
+    expect(app).toMatch(/more=\{\[rails\.search, \.\.\.commandPanelMore\(stage\.enabled \? openPanelFromMore : undefined\), \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, \.\.\.rails\.utilities\]\}/);
     expect(app).not.toMatch(/\{!phone && <div className="tb-corner">/);
     expect(rails).toMatch(/item\.menu \?\? item\.label/);
   });
