@@ -57,7 +57,7 @@ export const SUBMIT_WORDS = "Submit answers";
 export const CHAT_WORDS = "Chat about this";
 /** The down arrow, as the terminal sends it (sendAsk turns it into ESC O B for
  *  a program that asked for application cursor keys, as a typed arrow is). */
-export const DOWN_KEY = "\x1b[B";
+export const DOWN_ARROW = "\x1b[B";
 /** Words for one answer: one line, as long as a person would type there. */
 export const MAX_ASK_TEXT = 1000;
 const LEAD = 32;
@@ -138,7 +138,7 @@ export function chatSteps(questions: readonly ChatQuestion[]): AskStep[] | null 
   const count = first.options.length;
   const expect = [lead(first.question), ...first.options.map(option => lead(option.label)), CHAT_WORDS];
   if (first.preview) {
-    return count <= 9 ? [{ expect, keys: [{ input: String(count) }, { input: DOWN_KEY }, { input: "\r" }] }] : null;
+    return count <= 9 ? [{ expect, keys: [{ input: String(count) }, { input: DOWN_ARROW }, { input: "\r" }] }] : null;
   }
   return count + 2 <= 9 ? [{ expect, keys: [{ input: String(count + 2) }] }] : null;
 }

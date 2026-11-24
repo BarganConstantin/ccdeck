@@ -3,7 +3,7 @@
 // screen to show what it answers.
 import { describe, expect, it } from "vitest";
 import {
-  askSteps, askText, CHAT_WORDS, chatSteps, DOWN_KEY, flatScreen, lead, MAX_ASK_TEXT, offersChat, picksComplete, screenShows, SUBMIT_WORDS,
+  askSteps, askText, CHAT_WORDS, chatSteps, DOWN_ARROW, flatScreen, lead, MAX_ASK_TEXT, offersChat, picksComplete, screenShows, SUBMIT_WORDS,
 } from "../ask-keys";
 import type { ChatQuestion } from "../components/chat/chat-model";
 
@@ -147,9 +147,9 @@ describe("the keys for Chat about this", () => {
 
   it("options with a preview: the last option's digit, Down to the row, Enter", () => {
     expect(chatSteps([LAYOUT])).toEqual([
-      { expect: shows(LAYOUT), keys: [{ input: "2" }, { input: DOWN_KEY }, { input: "\r" }] },
+      { expect: shows(LAYOUT), keys: [{ input: "2" }, { input: DOWN_ARROW }, { input: "\r" }] },
     ]);
-    expect(DOWN_KEY).toBe("\x1b[B");
+    expect(DOWN_ARROW).toBe("\x1b[B");
   });
 
   it("nothing when no single digit reaches the row, or the first question has no options", () => {
