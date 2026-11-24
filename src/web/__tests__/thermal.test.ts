@@ -303,6 +303,47 @@ describe("the Linux throttle count, against a real tree on disk", () => {
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 
+  it("keeps the count on a machine with no temperature sensor, so the second read can answer", async () => {
+    // An Intel machine whose kernel counts throttling but exposes no hwmon
+    // or thermal zone: the first read has a count and nothing to compare it
+    // with. Answering null there dropped the count, so every later read was a
+    // first read again, and after three of them the sampler stopped asking.
+    const cpu = await build({ cpu0: { pkg: "0", ms: "1000" } });
+    const roots = { cpu, hwmon: join(tmpdir(), "no-such-hwmon-tree"), zones: join(tmpdir(), "no-such-thermal-tree") };
+    try {
+      const first = await readThermal("linux", null, roots);
+      expect(first).toMatchObject({ celsius: [], throttle: null, throttleCount: { held: { "0": 1000 } } });
+      await writeFile(join(cpu, "cpu0", "thermal_throttle", "package_throttle_total_time_ms"), "1500\n");
+      await new Promise(r => setTimeout(r, 20));
+      const second = await readThermal("linux", first, roots);
+      expect(second?.throttle?.timeHeld).toBeGreaterThan(0);
+      expect(second?.celsius).toEqual([]);
+    } finally { await rm(cpu, { recursive: true, force: true }); }
+  });
+
+  it("draws the row through the sampler on that machine, from the second sample on", async () => {
+    // The same machine end to end: the sampler hands each reading back, the
+    // first one draws nothing and is not a miss, and the second draws the row.
+    const cpu = await build({ cpu0: { pkg: "0", ms: "1000" } });
+    const roots = { cpu, hwmon: join(tmpdir(), "no-such-hwmon-tree"), zones: join(tmpdir(), "no-such-thermal-tree") };
+    const read = (_platform: string, since: unknown) => readThermal("linux", since as never, roots);
+    stopSystemMetrics();
+    try {
+      await sampleThermal({ read });
+      expect(thermalSnapshot()).toBeNull();
+      await writeFile(join(cpu, "cpu0", "thermal_throttle", "package_throttle_total_time_ms"), "1500\n");
+      await new Promise(r => setTimeout(r, 20));
+      await sampleThermal({ read });
+      const shown = thermalSnapshot();
+      expect(shown?.celsius).toEqual([]);
+      expect(shown?.throttle).toMatchObject({ timeHeld: expect.any(Number) });
+      expect(shown).not.toHaveProperty("throttleCount");
+      // Four more quiet samples are still answers, not misses: the row stays.
+      for (let i = 0; i < 4; i++) await sampleThermal({ read });
+      expect(thermalSnapshot()?.throttle).toBeTruthy();
+    } finally { stopSystemMetrics(); await rm(cpu, { recursive: true, force: true }); }
+  });
+
   it("says nothing on a machine that does not count it — AMD, a VM", async () => {
     const root = await build({ cpu0: { pkg: "0" }, cpu1: { pkg: "0" } });
     try {
@@ -521,14 +562,16 @@ describe("the live reader, on whichever machine is running this", () => {
       expect(pct).toBeGreaterThanOrEqual(0);
       expect(pct).toBeLessThanOrEqual(100);
     }
-    // Null is the answer for "nothing to say". The one object with nothing to
-    // draw is a Windows reading whose zones have not moved yet: it carries
-    // their first values so the next reading can tell, and thermalSnapshot
-    // keeps it off the panel — an empty object there would draw an empty
-    // section, which win-thermal-source.test.ts checks through the sampler.
+    // Null is the answer for "nothing to say". The two objects with nothing
+    // to draw carry what the next reading compares against: a Windows reading
+    // whose zones have not moved yet, and a Linux reading on a machine with no
+    // temperature sensor whose kernel counts throttling. thermalSnapshot keeps
+    // both off the panel — an empty object there would draw an empty section,
+    // which win-thermal-source.test.ts checks through the sampler.
     if (t.celsius.length === 0 && t.throttle == null) {
-      expect(process.platform).toBe("win32");
-      expect(Object.keys(t.zonesSeen ?? {}).length).toBeGreaterThan(0);
+      expect(["win32", "linux"]).toContain(process.platform);
+      if (process.platform === "win32") expect(Object.keys(t.zonesSeen ?? {}).length).toBeGreaterThan(0);
+      else expect(Object.keys(t.throttleCount?.held ?? {}).length).toBeGreaterThan(0);
     }
   });
 
