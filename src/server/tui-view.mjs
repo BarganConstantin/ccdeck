@@ -83,6 +83,7 @@ export function initialState() {
     codexAuto: null,    // GET /api/codex-auto, or null
     codexAt: null,      // the selected Codex account, by index; null until the side is first shown
     codexSignin: null,  // the Codex sign-in page while it is up: { id, name, adding, started, login }
+    update: null,       // GET /api/version, the little of it this screen says and acts on (withUpdate), or null
   };
 }
 
@@ -188,6 +189,8 @@ export function withRoster(state, roster, trouble = null) {
  *   { type: "alias", account, alias }   rename it ("" takes the alias away)
  *   { type: "move", account, slot }
  *   { type: "remove", account }
+ *   { type: "update" }                  u: ask npm now, or take the update the
+ *                                       deck names (updateKey)
  *
  * The refusals a switch can be told before it is asked for — the account in
  * use, a deck that is running and not answering — are answered here, in the
@@ -213,6 +216,9 @@ export function tuiKey(state, str, key = {}, { now = 0, g } = {}) {
   // network, and back) stay as shortcuts for whoever learnt them.
   if (str === "c") return sideKey({ ...state, notice: null }, null, { now, g });
   if (str === "l") return lanSideKey({ ...state, notice: null }, { now, g });
+  // The deck's update, from every tab: Ctrl+U is the forms' "empty the
+  // field", and the forms have the keys before this line.
+  if (str === "u" && !key.ctrl && !key.meta) return updateKey({ ...state, notice: null }, { now, g });
   if (name === "left" || name === "right") return stepSide({ ...state, notice: null }, name === "right" ? 1 : -1);
   if (onLan(state)) {
     const done = lanKey({ ...state, notice: null }, str, key, { now, g, note });
@@ -260,6 +266,9 @@ export function tuiKey(state, str, key = {}, { now = 0, g } = {}) {
   if (str === "d") {
     if (state.deck) return { state: { ...s, notice: note("info", `the deck is already running on ${state.deck.port}`, now) }, effect: null };
     if (state.starting) return { state: s, effect: null };
+    // A deck restarting into an update is away for a moment, and one started
+    // here then would be a second deck beside the one coming back.
+    if (state.busy) return { state: { ...s, notice: note("info", `${state.busy.text} ${g.dash} one thing at a time`, now) }, effect: null };
     return { state: s, effect: { type: "start" } };
   }
   return { state, effect: null };
@@ -565,6 +574,165 @@ function menuKey(state, str, key, { now, g }) {
   return { state, effect: null };
 }
 
+// ── an update ───────────────────────────────────────────────────────────────
+//
+// The deck's page says when a newer ccdeck is out ("4.3.11 is out") or already
+// installed and waiting for a restart ("4.3.11 is ready"), and offers Update
+// now and Restart. Somebody who only ever opens this screen, over SSH, saw
+// none of it. The deck updates itself while nobody looks at a page and no turn
+// runs (auto-update.mjs), and this screen's readings do not count as looking —
+// so a deck watched only from here does get its updates, but never said so,
+// and could not be asked for one sooner.
+//
+// So the title bar says what the page's chip says, in its words, and u does
+// what the page's buttons do, through the same routes: the deck's own
+// install, the deck's own restart. Never npm from here — the deck knows how
+// it was installed, and which install a restart lands on.
+
+/** A version as the deck reports one, or null: printable, short, and nothing
+ *  in it a terminal could take for anything but a character. */
+const versionOf = (v) => (typeof v === "string" && /^[0-9A-Za-z.+-]{1,40}$/.test(v) ? v : null);
+const timeOf = (t) => (typeof t === "number" && Number.isFinite(t) ? t : null);
+const UPGRADE_STATES = new Set(["idle", "running", "done", "failed"]);
+
+/**
+ * The deck's update report (GET /api/version, self-update.mjs versionReport
+ * and what lifecycle.mjs adds) in place of the last, kept as the little this
+ * screen says and acts on — or null for no answer, which says nothing: a deck
+ * from before the report, or one that did not answer as one.
+ *
+ *   notice      { kind: "upgrade" | "restart", from, to } or null
+ *   mode        "install" | "npx" | null — how this deck's copy updates itself
+ *   blocked     why it may not install over itself, by name, or null
+ *   state       its install: "idle" | "running" | "done" | "failed"
+ *   error, at   why the last one failed, and when it got where it is
+ *   canRestart  false when a restart would lose the canvas — or the deck has
+ *               no launcher to restart it; unknown is taken as true, and the
+ *               deck refuses for itself
+ *   command     the line that updates this copy, for whoever types it
+ *   checkDisabled, checkedAt, checkFailedAt, latest, latestPending, running
+ */
+export function withUpdate(state, report) {
+  if (!report || typeof report !== "object" || Array.isArray(report)) return { ...state, update: null };
+  const n = report.notice;
+  const notice = n && (n.kind === "upgrade" || n.kind === "restart") && versionOf(n.to)
+    ? { kind: n.kind, from: versionOf(n.from), to: n.to } : null;
+  const u = report.upgrade && typeof report.upgrade === "object" ? report.upgrade : {};
+  return {
+    ...state,
+    update: {
+      notice,
+      mode: report.upgradeMode === "install" || report.upgradeMode === "npx" ? report.upgradeMode : null,
+      blocked: typeof report.upgradeBlocked === "string" ? report.upgradeBlocked : null,
+      state: UPGRADE_STATES.has(u.state) ? u.state : "idle",
+      error: typeof u.error === "string" && u.error.trim() ? oneLine(u.error).slice(0, 300) : null,
+      at: timeOf(u.at),
+      canRestart: report.canRestart !== false,
+      command: typeof report.command === "string" && report.command.trim() ? oneLine(report.command).slice(0, 200) : null,
+      checkDisabled: report.checkDisabled === true,
+      checkedAt: timeOf(report.checkedAt),
+      checkFailedAt: timeOf(report.checkFailedAt),
+      latest: versionOf(report.latest),
+      latestPending: versionOf(report.latestPending),
+      running: versionOf(report.running),
+    },
+  };
+}
+
+/** The update the deck names while one does, or null — and none it already
+ *  runs: a report from before the restart, until it is read again. */
+export function updateNotice(state) {
+  const n = state.deck ? state.update?.notice ?? null : null;
+  return n && n.to !== state.deck.version ? n : null;
+}
+
+/** The page's chip, word for word (shell.chip.textUpgrade / textRestart). */
+const updateWords = (n) => `${n.to} is ${n.kind === "restart" ? "ready" : "out"}`;
+
+/**
+ * Why u will not take the update the deck names, as a notice, or null when it
+ * will — or when none is named, and u asks npm instead. The two the page
+ * answers with a command or no button at all, said before anything is asked:
+ *
+ *   a copy that cannot install over itself — a git checkout, a one-off
+ *   runner's cache, a prefix this user cannot write, an opt-out, a retired
+ *   name: the command that updates it, which the deck worked out;
+ *
+ *   an update that is a restart, on a deck that cannot restart without losing
+ *   its canvas (no event log, or none it can write) or has no launcher.
+ */
+export function updateHeld(update, g) {
+  const n = update?.notice;
+  if (!n) return null;
+  if (n.kind === "upgrade" && update.mode !== "install" && update.mode !== "npx") {
+    return update.command
+      ? { tone: "warn", text: `${n.to} is out ${g.dash} this copy cannot update itself: ${update.command}`, short: `this copy cannot update itself: ${update.command}` }
+      : { tone: "warn", text: `${n.to} is out ${g.dash} this copy cannot update itself` };
+  }
+  if (!update.canRestart && (n.kind === "restart" || update.mode === "npx")) {
+    return n.kind === "restart"
+      ? { tone: "warn", text: `${n.to} is installed ${g.dash} a restart from here would lose the canvas`, short: "a restart from here would lose the canvas" }
+      : { tone: "warn", text: `${n.to} is out ${g.dash} npx updates by a restart, which would lose the canvas`, short: "a restart from here would lose the canvas" };
+  }
+  return null;
+}
+
+/**
+ * What u found when it asked npm (GET /api/version?refresh=1), as a notice.
+ * In the order the page's own line takes them (update-check.ts): a deck that
+ * does not check at all, then what it found, then a lookup that failed —
+ * which is not "nothing newer" — and a tag npm cannot serve yet.
+ */
+export function updateChecked(update, g) {
+  if (!update) return { tone: "err", text: "the deck did not say whether an update is out" };
+  if (update.checkDisabled) {
+    return {
+      tone: "info",
+      text: `update checks are off on this deck ${g.dash} AGENTS_DECK_NO_UPDATE_CHECK, AGENTS_DECK_NO_INSTALL or the desktop app`,
+      short: "update checks are off on this deck",
+    };
+  }
+  const n = update.notice;
+  if (n) {
+    return updateHeld(update, g)
+      ?? { tone: "info", text: n.kind === "restart" ? `${n.to} is ready ${g.dash} u restarts the deck on it` : `${n.to} is out ${g.dash} u updates` };
+  }
+  if (update.checkFailedAt != null && update.checkFailedAt > (update.checkedAt ?? 0)) {
+    return { tone: "warn", text: `npm could not be reached ${g.dash} u asks again` };
+  }
+  const pending = update.latestPending && update.latestPending !== update.running ? update.latestPending : null;
+  if (pending) {
+    return { tone: "info", text: `${pending} is tagged on npm but cannot be installed yet ${g.dash} the deck looks again in five minutes`, short: `${pending} cannot be installed yet` };
+  }
+  return { tone: "ok", text: `${update.running ?? "this deck"} is the newest` };
+}
+
+/** u: what it asks for, or why not, said at once. */
+function updateKey(state, { now, g }) {
+  const told = (tone, text, short) => ({ state: { ...state, notice: { ...note(tone, text, now), ...(short ? { short } : {}) } }, effect: null });
+  if (!state.deck) return told("info", `updates come through the deck ${g.dash} d starts one`);
+  if (state.busy) return told("info", `${state.busy.text} ${g.dash} one thing at a time`);
+  const held = updateNotice(state) ? updateHeld(state.update, g) : null;
+  if (held) return told(held.tone, held.text, held.short);
+  return { state, effect: { type: "update" } };
+}
+
+/**
+ * Whether nothing on screen is somebody's work half done: no page, menu, form
+ * or help over the list, and nothing under way. What the app asks before it
+ * reopens itself on new code (tui.js), with its own two on top: no request a
+ * key started still out, and no key for a few seconds.
+ */
+export const screenAtRest = (state) => !state.signin && !state.codexSignin && !state.lanForm && !lanInvitePage(state)
+  && !state.menu && !state.help && !state.busy && !state.starting;
+
+/** The screen turned to `side` once the deck serves it; as it was otherwise.
+ *  A screen reopened on new code opens on the tab it was left on. */
+export function showSide(state, side) {
+  if (side === state.side || !sidesOf(state).includes(side)) return state;
+  return toSide(state, side);
+}
+
 
 // ── the frame ───────────────────────────────────────────────────────────────
 
@@ -634,7 +802,7 @@ export function tuiFrame(state, { columns = 80, rows = 24, tone, g, unicode = tr
   }
   const body = bodyLines(state, rows - 3, width, look);
   const lines = [titleBar(state, width, look), ...body.lines, noticeLine(state, look, width), footerLine(state, width, look)];
-  const over = state.help ? withHelp(lines, width, look) : state.menu ? withMenu(lines, state, width, look)
+  const over = state.help ? withHelp(lines, state, width, look) : state.menu ? withMenu(lines, state, width, look)
     : state.lanForm ? withLanForm(lines, state, width, look) : lines;
   return { lines: fill(over), top: body.top, run: null };
 }
@@ -765,10 +933,17 @@ function titleBar(state, width, { tone, g, unicode, now, skin }) {
   // answers — it follows the deck through a restart, as an update makes one —
   // and this screen's own while none does. Left out only when the line has no
   // room for it, the tabs being the one thing here a key needs.
+  //
+  // After it, the update the deck names, in the page's chip's words — "4.3.11
+  // is out", "4.3.11 is ready" — for the person who never opens the page and
+  // so never saw the chip. Short of room these words go first, then the
+  // version: u is in the footer and ? either way.
   const version = state.deck?.version ?? state.own;
+  const n = updateNotice(state);
   const name = `  ${tone.accent}${tone.bold}ccdeck${tone.reset}`;
-  const versioned = version ? `${name} ${tone.muted}${version}${tone.reset}  ${what}` : null;
-  const left = versioned && textWidth(versioned) <= width ? versioned : `${name}  ${what}`;
+  const v = version ? ` ${tone.muted}${version}${tone.reset}` : "";
+  const said = n ? ` ${tone.muted}${g.bullet}${tone.reset} ${tone.warn}${updateWords(n)}${tone.reset}` : "";
+  const left = [`${name}${v}${said}  ${what}`, `${name}${v}  ${what}`].find(l => textWidth(l) <= width) ?? `${name}  ${what}`;
   let right = "";
   if (state.deck) {
     const ago = state.readAt == null ? null : now - state.readAt;
@@ -812,10 +987,14 @@ function footerLine(state, width, look) {
   // The tabs are walked with the arrows, offered once there is more than one.
   const tabsKey = unicode ? "←→" : "left/right";
   const tabs = sidesOf(state).length > 1 ? [[tabsKey, "tabs"]] : [];
+  // u is offered while the deck names an update, on every tab: the title bar
+  // says what, and this says how. With none named it is in ? alone.
+  const update = updateNotice(state) ? [["u", "update"]] : [];
   const keys = state.signin ? signinKeys(state.signin) : state.codexSignin ? codexSigninKeys(state.codexSignin)
     : lanInvitePage(state) ? lanInviteKeys() : onLan(state) ? [
     ...lanFooterKeys(state, { now: look.now, unicode }),
     ...tabs,
+    ...update,
     ["?", "keys"],
     ["q", "quit"],
   ] : [
@@ -827,6 +1006,7 @@ function footerLine(state, width, look) {
     state.deck ? ["a", "auto-switch"] : ["d", "start the deck"],
     ["+", "add"],
     ["r", "refresh"],
+    ...update,
     ["?", "keys"],
     ["q", "quit"],
   ];
@@ -836,8 +1016,10 @@ function footerLine(state, width, look) {
   // r goes first, then the moves, then b: the screen says what they do, and ?
   // and q are how to find out and how to leave. On a sign-in page enter goes
   // before the copy keys: the page itself says to press it after the paste,
-  // and nothing else there tells of ctrl+o or tab on a narrow screen.
-  for (const drop of ["r", unicode ? "↑↓" : "up/down", "b", "+", "a", "d", "m", tabsKey, "n", "x", "space", "enter", "tab", "ctrl+o"]) {
+  // and nothing else there tells of ctrl+o or tab on a narrow screen. u stays
+  // past the tabs, which the title bar draws anyway, while nothing but this
+  // says which key takes the update it names.
+  for (const drop of ["r", unicode ? "↑↓" : "up/down", "b", "+", "a", "d", "m", tabsKey, "u", "n", "x", "space", "enter", "tab", "ctrl+o"]) {
     if (textWidth(draw(list)) <= width) break;
     const i = list.findIndex(([k]) => k === drop);
     if (i !== -1) list.splice(i, 1);
@@ -1801,8 +1983,9 @@ function aloneLines(state, room, width, columns, look) {
 // ── help ────────────────────────────────────────────────────────────────────
 
 /** The keys, in a box over the screen, the screen under it faded. */
-function withHelp(base, width, look) {
+function withHelp(base, state, width, look) {
   const { tone, g, unicode, skin } = look;
+  const n = updateNotice(state);
   const keys = [
     [unicode ? "↑ ↓  j k" : "up down  j k", "move"],
     ["1-9", "the account in that slot"],
@@ -1813,7 +1996,8 @@ function withHelp(base, width, look) {
     ["b", "select the account Auto-switch would pick"],
     ["a", "turn Auto-switch on or off"],
     ["+", "add an account, signed in from any browser"],
-    ["r", "read the usage again"],
+    // On r's line rather than one of its own: at 80 by 24 the box is full.
+    ["r  u", `read the usage again  ${g.bullet}  ${n ? `update to ${n.to}` : "check for an update"}`],
     [unicode ? "← →" : "left right", `the tabs  ${g.bullet}  c Codex  ${g.bullet}  l Local network`],
     ["t", "the machine: live, or the last hours"],
     ["d", "start the deck, when none is running"],
