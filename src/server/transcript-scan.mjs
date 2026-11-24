@@ -493,8 +493,8 @@ const REBILL_REQUEST = "rebill";
 const SKIP_LINE = "skip";
 
 /**
- * How one record's usage is billed, given the request this file is still
- * waiting on a final record for (`streamingId`, or null).
+ * How one record's usage is billed, given the requests this file is still
+ * waiting on a final record for.
  *
  * Every content block's line carries a usage block, and summing them all
  * counted a request once per block: 1.94x the request-by-request total across
@@ -513,8 +513,12 @@ const SKIP_LINE = "skip";
  * wait for the reply, and every later record of that request takes the bill's
  * place rather than adding to it; a request whose final record never came (an
  * interrupted agent) stays billed from its last snapshot. The scan remembers
- * the request it is waiting on, so the two can arrive in different passes,
- * which for a live subagent is the usual case.
+ * the requests it is waiting on, so the two can arrive in different passes,
+ * which for a live subagent is the usual case. It remembers them by request
+ * id, more than one: a workflow agent's file can stream two requests at once,
+ * the second one's snapshot written before the first one's final record, and
+ * a file that remembered one request skipped that final record and left the
+ * first request at its snapshot (#2031; 19 requests in 8 files on one machine).
  *
  * A resumed subagent writes its history into its file again before the new
  * turn: the same records, with the same `uuid`, `requestId` and `timestamp`,
@@ -540,7 +544,7 @@ const SKIP_LINE = "skip";
  *   BILL_LINE       a record from before Claude Code marked its blocks, billed
  *                   line by line as it always was
  *   BILL_REQUEST    the first record of a request
- *   REBILL_REQUEST  a later record of the request still streaming: it replaces
+ *   REBILL_REQUEST  a later record of a request still streaming: it replaces
  *                   that request's bill
  *   SKIP_LINE       a later block of a request already billed from its final
  *                   record, which restates it, or a record restated by a replay
@@ -553,17 +557,43 @@ const SKIP_LINE = "skip";
 function requestBilling(record, ledger) {
   if (record?.apiBlockIndex === undefined) return BILL_LINE;
   if (restatesEarlierRecord(record, ledger)) return SKIP_LINE;
-  const id = requestIdOf(record);
-  if (id !== null && id === ledger?.streaming?.id && isUsageRecord(record)) return REBILL_REQUEST;
+  if (streamingCharge(ledger, record) && isUsageRecord(record)) return REBILL_REQUEST;
   return record.apiBlockIndex === 0 ? BILL_REQUEST : SKIP_LINE;
 }
 
 /** What one file has read of its requests, for requestBilling: when the newest
- *  request record was written and which request it was, and the request still
- *  streaming — `{ id, … }` with whatever its caller needs to take its charge
- *  back — or null. Plain data, so the Projects report can persist it. */
+ *  request record was written and which request it was, and the requests still
+ *  streaming — by request id, each with whatever its caller needs to take its
+ *  charge back. Plain data, so the Projects report can persist it. */
 function newRequestLedger() {
-  return { newestAt: null, newestId: null, streaming: null };
+  return { newestAt: null, newestId: null, streaming: {} };
+}
+
+/** How many requests one file keeps waiting on a final record. Two stream at
+ *  once in a workflow agent's file; the rest are requests an interrupted agent
+ *  never finished, which stay billed from their snapshot whether or not they
+ *  are remembered, so the oldest is forgotten first. */
+const MAX_STREAMING = 16;
+
+/** What the request `record` belongs to was charged while it streams, or null
+ *  when the file is not waiting on that request. */
+function streamingCharge(ledger, record) {
+  const id = requestIdOf(record);
+  const waiting = ledger?.streaming;
+  return id !== null && waiting && typeof waiting === "object" && Object.hasOwn(waiting, id) ? waiting[id] : null;
+}
+
+/** After a request record is billed: keep what it was charged while its final
+ *  record has yet to come, and forget it once that record is in. */
+function keepStreamingCharge(ledger, record, charge) {
+  const id = requestIdOf(record);
+  if (id === null) return;
+  const waiting = ledger.streaming && typeof ledger.streaming === "object" ? ledger.streaming : (ledger.streaming = {});
+  delete waiting[id];
+  if (streamingRequestId(record) === null) return;
+  waiting[id] = charge;
+  const ids = Object.keys(waiting);
+  for (const old of ids.slice(0, Math.max(0, ids.length - MAX_STREAMING))) delete waiting[old];
 }
 
 /** Is `record` a copy of one the file has already read, written again by a
@@ -618,7 +648,7 @@ function foldUsageLine(state, line, record) {
   const billing = requestBilling(record, ledger);
   if (billing !== BILL_LINE) noteRequestRecord(ledger, record);
   if (billing === SKIP_LINE) return;
-  if (billing === REBILL_REQUEST) refundUsage(state, ledger.streaming);
+  if (billing === REBILL_REQUEST) refundUsage(state, streamingCharge(ledger, record));
   // Usage totals sum every block in the file, resets included — every block the
   // model was actually billed for, which is why the `toolUseResult` tail is cut
   // off first (see billedUsageText) — and are summed a second time into the
@@ -658,8 +688,7 @@ function foldUsageLine(state, line, record) {
   for (const into of longBuckets) addUsageBucket(into, charged);
   // What this request was charged, and where, kept until its final record
   // replaces it.
-  const id = streamingRequestId(record);
-  ledger.streaming = id === null ? null : { id, bucket, speedBucket, longBuckets, charged };
+  keepStreamingCharge(ledger, record, { bucket, speedBucket, longBuckets, charged });
 }
 
 /** Take back what a request was charged, from every counter it was charged
@@ -855,6 +884,6 @@ function scanTranscript(path) {
 // above reads exactly as it did where it came from.
 export {
   scanTranscript, newUsageTotals, hasSpend, mergeUsageByModel, copyUsageBucket,
-  requestBilling, newRequestLedger, noteRequestRecord, streamingRequestId,
+  requestBilling, newRequestLedger, noteRequestRecord, streamingCharge, keepStreamingCharge,
   BILL_LINE, REBILL_REQUEST, SKIP_LINE, billedSpeed, isLongContextRequest, MAX_SPEEDS_PER_MODEL, UNRECOGNISED_SPEED,
 };

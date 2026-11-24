@@ -34,7 +34,7 @@ import { readSwapLog, accountAtTime, trackedSince, seedActive, markGap, swapProj
 // about the speed they were billed at — see transcript-scan.mjs.
 import {
   billedSpeed, isLongContextRequest, hasSpend, MAX_SPEEDS_PER_MODEL, UNRECOGNISED_SPEED,
-  requestBilling, newRequestLedger, noteRequestRecord, streamingRequestId,
+  requestBilling, newRequestLedger, noteRequestRecord, streamingCharge, keepStreamingCharge,
   BILL_LINE, REBILL_REQUEST, SKIP_LINE,
 } from "./transcript-scan.mjs";
 
@@ -43,7 +43,7 @@ import {
  *  a per-account total is never quietly inflated by work that is not that
  *  account's. A NUL keeps it from ever colliding with a real `email@@org` key. */
 export const UNATTRIBUTED = "\u0000unattributed";
-const STATE_VERSION = 8;
+const STATE_VERSION = 9;
 
 /** Where the tally and cursors live, beside cswap-auto's own state. */
 export function statePath(home = homedir()) {
@@ -246,7 +246,7 @@ export function projectPath(cwd) {
  * `from` names the transcript's project directory — see folderOf — and, as
  * `requests` and `path`, where what this file has read of its requests is kept
  * between passes: the newest request record, which a resumed subagent's replay
- * of its history is told apart by, and the request still waiting on a final
+ * of its history is told apart by, and the requests still waiting on a final
  * record (newRequestLedger in transcript-scan.mjs).
  */
 export function foldLine(tally, line, timeline, from) {
@@ -268,7 +268,8 @@ export function foldLine(tally, line, timeline, from) {
   if (!Number.isFinite(ts)) return;
   const c = countersFrom(usage);
   if (!hasSpend(asUsageTotals(c))) return;   // a usage block that billed nothing
-  if (billing === REBILL_REQUEST) refund(tally, ledger.streaming);
+  const kept = billing === REBILL_REQUEST ? streamingCharge(ledger, obj) : null;
+  if (kept) refund(tally, kept);
   const model = typeof obj?.message?.model === "string" ? obj.message.model : "";
   const lineCwd = (typeof obj?.cwd === "string" && obj.cwd) ? obj.cwd : "";
   const cwd = projectPath(folderOf(lineCwd, from));   // a worktree counts under the repo it checks out
@@ -288,12 +289,11 @@ export function foldLine(tally, line, timeline, from) {
     addInto(counters.l ??= zero(), c);
     if (share) addInto(counters.s[share].l ??= zero(), c);
   }
-  if (billing === REBILL_REQUEST) dropIfEmpty(tally, ledger.streaming);
+  if (kept) dropIfEmpty(tally, kept);
   if (billing === BILL_LINE || !requests) return;
   // What a request still streaming was charged, and where, so its final
   // record can take that back, in this pass or a later one.
-  const id = streamingRequestId(obj);
-  requests[from.path].streaming = id === null ? null : { id, at: [key, cwd, day, model], s: share, long, c };
+  keepStreamingCharge(requests[from.path], obj, { at: [key, cwd, day, model], s: share, long, c });
 }
 
 /** Take a streaming request's charge back out of the row it was charged to,
@@ -528,7 +528,7 @@ export function createProjectRollup({
             lastAlive: disk.lastAlive };
           dirty = true;
         }
-      } else if (disk && [1, 2, 3, 4, 5, 6, 7].includes(disk.version)) {
+      } else if (disk && [1, 2, 3, 4, 5, 6, 7, 8].includes(disk.version)) {
         // Version 1 counted every API content block; version 2 keyed each row
         // by the line's own cwd, a row per folder the agent cd'd into (#1278);
         // version 3 kept no speed, so every fast turn read at the standard
@@ -536,7 +536,9 @@ export function createProjectRollup({
         // snapshot, most of its output and its speed missing (#1883); version
         // 5 billed a resumed subagent's request again each time its file
         // restated its history; version 6 kept no per-request context tiers;
-        // version 7 charged independent transcript roots to the same account.
+        // version 7 charged independent transcript roots to the same account;
+        // version 8 waited on one streaming request per file, so a second
+        // request streaming beside it left the first at its snapshot (#2031).
         // None of them can be re-keyed, since it no
         // longer knows which transcript a count came from. Keep the heartbeat
         // so a restart gap remains fenced, but rebuild the tally from
