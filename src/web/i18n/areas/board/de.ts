@@ -1026,6 +1026,7 @@ const catalog: Catalog = {
   "board.railGroup.new": "Fertig · neu",
   "board.railGroup.done": "Fertig",
   "board.railGroup.ready": "Bereit",
+  "board.railGroup.pinned": "Angeheftet",
   "board.rail.held.one": "{count} Verschiebung wartet, bis du die Liste verlässt",
   "board.rail.held.other": "{count} Verschiebungen warten, bis du die Liste verlässt",
   "board.nav.none": "Keine Sitzungen",
@@ -1082,6 +1083,9 @@ const catalog: Catalog = {
   "board.list.hiddenRow": "{name} aus der Liste ausgeblendet",
   "board.list.hiddenSaid": "{name} aus der Liste ausgeblendet. Rückgängig möglich.",
   "board.list.hiddenCount": "Ausgeblendet · {n}",
+  "board.list.pinRow": "Anheften",
+  "board.list.unpinRow": "Loslösen",
+  "board.list.pinnedSuffix": ", angeheftet",
 };
 
 export default catalog;
