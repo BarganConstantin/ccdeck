@@ -58,6 +58,12 @@ const CHILD_ENV: Record<string, string | undefined> = {
   AGENTS_DECK_NO_LAN: "1",
   AGENTS_DECK_NO_NOTIFY: "1",
   AGENTS_DECK_NO_MUSIC: "1",
+  // Every respawn also puts Copilot's and opencode's forwarders in place, and
+  // each refreshes the shared hook.js this file watches when its CLI is on the
+  // machine running the suite. Both are off here, so what these tests see is
+  // Claude's hooks alone; respawn-forwarders.test.ts covers the other two.
+  AGENTS_DECK_NO_COPILOT: "1",
+  AGENTS_DECK_NO_OPENCODE: "1",
   NO_COLOR: "1",
   FORCE_COLOR: undefined,
   AGENTS_DECK_BOOT_VERSION: undefined,
