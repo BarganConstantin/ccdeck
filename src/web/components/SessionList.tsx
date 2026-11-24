@@ -14,6 +14,10 @@
 // seconds and the Hidden line at the
 // end for later; it comes back by itself when the session works again
 // (list-hidden.ts, use-list-hidden.ts).
+//
+// Any row can be pinned (the pin beside the eye, or Alt+P on it): it moves to
+// Pinned, a group above Needs you, in the order the pins were put on, and
+// keeps saying what its session wants there (list-pinned.ts, use-list-pinned.ts).
 import { useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { isAlarming } from "../ambient-counts";
 import { useT } from "../i18n";
@@ -28,17 +32,18 @@ import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { planSummary, planTitle, type PlanSummary } from "../agent-plan";
 import { isUnseen, turnEndedAt, useSessionsSeenVersion } from "../session-seen";
 import {
-  RAIL_GROUPS, foldMotion, foldPlan, heldLine, holdOrder, joinMotion, railHeld,
-  type RailGroup, type Slot,
+  RAIL_GROUPS, RAIL_PINNED, RAIL_SECTIONS, foldMotion, foldPlan, heldLine, holdOrder, joinMotion, railHeld, railSlots,
+  type RailGroup, type RailSection, type Slot,
 } from "../rail-model";
 import { leaveHoldMs, useRailFlip, useRailMembership } from "../rail-motion";
 import { prefersReducedMotion } from "../viewport-motion";
 import { compactRowContexts, lastTypedPrompt, runningTool, sessionNames, startedHover, twinClocks, type TwinClock } from "../rail-row-copy";
 import { PauseGlyph } from "./rail-glyphs";
-import { CloseGlyph, FoldBody, GroupHead, HiddenLine, MoreLine, PlusGlyph, RailRow, type FoldMode, type RowAct } from "./RailParts";
+import { CloseGlyph, FoldBody, GroupHead, HiddenLine, MoreLine, PlusGlyph, RailRow, type FoldMode, type RowAct, type RowPin } from "./RailParts";
 import HideUndo from "./HideUndo";
 import { canHideRow, focusAfterLeaving } from "../list-hidden";
 import { useListHidden, type HiddenUndo, type ListHiddenOffer } from "../use-list-hidden";
+import { useListPinned } from "../use-list-pinned";
 
 /** The id the rail's Plus carries, so the new-session popover can hang off it. */
 export const RAIL_NEW_SESSION_ID = "rail-new-session";
@@ -329,7 +334,7 @@ interface Props {
 }
 
 /** A row that has left the list, kept drawn until its fade and its closing space are done. */
-interface Ghost { row: Row; group: RailGroup; after: string | null; until: number }
+interface Ghost { row: Row; group: RailSection; after: string | null; until: number }
 interface Entry { id: string; row: Row; ghost: boolean }
 
 export default function SessionList({ state, now, historyReady = true, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, openPanes, onOpenKeys, onOpenBeside, onNewSession, offline = null, emptyNotice = null, edge = null }: Props) {
@@ -358,17 +363,23 @@ export default function SessionList({ state, now, historyReady = true, selectedI
   // A row that works again comes back by itself, on the render that sees it.
   const groupOf = new Map(rows.map(r => [r.sessionId, rank(r)]));
   const hiding = useListHidden({ agents: state.agents, revision: state.revision, groupOf: id => groupOf.get(id), ready: historyReady });
-  const listed = rows.filter(r => !hiding.isHidden(r.sessionId));
+  // PINNED (list-pinned.ts): a pin outranks a hidden mark, which only another
+  // tab can have left on a pinned session, so a pinned row is always drawn.
+  const pins = useListPinned({ agents: state.agents, revision: state.revision, ready: historyReady });
+  const pinnedSet = new Set(pins.pinnedIds);
+  const isHidden = (id: string) => !pinnedSet.has(id) && hiding.isHidden(id);
+  const listed = rows.filter(r => !isHidden(r.sessionId));
   const allById = new Map(rows.map(r => [r.sessionId, r]));
-  const hiddenRows = hiding.hiddenIds.flatMap(id => allById.get(id) ?? []);
+  const hiddenRows = hiding.hiddenIds.filter(id => !pinnedSet.has(id)).flatMap(id => allById.get(id) ?? []);
   const byId = new Map(listed.map(r => [r.sessionId, r]));
   // New finished turns keep their priority in buildRows, but share Done's
   // header, count and fold with seen turns. Looking at one clears its row
-  // marker without moving it between two identically named sections.
-  const fresh: Slot[] = listed.map(r => {
+  // marker without moving it between two identically named sections. The
+  // pinned rows are taken out of their groups and put first, in pin order.
+  const fresh: Slot[] = railSlots(listed.map(r => {
     const group = rank(r);
     return { id: r.sessionId, group: group === 1 ? 3 : group };
-  });
+  }), pins.pinnedIds);
 
   // THE ORDER HELD. While the pointer is over the rail, or keyboard focus is in
   // it, the drawn order is the one on screen: rows change in place, a session
@@ -430,20 +441,25 @@ export default function SessionList({ state, now, historyReady = true, selectedI
   prev.current = { slots: layout, rows: byId };
 
   // THE FOLD, in memory for the page's life.
-  const [folds, setFolds] = useState<{ open: ReadonlySet<RailGroup>; mode: Partial<Record<RailGroup, FoldMode>> }>({ open: new Set(), mode: {} });
-  const toggleFold = (g: RailGroup, rowsInside: number, byKey: boolean) => setFolds(f => {
+  const [folds, setFolds] = useState<{ open: ReadonlySet<RailSection>; mode: Partial<Record<RailSection, FoldMode>> }>({ open: new Set(), mode: {} });
+  const toggleFold = (g: RailSection, rowsInside: number, byKey: boolean) => setFolds(f => {
     const open = new Set(f.open);
     if (!open.delete(g)) open.add(g);
     return { open, mode: { ...f.mode, [g]: foldMotion({ rowsInside, byKey, reduced: prefersReducedMotion() }) } };
   });
-  const onToggle = (g: RailGroup, rowsInside: number) => (e: MouseEvent) => toggleFold(g, rowsInside, e.detail === 0);
+  const onToggle = (g: RailSection, rowsInside: number) => (e: MouseEvent) => toggleFold(g, rowsInside, e.detail === 0);
 
-  const slotsOf = (g: RailGroup) => layout.filter(s => s.group === g);
+  const slotsOf = (g: RailSection) => layout.filter(s => s.group === g);
   const counts = RAIL_GROUPS.map(g => slotsOf(g).length) as [number, number, number, number, number];
-  const plan = foldPlan(counts);
+  const pinnedCount = slotsOf(RAIL_PINNED).length;
+  const plan = foldPlan(counts, pinnedCount);
+  // Pinned is drawn whole and has no fold; the five groups fold as they did,
+  // with what Pinned draws taken from their room (rail-model.ts foldPlan).
+  const planOf = (g: RailSection) => (g === RAIL_PINNED ? { shown: pinnedCount, rest: 0 } : plan[g]);
+  const countOf = (g: RailSection) => (g === RAIL_PINNED ? pinnedCount : counts[g]);
 
   /** A group's entries in drawn order, the rows that have just left among them. */
-  const entriesOf = (g: RailGroup): Entry[] => {
+  const entriesOf = (g: RailSection): Entry[] => {
     const entries: Entry[] = slotsOf(g).map(s => ({ id: s.id, row: byId.get(s.id)!, ghost: false }));
     for (const [id, gh] of ghosts.current) {
       if (gh.group !== g) continue;
@@ -479,9 +495,9 @@ export default function SessionList({ state, now, historyReady = true, selectedI
     else landing = landed;
   }
   const folded = new Set<string>();
-  for (const g of RAIL_GROUPS) {
+  for (const g of RAIL_SECTIONS) {
     const entries = entriesOf(g).filter(e => !e.ghost);
-    if (!folds.open.has(g)) for (const e of entries.slice(plan[g].shown)) folded.add(e.id);
+    if (!folds.open.has(g)) for (const e of entries.slice(planOf(g).shown)) folded.add(e.id);
   }
   useEffect(() => {
     if (!landing) return;
@@ -558,6 +574,19 @@ export default function SessionList({ state, now, historyReady = true, selectedI
   });
   const hideAct: RowAct = { kind: "hide", run: hideRow };
   const showAct: RowAct = { kind: "show", run: showRow };
+  // PIN AND UNPIN. The row stays where it is drawn while the order is held,
+  // and goes to Pinned, or back to its state's group, when the pointer and
+  // the keyboard leave the list, as every other change of group does: a row
+  // that jumped to the top under the pointer would put another row under the
+  // next click, and the Order held line counts it meanwhile. So focus is
+  // left where it is: the press never takes the row from under it. A hidden
+  // mark is dropped either way (none is there but the one another tab can
+  // leave), so a row that is unpinned never vanishes into Hidden.
+  const pinRow = (sessionId: string) => {
+    hiding.show([sessionId]);
+    pins.toggle(sessionId);
+  };
+  const pinFor = (id: string): RowPin => ({ pinned: pinnedSet.has(id), run: pinRow });
   // The Hidden line's list: shut by default, and for the page's life only.
   const [hiddenOpen, setHiddenOpen] = useState(false);
   useEffect(() => { if (hiddenRows.length === 0) setHiddenOpen(false); }, [hiddenRows.length === 0]);
@@ -579,8 +608,11 @@ export default function SessionList({ state, now, historyReady = true, selectedI
       pane={openPanes?.get(e.row.sessionId)}
       // Named in place (internal #101), from the session as the board has it.
       rename={e.ghost ? null : renameFacts(state.agents.get(e.id))}
-      // Hide from list, on a row that wants nothing now; never on one leaving.
-      act={!e.ghost && canHideRow(rank(e.row)) ? hideAct : undefined} />
+      // Hide from list, on a row that wants nothing now and is not pinned;
+      // never on one leaving.
+      act={!e.ghost && !pinnedSet.has(e.id) && canHideRow(rank(e.row)) ? hideAct : undefined}
+      // Pin or Unpin, on every row but one leaving.
+      pin={e.ghost ? undefined : pinFor(e.id)} />
   );
   // A hidden row, as the Hidden line lists it: the same row, quieter, which
   // still opens its session (that does not bring it back) and has one act,
@@ -606,10 +638,10 @@ export default function SessionList({ state, now, historyReady = true, selectedI
       : <li key="empty" className="sl-empty">{t("board.list.empty")}</li>);
   }
   let drawn = false;
-  for (const g of RAIL_GROUPS) {
+  for (const g of RAIL_SECTIONS) {
     const entries = entriesOf(g);
     if (entries.length === 0) continue;
-    const { shown, rest: restCount } = plan[g];
+    const { shown, rest: restCount } = planOf(g);
     const open = folds.open.has(g);
     const mode = folds.mode[g] ?? "animate";
     // Rows up to the cut are drawn; ghosts past it are not worth drawing.
@@ -625,7 +657,7 @@ export default function SessionList({ state, now, historyReady = true, selectedI
     // folded away, or opened and able to fold again.
     const canFold = restCount > 0 && (shown === 0 || open);
     nodes.push(
-      <GroupHead key={`head-${g}`} group={g} count={counts[g]} spaced={drawn}
+      <GroupHead key={`head-${g}`} group={g} count={countOf(g)} spaced={drawn}
         fold={canFold ? { open, motion: mode, onToggle: onToggle(g, behind.length) } : undefined} />,
     );
     drawn = true;

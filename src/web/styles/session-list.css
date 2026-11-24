@@ -228,7 +228,9 @@
 }
 .session-list .sl-start:first-child { padding-left: 0; }
 
-/* ── a row's one act: Hide from list, Show in list (list-hidden.ts) ─────── */
+/* ── a row's acts: Pin, Hide from list, Show in list ────────────────────── */
+/* Pin (list-pinned.ts) and Hide from list (list-hidden.ts) on the list's
+   rows, Show in list on the Hidden line's. One look for all three. */
 /* A quiet 24x24 icon button at the row's trailing edge, a sibling of the row's
    button (never inside it), on the first line: centred where the title's line
    is, the way the avatar is brought back to it above, so its glyph sits where
@@ -259,8 +261,12 @@
 .session-list .sl-row-in:has(> .sl-row[data-one-line]) > .sl-row-act { translate: 0 -50%; }
 .session-list .sl-row-in:has(> .sl-row.selected, > .sl-row[data-pane-active]) > .sl-row-act { background-color: var(--selected); }
 .session-list .sl-row-in:has(> .sl-row-act) > .sl-row { padding-right: 32px; }
+/* Pin and the eye side by side: the pin one act and 2px in from the edge, the
+   eye where it has always been, and room kept for both where they show. */
+.session-list .sl-row-act:has(+ .sl-row-act) { right: 29px; }
+.session-list .sl-row-in:has(> .sl-row-act + .sl-row-act) > .sl-row { padding-right: 58px; }
 .session-list .sl-row-act:active { transform: scale(var(--press-small)); }
-/* Under a fine pointer, Hide from list arrives with the pointer or with
+/* Under a fine pointer, Pin and Hide from list arrive with the pointer or with
    keyboard focus in the row, over the row's time and status, which step aside
    (opacity, never display, so the row keeps its width and its words for a
    screen reader), and the row gives its room back to the words. On the row's
@@ -268,15 +274,16 @@
    that when the pointer is on the act itself: a fill, never a ring. The focus
    half is outside the mouse query, so it holds for every keyboard. */
 @media (hover: hover) and (pointer: fine) {
-  .session-list .sl-row-in:has(> .sl-row-hide) > .sl-row { padding-right: 8px; }
-  .session-list .sl-row-hide { opacity: 0; pointer-events: none; }
-  .session-list .sl-row-in:hover > .sl-row-hide { opacity: 1; pointer-events: auto; }
-  .session-list .sl-row-in:hover:has(> .sl-row-hide) .sl-row-status { opacity: 0; }
+  .session-list .sl-row-in:has(> .sl-row-hide, > .sl-row-pin) > .sl-row,
+  .session-list .sl-row-in:has(> .sl-row-act + .sl-row-act) > .sl-row { padding-right: 8px; }
+  .session-list :is(.sl-row-hide, .sl-row-pin) { opacity: 0; pointer-events: none; }
+  .session-list .sl-row-in:hover > :is(.sl-row-hide, .sl-row-pin) { opacity: 1; pointer-events: auto; }
+  .session-list .sl-row-in:hover:has(> .sl-row-hide, > .sl-row-pin) .sl-row-status { opacity: 0; }
   .session-list .sl-row-in:hover > .sl-row-act { background-color: var(--selected); }
   .session-list .sl-row-act:hover { color: var(--text); background-image: linear-gradient(var(--ctl-fill), var(--ctl-fill)); }
 }
-.session-list .sl-row-in:has(:focus-visible) > .sl-row-hide { opacity: 1; pointer-events: auto; }
-.session-list .sl-row-in:has(:focus-visible):has(> .sl-row-hide) .sl-row-status { opacity: 0; }
+.session-list .sl-row-in:has(:focus-visible) > :is(.sl-row-hide, .sl-row-pin) { opacity: 1; pointer-events: auto; }
+.session-list .sl-row-in:has(:focus-visible):has(> .sl-row-hide, > .sl-row-pin) .sl-row-status { opacity: 0; }
 
 /* ── hidden from the list ────────────────────────────────────────────────── */
 /* "Hidden · N", the list's last line: the "N more" line's look, at the list's
@@ -584,6 +591,13 @@
      press any higher. Centred on a one-line row, it reaches 10 each way. */
   .session-list .sl-row-act::after { content: ""; position: absolute; inset: -4px -3px -16px -10px; }
   .session-list .sl-row-in:has(> .sl-row[data-one-line]) > .sl-row-act::after { inset: -10px -3px -10px -10px; }
+  /* Pin and the eye side by side: each reaches to the middle of the 2px
+     between them and no further, so a press meant for one never lands on the
+     other. */
+  .session-list .sl-row-in > .sl-row-act:has(+ .sl-row-act)::after { inset: -4px -1px -16px -10px; }
+  .session-list .sl-row-in > .sl-row-act + .sl-row-act::after { inset: -4px -3px -16px -1px; }
+  .session-list .sl-row-in:has(> .sl-row[data-one-line]) > .sl-row-act:has(+ .sl-row-act)::after { inset: -10px -1px -10px -10px; }
+  .session-list .sl-row-in:has(> .sl-row[data-one-line]) > .sl-row-act + .sl-row-act::after { inset: -10px -3px -10px -1px; }
 }
 
 @media (pointer: coarse) {
