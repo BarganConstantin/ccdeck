@@ -260,6 +260,30 @@ describe("the Command Panel's engine, made by the deck", () => {
     expect(asked, "stopped: nothing to forget").toEqual([]);
   });
 
+  it("lets the engine go once it has answered what it was asked when the deck's PATH grew, and the next question starts a new one", async () => {
+    const clients: ReturnType<typeof fakeClient>[] = [];
+    const e = cpe.commandPanelEngine({ platform: "linux", env: {}, keys: ["K"], lstat: async () => ({}), createClient: () => { const c = fakeClient(); clients.push(c); return c; } });
+    // None running: nothing to let go, and none made for it.
+    await expect(e.renew()).resolves.toBe(true);
+    expect(clients).toHaveLength(0);
+    await e.route("status", null);
+    // A launch still being answered: the engine is kept until it is.
+    let answer!: (v: unknown) => void;
+    clients[0].request = () => new Promise(r => { answer = r; });
+    const launch = e.route("launch", { agent: "codex" });
+    await vi.waitFor(() => expect(answer).toBeTypeOf("function"));
+    const renewed = e.renew();
+    await Promise.resolve();
+    expect(clients[0].closed, "still answering the launch").toBe(0);
+    answer({ status: 200, body: { ok: true } });
+    expect((await launch).status).toBe(200);
+    await expect(renewed).resolves.toBe(true);
+    expect([clients[0].closed, e.running]).toEqual([1, false]);
+    // The next question starts one with the deck's environment as it is now.
+    await e.route("launch", { agent: "codex" });
+    expect([clients.length, clients[1].closed, e.running]).toEqual([2, 0, true]);
+  });
+
   it("stops a grace after the switch goes off, unless asked again, and at once at shutdown without waiting", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const clients: ReturnType<typeof fakeClient>[] = [];

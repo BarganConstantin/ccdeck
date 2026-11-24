@@ -80,11 +80,11 @@ export type StagePhase =
   | { kind: "detached" }
   /** `code`: the engine's refusal, when it is a state of this machine
    *  (terminal-api's PANEL_UNAVAILABLE). Such a card checks again in place,
-   *  `busy` while it does, as the tmux card does. `missing`: a Claude
-   *  session refused `agent-missing`, which the card offers to install
-   *  (ClaudeInstall.tsx); a Codex one keeps the plain card. `reopen`: a
-   *  refused Reopen here, whose Try again reopens again (`busy` meanwhile). */
-  | { kind: "error"; message: string; code?: PanelUnavailable; busy?: boolean; missing?: "claude"; reopen?: boolean };
+   *  `busy` while it does, as the tmux card does. `missing`: a Claude or a
+   *  Codex session refused `agent-missing`, which the card offers to install
+   *  (ClaudeInstall.tsx). `reopen`: a refused Reopen here, whose Try again
+   *  reopens again (`busy` meanwhile). */
+  | { kind: "error"; message: string; code?: PanelUnavailable; busy?: boolean; missing?: TerminalProvider; reopen?: boolean };
 
 export type StagePhaseKind = StagePhase["kind"];
 
@@ -411,7 +411,7 @@ export function stageAnnouncement(name: string, phase: StagePhase): string | nul
     case "not-attachable": return phase.stillRunning ? t("board.stage.announceStillRunning", { name }) : t("board.stage.announceNoPane", { name });
     case "tmux-installing": return t("board.stage.announceTmuxSetup");
     case "tmux-missing": return t("board.stage.announceTmuxMissing");
-    case "error": return phase.missing === "claude" ? t(CLAUDE_MISSING_MSG) : errorWords(phase.message);
+    case "error": return phase.missing ? t(MISSING_MSGS[phase.missing]) : errorWords(phase.message);
     default: return null;
   }
 }
@@ -420,6 +420,10 @@ export function stageAnnouncement(name: string, phase: StagePhase): string | nul
  *  installed: the deck's own sentence in the language on show, whatever the
  *  engine said (its Windows sentence is longer and names installers). */
 export const CLAUDE_MISSING_MSG = "board.stage.claudeMissing";
+/** And for a Codex session refused because Codex is not installed, the same way. */
+export const CODEX_MISSING_MSG = "board.stage.codexMissing";
+/** Each by the CLI that is missing. */
+export const MISSING_MSGS: Readonly<Record<TerminalProvider, string>> = { claude: CLAUDE_MISSING_MSG, codex: CODEX_MISSING_MSG };
 
 /** What the Error card says when the stage cannot say more. */
 export const PANEL_STOPPED_MSG = "board.stage.panelStopped";

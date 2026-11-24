@@ -590,6 +590,7 @@ const catalog: Catalog = {
   "board.stage.checking": "Se verifică…",
   "board.stage.tryAgain": "Încearcă din nou",
   "board.stage.claudeMissing": "Claude Code nu este instalat pe acest computer.",
+  "board.stage.codexMissing": "Codex nu este instalat pe acest computer.",
   "board.stage.tmuxSettingUp": "tmux · se configurează",
   "board.stage.tmuxFetching": "Acest computer nu are un tmux pe care Panoul de comenzi să-l poată folosi, așa că ccdeck își descarcă unul propriu: cam un megabyte, o singură dată. Rămâne în folderul ccdeck-ului; nu se instalează nimic în sistem.",
   "board.stage.tmuxFetchingLabel": "Se descarcă tmux",

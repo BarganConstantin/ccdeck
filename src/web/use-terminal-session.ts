@@ -644,12 +644,12 @@ const transient = (f: ApiFailure) => f.status === null || f.status === 502 || f.
 const recovering = (f: ApiFailure) => transient(f) && (PANEL_RECOVERING as readonly string[]).includes(f.code ?? "");
 
 /** A failure as the card draws it. A refusal that is a state of this machine
- *  keeps its code, so the card checks again in place. A Claude session
- *  refused because Claude Code is not installed is said so, and the card
- *  offers to install it; Codex's keeps the engine's sentence. */
+ *  keeps its code, so the card checks again in place. A Claude or a Codex
+ *  session refused because its CLI is not installed is said so, and the card
+ *  offers to install it (ClaudeInstall.tsx). */
 const failed = (f: ApiFailure, agent?: Provider): StagePhase =>
   panelUnavailable(f.code) ? { kind: "error", message: f.error, code: f.code, busy: false }
-    : f.code === "agent-missing" && agent === "claude" ? { kind: "error", message: f.error, missing: "claude" }
+    : f.code === "agent-missing" && (agent === "claude" || agent === "codex") ? { kind: "error", message: f.error, missing: agent }
       : { kind: "error", message: f.error };
 
 /**

@@ -570,6 +570,7 @@ const catalog: Catalog = {
   "board.stage.checking": "확인하는 중…",
   "board.stage.tryAgain": "다시 시도",
   "board.stage.claudeMissing": "이 컴퓨터에 Claude Code가 설치되어 있지 않습니다.",
+  "board.stage.codexMissing": "이 컴퓨터에 Codex가 설치되어 있지 않습니다.",
   "board.stage.tmuxSettingUp": "tmux · 설정하는 중",
   "board.stage.tmuxFetching": "이 컴퓨터에는 명령 패널이 쓸 수 있는 tmux가 없어서 ccdeck이 자체 tmux를 받아 옵니다. 약 1MB를 한 번만 받으며, ccdeck의 폴더에 보관되고 시스템에는 아무것도 설치되지 않습니다.",
   "board.stage.tmuxFetchingLabel": "tmux 받는 중",

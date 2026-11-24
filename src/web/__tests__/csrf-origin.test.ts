@@ -164,6 +164,7 @@ describe("mutations require the deck's own authority", () => {
     { path: "/api/restart", body: "", cleared: 501 },                                      // unsupervised
     { path: "/api/clear", body: "", cleared: 200 },                                        // genuinely runs
     { path: "/api/claude-install", body: "", cleared: 409 },                               // declines to download
+    { path: "/api/codex-install", body: "", cleared: 409 },                                // declines to download
   ];
 
   it("refuses a caller that presents nothing at all", async () => {

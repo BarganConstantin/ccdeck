@@ -164,7 +164,10 @@ export function outputTail(text, { home = homedir(), platform = process.platform
   return out;
 }
 
-class InstallFailure extends Error {
+/** Why an install failed, as the job records it: a reason off the page's list,
+ *  and the installer's last lines when it printed any. Codex's install
+ *  (codex-install.mjs) throws the same. */
+export class InstallFailure extends Error {
   constructor(reason, detail = "") {
     super(reason);
     this.reason = reason;
@@ -272,14 +275,18 @@ async function viaCurl(url, { spawnImpl, platform, env, exists, dir, timeoutMs }
   }
 }
 
-/** Runs the installer to its end, its deadline, or a failure to start. */
-function runInstaller({ spawnImpl, argv, cwd, env, timeoutMs, platform }) {
+/** Runs the installer to its end, its deadline, or a failure to start. Codex's
+ *  npm runs here too (codex-install.mjs): `argv.opts` carries what a batch
+ *  file run through cmd.exe needs (exec-spec.mjs viaCmd), and nothing it holds
+ *  overrides the rules below. */
+export function runInstaller({ spawnImpl, argv, cwd, env, timeoutMs, platform }) {
   return new Promise((resolve) => {
     let tail = "";
     const keep = (chunk) => { tail = (tail + chunk.toString("utf8")).slice(-TAIL_BYTES); };
     let child;
     try {
       child = spawnImpl(argv.file, argv.args, {
+        ...(argv.opts ?? {}),
         cwd, env, shell: false, windowsHide: true,
         stdio: ["ignore", "pipe", "pipe"],
         // Its own process group on POSIX, so the deadline stops what it started too.
@@ -308,6 +315,49 @@ function runInstaller({ spawnImpl, argv, cwd, env, timeoutMs, platform }) {
 }
 
 /**
+ * One install at a time, as every tab reads it: `run` does the work and
+ * resolves once it is done, or throws an InstallFailure (anything else is
+ * `failed`); `blocked` says why none may start, or null; `describe` adds what
+ * the status always carries (the command to run by hand, and where). Claude
+ * Code's install and Codex's (codex-install.mjs) are each one of these.
+ */
+export function installJob({ run, blocked, describe }) {
+  let job = null; // { id, state, reason?, detail?, run }
+  return Object.freeze({
+    /** Where the install stands, and the command for doing it by hand. */
+    status() {
+      const why = blocked();
+      const out = { state: job?.state ?? "idle", ...describe() };
+      if (job) out.id = job.id;
+      if (job?.reason) out.reason = job.reason;
+      if (job?.detail) out.detail = job.detail;
+      if (why) out.blocked = why;
+      return out;
+    },
+    /** Starts one, unless one runs or downloads are off. Never awaits it. */
+    start() {
+      if (job?.state === "running") return { ok: false, code: "running" };
+      const why = blocked();
+      if (why) return { ok: false, code: why };
+      const current = { id: randomBytes(8).toString("hex"), state: "running" };
+      job = current;
+      current.run = (async () => {
+        try {
+          await run();
+          Object.assign(current, { state: "done" });
+        } catch (err) {
+          const failure = err instanceof InstallFailure ? err : new InstallFailure("failed");
+          Object.assign(current, { state: "failed", reason: failure.reason, ...(failure.detail ? { detail: failure.detail } : {}) });
+        }
+      })();
+      return { ok: true, id: current.id };
+    },
+    /** The running job's end, for the suite. */
+    settled: () => job?.run ?? Promise.resolve(),
+  });
+}
+
+/**
  * The deck's one installer. Every dependency is a parameter so the suite runs
  * the whole job with a fake download and a fake installer, never the network
  * and never a real script.
@@ -324,9 +374,7 @@ export function createClaudeInstaller({
   downloadTimeoutMs = DOWNLOAD_TIMEOUT_MS,
   installTimeoutMs = INSTALL_TIMEOUT_MS,
 } = {}) {
-  let job = null; // { id, state, reason?, detail?, run }
-
-  const run = async (current) => {
+  const run = async () => {
     let dir = null;
     try {
       dir = await fs.mkdtemp(join(tmp(), "ccdeck-claude-install-"));
@@ -346,38 +394,15 @@ export function createClaudeInstaller({
       if (out.timedOut) throw new InstallFailure("timed-out", detail);
       if (out.code !== 0) throw new InstallFailure("exit-failed", detail);
       if (!found()) throw new InstallFailure("installed-but-not-found");
-      Object.assign(current, { state: "done" });
-    } catch (err) {
-      const failure = err instanceof InstallFailure ? err : new InstallFailure("failed");
-      Object.assign(current, { state: "failed", reason: failure.reason, ...(failure.detail ? { detail: failure.detail } : {}) });
     } finally {
       if (dir) await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
     }
   };
 
-  return Object.freeze({
-    /** Where the install stands, and the command for doing it by hand. */
-    status() {
-      const blocked = claudeInstallBlocked(env);
-      const out = { state: job?.state ?? "idle", command: claudeInstallCommand(platform), shell: platform === "win32" ? "powershell" : "terminal" };
-      if (job) out.id = job.id;
-      if (job?.reason) out.reason = job.reason;
-      if (job?.detail) out.detail = job.detail;
-      if (blocked) out.blocked = blocked;
-      return out;
-    },
-    /** Starts one, unless one runs or downloads are off. Never awaits it. */
-    start() {
-      if (job?.state === "running") return { ok: false, code: "running" };
-      const blocked = claudeInstallBlocked(env);
-      if (blocked) return { ok: false, code: blocked };
-      const current = { id: randomBytes(8).toString("hex"), state: "running" };
-      job = current;
-      current.run = run(current);
-      return { ok: true, id: current.id };
-    },
-    /** The running job's end, for the suite. */
-    settled: () => job?.run ?? Promise.resolve(),
+  return installJob({
+    run,
+    blocked: () => claudeInstallBlocked(env),
+    describe: () => ({ command: claudeInstallCommand(platform), shell: platform === "win32" ? "powershell" : "terminal" }),
   });
 }
 
