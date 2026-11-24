@@ -947,6 +947,10 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // CHANGED ON PURPOSE (#2591): the strip moved from the Sessions list to
       // the left column, so one edge sizes both panels the column can hold.
       ".left-column > .sl-edge:focus-visible",
+      // CHANGED ON PURPOSE (2026-11-24): the split between Sessions and
+      // Accounts in the left column is a thin grab strip too, as Workspace's
+      // .ws-split is, so the keyboard ring drawn inside it is its boundary.
+      ".left-column > .stack-split:focus-visible",
       // (not on a selected card: there the selection ring is the one drawn)
       // And the same ring on the card's face at the compact and overview
       // distances, where the card's own is a hairline of layout units.

@@ -315,6 +315,13 @@
      (left-column.css), and a Contrast theme drops shadows: keep it, in the
      text colour, as the border it stands for would be. */
   .left-column::after { forced-color-adjust: none; box-shadow: inset -0.5px 0 0 CanvasText; }
+  /* The split between Sessions and Accounts keeps its two lines (borders the
+     theme draws in the text colour); its grip is a fill the theme would drop,
+     so it is drawn in the text colour, and in the highlight while held or
+     focused. */
+  .left-column > .stack-split::after { forced-color-adjust: none; background: CanvasText; }
+  .left-column > .stack-split:focus-visible::after,
+  .left-column[data-stack-resizing] > .stack-split::after { background: Highlight; }
   /* The selected card's ring, in the same highlight as its row. The theme
      drops the lift that sets selection apart from the keyboard's ring, and
      repaints the session's own colour in the text colour that ring is drawn

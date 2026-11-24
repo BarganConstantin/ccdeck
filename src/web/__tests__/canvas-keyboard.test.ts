@@ -405,10 +405,13 @@ describe("nothing else in the deck invents a focus stop", () => {
     // CHANGED ON PURPOSE (internal #102): the line between two panes of a split
     // Workspace is the same widget too, its value the first pane's share; the
     // arrow keys move it, Home and End run it to the ends.
+    // CHANGED ON PURPOSE (2026-11-24): the line between Sessions and Accounts
+    // in the left column is the same widget, a window splitter whose value is
+    // Sessions' share of the column's height; the arrow keys move it.
     // Sorted, so the order is the paths' and not the file system's.
     expect([...offenders].sort()).toEqual([
       "components/CostTip.tsx", "components/ForgeHtml.tsx", "components/IntegrationSplit.tsx", "components/RadarSplitter.tsx", "components/RadioMap.tsx",
-      "components/RadioPanel.tsx", "components/RailEdge.tsx", "components/ReleaseNotesModal.tsx", "components/SideColumn.tsx", "components/ToolAuditSplitter.tsx",
+      "components/RadioPanel.tsx", "components/RailEdge.tsx", "components/ReleaseNotesModal.tsx", "components/SideColumn.tsx", "components/StackSplit.tsx", "components/ToolAuditSplitter.tsx",
       "components/chat/ChatView.tsx", "components/forge/DetailJobs.tsx", "components/terminal/SplitDivider.tsx", "jira-html.tsx",
     ]);
     const paneLine = code(readFileSync(`${web}components/terminal/SplitDivider.tsx`, "utf8"));
