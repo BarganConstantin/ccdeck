@@ -14,11 +14,11 @@
 // the canvas: right from the left stripe, left from the right one. Phone
 // controls and the topbar utilities keep their visible words.
 // The topbar keeps the identity, the stream's state, the waiting queue, Search
-// (UtilityRun) and, in its own corner cell, Feedback (CornerRun), with its word
-// while the stripes have theirs. Under 641px the stripes and Search become one
+// (UtilityRun) and, in its own corner cell, Feedback (CornerRun), which says
+// Send feedback beside its glyph. Under 641px the stripes and Search become one
 // dock along the bottom: the four panels one tap away and the rarer doors,
-// Settings among them, behind a More; Feedback stays in the bar's corner, its
-// one entry on every size.
+// Settings and Send feedback among them, behind a More; Feedback's glyph stays
+// in the bar's corner too.
 //
 // THESE ARE NOT TABS. A stripe button shows or hides a panel beside the canvas,
 // several can be open at once, and the canvas never leaves the screen: "One
@@ -41,6 +41,8 @@ import { useHint, type HintSide, type HintSpec } from "./use-hint";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { useT } from "../i18n";
 import { setStripeWords, useStripeWords, useStripeWordsRoom } from "../stripe-words";
+import { useMediaQuery } from "../use-media-query";
+import { PHONE_QUERY } from "../phone-load";
 import { StripeWordsGlyph } from "./rail-glyphs";
 
 /** The key a control answers: its keycap, its aria-keyshortcuts spelling, and
@@ -438,14 +440,15 @@ export function UtilityRun({ items, side = "below" }: { items: RailItem[]; side?
   );
 }
 
-/** Feedback's corner cell. V4 draws it as a bare glyph, which people rarely
- *  found; while the stripes under it show their words the cell is as wide as
- *  they are (156), and Feedback says its word there like every door below it.
- *  With icons on the stripes, under 1100px and on a phone it is the glyph, its
- *  name and what it is for in its hint. */
+/** Feedback's corner cell. V4 drew it as a bare glyph, and then gave it its
+ *  word only while the stripes showed theirs; people still did not find it, as
+ *  most windows run with icons (an older profile, under 1100px, Workspace). So
+ *  on every window wider than a phone the corner says what the press does, in
+ *  its menu words (Send feedback), beside the glyph. On a phone the bar keeps
+ *  the glyph, and the dock's More lists Send feedback too (App.tsx). */
 export function CornerRun({ item }: { item: RailItem }) {
-  const words = useStripeWords();
-  return <UtilityRun items={[words ? { ...item, barLook: undefined } : item]} />;
+  const phone = useMediaQuery(PHONE_QUERY);
+  return <UtilityRun items={[phone ? item : { ...item, barLook: undefined, label: item.menu ?? item.label }]} />;
 }
 
 function noop() {}

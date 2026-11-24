@@ -391,7 +391,7 @@ const catalog: Catalog = {
   "board.rail.search": "検索",
   "board.rail.search.detail": "パネル・セッション・設定・アクション・テーマ",
   "board.rail.feedback": "フィードバック",
-  "board.rail.feedback.menu": "フィードバックを送る",
+  "board.rail.feedback.menu": "フィードバック送信",
   "board.rail.feedback.detail": "不具合の報告やアイデアの共有",
   "board.rail.tools.activity": "ツールのアクティビティ",
   "board.rail.tools.short": "ツール",

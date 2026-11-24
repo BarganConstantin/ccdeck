@@ -1484,8 +1484,9 @@ function Inner() {
           that stands in for both stripes and the utilities. */}
       {phone
         // Five doors, as the phone frame draws them: Accounts, Sessions, Usage,
-        // Machine and More. Settings and the rest are in More; Feedback is in
-        // the bar's corner, so More has no row for it. One door is
+        // Machine and More. Settings and the rest are in More, and so is Send
+        // feedback, beside its glyph in the bar's corner: the glyph alone was
+        // rarely found, and More is where a phone looks for the rest. One door is
         // active at a time: Sessions gives way while a sheet is up over it, and
         // then its press means "go to Sessions" (the sheet closes, the list
         // stays), so the door never says closed and does the other thing.
@@ -1493,7 +1494,7 @@ function Inner() {
         // terminal: the phone's Board draws no canvas bar to hold its button.
         ? <EdgeDock
             items={[...rails.left, ...rails.right[0]].map(sessionsDoorUnderSheet)}
-            more={[rails.search, ...commandPanelMore(stage.enabled ? openPanelFromMore : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities.filter(item => item !== rails.corner)]}
+            more={[rails.search, ...commandPanelMore(stage.enabled ? openPanelFromMore : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities]}
             offline={everConnected && !live} />
         : <EdgeRail side="left" label={t("board.rail.tools")} groups={rails.leftStripe} foot={rails.leftFoot} />}
 
