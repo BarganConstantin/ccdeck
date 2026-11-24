@@ -799,6 +799,7 @@ const catalog: Catalog = {
   "board.chat.ask.chat": "Darüber sprechen",
   "board.chat.ask.chatSending": "Wird zum Besprechen zurückgestellt…",
   "board.chat.ask.result.chat": "Zum Besprechen zurückgestellt. Claude Code fragt gleich, was du klären möchtest; antworte unten.",
+  "board.chat.ask.result.chatMissing": "In Term hat diese Frage keine Option zum Besprechen, daher wurde nichts gesendet. Antworte in Term.",
   "board.chat.plan.title": "Plan",
   "board.chat.plan.waiting": "Wartet auf deine Genehmigung",
   "board.chat.plan.approved": "Genehmigt",

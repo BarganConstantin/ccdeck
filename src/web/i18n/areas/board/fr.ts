@@ -799,6 +799,7 @@ const catalog: Catalog = {
   "board.chat.ask.chat": "En discuter",
   "board.chat.ask.chatSending": "Mise de côté pour en discuter…",
   "board.chat.ask.result.chat": "Mis de côté pour en discuter. Claude Code va vous demander ce que vous voulez clarifier ; répondez ci-dessous.",
+  "board.chat.ask.result.chatMissing": "Dans Term, cette question n’a pas d’option pour en discuter : rien n’a été envoyé. Répondez dans Term.",
   "board.chat.plan.title": "Plan",
   "board.chat.plan.waiting": "En attente de votre approbation",
   "board.chat.plan.approved": "Approuvé",

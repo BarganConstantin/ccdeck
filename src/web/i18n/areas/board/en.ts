@@ -799,6 +799,7 @@ const catalog: Catalog = {
   "board.chat.ask.chat": "Chat about this",
   "board.chat.ask.chatSending": "Setting it aside to chat…",
   "board.chat.ask.result.chat": "Set aside to chat. Claude Code will ask what you want to clarify; reply below.",
+  "board.chat.ask.result.chatMissing": "Term has no Chat about this row for this question, so nothing was sent. Answer it in Term.",
   "board.chat.plan.title": "Plan",
   "board.chat.plan.waiting": "Waiting for your approval",
   "board.chat.plan.approved": "Approved",

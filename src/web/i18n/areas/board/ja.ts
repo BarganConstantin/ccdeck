@@ -799,6 +799,7 @@ const catalog: Catalog = {
   "board.chat.ask.chat": "これについて話す",
   "board.chat.ask.chatSending": "相談のため保留にしています…",
   "board.chat.ask.result.chat": "相談のため保留にしました。Claude Code が確認したい点を尋ねるので、下で返信してください。",
+  "board.chat.ask.result.chatMissing": "Term のこの質問には相談の選択肢がないため、何も送信していません。Term で回答してください。",
   "board.chat.plan.title": "プラン",
   "board.chat.plan.waiting": "承認を待っています",
   "board.chat.plan.approved": "承認済み",

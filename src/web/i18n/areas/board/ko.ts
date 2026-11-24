@@ -799,6 +799,7 @@ const catalog: Catalog = {
   "board.chat.ask.chat": "이것에 대해 대화하기",
   "board.chat.ask.chatSending": "대화를 위해 보류하는 중…",
   "board.chat.ask.result.chat": "대화를 위해 보류했습니다. Claude Code가 무엇을 명확히 하고 싶은지 물어보면 아래에서 답하세요.",
+  "board.chat.ask.result.chatMissing": "Term의 이 질문에는 대화 옵션이 없어 아무것도 보내지 않았습니다. Term에서 답하세요.",
   "board.chat.plan.title": "계획",
   "board.chat.plan.waiting": "승인을 기다리는 중",
   "board.chat.plan.approved": "승인됨",

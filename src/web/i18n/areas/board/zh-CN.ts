@@ -799,6 +799,7 @@ const catalog: Catalog = {
   "board.chat.ask.chat": "就此聊聊",
   "board.chat.ask.chatSending": "正在搁置…",
   "board.chat.ask.result.chat": "已搁置，先聊聊。Claude Code 会问你想澄清什么，请在下方回复。",
+  "board.chat.ask.result.chatMissing": "Term 中这个问题没有“聊聊”选项，因此未发送任何内容。请在 Term 中回答。",
   "board.chat.plan.title": "计划",
   "board.chat.plan.waiting": "等待你的批准",
   "board.chat.plan.approved": "已批准",

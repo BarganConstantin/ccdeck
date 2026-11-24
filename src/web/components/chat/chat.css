@@ -315,6 +315,9 @@
 .chat-ask .chat-ask-send { flex: none; min-height: 32px; font-weight: 600; }
 .chat-ask-status { flex: 1 1 180px; min-width: 0; margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--text-secondary); overflow-wrap: anywhere; }
 .chat-ask-status:empty { flex: 0; }
+/* Focus lands here when the link it replaces goes (ChatTurn AskCard): a line of
+   text that is read out, not a control, so it draws no ring. */
+.chat-ask-status:focus { outline: none; }
 .chat-ask-status[data-result="changed"], .chat-ask-status[data-result="partial"], .chat-ask-status[data-result="unavailable"] { color: var(--warn); }
 .chat-ask-term { flex: none; min-height: 28px; padding: 2px 0; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text-secondary); font: inherit; font-size: calc(12px + var(--ui-text-increase, 0px)); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .chat-ask-term:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }

@@ -292,13 +292,14 @@ describe("Chat about this", () => {
     expect(r.term()).toBeNull();
   });
 
-  it("Term not showing the row: nothing went, so it stays on offer with Show Term, and an answer can still go", async () => {
+  it("Term without the row: nothing went, the link goes, the status says to answer in Term, and an answer can still go", async () => {
     const r = chatRig(waiting(DB));
     click(r.link());
     await r.settleChat("changed");
-    expect(textOf(r.status())).toBe("Term doesn't show this question as asked, so nothing was sent. Check Term.");
+    expect(textOf(r.status())).toBe("Term has no Chat about this row for this question, so nothing was sent. Answer it in Term.");
+    expect(r.status()!.props["data-result"]).toBe("changed");
     expect(r.term()).not.toBeNull();
-    expect(r.link()).not.toBeNull();
+    expect(r.link(), "not offered again: Term has no such row").toBeNull();
     r.pick(0, 0);
     r.submit();
     expect(textOf(r.status()), "an answer says it is an answer").toBe("Sending the answer…");
@@ -308,12 +309,27 @@ describe("Chat about this", () => {
     expect(r.link(), "the question was answered").toBeNull();
   });
 
-  it("a chat that fails says so as an answer that fails does", async () => {
+  it("a chat that fails says so as an answer that fails does, and stays on offer", async () => {
     const r = chatRig(waiting(DB), { chat: vi.fn(() => Promise.reject(new Error("socket closed"))) });
     click(r.link());
     await flush();
     expect(textOf(r.status())).toBe("The answer could not be sent. Answer in Term.");
     expect(r.term()).not.toBeNull();
+    expect(r.link(), "a dropped socket is not a missing row").not.toBeNull();
+  });
+
+  it("the status line can take focus, so the press does not drop it to the page when the link goes", () => {
+    const r = chatRig(waiting(DB));
+    expect(r.status()!.props.tabIndex).toBe(-1);
+    expect(r.status()!.props.role).toBe("status");
+  });
+
+  it("says the missing row in every language", async () => {
+    setLanguage("ro");
+    const r = chatRig(waiting(DB));
+    click(r.link());
+    await r.settleChat("changed");
+    expect(textOf(r.status())).toBe("În Term întrebarea asta nu are opțiunea de discuție, așa că nu s-a trimis nimic. Răspunde în Term.");
   });
 
   it("an answer sent from the card takes the offer away, and answers go as before", async () => {

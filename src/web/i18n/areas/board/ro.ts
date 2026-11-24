@@ -822,6 +822,7 @@ const catalog: Catalog = {
   "board.chat.ask.chat": "Discută despre asta",
   "board.chat.ask.chatSending": "Se lasă deoparte pentru discuție…",
   "board.chat.ask.result.chat": "Lăsată deoparte pentru discuție. Claude Code te va întreba ce vrei să clarifici; răspunde mai jos.",
+  "board.chat.ask.result.chatMissing": "În Term întrebarea asta nu are opțiunea de discuție, așa că nu s-a trimis nimic. Răspunde în Term.",
   "board.chat.plan.title": "Plan",
   "board.chat.plan.waiting": "Așteaptă aprobarea ta",
   "board.chat.plan.approved": "Aprobat",

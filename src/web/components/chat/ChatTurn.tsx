@@ -19,7 +19,7 @@ import type { Provider } from "../../types";
 import ProviderAvatar from "../ProviderAvatar";
 import { providerLabel } from "../../provider-copy";
 import ChatMarkdown from "./ChatMarkdown";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { answerable, MAX_ASK_TEXT, offersChat, picksComplete, type AskPick } from "../../ask-keys";
 import type { AskSendResult } from "../../use-terminal-session";
 import { copyText } from "../../copy-text";
@@ -366,6 +366,12 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
   const [result, setResult] = useState<AskSendResult | null>(null);
   // What the last press sent: the picks, or "Chat about this". Its outcome says which.
   const [chatting, setChatting] = useState(false);
+  // Term drew the question without its "Chat about this" row (an older Claude
+  // Code, or a prompt that has none): the link goes, and the status says so.
+  const [chatMissing, setChatMissing] = useState(false);
+  // The link goes while it sends: focus moves to the status line, which says
+  // what happened, rather than falling to the page.
+  const statusRef = useRef<HTMLParagraphElement>(null);
   // Typed text or a number is not picked from a list: such a question is answered in Term.
   const reachable = turn.questions.every(answerable);
   // Once keys went, the same answer is never sent twice from here.
@@ -374,7 +380,7 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
   const ready = !locked && picksComplete(turn.questions, picks);
   // Set aside, nothing was chosen: a pick made before it wears no mark.
   const answered = done && !chatting;
-  const canChat = !!live?.chat && !sending && !done && live.blocked === undefined && offersChat(turn.questions);
+  const canChat = !!live?.chat && !sending && !done && !chatMissing && live.blocked === undefined && offersChat(turn.questions);
 
   function update(i: number, pick: AskPick) {
     setPicks(previous => previous.map((old, at) => (at === i ? pick : old)));
@@ -395,6 +401,7 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
 
   async function chat() {
     if (!live?.chat || !canChat) return;
+    statusRef.current?.focus({ preventScroll: true });
     setChatting(true);
     setSending(true);
     setResult(null);
@@ -402,6 +409,7 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
     try { outcome = await live.chat(turn.questions); }
     catch { outcome = "unavailable"; }
     setSending(false);
+    if (outcome === "changed") setChatMissing(true);
     setResult(outcome);
   }
 
@@ -475,10 +483,13 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
   // Blocked (connecting, offline, read only), the card only locks its options:
   // the reply box under it is handed the same reason and shows it with Show
   // Term, so the card does not say it a second time 150 px above.
-  // A failed "Chat about this" says what a failed answer says: nothing went, or
-  // part of it, or it could not go, with Show Term.
+  // A failed "Chat about this" says what a failed answer says: part of it went,
+  // or it could not go, with Show Term. When Term has no such row it says that,
+  // and the answer is given there.
   const message = sending ? t(chatting ? "board.chat.ask.chatSending" : "board.chat.ask.sending")
-    : result ? t(chatting && result === "sent" ? "board.chat.ask.result.chat" : RESULT_KEYS[result])
+    : result ? t(chatting && result === "sent" ? "board.chat.ask.result.chat"
+      : chatting && result === "changed" ? "board.chat.ask.result.chatMissing"
+      : RESULT_KEYS[result])
     : !reachable ? t("board.chat.ask.inTerm")
     : "";
   const showTerm = live?.onShowTerm && !sending && result !== "sent"
@@ -495,8 +506,8 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
           {questions}
           <div className="chat-ask-actions">
             <button className="btn primary chat-ask-send" type="submit" disabled={!ready}>{t("board.chat.ask.send")}</button>
-            <p id={`${id}-status`} className="chat-ask-status" role="status" aria-live="polite" aria-atomic="true"
-              data-result={result ?? undefined}>{message}</p>
+            <p id={`${id}-status`} ref={statusRef} tabIndex={-1} className="chat-ask-status" role="status" aria-live="polite"
+              aria-atomic="true" data-result={result ?? undefined}>{message}</p>
             {showTerm && <button className="chat-ask-term" type="button" onClick={live.onShowTerm}>{t("board.chat.showTerm")}</button>}
             {canChat && <button className="chat-ask-term chat-ask-chat" type="button" onClick={() => { void chat(); }}>{t("board.chat.ask.chat")}</button>}
           </div>
