@@ -100,7 +100,7 @@ describe("project rollup after transcript enumeration recovers", () => {
     const rollup = createProjectRollup(options);
     await rollup.tick();
     const before = structuredClone(rollup._state());
-    expect(before.requests[f.file].streaming.id).toBe("streaming");
+    expect(Object.keys(before.requests[f.file].streaming)).toEqual(["streaming"]);
     expect(before.folders[f.root][f.slug]).toBe(f.cwd);
     expect(before.requests[deleted]).toBeDefined();
 

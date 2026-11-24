@@ -157,6 +157,47 @@ describe("a subagent's request", () => {
   });
 });
 
+// #2031: a workflow agent's file can stream two requests at once — request 2's
+// snapshot lands before request 1's final record. The file used to remember one
+// streaming request, so request 2 took request 1's place, request 1's final
+// record was skipped as a later block of a request already billed, and request
+// 1 stayed billed from its snapshot. Measured on one machine: 8 files, 19
+// requests, 22,669 output tokens under-counted.
+const OVERLAP_A = record("1", 0, 6, { at: "2026-10-03T12:00:00.000Z" });
+const OVERLAP_B = record("2", 0, 7, { at: "2026-10-03T12:00:01.000Z" });
+const FINAL_A = record("1", 1, 374, { stop: "tool_use", speed: "fast", at: "2026-10-03T12:00:02.000Z" });
+const FINAL_B = record("2", 1, 500, { stop: "end_turn", at: "2026-10-03T12:00:03.000Z" });
+const BOTH = (() => {
+  const two = Object.fromEntries(Object.entries(billed(0)).map(([k, v]) => [k, v * 2]));
+  return { ...two, output_tokens: 374 + 500 };
+})();
+
+describe("two requests streaming at once in one subagent file (#2031)", () => {
+  it("bills each from its own final record, the first one's included", async () => {
+    const { main } = session(OVERLAP_A + OVERLAP_B + toolResult("2026-10-03T12:00:01.500Z") + FINAL_A + FINAL_B);
+    expect(await sessionUsageTotals(main)).toEqual(BOTH);
+  });
+
+  it("prices the first one at the speed its own final record carries", async () => {
+    const { main } = session(OVERLAP_A + OVERLAP_B + FINAL_A + FINAL_B);
+    expect(await sessionUsageByModel(main)).toEqual({ [AGENT_MODEL]: { ...BOTH, speeds: { fast: billed(374) } } });
+  });
+
+  it("reaches the same totals when both snapshots are read before either final record", async () => {
+    const { agent } = session(OVERLAP_A + OVERLAP_B);
+    expect((await readUsageFromTranscript(agent))?.output_tokens).toBe(6 + 7);
+    appendFileSync(agent, FINAL_A);
+    expect((await readUsageFromTranscript(agent))?.output_tokens).toBe(374 + 7);
+    appendFileSync(agent, FINAL_B);
+    expect(await readUsageFromTranscript(agent)).toEqual(BOTH);
+  });
+
+  it("still keeps a request whose final record never came at its last snapshot", async () => {
+    const { main } = session(OVERLAP_A + OVERLAP_B + FINAL_B);
+    expect((await sessionUsageTotals(main))?.output_tokens).toBe(6 + 500);
+  });
+});
+
 const ISO = (s: string) => Date.parse(s);
 const KEY = accountKey("a@x.com", "O1");
 const tmps: string[] = [];
@@ -215,6 +256,54 @@ describe("the Projects report", () => {
     await restarted.tick();
     const rep = await restarted.report(KEY, 0);
     expect(rep.projects[0].models[AGENT_MODEL]).toEqual({ ...COUNTERS(374 * 2), i: 4, cr: INPUT.cache_read_input_tokens * 2, cc: INPUT.cache_creation_input_tokens * 2, c1h: SPLIT.ephemeral_1h_input_tokens * 2 });
+  });
+});
+
+describe("the Projects report, with two requests streaming at once (#2031)", () => {
+  it("bills each from its own final record, across a restart between the snapshots and the finals", async () => {
+    const { agent, rollup } = await projectsTree();
+    await writeFile(agent, OVERLAP_A + OVERLAP_B, "utf8");
+    await rollup().tick();
+    await appendFile(agent, FINAL_A + FINAL_B, "utf8");
+    const restarted = rollup();
+    await restarted.tick();
+    const rep = await restarted.report(KEY, 0);
+    expect(rep.projects[0].models[AGENT_MODEL]).toEqual({
+      ...COUNTERS(374 + 500), i: 4, cr: INPUT.cache_read_input_tokens * 2, cc: INPUT.cache_creation_input_tokens * 2,
+      c1h: SPLIT.ephemeral_1h_input_tokens * 2, s: { fast: COUNTERS(374) },
+    });
+  });
+
+  it("rebuilds a version-8 tally once, so the output it left off comes back", async () => {
+    const { agent, rollup, stateFile } = await projectsTree();
+    const body = OVERLAP_A + OVERLAP_B + FINAL_A + FINAL_B;
+    await writeFile(agent, body, "utf8");
+    // What version 8 kept for that file: request 1 at its snapshot.
+    await writeFile(stateFile, JSON.stringify({
+      version: 8,
+      cursors: { [await realpath(agent)]: Buffer.byteLength(body) },
+      tally: { [KEY]: { "/Users/c/agents-deck": { "2026-10-03": { [AGENT_MODEL]: COUNTERS(6 + 500) } } } },
+      folders: {}, requests: {},
+    }), "utf8");
+    const deck = rollup();
+    await deck.tick();
+    expect((await deck.report(KEY, 0)).projects[0].models[AGENT_MODEL].o).toBe(374 + 500);
+  });
+
+  it("keeps at most sixteen requests waiting on a final record per file", async () => {
+    // Interrupted agents leave requests whose final record never comes; each
+    // stays billed from its snapshot, and the file's ledger stays small.
+    const { agent, rollup } = await projectsTree();
+    const lines = Array.from({ length: 40 }, (_, i) =>
+      record(`n${i}`, 0, 6, { at: new Date(ISO("2026-10-03T12:00:00Z") + i * 1000).toISOString() })).join("");
+    await writeFile(agent, lines, "utf8");
+    const deck = rollup();
+    await deck.tick();
+    // The state keys each file by its real path (/private/var/… on macOS).
+    const waiting = deck._state().requests[await realpath(agent)].streaming;
+    expect(Object.keys(waiting)).toHaveLength(16);
+    expect(Object.keys(waiting).at(-1)).toBe("req_n39");
+    expect((await deck.report(KEY, 0)).projects[0].models[AGENT_MODEL].o).toBe(6 * 40);
   });
 });
 
