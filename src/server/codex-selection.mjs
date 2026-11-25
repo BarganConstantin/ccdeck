@@ -27,7 +27,7 @@ export function codexSelectionError(code) {
 const fail = code => { throw codexSelectionError(code); };
 export const idPattern = /^[a-f0-9]{20}$/;
 const operationPattern = /^[A-Za-z0-9_-]{1,128}$/;
-const safeCodes = new Set(['not_removable', 'login_not_movable', 'selection_conflict', 'operation_conflict', 'selection_busy', 'unknown_profile', 'profile_unavailable', 'registry_corrupt', 'registry_write_failed', 'invalid_operation', 'invalid_revision', 'invalid_label', 'import_write_failed', 'windows_permissions_failed', 'login_changed']);
+const safeCodes = new Set(['not_removable', 'not_hideable', 'profile_in_use', 'login_not_movable', 'selection_conflict', 'operation_conflict', 'selection_busy', 'unknown_profile', 'profile_unavailable', 'registry_corrupt', 'registry_write_failed', 'invalid_operation', 'invalid_revision', 'invalid_label', 'import_write_failed', 'windows_permissions_failed', 'login_changed']);
 const storeDir = options => resolve(options.store ?? deckDataDir(options.platform, options.env, options.home));
 export const codexSelectionPath = (options = {}) => join(storeDir(options), 'codex-accounts.json');
 
@@ -114,6 +114,8 @@ async function snapshot(state, options) {
     managedProfiles: (state?.profiles ?? []).filter(p => p.managed).map(({ id, label }) => ({ id, label })),
     /** The name somebody gave each account, the deck's own or not. */
     profileLabels: (state?.profiles ?? []).filter(p => p.label).map(({ id, label }) => ({ id, label })),
+    /** The rows somebody hid (markCodexProfileHidden): only Codex's own home. */
+    hiddenProfiles: (state?.profiles ?? []).filter(p => p.hidden === true).map(p => p.id),
   };
 }
 export async function readCodexSelection(options = {}) { return snapshot(await load(options), options); }
@@ -302,6 +304,39 @@ export async function renameCodexProfile({ id, label, expectedRevision } = {}, o
     const result = await snapshot(state, options);
     await persist(state, options);
     return { ...result, id, status: 'renamed' };
+  });
+}
+
+/** Hide the row of the home Codex uses by itself (CODEX_HOME, else ~/.codex),
+ *  or show it again. It is a note the deck keeps about that row in its own
+ *  registry, beside the row's name: the home, its config and its login are never
+ *  opened, moved or changed. Only that one home can be hidden, and only while
+ *  new sessions do not start on it and running ones were not sent to it; that
+ *  nobody is signed in there and that Auto-switch does not go home to it is the
+ *  caller's to prove (setCodexDefaultHidden, codex-profiles.mjs). The revision
+ *  stays: which account is selected has not changed, so a switch already on its
+ *  way is not refused for it. */
+export async function markCodexProfileHidden({ id, hidden } = {}, options = {}) {
+  if (typeof id !== 'string' || !idPattern.test(id)) fail('unknown_profile');
+  if (typeof hidden !== 'boolean') fail('invalid_operation');
+  return locked(options, async () => {
+    const state = await initial(options);
+    let profile = state.profiles.find(p => p.id === id);
+    if (!hidden) {
+      if (profile?.hidden !== true) return { ...await snapshot(state, options), id, status: 'shown' };
+      delete profile.hidden;
+    } else {
+      const own = configuredCodexHomes(options.env, options.home, options.platform)[0];
+      const ownId = state.profiles.find(p => p.home === own)?.id ?? await codexProfileId(own);
+      if (ownId !== id || profile?.managed) fail('not_hideable');
+      if (state.selectedProfileId === id || state.runningSelection?.id === id) fail('profile_in_use');
+      // A home named only by the environment has no entry until it is needed.
+      if (!profile) { profile = { id, home: own, label: null, managed: false }; state.profiles.push(profile); }
+      profile.hidden = true;
+    }
+    const result = await snapshot(state, options);
+    await persist(state, options);
+    return { ...result, id, status: hidden ? 'hidden' : 'shown' };
   });
 }
 

@@ -39,6 +39,7 @@ const ROUTE_FEATURES = new Map([
   ["POST /api/codex-profile-add", "codex-accounts-manage"],
   ["POST /api/codex-profile-remove", "codex-accounts-manage"],
   ["POST /api/codex-profile-rename", "codex-accounts-manage"],
+  ["POST /api/codex-profile-hide", "codex-accounts-manage"],
   ["POST /api/codex-profile-replace-login", "codex-accounts-manage"],
   ["POST /api/codex-auto", "codex-auto-switch"],
 ]);

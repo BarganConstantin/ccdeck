@@ -40,11 +40,39 @@ export const CHECKS_IMPORTS = process.platform === "darwin";
 // Read-only opt-in Codex profile discovery. Exposes opaque references only;
 // never serializes CODEX_HOME, auth.json contents, or OAuth credentials.
 export async function handleCodexProfiles(_req, res) {
-  const { discoverCodexProfiles } = await import('./codex-profiles.mjs');
+  const { codexProfilesForPanel } = await import('./codex-profiles.mjs');
   const { readCodexSelection } = await import('./codex-selection.mjs');
   const selection = await readCodexSelection();
   const { codexLiveAccountStatus } = await import('./codex-live-engine.mjs');
-  send(res, 200, { profiles: await discoverCodexProfiles({ selection, enableNative: true }), revision: selection.revision, live: codexLiveAccountStatus() });
+  const profiles = await codexProfilesForPanel({ selection, ...await codexUseContext(codexLiveAccountStatus) });
+  send(res, 200, { profiles, revision: selection.revision, live: codexLiveAccountStatus() });
+}
+
+/** What else may be using a Codex profile, for the rule its row is hidden by:
+ *  the live engine's sessions and Auto-switch's home. */
+async function codexUseContext(liveStatus) {
+  const { readCodexAuto } = await import('./codex-auto.mjs');
+  const autoHome = await readCodexAuto().then(status => status.homeId ?? null, () => null);
+  return { live: liveStatus(), autoHome };
+}
+
+/** Hide the row of Codex's own home, or show it again (codex-profiles.mjs
+ *  setCodexDefaultHidden). Nothing in that home is touched: the deck notes it in
+ *  its own registry, beside the row's name. */
+export async function handleCodexProfileHide(req, res) {
+  const raw = await readBody(req, res, 1024).catch(() => null);
+  let body;
+  try { body = JSON.parse(raw ?? ''); } catch { return send(res, 400, { ok: false, reason: 'bad_request' }); }
+  if (!body || typeof body !== 'object' || Array.isArray(body) || typeof body.hidden !== 'boolean') return send(res, 400, { ok: false, reason: 'bad_request' });
+  const { setCodexDefaultHidden } = await import('./codex-profiles.mjs');
+  const { codexLiveAccountStatus } = await import('./codex-live-engine.mjs');
+  try {
+    const result = await setCodexDefaultHidden({ id: body.id, hidden: body.hidden }, await codexUseContext(codexLiveAccountStatus));
+    send(res, 200, { ok: true, id: result.id, revision: result.revision, status: result.status });
+  } catch (error) {
+    const reason = error?.code ?? 'operation_failed';
+    send(res, reason === 'selection_busy' ? 409 : reason === 'unknown_profile' ? 404 : 400, { ok: false, reason });
+  }
 }
 
 /** Manual credential transfer is POST-only and behind the global mutation

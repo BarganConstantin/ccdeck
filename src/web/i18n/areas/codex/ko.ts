@@ -134,6 +134,16 @@ const catalog: Catalog = {
   "codex.menu.save": "저장",
   "codex.menu.saveTitle": "이메일 대신 표시할 짧은 이름",
 
+  // Codex's own home: why it has no Remove, and its Hide / Show
+  "codex.menu.hide": "숨기기",
+  "codex.menu.hideTitle": "로그아웃 상태인 동안 이 행을 숨깁니다. Codex가 여기에서 로그인하면 저절로 다시 나타납니다.",
+  "codex.menu.show": "{name} 표시",
+  "codex.menu.showTitle": "숨긴 계정을 목록으로 되돌립니다",
+  "codex.menu.notRemovable": "제거할 수 없음: Codex 자체의 로그인 폴더이며, {product}은(는) 이 폴더를 삭제하지 않습니다.",
+  "codex.panel.hidden": "{name}을(를) 숨겼습니다. 아무 계정의 ⋯ 메뉴에서나 다시 표시할 수 있습니다.",
+  "codex.panel.hideFailed": "계정을 숨기지 못했습니다. 다시 불러온 뒤 시도하세요.",
+  "codex.panel.showFailed": "계정을 표시하지 못했습니다. 다시 불러온 뒤 시도하세요.",
+
   "codex.add.reason.missing": "이 컴퓨터에 Codex가 설치되어 있지 않거나 ccdeck이 찾지 못합니다.",
   "codex.add.reason.expired": "코드를 사용하기 전에 만료되었습니다.",
   "codex.add.reason.noCode": "Codex가 로그인 코드를 제공하지 않았습니다.",

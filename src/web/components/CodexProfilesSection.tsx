@@ -266,7 +266,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
     if (!profiles) return;
     for (const profile of profiles) {
       const key = `${profile.id}:${profile.identityVersion}`;
-      if (profile.available === false || readFor.current.has(key)) continue;
+      if (profile.available === false || profile.hidden || readFor.current.has(key)) continue;
       readFor.current.add(key);
       void checkQuota(profile.id, "auto");
     }
@@ -284,7 +284,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
     const timer = setInterval(() => {
       const now = Date.now();
       for (const profile of profilesRef.current ?? []) {
-        if (profile.available === false) continue;
+        if (profile.available === false || profile.hidden) continue;
         if (profile.active || now - (readAt.current[profile.id] ?? 0) >= OTHER_READ_MS) void checkQuota(profile.id);
       }
     }, DEFAULT_READ_MS);
@@ -298,7 +298,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
   }, [confirmRemove]);
   useEffect(() => { if (!menu) { setConfirmRemove(null); setMenuError(null); } }, [menu]);
 
-  const rows = (profiles ?? []).map((profile, index) => {
+  const roster = (profiles ?? []).map((profile, index) => {
     const reading = readingFor(profile, quotas[profile.id]);
     return {
       profile, reading,
@@ -306,7 +306,13 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
       issue: codexIssue(profile, reading, profiles ?? [], t),
     };
   });
-  type Row = (typeof rows)[number];
+  type Row = (typeof roster)[number];
+  // Codex's own home, hidden while it is signed out and unused: numbered where
+  // it stands, so every other row keeps its number, and drawn nowhere. Any
+  // row's ⋯ shows it again.
+  const rows = roster.filter(row => !row.profile.hidden);
+  const hiddenRow = roster.find(row => row.profile.hidden);
+  const nameOf = (row: Row) => row.account.alias ?? row.account.email ?? t("codex.peer.account", { n: row.account.num });
   const head = rows.find(row => row.profile.active) ?? rows[0];
   const needsAttention = head?.issue?.tone === "warn";
   const rosterRead = profiles !== null;
@@ -328,7 +334,7 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
     try {
       await Promise.all([
         refreshProfiles(), loadAuto(),
-        ...(profiles ?? []).filter(profile => profile.available !== false).map(profile => checkQuota(profile.id)),
+        ...(profiles ?? []).filter(profile => profile.available !== false && !profile.hidden).map(profile => checkQuota(profile.id)),
       ]);
     } catch { setError(true); }
     finally { setReloading(false); }
@@ -403,6 +409,29 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
         setMessage(t("codex.panel.removed"));
         rescueFocus(null);
       } else setMenuError(t("codex.panel.removeFailed"));
+    } finally { release(); }
+  }
+
+  /** Hide Codex's own home's row, or show it again. Only the deck's note about
+   *  the row changes: nothing in that folder is touched. */
+  async function setHidden(row: Row, hidden: boolean, num: number) {
+    if (!claim(`${hidden ? "hide" : "show"}-${num}`)) return;
+    setMenuError(null);
+    try {
+      const out = await postJson("/api/codex-profile-hide", { id: row.profile.id, hidden }).catch(() => null);
+      if (!out?.ok) { setMenuError(t(hidden ? "codex.panel.hideFailed" : "codex.panel.showFailed")); return; }
+      await refreshProfiles().catch(() => setError(true));
+      setMenu(null);
+      if (hidden) {
+        setMessage(t("codex.panel.hidden", { name: nameOf(row) }));
+        rescueFocus(null);
+      } else {
+        // Back where it stood, behind the fold, which opens to show it. Focus
+        // stays with the ⋯ it was chosen from.
+        setMessage("");
+        setRestOpen(true);
+        rescueFocus(num);
+      }
     } finally { release(); }
   }
 
@@ -622,7 +651,8 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
         {switched ? t("codex.panel.nowActive", { name: switched.name }) : ""}
       </div>
       {menu && menuRow && (() => {
-        const { profile, account: a } = menuRow;
+        const row = menuRow;
+        const { profile, account: a } = row;
         const titleId = `ap-codex-pop-title-${a.num}`;
         const refusal = menuError && <p className="ap-pop-error" role="alert">{menuError}</p>;
         const choose = (run: () => void) => () => { setMenu(null); run(); };
@@ -679,6 +709,31 @@ export default function CodexProfilesSection({ onClose, switcher, onNotice, away
                       onClick={choose(() => void copyCommand("/api/codex-terminal-command?action=install", t("codex.panel.commandCopied")))}>{t("codex.menu.enableTerminal")}</button>
                     <button type="button" role="menuitem" className="ap-menu-item"
                       onClick={choose(() => void copyCommand("/api/codex-terminal-command?action=uninstall", t("codex.panel.commandCopied")))}>{t("codex.menu.removeTerminal")}</button>
+                  </>
+                )}
+                {/* A hidden row has no ⋯ of its own, so every row's brings it
+                    back. Only while one is hidden. */}
+                {hiddenRow && (
+                  <button type="button" role="menuitem" className="ap-menu-item"
+                    {...pressProps(`show-${a.num}`)}
+                    title={t("codex.menu.showTitle")}
+                    onClick={() => void setHidden(hiddenRow, false, a.num)}>{t("codex.menu.show", { name: nameOf(hiddenRow) })}</button>
+                )}
+                {/* Codex's own home has no Remove: it is Codex's sign-in folder,
+                    not one the deck made. Where Remove stands on the others, it
+                    says so, and offers Hide while it is signed out and unused. */}
+                {profile.codexOwnHome && !profile.managed && (
+                  <>
+                    <div role="separator" className="ap-menu-sep" />
+                    {profile.hideable && !a.active && auto?.homeId !== profile.id && (
+                      <button type="button" role="menuitem" className="ap-menu-item"
+                        {...pressProps(`hide-${a.num}`)}
+                        title={t("codex.menu.hideTitle")}
+                        onClick={() => void setHidden(row, true, a.num)}>{t("codex.menu.hide")}</button>
+                    )}
+                    <button type="button" role="menuitem" className="ap-menu-item ap-menu-note" aria-disabled="true">
+                      {t("codex.menu.notRemovable", { product: PRODUCT })}
+                    </button>
                   </>
                 )}
                 {profile.managed && (
