@@ -1,9 +1,9 @@
 // The attention rail: the left column's list of every session on the canvas,
 // grouped by what each one wants of you — Needs you, Working, Done,
 // Ready — in V4's Board window. Click a row to fit-view to that session and
-// select its root agent. Toggle visibility with the L key (see App.tsx). The
-// topbar's ☰ used to open it too and has been removed; L is the way in, and
-// the × below and L itself are the two ways out.
+// select its root agent. Toggle visibility with the S key (see App.tsx). The
+// topbar's ☰ used to open it too and has been removed; S is the way in, and
+// the × below and S itself are the two ways out.
 //
 // The order is held while you aim at it: nothing moves under a pointer that is
 // over the rail or a focus that is inside it, and every row travels once to
@@ -707,9 +707,9 @@ export default function SessionList({ state, now, historyReady = true, selectedI
               onClick={e => onNewSession(e.currentTarget)} title={t("board.newSession.hint")} aria-label={t("board.newSession.title")}><PlusGlyph /></button>
           )}
           {/* The way out at phone width, where the drawer covers the canvas; on
-              a wider window L and the Sessions stripe door close the list, so
+              a wider window S and the Sessions stripe door close the list, so
               the frame draws no × (hidden there, not removed). */}
-          <button type="button" className="sl-icon-btn sl-close" onClick={onClose} title={withKey(t("board.list.hideSidebar"), "L", singleKeys)} aria-label={t("board.list.hide")}><CloseGlyph /></button>
+          <button type="button" className="sl-icon-btn sl-close" onClick={onClose} title={withKey(t("board.list.hideSidebar"), "S", singleKeys)} aria-label={t("board.list.hide")}><CloseGlyph /></button>
         </div>
       </div>
       {offline}

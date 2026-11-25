@@ -191,30 +191,28 @@ describe("V opens Settings at Sounds", () => {
   });
 });
 
-// ── M ────────────────────────────────────────────────────────────────────────
-
-describe("M with Settings closed", () => {
-  it("flips the switch from the board, and opens nothing", () => {
+describe("Sessions, This Machine and sound shortcuts", () => {
+  it("routes S to Sessions and unshifted M to This Machine", () => {
     const deck = mountDeckKeys();
+    deck.press("s");
     deck.press("m");
-    expect(deck.props.activateSoundRef.current).toHaveBeenCalledTimes(1);
-    expect(deck.props.openSettings).not.toHaveBeenCalled();
     deck.press("M");
-    expect(deck.props.activateSoundRef.current).toHaveBeenCalledTimes(2);
+    expect(deck.props.toggleSessionList).toHaveBeenCalledTimes(1);
+    expect(deck.props.setMachinePanelOpen).toHaveBeenCalledTimes(2);
+    expect(deck.props.activateSoundRef.current).not.toHaveBeenCalled();
   });
-});
 
-describe("M on a machine with no Claude Code", () => {
-  it("lets M silence it there too, because there is a tone to silence and a switch it flips", () => {
+  it("toggles sound with Shift+M even without Claude Code", () => {
     const deck = mountDeckKeys({ claude: false });
-    deck.press("m");
+    deck.press("M", { shiftKey: true });
     expect(deck.props.activateSoundRef.current).toHaveBeenCalledTimes(1);
+    expect(deck.props.setMachinePanelOpen).not.toHaveBeenCalled();
   });
 
-  it("still waits for the stored flag before M inverts it", () => {
+  it("waits for the stored sound flag before toggling", () => {
     const deck = mountDeckKeys();
     (deck.props.soundOnRef as { current: boolean | null }).current = null;
-    deck.press("m", { target: BODY });
+    deck.press("M", { shiftKey: true, target: BODY });
     expect(deck.props.activateSoundRef.current).not.toHaveBeenCalled();
   });
 });

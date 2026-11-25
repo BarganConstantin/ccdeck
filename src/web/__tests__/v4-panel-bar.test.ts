@@ -110,10 +110,10 @@ describe("the stripes' doors, in V4's order", () => {
 
   it("keeps every key it had", () => {
     const keys = Object.fromEntries([...rails.leftStripe.flat(), ...rails.leftFoot, ...rails.rightStripe.flat()].map(i => [i.id, i.key?.cap]));
-    expect(keys["session-list"]).toBe("L");
+    expect(keys["session-list"]).toBe("S");
     expect(keys["accounts"]).toBe("A");
     expect(keys["usage"]).toBe("U");
-    expect(keys["machine"]).toBe("S");
+    expect(keys["machine"]).toBe("M");
     expect(keys["history"]).toBe("H");
     expect(keys["browser-watch"]).toBe("B");
     expect(keys["settings"]).toBeTruthy();

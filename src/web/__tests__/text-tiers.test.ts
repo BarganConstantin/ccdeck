@@ -310,7 +310,7 @@ describe("what was migrated to the secondary tier", () => {
       ".ctx-files-toggle",
       ".ctx-section-title",
       ".detail-recap",
-      // The trash zone's hint while a card is over it, "The session list (L)
+      // The trash zone's hint while a card is over it, "The session list (S)
       // brings it back": the one sentence that says the removal can be
       // undone, on the zone's red tint, where --muted is 3.42:1 in dark
       // (#1788).

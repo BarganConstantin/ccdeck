@@ -126,7 +126,7 @@ import { useSettingsMenus } from "./use-settings-menus";
 import { useAutoFitSwitch } from "./use-auto-fit-switch";
 import { useRailPanel, useStage, useStageAsks } from "./use-stage";
 import { stageClaimsKeys, targetSession } from "./stage-shell";
-import { paneCount, sessionPaneLinks } from "./workspace-split";
+import { paneCount, paneSessions, sessionPaneLinks } from "./workspace-split";
 import { useFeatureUse } from "./feature-use";
 import { StageDockSlot, StageNavigatorSlot } from "./components/StageSlots";
 import ViewSwitch from "./components/ViewSwitch";
@@ -810,14 +810,17 @@ function Inner() {
     detailWasOpen.current = detailOpen;
   }, [detailOpen]);
   // Workspace opens on the pane: entering closes the Inspector, at every
-  // width, and an entry on a session unfolds the column with it. A session
-  // chosen once Workspace is up leaves the Inspector as the reader has it.
-  // Leaving gives the Board the one it had (use-workspace-inspector.ts).
+  // width, and an entry on a new terminal unfolds the column with it; an entry
+  // back to a pane that was open finds it as it was left. A session chosen
+  // once Workspace is up leaves the Inspector as the reader has it. Leaving
+  // gives the Board the one it had (use-workspace-inspector.ts).
+  const paneUp = inWorkspace && stageClaimsKeys(stage.shell.phase);
   useWorkspaceInspector({
     active: inWorkspace, detailOpen,
     fold: () => setInspectorFolded(true), hold: holdRight.detail, restore: setDetailStored,
-    pane: inWorkspace && stageClaimsKeys(stage.shell.phase) ? targetSession(stage.shell.target) : undefined,
+    pane: paneUp ? targetSession(stage.shell.target) : undefined,
     unfold: () => setInspectorFolded(false),
+    folded: inspectorFolded, panes: paneUp ? paneSessions(stage.split, stage.shell.target) : undefined,
   });
   // The stripes are icons while Workspace is up (stripe-words.ts), in the
   // commit that draws it.
@@ -1728,7 +1731,7 @@ function Inner() {
       {/* The foot of the shell: the grid's fourth row, under the canvas, the
           columns and the stripes (not drawn on a phone, where the dock is) —
           components/StatusBar.tsx. */}
-      {!phone && <StatusBar stageOpen={stage.enabled && stageClaimsKeys(stage.shell.phase)} zoomedOut={zoom.lod !== "detail"} viewChord={stage.workspaceOffered ? (inWorkspace ? "board" : "workspace") : null} waiting={waitingSessions.length > 0} version={version?.running ?? null} onVersion={welcome.openReleaseNotes} setKeyHelpOpen={setKeyHelpOpen} />}
+      {!phone && <StatusBar stageOpen={stage.enabled && stageClaimsKeys(stage.shell.phase)} zoomedOut={zoom.lod !== "detail"} viewChord={stage.workspaceOffered ? (inWorkspace ? "board" : "workspace") : null} splitPanes={stage.arrangement?.mode === "split"} waiting={waitingSessions.length > 0} version={version?.running ?? null} onVersion={welcome.openReleaseNotes} setKeyHelpOpen={setKeyHelpOpen} />}
       </BoardEmptyContext.Provider>
 
       {/* The dialogs, in the order they paint over one another — components/DeckDialogs.tsx. */}

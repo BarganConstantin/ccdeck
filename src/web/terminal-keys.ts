@@ -97,6 +97,7 @@
 // KeyX) under a non-Latin one, where the key types Ч. Alt must be up, because
 // on Windows AltGr arrives as Ctrl+Alt and AltGr+Shift+X types a character on
 // some layouts.
+import { inDesktopApp } from "./in-app";
 import { isApplePlatform, platformName } from "./platform";
 import { ownsKeystroke, type FocusTarget } from "./shortcuts";
 import { textSizeChord } from "./terminal-text-size";
@@ -158,6 +159,32 @@ export function releaseChordLabel(platform: string): string {
 export const RELEASE_CHORD_SPOKEN_MSG = "board.keys.releaseChordSpoken";
 
 // ── 1. the pane ─────────────────────────────────────────────────────────────
+
+export type PaneDirection = "left" | "right" | "up" | "down";
+
+export const PANE_ARROWS: ReadonlyMap<string, PaneDirection> = new Map([
+  ["ArrowLeft", "left"], ["ArrowRight", "right"], ["ArrowUp", "up"], ["ArrowDown", "down"],
+]);
+
+/** The split-pane chord as the status bar writes a chord, in one cap. */
+export function paneFocusChordLabel(apple = isApplePlatform(platformName()), desktop = inDesktopApp()): string {
+  if (!apple) return "Ctrl+Shift+↑↓←→";
+  return desktop ? "⌘⌥ ↑↓←→" : "⌥⇧ ↑↓←→";
+}
+
+/** The same chord as the shortcut sheet writes one, a chip to a key
+ *  (KeyboardHelp.tsx, capChips): `cap` elsewhere, `macCap` on a Mac. */
+export const PANE_FOCUS_CAP = "Ctrl + Shift + ↑↓←→";
+export function paneFocusMacCap(desktop = inDesktopApp()): string {
+  return desktop ? "⌘ ⌥ ↑↓←→" : "⌥ ⇧ ↑↓←→";
+}
+
+export function paneFocusDirection(e: ChordKey, apple = isApplePlatform(platformName()), desktop = inDesktopApp()): PaneDirection | null {
+  const matches = apple
+    ? e.altKey && !e.ctrlKey && (desktop ? e.metaKey && !e.shiftKey : e.shiftKey && !e.metaKey)
+    : e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey;
+  return matches ? PANE_ARROWS.get(e.key) ?? null : null;
+}
 
 /** The attribute that marks the pane: every element under it hands every key
  *  to the session. On the element that holds the terminal, not on the stage's

@@ -96,8 +96,8 @@ describe("#800 — the session list", () => {
     // Settings › General's single-key switch off neither advertises an L that
     // does nothing (WCAG 2.1.4).
     const list = items().left.find(i => i.id === "session-list")!;
-    expect(railHint(list, true, true)?.keys).toBe("L");
-    expect(attr(left(false).get("session-list")!, "aria-keyshortcuts")).toBe("L");
+    expect(railHint(list, true, true)?.keys).toBe("S");
+    expect(attr(left(false).get("session-list")!, "aria-keyshortcuts")).toBe("S");
     setSingleKeyShortcuts(false);
     try {
       expect(railHint(list, false, true)).toBeNull();
@@ -105,7 +105,7 @@ describe("#800 — the session list", () => {
     } finally {
       setSingleKeyShortcuts(true);
     }
-    expect(app).toContain('if (e.key === "l" || e.key === "L") toggleSessionList();');
+    expect(app).toContain('if (e.key === "s" || e.key === "S") toggleSessionList();');
   });
 });
 

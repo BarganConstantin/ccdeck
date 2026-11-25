@@ -25,6 +25,7 @@ import { shellEnv, startDeck, withShellSettings, writeLauncher } from "./deck-ho
 import { deckOrigin, navigationFor, originToFollow } from "./nav.mjs";
 import { overFullScreen, windowsOnScreen } from "./fullscreen-space.mjs";
 import { canInstallQuietly, idleSinceNext, isFresh, POSTPONE_MS, quietSinceNext } from "./auto-update.mjs";
+import { deckRestartStep, landing, LANDING_MS, restartAnswer, trayDrift, VERSION_LOOK_MS, versionsOf } from "./deck-drift.mjs";
 import { createUpdater } from "./updater.mjs";
 import { shouldOfferReadyUpdate } from "./update-notice.mjs";
 import { matchesReadyUpdate, restartReadyUpdate } from "./window-update.mjs";
@@ -113,6 +114,15 @@ let postponedUntil = null;    // until when "Later" holds the quiet install off
 let updateNoticeVersion = null; // last version whose ready notice was shown (#1182)
 let updateNoticePrompting = false;
 let asking = 0;                // questions from ask() on screen now
+// The attached deck's own versions (deck-drift.mjs): what it serves and what
+// its install holds, from /api/version, and when that was last asked.
+let deckVersions = null;
+let deckVersionsAt = 0;
+let deckAutoUpdate = null;    // the deck's own "update by itself" switch, from /api/prefs
+let deckRestartTried = null;  // the last restart asked of a deck for its newer install: { to, outcome, at, pid }
+let deckDriftSaid = "";       // what the log last said about it
+let deckRestartAsking = false; // the switch is being read again before an ask
+let olderVersionOf = null;    // running-deck.mjs olderVersion, from the deck this app carries
 
 // ── the tray ────────────────────────────────────────────────────────────────
 function trayImage(icon) {
@@ -139,6 +149,7 @@ function buildMenu() {
     // Read against now, so an answer held past its expiry leaves the menu on
     // the next redraw rather than at the next ask.
     incidents: incidentsOf?.(providerStatus, Date.now()) ?? [],
+    drift: olderVersionOf ? trayDrift(deckVersions, olderVersionOf) : null,
   }, TRAY_ACTIONS);
 }
 
@@ -273,7 +284,39 @@ async function refreshPrefs() {
   try {
     const { json } = await deckJson(deck, "/api/prefs");
     notifyOn = json?.prefs?.notifications === true;
-  } catch { notifyOn = null; }
+    // The switch the deck's own away-update obeys, on by default as there.
+    deckAutoUpdate = json?.prefs ? json.prefs.autoUpdate !== false : null;
+  } catch { notifyOn = null; deckAutoUpdate = null; }
+  scheduleRedraw();
+}
+
+/**
+ * Ask the attached deck which version it serves and which one its install
+ * holds (deck-drift.mjs), and settle a restart the app asked of it: the new
+ * deck answering on the version asked for is the restart landing, and one
+ * still on the old version is a restart that did not do what it was for —
+ * said, and not asked again for that version.
+ */
+async function refreshDeckVersion() {
+  const asked = deck;
+  if (!asked) return;
+  deckVersionsAt = Date.now();
+  try {
+    if (!olderVersionOf) ({ olderVersion: olderVersionOf } = await import(pathToFileURL(join(deckRoot(), "src", "server", "running-deck.mjs")).href));
+    // The deck may ask npm on the way (an hourly lookup with its own deadline).
+    const { json } = await deckJson(asked, "/api/version", { timeoutMs: 20_000 });
+    // Only for the deck it was asked of, as refreshProviderStatus.
+    if (asked !== deck) return;
+    deckVersions = versionsOf(json);
+    const came = landing({ tried: deckRestartTried, pid: asked.pid, serving: deckVersions?.serving, olderVersion: olderVersionOf, now: Date.now() });
+    if (came === "landed") {
+      trace(`the deck restarted into v${deckVersions.serving}`);
+      deckRestartTried = null;
+    } else if (came === "failed") {
+      trace(`the deck restart for v${deckRestartTried.to} came back on v${deckVersions?.serving ?? "?"}; left to the tray's Restart`);
+      deckRestartTried = { ...deckRestartTried, outcome: "failed", at: Date.now() };
+    }
+  } catch { /* the last answer stays; the next look asks again */ }
   scheduleRedraw();
 }
 
@@ -322,6 +365,8 @@ function attach(found) {
   }
   // Another deck's answer is not this one's, and no deck has none.
   providerStatus = null;
+  deckVersions = null;
+  deckVersionsAt = 0;
   model?.reset();
   model?.setConnected(false);
   scheduleRedraw();
@@ -329,7 +374,9 @@ function attach(found) {
   stream = openTrayStream(deck, {
     connected: () => { model.reset(); model.setConnected(true); scheduleRedraw(); },
     hook: env => { model.apply(env); scheduleRedraw(); },
-    live: () => { refreshPrefs(); publishUpdateState(); refreshProviderStatus(); },
+    // On every attach and reconnect, whichever look found the deck: the one
+    // place that sees every deck the app ends up on (deck-drift.mjs).
+    live: () => { refreshPrefs(); publishUpdateState(); refreshProviderStatus(); refreshDeckVersion(); },
     notify: n => showNotification(n),
     restartUpdate: request => {
       const version = request?.version;
@@ -450,6 +497,8 @@ async function restartDeck() {
   }
   restarting = Date.now();
   scheduleRedraw();
+  const pressed = deck;
+  const to = olderVersionOf ? trayDrift(deckVersions, olderVersionOf)?.to : null;
   let asked;
   try {
     asked = restartAsked(await deckJson(deck, "/api/restart", { method: "POST", body: {}, timeoutMs: 5000 }));
@@ -457,6 +506,12 @@ async function restartDeck() {
     // The socket going away mid-answer is the restart; no answer at all is a
     // deck that is hung (#1782), and the app's own is stopped below.
     asked = restartAsked(err);
+  }
+  // A press that brings a newer install is settled as the app's own ask is:
+  // by the version the deck answers with afterwards (refreshDeckVersion).
+  if (asked && to) {
+    deckRestartTried = { to, outcome: "asked", at: Date.now(), pid: pressed.pid };
+    setTimeout(() => { void refreshDeckVersion(); }, LANDING_MS + 1000);
   }
   if (!asked && ownDeck.current()) {
     await stopOwnDeck();
@@ -1093,7 +1148,7 @@ app.whenReady().then(async () => {
   await ensureDeck().catch(err => trace(`start failed: ${err?.message ?? err}`));
   // The page's housekeeping (stale sessions, evictions), and a look for a deck
   // that came up while none was running.
-  setInterval(() => { model?.tick(); scheduleRedraw(); lookAgainWhileReady(); updateWhenQuiet(); }, 10_000);
+  setInterval(() => { model?.tick(); scheduleRedraw(); lookAgainWhileReady(); updateWhenQuiet(); restartOlderDeckWhenQuiet(); }, 10_000);
   setInterval(() => { if (!deck) discover(); }, 5_000);
   // The status pages, every five minutes while there is work going on — see
   // statusWorthAsking.
@@ -1152,6 +1207,73 @@ function updateWhenQuiet() {
   quietSince = null;
   try { desktopState.merge({ windowOpenAtSelfRestart: windowOpen() }); } catch { /* the window opens, as it always did */ }
   updater.restartNow();
+}
+
+/**
+ * The attached deck serves older code than its own install holds: restart it
+ * into that install through its own route, under the quiet the app updates
+ * itself under — see deck-drift.mjs for the rule and why. After
+ * updateWhenQuiet on the same tick, so both read one measure of the quiet, and
+ * an app restart that tick started has already reset it.
+ */
+async function restartOlderDeckWhenQuiet() {
+  if (!deck || quitting || leaving) return;
+  if (Date.now() - deckVersionsAt >= VERSION_LOOK_MS) { void refreshDeckVersion(); return; }
+  if (!deckVersions || !olderVersionOf) return;
+  const now = Date.now();
+  const step = deckRestartStep({
+    versions: deckVersions,
+    olderVersion: olderVersionOf,
+    autoUpdate: deckAutoUpdate,
+    tried: deckRestartTried,
+    windowFocused: !!win && !win.isDestroyed() && win.isFocused(),
+    busy: !!starting || !!restarting,
+    quietSince,
+    idleSince,
+    now,
+  });
+  // Once per change, so the log says why a deck behind its install was left.
+  const said = step.act === "none" ? "" : `${step.act}:${step.to}:${step.why ?? ""}`;
+  if (said !== deckDriftSaid) {
+    deckDriftSaid = said;
+    if (said) trace(`the deck serves v${deckVersions.serving}, its install v${step.to}: ${step.act}${step.why ? ` (${step.why})` : ""}`);
+  }
+  if (step.act !== "restart" || deckRestartAsking) return;
+  const asked = deck;
+  // The deck's own switch, read again at the moment of asking, as the deck's
+  // away-update asks again before it acts: somebody may have turned it off
+  // since the last look. The next tick says so if they have.
+  deckRestartAsking = true;
+  try { await refreshPrefs(); } finally { deckRestartAsking = false; }
+  if (deck !== asked || deckAutoUpdate !== true || starting || restarting) return;
+  restarting = Date.now();
+  deckRestartTried = { to: step.to, outcome: "asked", at: restarting, pid: asked.pid };
+  quietSince = null;
+  scheduleRedraw();
+  let outcome;
+  try {
+    // whenIdle: the page's automatic restart, which the deck grants only while
+    // it hears no turn running.
+    outcome = await deckJson(asked, "/api/restart", { method: "POST", body: { whenIdle: true }, timeoutMs: 5000 });
+  } catch (err) {
+    outcome = err;
+  }
+  const answer = restartAnswer(outcome);
+  if (answer !== "asked") {
+    restarting = null;
+    deckRestartTried = { ...deckRestartTried, outcome: answer, at: Date.now() };
+    // A turn the deck heard and the app's board did not: the agents' quiet
+    // starts over, as the page's refused automatic ask starts its own over.
+    if (answer === "busy") idleSince = null;
+    trace(answer === "busy" ? "the deck heard a turn running; its restart waits" : `the deck did not take its restart (${outcome?.json?.reason ?? outcome?.status ?? outcome?.message ?? "no answer"}); left to the tray's Restart`);
+    scheduleRedraw();
+    return;
+  }
+  // As restartDeck: a restart that never lands is not left saying it is
+  // happening, and the new deck answering is what settles it.
+  setTimeout(() => { if (restarting && Date.now() - restarting >= 30_000) { restarting = null; scheduleRedraw(); } }, 30_000);
+  setTimeout(() => { void refreshDeckVersion(); }, LANDING_MS + 1000);
+  discoverSoon(1500);
 }
 
 /**

@@ -143,7 +143,7 @@ describe("the Settings row", () => {
     expect(SINGLE_KEYS_NOTE).toMatch(/\bL, U, M and \?/);
     expect(SINGLE_KEYS_NOTE).not.toMatch(/Space/);
     const caps = KEY_HELP.flatMap(g => g.rows).filter(r => !r.chord && r.binds.some(isCharacterKey)).map(r => r.cap);
-    for (const cap of ["L", "U", "M", "?"]) expect(caps, cap).toContain(cap);
+    for (const cap of ["S", "U", "M", "?"]) expect(caps, cap).toContain(cap);
     expect(caps).not.toContain("Space");
     expect(SINGLE_KEYS_NOTE).toMatch(/voice control/);
   });
@@ -159,8 +159,8 @@ describe("the Settings row", () => {
 
   it("draws M's cap beside the sound switch only while M does something", () => {
     const on = renderToStaticMarkup(createElement(SoundSwitch, { soundOn: true, onToggleSound: noop }));
-    expect(on).toMatch(/<kbd class="settings-key"[^>]*>M<\/kbd>/);
-    expect(on).toContain('aria-keyshortcuts="M"');
+    expect(on).toMatch(/<kbd class="settings-key"[^>]*>Shift\+M<\/kbd>/);
+    expect(on).toContain('aria-keyshortcuts="Shift+M"');
     setSingleKeyShortcuts(false);
     const off = renderToStaticMarkup(createElement(SoundSwitch, { soundOn: true, onToggleSound: noop }));
     expect(off).not.toContain("<kbd");
@@ -188,7 +188,7 @@ describe("titles drop the letter when the switch is off", () => {
     )));
   };
   const LETTERS: Array<[string, string]> = [
-    ["session-list", "L"], ["usage", "U"], ["history", "H"], ["accounts", "A"], ["machine", "S"], ["browser-watch", "B"],
+    ["session-list", "S"], ["usage", "U"], ["history", "H"], ["accounts", "A"], ["machine", "M"], ["browser-watch", "B"],
   ];
   const every = () => { const c = items(); return [...c.left, ...c.right.flat(), ...c.utilities]; };
 
@@ -271,7 +271,7 @@ describe("titles drop the letter when the switch is off", () => {
     const draw = () => renderToStaticMarkup(createElement(DragTrashZone, {
       trashZoneRef: ref(), trashState: "over", trashPhase: "shown", trashLabel: "api",
     } as unknown as Parameters<typeof DragTrashZone>[0]));
-    expect(draw()).toContain("The session list (L) brings it back");
+    expect(draw()).toContain("The session list (S) brings it back");
     setSingleKeyShortcuts(false);
     expect(draw()).toContain("The session list brings it back");
   });
@@ -286,10 +286,10 @@ describe("titles drop the letter when the switch is off", () => {
       ["components/CanvasControls.tsx", "const key = singleKeys ? keyCap : undefined;"],
       ["components/StatusBar.tsx", 'singleKeys ? withKey(t("board.controls.keys"), "?", true) : t("board.controls.keysOff")'],
       ["components/TopbarReadouts.tsx", "dropped: pauseGate.dropped, singleKeys,"],
-      ["components/SessionList.tsx", 'withKey(t("board.list.hideSidebar"), "L", singleKeys)'],
+      ["components/SessionList.tsx", 'withKey(t("board.list.hideSidebar"), "S", singleKeys)'],
       ["components/UsagePanel.tsx", 'withKey(t("usage.close"), "U", singleKeys)'],
       ["components/AccountsPanel.tsx", 'withKey(t("accounts.close"), "A", singleKeys)'],
-      ["components/Detail.tsx", 'withKey(t("board.detail.listUpper"), "L", singleKeys)'],
+      ["components/Detail.tsx", 'withKey(t("board.detail.listUpper"), "S", singleKeys)'],
     ] as const) {
       expect(sourceOf(rel), rel).toContain(call);
     }
@@ -341,7 +341,7 @@ describe("the shortcuts sheet with the switch off", () => {
     const html = renderToStaticMarkup(createElement(KeyboardHelp, { onClose: noop, onSettings: noop }));
     expect(html).not.toContain("kh-off");
     expect(html).not.toContain("aria-describedby");
-    expect(html).toContain("<kbd>L</kbd>");
+    expect(html).toContain("<kbd>S</kbd>");
     expect(html).toContain(`<p class="kh-foot">${KEY_HELP_NOTE} ${KEY_HELP_SWITCH_NOTE}</p>`);
     expect(KEY_HELP_SWITCH_NOTE).toBe("Single-key shortcuts can be turned off in Settings › Keyboard.");
   });

@@ -63,12 +63,13 @@ import { localStore, readStored, removeStored, writeStored } from "./storage";
 import type { LaunchOptions, TerminalProvider } from "./terminal-api";
 import { heldKeys, heldText, holdKey, isPaneInput, startTypeAhead, typesItself, type HeldKeys, type TypeAhead } from "./type-ahead";
 import { useAsks, type Asks } from "./use-asks";
+import type { PaneDirection } from "./terminal-keys";
 import type { StageShortcuts } from "./use-deck-shortcuts";
 import { useMirroredRef } from "./use-mirrored-ref";
 import { t } from "./i18n";
 import { refuseSave, setSettingsFailure } from "./settings-failure";
 import {
-  MIN_PANE_COLS, MIN_PANE_ROWS, arrange, focusSplit, insertPane, loadSplit, movePane, paneCount, paneIds, paneTarget, paneWith,
+  MIN_PANE_COLS, MIN_PANE_ROWS, adjacentPane, arrange, focusSplit, insertPane, loadSplit, movePane, paneCount, paneIds, paneTarget, paneWith,
   promoteLaunch, removePane, saveSplit, setRatio, singleSplit, withFocusedTarget,
   type Arrangement, type DropZone, type EdgeZone, type SplitState,
 } from "./workspace-split";
@@ -391,11 +392,16 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     }
     // SPLIT (#102): a session already in another pane is never opened twice
     // (no second pane, no second attach): the keys go to the pane that has it,
-    // which goes on showing it as it was.
-    if (workspaceRef.current && target.kind === "session") {
+    // which goes on showing it as it was. Asked on the Board too: a card's
+    // click opens its session here before the view turns to Workspace, and a
+    // Board stage is carried into Workspace's pane in focus. Asked only in
+    // Workspace, both put the session in the pane in focus, over what it
+    // showed, while another pane still had it. Off Workspace the stage is not
+    // a pane: what it shows is never written into one.
+    if (target.kind === "session" && paneCount(splitRef.current) > 1) {
       const s = splitRef.current;
-      const shown = shellRef.current.phase !== "closed" ? shellRef.current.target : null;
-      const other = paneCount(s) > 1 ? paneWith(s, target.id, shown, s.focused) : null;
+      const shown = workspaceRef.current && shellRef.current.phase !== "closed" ? shellRef.current.target : null;
+      const other = paneWith(s, target.id, shown, s.focused);
       if (other) {
         setSplit(focusSplit(s, other, shown));
         target = paneTarget(s, other, null);
@@ -622,6 +628,14 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     const id = a.order[n - 1];
     return id ? focusPaneId(id, { keys: true }) : false;
   }, [arrangementRef, focusPaneId]);
+
+  const focusPaneDirection = useCallback((direction: PaneDirection): boolean => {
+    const a = arrangementRef.current;
+    if (a?.mode !== "split") return false;
+    const id = adjacentPane(a.rects, splitRef.current.focused, direction);
+    if (id) focusPaneId(id, { keys: true });
+    return true;
+  }, [arrangementRef, splitRef, focusPaneId]);
 
   /** A session beside a pane, with the keys: ⇧↵ on its row (beside the pane
    *  in focus), a drop on a pane's edge. Already in a pane, the keys go there;
@@ -1290,7 +1304,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     onNodeClick, followSession, switchTo, openFromButton, newSessionFromBoard, openTile, launch, onLaunched,
     focusPane, release, takeTypeAhead, holdsTypeAhead, close, closed, failed, giveRightBack, reveal, revealed, announce,
     openPopover, newSessionFrom, closePopover, onCols, onColsReset, toggleExpand, unzoom, firstRunDone, onCell, onBarH, onHeadH,
-    split, arrangement, paneMin, geometryFor, requestFor, focusPaneId, focusPaneAt, openBeside, dropHere, movePaneTo, closePane,
+    split, arrangement, paneMin, geometryFor, requestFor, focusPaneId, focusPaneAt, focusPaneDirection, openBeside, dropHere, movePaneTo, closePane,
     setSplitRatio, toggleMax, showAll, splitNote: splitNote?.text ?? null,
   };
 }
@@ -1417,7 +1431,7 @@ const NO_WAITING: readonly BlockedSession[] = [];
  * few lines later in the same render, is in time.
  */
 export function useStageAsks(stage: Stage, waitingSessions: readonly BlockedSession[], canvasRef: MutableRefObject<HTMLElement | null>): Asks {
-  const { enabled, shell, switchTo, navRef, focusPane, release, keysRef, workspace, expanded, focusPaneAt } = stage;
+  const { enabled, shell, switchTo, navRef, focusPane, release, keysRef, workspace, expanded, focusPaneAt, focusPaneDirection } = stage;
   // With the flag off the run is given nothing to watch, so it never renders
   // the deck again for a list it has no use for.
   const asks = useAsks({
@@ -1440,7 +1454,7 @@ export function useStageAsks(stage: Stage, waitingSessions: readonly BlockedSess
       focusPane,
       nextAsk: asks.nextAsk,
       release,
-      ...(workspace ? { focusPaneAt } : {}),
+      ...(workspace ? { focusPaneAt, focusPaneDirection } : {}),
     }
     : null;
   return asks;

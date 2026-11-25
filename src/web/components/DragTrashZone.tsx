@@ -33,7 +33,7 @@ export default function DragTrashZone({ trashZoneRef, trashState, trashPhase, tr
             : t("board.trash.drop")}
         </span>
         <span className="drag-trash-hint">
-          {trashState === "over" ? t("board.trash.bringsBack", { list: withKey(t("board.detail.listUpper"), "L", singleKeys) }) : t("board.trash.keepsRunning")}
+          {trashState === "over" ? t("board.trash.bringsBack", { list: withKey(t("board.detail.listUpper"), "S", singleKeys) }) : t("board.trash.keepsRunning")}
         </span>
       </span>
     </div>

@@ -116,8 +116,8 @@ describe("what the switch says it is", () => {
     for (const soundOn of [true, false]) {
       // The key as a cap beside the switch it flips, and declared on the
       // switch for a reader who cannot see the cap (#2176).
-      expect(drawSounds({ soundOn }), `soundOn=${soundOn}`).toMatch(/<kbd class="settings-key"[^>]*>M<\/kbd>/);
-      expect(drawSounds({ soundOn }), `soundOn=${soundOn}`).toContain('aria-keyshortcuts="M"');
+      expect(drawSounds({ soundOn }), `soundOn=${soundOn}`).toMatch(/<kbd class="settings-key"[^>]*>Shift\+M<\/kbd>/);
+      expect(drawSounds({ soundOn }), `soundOn=${soundOn}`).toContain('aria-keyshortcuts="Shift+M"');
     }
   });
 

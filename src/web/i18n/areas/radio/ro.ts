@@ -173,7 +173,7 @@ const catalog: Catalog = {
   // Sound switch
   "radio.sound.name": "Redă sunete",
   "radio.sound.note": "Un sunet când se termină un tur și când Claude cere ceva.",
-  "radio.sound.keyTitle": "Apasă M oriunde pentru a opri sau porni sunetul",
+  "radio.sound.keyTitle": "Apasă Shift+M oriunde pentru a opri sau porni sunetul",
   // Tone names
   "radio.tone.two": "Două note",
   "radio.tone.descent": "Descendent",

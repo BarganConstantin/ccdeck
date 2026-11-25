@@ -135,19 +135,20 @@ describe("what each button is to assistive tech", () => {
 });
 
 describe("the keys did not move with the buttons", () => {
-  // Every key reaches the same setter the button presses: L and A the left
-  // column's two toggles, U, S, H and B the panels' and dialogs' own.
+  // Every key reaches the same setter the button presses: S and A the left
+  // column's two toggles, U, M, H and B the panels' and dialogs' own.
   const keys = sourceOf("use-deck-shortcuts.ts");
   const rails = sourceOf("rail-items.tsx");
   const pairs: Array<[string, RegExp, RegExp]> = [
-    ["L", /if \(e\.key === "l" \|\| e\.key === "L"\) toggleSessionList\(\);/, /onPress: toggleSessionList,/],
+    ["S", /if \(e\.key === "s" \|\| e\.key === "S"\) toggleSessionList\(\);/, /onPress: toggleSessionList,/],
     ["A", /if \(e\.key === "a" \|\| e\.key === "A"\) \{ if \(providersRef\.current\.claude \|\| providersRef\.current\.codex\) toggleAccountsPanel\(\); \}/, /onPress: toggleAccountsPanel,/],
     ["U", /if \(e\.key === "u" \|\| e\.key === "U"\) setUsagePanelOpen\(o => !o\);/, /onPress: \(\) => setUsagePanelOpen\(o => !o\),/],
-    ["S", /if \(e\.key === "s" \|\| e\.key === "S"\) setMachinePanelOpen\(o => !o\);/, /onPress: \(\) => setMachinePanelOpen\(o => !o\),/],
+    // M without Shift; Shift + M is the sound switch.
+    ["M", /if \(e\.key === "m" \|\| e\.key === "M"\) \{\s*if \(e\.shiftKey\) \{[^}]*\} else \{\s*setMachinePanelOpen\(o => !o\);/, /onPress: \(\) => setMachinePanelOpen\(o => !o\),/],
     ["H", /if \(e\.key === "h" \|\| e\.key === "H"\) setUsageHistoryOpen\(o => !o\);/, /onPress: \(\) => setUsageHistoryOpen\(o => !o\),/],
     ["B", /if \(e\.key === "b" \|\| e\.key === "B"\) setBrowserWatchOpen\(o => !o\);/, /onPress: \(\) => setBrowserWatchOpen\(o => !o\),/],
   ];
-  it("binds L, A, U, S, H and B to the setters the stripe buttons press", () => {
+  it("binds S, A, U, M, H and B to the setters the stripe buttons press", () => {
     for (const [cap, key, press] of pairs) {
       expect(keys, `${cap}'s handler`).toMatch(key);
       expect(rails, `${cap}'s button`).toMatch(press);
