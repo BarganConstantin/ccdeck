@@ -141,6 +141,16 @@ const catalog: Catalog = {
   "codex.menu.save": "Save",
   "codex.menu.saveTitle": "A short name to show instead of the email",
 
+  // Codex's own home: why it has no Remove, and its Hide / Show
+  "codex.menu.hide": "Hide",
+  "codex.menu.hideTitle": "Hide this row while it stays signed out. It comes back by itself when Codex signs in here.",
+  "codex.menu.show": "Show {name}",
+  "codex.menu.showTitle": "Bring the hidden account back to the list",
+  "codex.menu.notRemovable": "Can't be removed: it is Codex's own sign-in folder, and {product} never deletes it.",
+  "codex.panel.hidden": "{name} is hidden. Any account's ⋯ menu shows it again.",
+  "codex.panel.hideFailed": "Could not hide the account. Reload and try again.",
+  "codex.panel.showFailed": "Could not show the account. Reload and try again.",
+
   // The Add / Sign in dialog (AddCodexAccountDialog)
   "codex.add.reason.missing": "Codex is not installed on this machine, or the deck cannot find it.",
   "codex.add.reason.expired": "The code expired before it was used.",

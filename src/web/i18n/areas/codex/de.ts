@@ -135,6 +135,16 @@ const catalog: Catalog = {
   "codex.menu.save": "Speichern",
   "codex.menu.saveTitle": "Ein kurzer Name, der statt der E-Mail angezeigt wird",
 
+  // Codex's own home: why it has no Remove, and its Hide / Show
+  "codex.menu.hide": "Ausblenden",
+  "codex.menu.hideTitle": "Blendet diese Zeile aus, solange sie abgemeldet bleibt. Sobald sich Codex hier anmeldet, erscheint sie von selbst wieder.",
+  "codex.menu.show": "{name} einblenden",
+  "codex.menu.showTitle": "Holt das ausgeblendete Konto zurück in die Liste",
+  "codex.menu.notRemovable": "Nicht entfernbar: Das ist der eigene Anmeldeordner von Codex, und {product} löscht ihn nie.",
+  "codex.panel.hidden": "{name} ist ausgeblendet. Das ⋯-Menü jedes Kontos blendet es wieder ein.",
+  "codex.panel.hideFailed": "Das Konto konnte nicht ausgeblendet werden. Lade neu und versuche es erneut.",
+  "codex.panel.showFailed": "Das Konto konnte nicht eingeblendet werden. Lade neu und versuche es erneut.",
+
   "codex.add.reason.missing": "Codex ist auf diesem Rechner nicht installiert oder ccdeck findet es nicht.",
   "codex.add.reason.expired": "Der Code ist abgelaufen, bevor er verwendet wurde.",
   "codex.add.reason.noCode": "Codex hat keinen Anmeldecode geliefert.",

@@ -139,6 +139,16 @@ const catalog: Catalog = {
   "codex.menu.save": "保存",
   "codex.menu.saveTitle": "メールアドレスの代わりに表示する短い名前",
 
+  // Codex's own home: why it has no Remove, and its Hide / Show
+  "codex.menu.hide": "非表示にする",
+  "codex.menu.hideTitle": "サインアウトのままの間、この行を非表示にします。Codex がここでサインインすると自動的に再表示されます。",
+  "codex.menu.show": "{name} を表示",
+  "codex.menu.showTitle": "非表示にしたアカウントを一覧に戻します",
+  "codex.menu.notRemovable": "削除できません。これは Codex 自身のサインイン用フォルダーで、{product} が削除することはありません。",
+  "codex.panel.hidden": "{name} を非表示にしました。どのアカウントの ⋯ メニューからでも再表示できます。",
+  "codex.panel.hideFailed": "アカウントを非表示にできませんでした。再読み込みしてもう一度お試しください。",
+  "codex.panel.showFailed": "アカウントを表示できませんでした。再読み込みしてもう一度お試しください。",
+
   // The Add / Sign in dialog (AddCodexAccountDialog)
   "codex.add.reason.missing": "このマシンに Codex がインストールされていないか、ccdeck が見つけられません。",
   "codex.add.reason.expired": "コードが使われる前に期限切れになりました。",

@@ -93,4 +93,23 @@ describe('Codex account route boundary', () => {
     expect(await pathInjection.json()).toEqual({ ok: false, reason: 'bad_request' });
     expect((await fetch(`${base}/api/codex-accounts-import`, { method: 'POST', headers: headers(), body: JSON.stringify({ blob: 'x'.repeat(520000), expectedRevision: 0 }) })).status).toBe(413);
   });
+  it('guards Hide on Codex\'s own home, and refuses it while Codex cannot say the row is signed out', async () => {
+    const hide = (body: unknown, extra: Record<string, string> = {}) =>
+      fetch(`${base}/api/codex-profile-hide`, { method: 'POST', headers: { ...headers(), ...extra }, body: JSON.stringify(body) });
+    expect((await fetch(`${base}/api/codex-profile-hide`, { method: 'POST', body: '{}' })).status).toBe(401);
+    expect((await hide({}, { origin: 'https://attacker.example' })).status).toBe(403);
+    const roster = await (await fetch(`${base}/api/codex-profiles`, { headers: headers() })).json();
+    const ownRow = roster.profiles[0];
+    expect(ownRow).toMatchObject({ codexOwnHome: true });
+    // This deck's Codex answers nothing (mocked above): never taken for signed out.
+    expect(ownRow).not.toHaveProperty('hideable');
+    expect(await (await hide({ id: ownRow.id, hidden: 'yes' })).json()).toEqual({ ok: false, reason: 'bad_request' });
+    const refused = await hide({ id: ownRow.id, hidden: true });
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toEqual({ ok: false, reason: 'profile_in_use' });
+    expect(await (await hide({ id: ownRow.id, hidden: false })).json()).toMatchObject({ ok: true, status: 'shown' });
+    const after = await (await fetch(`${base}/api/codex-profiles`, { headers: headers() })).json();
+    expect(after.profiles[0]).not.toHaveProperty('hidden');
+    expect(after.revision).toBe(roster.revision);
+  });
 });

@@ -139,6 +139,16 @@ const catalog: Catalog = {
   "codex.menu.save": "Salvar",
   "codex.menu.saveTitle": "Um nome curto para mostrar no lugar do e-mail",
 
+  // Codex's own home: why it has no Remove, and its Hide / Show
+  "codex.menu.hide": "Ocultar",
+  "codex.menu.hideTitle": "Oculta esta linha enquanto ela continuar sem login. Ela volta sozinha quando o Codex fizer login aqui.",
+  "codex.menu.show": "Mostrar {name}",
+  "codex.menu.showTitle": "Traz a conta oculta de volta para a lista",
+  "codex.menu.notRemovable": "Não pode ser removida: é a pasta de login do próprio Codex, e o {product} nunca a apaga.",
+  "codex.panel.hidden": "{name} está oculta. O menu ⋯ de qualquer conta a mostra de novo.",
+  "codex.panel.hideFailed": "Não foi possível ocultar a conta. Recarregue e tente de novo.",
+  "codex.panel.showFailed": "Não foi possível mostrar a conta. Recarregue e tente de novo.",
+
   // The Add / Sign in dialog (AddCodexAccountDialog)
   "codex.add.reason.missing": "O Codex não está instalado neste computador, ou o ccdeck não o encontra.",
   "codex.add.reason.expired": "O código expirou antes de ser usado.",

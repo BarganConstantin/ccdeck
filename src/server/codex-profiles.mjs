@@ -6,7 +6,7 @@
 import { access, realpath, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { readCodexSelection, codexProfileId, codexSelectionError, moveCodexLogin } from './codex-selection.mjs';
+import { readCodexSelection, codexProfileId, codexSelectionError, moveCodexLogin, markCodexProfileHidden } from './codex-selection.mjs';
 import { usesNativeCodexAccount } from './codex-auth.mjs';
 import { readNativeCodexAccount } from './codex-native-account.mjs';
 import { codexLoginOf } from './codex-lan-identity.mjs';
@@ -97,6 +97,9 @@ export async function discoverCodexProfiles(options = {}) {
       label: managedLabel ? `${managedLabel}${accountLabel ? ` · ${accountLabel}` : ''}` : accountLabel ?? (profiles.length === 0 ? 'Default Codex' : `Codex profile ${profiles.length + 1}`),
       ...(managedLabel ? { managedLabel } : {}),
       ...(managedEntry ? { managed: true } : {}),
+      /** The home Codex uses by itself (CODEX_HOME, else ~/.codex): its own
+       *  sign-in folder, which the deck lists and never removes. */
+      ...(directory === homes[0] && !managedEntry ? { codexOwnHome: true } : {}),
       /** Who it is signed in as, or null: the row's name when it has no other. */
       account: accountLabel,
       active: id === selection.profileId,
@@ -110,6 +113,76 @@ export async function discoverCodexProfiles(options = {}) {
     logins.set(id, native?.signedIn ? `${native.identityVersion}:${identity ?? ''}` : identity);
   }
   return withSameAccount(profiles, logins);
+}
+
+/** Whether Codex itself has said nobody is signed in here: the panel's rule
+ *  (src/web/codex-accounts.ts signedOut). A login it could not read is not
+ *  taken for none. */
+export function codexProfileSignedOut(profile) {
+  if (profile.metadataUnavailable) return false;
+  return profile.authSource === 'native' ? !profile.signedIn : !profile.signedInFilePresent;
+}
+
+/** Whether something still relies on a profile: new sessions start on it,
+ *  running ones were sent to it or run on it, or Auto-switch goes home to it.
+ *  `live` is the live engine's status, `autoHome` Auto-switch's home id. */
+export function codexProfileInUse(profile, { selection, live, autoHome } = {}) {
+  const { id } = profile;
+  return profile.active === true || selection?.profileId === id || selection?.runningSelection?.id === id
+    || live?.profileId === id || live?.requestedProfileId === id || autoHome === id;
+}
+
+/** Whether the row of Codex's own home may be hidden now: signed out, as Codex
+ *  itself says, and used by nothing. */
+export function codexOwnHomeHideable(profile, context = {}) {
+  return profile.codexOwnHome === true && profile.managed !== true
+    && codexProfileSignedOut(profile) && !codexProfileInUse(profile, context);
+}
+
+/** Whether a hidden row stays hidden: nothing uses it and nobody has been seen
+ *  signing in there. A login that could not be read this round keeps it as it
+ *  is, rather than bringing it back on a hiccup. */
+function staysHidden(profile, context) {
+  const signedIn = !profile.metadataUnavailable && !codexProfileSignedOut(profile);
+  return profile.codexOwnHome === true && profile.managed !== true && !signedIn && !codexProfileInUse(profile, context);
+}
+
+/** The roster as the accounts panel reads it. Codex's own home says whether it
+ *  can be hidden (`hideable`) and, while the deck's note says so, that it is
+ *  (`hidden`). A note whose row can no longer stay hidden is dropped, so the row
+ *  is back as soon as Codex signs in there or something uses it, and a later
+ *  sign-out does not hide it again. `options.live` and `options.autoHome` are
+ *  the context codexProfileInUse reads. */
+export async function codexProfilesForPanel(options = {}) {
+  const selection = options.selection ?? await readCodexSelection(options);
+  const roster = await discoverCodexProfiles({ ...options, selection, enableNative: true });
+  const context = { selection, live: options.live, autoHome: options.autoHome };
+  const noted = new Set(selection.hiddenProfiles ?? []);
+  const profiles = roster.map(profile => {
+    const hidden = noted.has(profile.id) && staysHidden(profile, context);
+    if (!hidden && !codexOwnHomeHideable(profile, context)) return profile;
+    return { ...profile, hideable: true, ...(hidden ? { hidden: true } : {}) };
+  });
+  for (const id of noted) {
+    if (profiles.some(profile => profile.id === id && profile.hidden)) continue;
+    // Best effort: the next read tries again.
+    await markCodexProfileHidden({ id, hidden: false }, options).catch(() => {});
+  }
+  return profiles;
+}
+
+/** Hide Codex's own home's row, or show it again: the panel's press. Hiding is
+ *  refused unless the deck's own reading says the row is signed out and unused,
+ *  the rule the panel offers it by; showing is always allowed. */
+export async function setCodexDefaultHidden({ id, hidden } = {}, options = {}) {
+  if (hidden === true) {
+    const selection = await readCodexSelection(options);
+    const roster = await discoverCodexProfiles({ ...options, selection, enableNative: true });
+    const row = roster.find(profile => profile.id === id);
+    if (!row?.codexOwnHome) throw codexSelectionError('not_hideable');
+    if (!codexOwnHomeHideable(row, { selection, live: options.live, autoHome: options.autoHome })) throw codexSelectionError('profile_in_use');
+  }
+  return markCodexProfileHidden({ id, hidden }, options);
 }
 
 /** Replace the stored login of an account already here with a sign-in that landed
