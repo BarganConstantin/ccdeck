@@ -60,7 +60,9 @@ describe("the record of the kit", () => {
   it("vendors every image the page serves, so none of them is drawn by hand", () => {
     // The repo drew its own ring for the favicon, the icons and the topbar
     // until the kit. Anything in public/ that is not a kit copy is that again.
-    const served = filesUnder(PUBLIC).filter(p => !p.endsWith("/manifest.webmanifest"));
+    // The manifest and the service worker (the buttons on Chat's alerts) are
+    // not images.
+    const served = filesUnder(PUBLIC).filter(p => !/\/(manifest\.webmanifest|sw\.js)$/.test(p));
     const notFromKit = served.filter(p => !copies.includes(p));
     expect(notFromKit, "the page serves an image that did not come from the kit").toEqual([]);
     const vendored = filesUnder(BRAND).filter(p => !/\/(README\.md|kit\.json|kit\.mjs)$/.test(p));
