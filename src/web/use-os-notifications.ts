@@ -23,6 +23,9 @@ import type { BlockedSession } from "./ambient-counts";
 import type { GraphState } from "./graph-state";
 import { useMirroredRef } from "./use-mirrored-ref";
 import { refuseSave, setSettingsFailure } from "./settings-failure";
+import { alertFor, pendingCall } from "./alert-model";
+import { notifyActions, registerAlertWorker, showRich, type NotifyData, type RichNotice } from "./alert-worker";
+import { t as tNow, type TFunction } from "./i18n";
 
 /** The kit's 192px web icon, the one the manifest names for installs. */
 const NOTIFICATION_ICON = "/icon-192.png";
@@ -30,10 +33,49 @@ const NOTIFICATION_ICON = "/icon-192.png";
 /** No graph, no finished turns: the suite's harnesses pass none. */
 const NO_TURNS: FinishedTurn[] = [];
 
+/** What a notice about a waiting session carries for the service worker: what
+ *  the session waits on, and the buttons that answers (alert-worker.ts). A
+ *  finished turn carries none. */
+export interface NoticeExtras {
+  data: NotifyData;
+  actions: RichNotice["actions"];
+}
+
+/** The buttons and data for each waiting session's notice: "Allow once" and
+ *  "Open" for a permission prompt the deck can answer from Chat, "Open in Chat"
+ *  for the rest (alert-model.ts says which is which). */
+export function waitingExtras(b: BlockedSession, state: GraphState | null, tr: TFunction = tNow): NoticeExtras {
+  const owner = (agentId: string | undefined) => (agentId ? state?.agents.get(agentId)?.sessionId : undefined);
+  const alert = alertFor(b, {
+    provider: state?.agents.get(b.id)?.provider,
+    pending: state ? pendingCall(state.toolIndex.values(), owner, b.id, b.waiting.since) : null,
+  }, tr);
+  return {
+    data: { sessionId: b.id, kind: alert.kind, since: b.waiting.since },
+    actions: notifyActions(alert.kind, alert.kind === "permission" && alert.choices.length > 0, {
+      allow: tr("board.chat.alert.allowOnce"), open: tr("board.chat.alert.open"), openInChat: tr("board.chat.alert.openInChat"),
+    }),
+  };
+}
+
 /** Raise one notice, a blocked session's or a finished turn's, and land on its
  *  session when it is clicked. One function for both, so the two can never
- *  differ in where a click takes you. */
-function showNotice(n: BlockNotice, focusSession: (sessionId: string) => void): void {
+ *  differ in where a click takes you. With the deck's service worker running
+ *  it goes up through it, with its buttons, and the worker hands the press
+ *  back to the page (use-chat-alerts.ts); without one it is the plain
+ *  notification it always was. */
+function showNotice(n: BlockNotice, focusSession: (sessionId: string) => void, extras?: NoticeExtras): void {
+  if (extras) {
+    void showRich({
+      key: n.key, title: n.title, body: n.body, icon: NOTIFICATION_ICON, data: extras.data,
+      actions: extras.actions, requireInteraction: extras.data.kind !== "finished",
+    }, () => showPlain(n, focusSession));
+    return;
+  }
+  showPlain(n, focusSession);
+}
+
+function showPlain(n: BlockNotice, focusSession: (sessionId: string) => void): void {
   try {
     // `tag` is the notice's key, so a second deck on the same machine REPLACES
     // this notification in the tray rather than stacking a duplicate beside
@@ -68,6 +110,9 @@ export interface OsNotificationsDeps {
   liveSince: number | null;
   /** Bring a session into view; what clicking a notification does. */
   focusSession: (sessionId: string) => void;
+  /** Bring a waiting session into view in Chat: what clicking one about a
+   *  wait does. Left out, the click is `focusSession`'s. */
+  openInChat?: (sessionId: string) => void;
   /** The graph, read for the sessions whose turn has ended (notify-finished.ts).
    *  Without it only the blocked half speaks. */
   stateRef?: { readonly current: GraphState };
@@ -102,7 +147,7 @@ export function accountNotifyFrom(prefs: NotifyPrefsAnswer["prefs"]): AccountNot
   };
 }
 
-export function useOsNotifications({ waitingSessions, liveSince, focusSession, stateRef }: OsNotificationsDeps) {
+export function useOsNotifications({ waitingSessions, liveSince, focusSession, openInChat, stateRef }: OsNotificationsDeps) {
   // The fifth surface, and the only one that leaves the page.
   //
   // The four above — chip, title, favicon, live region — all answer "which
@@ -244,6 +289,9 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession, s
     }).catch(() => refused(null));
   }, [notifyOn]);
   const notifySupported = typeof Notification !== "undefined";
+  // The deck's service worker, which puts buttons on a notification
+  // (alert-worker.ts); registered once, and nothing changes where it cannot be.
+  useEffect(() => { void registerAlertWorker(); }, []);
   // `canAsk` is still what decides whether a prompt can be raised at all; the
   // latch that used to remember "a session blocked once, so offer it" went with
   // the topbar button it existed for. Settings › Notifications asks the
@@ -356,7 +404,10 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession, s
     if (!mayRaise(notifySeededAtRef.current, liveSince)) return;
     const pageVisible = typeof document === "undefined" || !document.hidden;
     const notices = noticesFor(waitingSessions, notifyRaisedRef.current, pageVisible, notifyOn);
-    for (const n of notices) showNotice(n, focusSession);
+    for (const n of notices) {
+      const b = waitingSessions.find(w => w.id === n.sessionId);
+      showNotice(n, openInChat ?? focusSession, b ? waitingExtras(b, stateRef?.current ?? null) : undefined);
+    }
     // Looking at the page counts as having been told, so a block that arrives
     // while the deck is on screen is remembered as seen and does not fire late
     // when the tab is next hidden. Both branches prune keys whose block is gone,
@@ -387,7 +438,7 @@ export function useOsNotifications({ waitingSessions, liveSince, focusSession, s
     if (!mayRaise(notifySeededAtRef.current, liveSince)) return;
     const pageVisible = typeof document === "undefined" || !document.hidden;
     const notices = finishedNoticesFor(finished, notifyToldRef.current, pageVisible, notifyOn);
-    for (const n of notices) showNotice(n, focusSession);
+    for (const n of notices) showNotice(n, focusSession, { data: { sessionId: n.sessionId, kind: "finished" }, actions: [] });
     notifyToldRef.current = pageVisible
       ? seedFinishedTold(finished, notifyToldRef.current)
       : nextFinishedTold(finished, notices, notifyToldRef.current);
