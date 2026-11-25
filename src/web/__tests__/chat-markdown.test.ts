@@ -3,7 +3,15 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import ChatMarkdown from "../components/chat/ChatMarkdown";
 
-const html = (text: string) => renderToStaticMarkup(createElement(ChatMarkdown, { text }));
+const rendered = (text: string) => renderToStaticMarkup(createElement(ChatMarkdown, { text }));
+/** CHANGED ON PURPOSE: a fenced block now wears a band with its language and
+ *  Copy, and its code is coloured. Both are checked in chat-rich-markdown.test.ts;
+ *  these tests keep checking the block's own text, so they read it bare: the
+ *  <pre><code> alone, without the band and without the colour spans. */
+const bare = (markup: string) => markup.replace(
+  /<div class="chat-code"[^>]*><div class="chat-code-head">[\s\S]*?<\/div>(<pre>[\s\S]*?<\/pre>)<\/div>/g,
+  (_, pre: string) => pre.replace(/<\/?span[^>]*>/g, ""));
+const html = (text: string) => bare(rendered(text));
 
 describe("Chat Markdown", () => {
   it("renders a transcript as paragraphs, headings, lists, a quote and literal code", () => {
@@ -60,16 +68,22 @@ describe("Chat Markdown", () => {
       .toBe('<div class="chat-markdown"><h2>C#</h2><h2><strong>Results</strong></h2></div>');
   });
 
-  it("escapes hostile tags and fence metadata; links stay literal for every protocol", () => {
-    const rendered = html('<img src=x onerror=alert(1)>\n\n**<script>alert(1)</script>**\n\n'
+  // CHANGED ON PURPOSE: an http(s) or mailto link is a link now, opened in a
+  // new tab with no opener; every other protocol still stays literal text.
+  it("escapes hostile tags and fence metadata; only an http(s) or mailto link is a link", () => {
+    const full = rendered('<img src=x onerror=alert(1)>\n\n**<script>alert(1)</script>**\n\n'
       + '[bad](javascript:alert(1)) [data](data:text/html,test) [good](https://example.test)\n\n'
       + '```"><svg/onload=alert(1)>\n</code><script>alert(1)</script>\n```');
-    expect(rendered).toContain('&lt;img src=x onerror=alert(1)&gt;');
-    expect(rendered).toContain('<strong>&lt;script&gt;alert(1)&lt;/script&gt;</strong>');
-    expect(rendered).toContain('[bad](javascript:alert(1)) [data](data:text/html,test) [good](https://example.test)');
-    expect(rendered).toContain('data-language="&quot;&gt;&lt;svg/onload=alert(1)&gt;"');
-    expect(rendered).toContain('&lt;/code&gt;&lt;script&gt;alert(1)&lt;/script&gt;');
-    expect(rendered).not.toMatch(/<(?:script|img|svg|a)\b/i);
+    const markup = bare(full);
+    expect(markup).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    expect(markup).toContain('<strong>&lt;script&gt;alert(1)&lt;/script&gt;</strong>');
+    expect(markup).toContain('[bad](javascript:alert(1)) [data](data:text/html,test) '
+      + '<a href="https://example.test/" target="_blank" rel="noopener noreferrer">good</a>');
+    expect(markup).toContain('data-language="&quot;&gt;&lt;svg/onload=alert(1)&gt;"');
+    expect(markup).toContain('&lt;/code&gt;&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(markup).not.toMatch(/<(?:script|img|svg)\b/i);
+    expect(full).not.toMatch(/<(?:script|img)\b|<svg\//i);
+    expect(full.match(/<a\b/g)).toHaveLength(1);
   });
 
   it("renders an empty transcript without an invented paragraph", () => {

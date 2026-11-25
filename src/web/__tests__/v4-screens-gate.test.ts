@@ -298,7 +298,7 @@ describe("what the new code never does", () => {
       const raw = readFileSync(join(WEB_DIR, path), "utf8");
       expect(raw, path).not.toMatch(/design-v\d|figma\.com|\b\d{1,3}:\d{4,5}\b/i);
     }
-    for (const path of ["components/chat/chat.css", "components/decision/decision.css"]) {
+    for (const path of ["components/chat/chat.css", "components/chat/chat-rich.css", "components/decision/decision.css"]) {
       expect(readFileSync(join(WEB_DIR, path), "utf8"), path).not.toMatch(/design-v\d|figma\.com|\b\d{1,3}:\d{4,5}\b/i);
     }
   });
