@@ -471,3 +471,29 @@ export function codexToolOutcome(output) {
     || head.some(line => Number(EXIT_LINE.exec(line)?.[1] ?? 0) !== 0);
   return { failed, declined: false, text: body || text.trim() };
 }
+
+/**
+ * What a Codex command result printed and the exit code it states, for
+ * Chat's output block and exit chip: `text` is what follows "Output:" (the
+ * whole text when there is no head), `exit` a head line's code (as
+ * codexToolOutcome reads them), else the older shell tool's envelope's;
+ * undefined when it states none.
+ */
+export function codexCommandResult(output) {
+  const text = codexOutputParts(output).join("\n").replace(/\r\n?/g, "\n");
+  const lines = text.split("\n");
+  const at = lines.slice(0, MAX_HEAD_LINES + 1).indexOf("Output:");
+  let exit;
+  for (const line of at >= 0 ? lines.slice(0, at) : lines.slice(0, 1)) {
+    const code = EXIT_LINE.exec(line)?.[1];
+    if (code !== undefined) { exit = Number(code); break; }
+  }
+  if (exit === undefined && typeof output === "string") {
+    try {
+      const o = JSON.parse(output);
+      const code = o && typeof o.output === "string" && o.metadata ? o.metadata.exit_code : undefined;
+      if (Number.isInteger(code)) exit = code;
+    } catch { /* not an envelope */ }
+  }
+  return { text: at >= 0 ? lines.slice(at + 1).join("\n") : text, exit };
+}

@@ -116,7 +116,8 @@ describe("a failed call", () => {
 
   it("has no error when it succeeded or still runs", () => {
     const turns = transcriptTurns([call("b1", "Bash", { command: "x" }), answer("b1", "fine"), call("b2", "Bash", { command: "y" })]);
-    expect(turns[0]).toEqual({ kind: "tool", name: "Bash", arg: "x" });
+    // CHANGED ON PURPOSE (Chat shows what happened): a command that succeeded carries what it printed and exit 0.
+    expect(turns[0]).toEqual({ kind: "tool", name: "Bash", arg: "x", exit: 0, output: { text: "fine", lines: 1 } });
     expect(turns[1]).toEqual({ kind: "tool", name: "Bash", arg: "y", running: true });
   });
 });
@@ -139,8 +140,10 @@ describe("a declined call", () => {
     const quoted = transcriptTurns([call("b1", "Bash", { command: "x" }), answer("b1", `Error: ${DECLINE}`, { is_error: true })]);
     expect(quoted[0].declined).toBeUndefined();
     expect(quoted[0].error).toContain("Error: The user");
-    expect(transcriptTurns([call("b1", "Bash", { command: "echo" }), answer("b1", DECLINE)])[0])
-      .toEqual({ kind: "tool", name: "Bash", arg: "echo" });
+    const said = transcriptTurns([call("b1", "Bash", { command: "echo" }), answer("b1", DECLINE)])[0];
+    expect(said.declined).toBeUndefined();
+    expect(said.error).toBeUndefined();
+    expect(said.exit).toBe(0);
   });
 });
 

@@ -34,9 +34,10 @@ describe("what becomes a turn", () => {
     ]);
   });
 
-  it("skips thinking blocks, sidechain lines and meta lines", () => {
+  it("skips sidechain lines and meta lines", () => {
+    // CHANGED ON PURPOSE (Chat shows what happened): a thinking block is a turn of its own now (transcript-rich.test.ts).
     const turns = transcriptTurns([
-      assistant([{ type: "thinking", thinking: "secret plan" }]),
+      assistant([{ type: "thinking", thinking: "secret plan" }], { isSidechain: true }),
       assistant([{ type: "text", text: "from a subagent" }], { isSidechain: true }),
       user("caveat text", { isMeta: true }),
       user("real"),
@@ -53,7 +54,8 @@ describe("what becomes a turn", () => {
       assistant([use("t1", "Bash", { command: "npm test" }), use("t2", "Read", { file_path: "a" })]),
       result("t1"),
     ]);
-    expect(turns[0]).toEqual({ kind: "tool", name: "Bash", arg: "npm test" });
+    // CHANGED ON PURPOSE (Chat shows what happened): an answered command carries its output and exit code.
+    expect(turns[0]).toEqual({ kind: "tool", name: "Bash", arg: "npm test", exit: 0, output: { text: "ok", lines: 1 } });
     expect(turns[1]).toEqual({ kind: "tool", name: "Read", arg: "a", running: true });
   });
 });
