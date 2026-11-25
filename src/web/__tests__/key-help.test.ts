@@ -63,7 +63,7 @@ const BOUND = [...HANDLER.matchAll(/e\.key === "((?:[^"\\]|\\.)*)"/g)].map(m => 
 /** The keys that have one spelling rather than two. Every letter is bound as
  *  both cases, because a Caps-locked keyboard sends the upper one for the same
  *  press; Space, `?` and Escape have no other case to bind. */
-const SINGLE_CASE = [ "?", "escape", "delete", ","];
+const SINGLE_CASE = [ "?", "escape", "delete", ",", "shift"];
 
 const lower = (s: string) => s.toLowerCase();
 
@@ -93,7 +93,7 @@ describe("every key the deck binds is written down where a user can find it", ()
       // already the canvas's next and previous agent). N and P since 4.0's
       // status bar: the next/previous waiting session (one queue with W) and
       // the card's peek.
-      .toEqual([",", "?", "a", "b", "c", "d", "delete", "escape", "f", "h", "i", "j", "k", "m", "n", "p", "r", "s", "t", "u", "v", "w", "z"]);
+      .toEqual([",", "?", "a", "b", "c", "d", "delete", "escape", "f", "h", "i", "j", "k", "m", "n", "p", "r", "s", "shift", "t", "u", "v", "w", "z"]);
   });
 
   it("binds each of them exactly once, which is what makes M and ? free", () => {

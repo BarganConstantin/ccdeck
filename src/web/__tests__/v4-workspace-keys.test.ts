@@ -191,6 +191,7 @@ describe("what names the chord", () => {
     const terminal = groups.find(g => g.id === "terminal")!;
     expect(terminal.title).toBe("Terminal");
     expect(terminal.rows.map(r => [r.cap, r.macCap, r.action])).toEqual([
+      ["Shift ×2", undefined, expect.stringContaining("Double-tap Shift")],
       ["Esc", undefined, "goes to the session while you type in a pane"],
       ["Ctrl + Shift + X", "⌃ ⇧ X", "the keys back to the deck"],
       ["Ctrl + =", "⌘ =", "larger terminal text"],
@@ -212,7 +213,7 @@ describe("what names the chord", () => {
   it("keeps Workspace's named keys and every Terminal key with the single keys off, and drops 1 to 4", () => {
     const groups = keyHelpFor(false, () => true, true);
     expect(groups.find(g => g.id === "workspace")!.rows.map(r => r.cap)).toEqual(["Ctrl + `", paneFocusChordLabel(), "click", "Enter", "Shift + Enter", "drag"]);
-    expect(groups.find(g => g.id === "terminal")!.rows.map(r => r.cap)).toEqual(["Esc", "Ctrl + Shift + X", "Ctrl + =", "Ctrl + -", "Ctrl + 0"]);
+    expect(groups.find(g => g.id === "terminal")!.rows.map(r => r.cap)).toEqual(["Shift ×2", "Esc", "Ctrl + Shift + X", "Ctrl + =", "Ctrl + -", "Ctrl + 0"]);
   });
 
   it("says the canvas's click opens the Command Panel only where it is on", () => {

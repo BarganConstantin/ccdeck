@@ -561,6 +561,8 @@ const catalog: Catalog = {
   "board.keys.reconnecting": "Se reconectează la {name}. {note}",
   "board.keys.typingInto": "Scrii în {name}",
   "board.keys.escGoes": "merge în sesiune",
+  "board.keys.shiftCommands": "Comenzi",
+  "board.keys.shiftCommandsTip": "Apasă Shift de două ori pentru deschiderea rapidă. Apasă imediat apoi S pentru sesiuni, M pentru acest dispozitiv sau o săgeată pentru a schimba panoul.",
   "board.keys.focusPane": "schimbă panoul",
   "board.keys.backToBoard": "înapoi la tablă",
   "board.keys.onBoard": "Taste pe tablă",

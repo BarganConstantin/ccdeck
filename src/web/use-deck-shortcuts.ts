@@ -38,7 +38,7 @@ import type { LodMode } from "./semantic-zoom";
 import { isSettingsChord, type SettingsSection } from "./settings";
 import { characterKeyMuted, singleKeyShortcutsOn } from "./single-key-shortcuts";
 import { CAUGHT_KEYS_ATTR, canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, keepsThemeKey, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
-import { inTerminalPanel, isReleaseChord, isViewChord, paneFocusDirection, STAGE_FLIP_REST_MS, stageKeyIntent, stepSession, type PaneDirection, type StageKeyIntent } from "./terminal-keys";
+import { inTerminalPanel, isReleaseChord, isViewChord, paneFocusDirection, PANE_ARROWS, STAGE_FLIP_REST_MS, stageKeyIntent, stepSession, type PaneDirection, type StageKeyIntent } from "./terminal-keys";
 import { nextTheme, type Theme } from "./theme";
 
 type Read<T> = { readonly current: T };
@@ -670,20 +670,91 @@ export function useDeckShortcuts({
       // test, so the sheet cannot fall behind the keys again.
       if (e.key === "?") setKeyHelpOpen(o => !o);
     };
-    // Handle pane focus before xterm can send the chord to the PTY.
-    const onPaneFocus = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.isComposing || e.keyCode === 229 || !inTerminalPanel(e.target as HTMLElement | null)) return;
+    // Two clean Shift taps open the palette, with a short window for a direct action.
+    const SHIFT_TAP_MS = 350;
+    const QUICK_ACTION_MS = 230;
+    let shiftDownAt: number | null = null;
+    let previousShiftAt: number | null = null;
+    let quickAction: ReturnType<typeof setTimeout> | null = null;
+    const clearQuickAction = () => {
+      if (quickAction !== null) clearTimeout(quickAction);
+      quickAction = null;
+    };
+    const resetShift = () => {
+      shiftDownAt = null;
+      previousShiftAt = null;
+      clearQuickAction();
+    };
+    const terminalActive = (target: EventTarget | null) =>
+      inTerminalPanel(target as HTMLElement | null)
+      && !canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() });
+    const onShiftUp = (e: KeyboardEvent) => {
+      if (e.key !== "Shift") return;
+      const downAt = shiftDownAt;
+      shiftDownAt = null;
+      const now = Date.now();
+      if (downAt === null || now - downAt > SHIFT_TAP_MS || !terminalActive(e.target)) {
+        previousShiftAt = null;
+        return;
+      }
+      if (previousShiftAt === null || downAt - previousShiftAt > SHIFT_TAP_MS) {
+        previousShiftAt = now;
+        return;
+      }
+      previousShiftAt = null;
+      const opener = e.target;
+      quickAction = setTimeout(() => {
+        quickAction = null;
+        if (document.activeElement === opener && terminalActive(opener)) openQuickOpen();
+      }, QUICK_ACTION_MS);
+    };
+    // Capture before xterm can send an app command to the PTY.
+    const onTerminalKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing || e.keyCode === 229 || !terminalActive(e.target)) {
+        resetShift();
+        return;
+      }
+      const unmodified = !e.ctrlKey && !e.metaKey && !e.altKey;
+      if (e.key === "Shift" && unmodified) {
+        if (!e.repeat && quickAction === null) shiftDownAt = Date.now();
+        return;
+      }
+      shiftDownAt = null;
+      previousShiftAt = null;
+
       const stage = stageRef?.current;
-      if (!stage?.open || canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() })) return;
-      const direction = paneFocusDirection(e);
-      if (!direction || !stage.focusPaneDirection?.(direction)) return;
+      let handled = false;
+      if (quickAction !== null) {
+        clearQuickAction();
+        if (unmodified && !e.shiftKey && !e.repeat) {
+          const direction = PANE_ARROWS.get(e.key);
+          switch (e.key.toLowerCase()) {
+            case "s": toggleSessionList(); handled = true; break;
+            case "m": setMachinePanelOpen(open => !open); handled = true; break;
+            case "escape": handled = true; break;
+            default: if (direction) handled = stage?.focusPaneDirection?.(direction) === true;
+          }
+        }
+      }
+      if (!handled && stage?.open) {
+        const direction = paneFocusDirection(e);
+        if (direction) handled = stage.focusPaneDirection?.(direction) === true;
+      }
+      if (!handled) return;
       e.preventDefault();
       e.stopPropagation();
     };
-    window.addEventListener("keydown", onPaneFocus, true);
+    window.addEventListener("keydown", onTerminalKey, true);
+    window.addEventListener("keyup", onShiftUp, true);
+    window.addEventListener("focusout", resetShift);
+    window.addEventListener("blur", resetShift);
     window.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("keydown", onPaneFocus, true);
+      resetShift();
+      window.removeEventListener("keydown", onTerminalKey, true);
+      window.removeEventListener("keyup", onShiftUp, true);
+      window.removeEventListener("focusout", resetShift);
+      window.removeEventListener("blur", resetShift);
       window.removeEventListener("keydown", onKey);
       dropFlip();
     };

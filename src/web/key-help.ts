@@ -235,6 +235,7 @@ export const TERMINAL_GROUP: KeyHelpGroup = {
   id: "terminal",
   get title() { return t("settings.key.group.terminal"); },
   rows: [
+    { cap: "Shift ×2", get action() { return t("board.keys.shiftCommandsTip"); }, binds: ["Shift"], chord: true },
     { cap: "Esc", get action() { return t("settings.key.paneEsc"); }, binds: ["Escape"] },
     { cap: "Ctrl + Shift + X", macCap: "⌃ ⇧ X", get action() { return t("settings.key.release"); }, binds: ["x", "X"], chord: true },
     { cap: "Ctrl + =", macCap: "⌘ =", get action() { return t("settings.key.textLarger"); }, binds: ["=", "+"], chord: true },

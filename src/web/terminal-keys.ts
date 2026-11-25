@@ -166,7 +166,7 @@ export const RELEASE_CHORD_SPOKEN_MSG = "board.keys.releaseChordSpoken";
  *  board, and from there j, k and n must work. */
 export type PaneDirection = "left" | "right" | "up" | "down";
 
-const PANE_ARROWS: ReadonlyMap<string, PaneDirection> = new Map([
+export const PANE_ARROWS: ReadonlyMap<string, PaneDirection> = new Map([
   ["ArrowLeft", "left"], ["ArrowRight", "right"], ["ArrowUp", "up"], ["ArrowDown", "down"],
 ]);
 

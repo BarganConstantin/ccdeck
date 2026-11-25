@@ -94,9 +94,11 @@ export function stageKeys(over: Partial<StageShortcuts> = {}): StageShortcuts {
 
 export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange = () => false, stage, view, selected = "s1", cards = true, inspectorDoor }: DeckKeysOptions = {}) {
   let onKey: ((e: KeyboardEvent) => void) | null = null;
+  let releaseKey: ((e: KeyboardEvent) => void) | undefined;
   let captureKey: ((e: KeyboardEvent) => void) | undefined;
   vi.stubGlobal("window", {
     addEventListener: (type: string, fn: (e: KeyboardEvent) => void, capture = false) => {
+      if (type === "keyup") releaseKey = fn;
       if (type !== "keydown") return;
       if (capture) captureKey = fn;
       else onKey = fn;
@@ -180,5 +182,9 @@ export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange 
     return e;
   }
 
-  return { props, press, keyHelp, theme, detail, usage, removeSelected };
+  const release = (key: string, target: KeyTarget) => releaseKey?.({
+    key, target: { closest: () => target.inPanel ? {} : null },
+  } as unknown as KeyboardEvent);
+
+  return { props, press, release, keyHelp, theme, detail, usage, removeSelected };
 }

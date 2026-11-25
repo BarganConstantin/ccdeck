@@ -132,6 +132,10 @@ export default memo(function StatusBar({ stageOpen, zoomedOut, splitPanes = fals
           </button>
         )}
       </div>
+      {pane != null && <span className="statusbar-hint" title={t("board.keys.shiftCommandsTip")}>
+        <Kbd>Shift ×2</Kbd>
+        {t("board.keys.shiftCommands")}
+      </span>}
       {splitPanes && pane != null && <span className="statusbar-hint">
         <Kbd>{paneFocusChordLabel()}</Kbd>
         {t("board.keys.focusPane")}
