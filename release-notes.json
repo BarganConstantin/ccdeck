@@ -1,4 +1,10 @@
 {
+  "4.3.16": [
+    {
+      "title": "✖️ Close a Workspace tab from the × on hover",
+      "body": "Hover a Workspace tab, or move to it with the keyboard, and a close × now shows at its right end, as on browser and editor tabs. Pressing it closes that tab without showing it first: the session keeps running and the tab beside it comes on. Tabs keep their width, and the full name stays in the tooltip. On a touch screen, the tab on show always has its ×."
+    }
+  ],
   "4.3.15": [
     {
       "title": "🧩 Workspace tabs keep their text inside the tab",
@@ -524,6 +530,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.3.16": "Close a Workspace tab from the × that shows when you hover it",
     "4.3.15": "Workspace tabs you can close from their list, Resume here after exit, and Codex starting after a deleted folder",
     "4.3.14": "Tap Shift twice to open Quick Open from anywhere in ccdeck",
     "4.3.13": "Tabs in Workspace panes, foldable session groups, a clear notice for disconnected folders, and Mac title bar fixes",
