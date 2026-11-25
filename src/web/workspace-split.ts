@@ -113,6 +113,14 @@ export function paneWith(s: SplitState, sessionId: string, focusedTarget: StageT
   return null;
 }
 
+/** The sessions the panes show, in pane order. */
+export function paneSessions(s: SplitState, focusedTarget: StageTarget | null): string[] {
+  return paneIds(s.root).flatMap(id => {
+    const t = paneTarget(s, id, focusedTarget);
+    return t.kind === "session" ? [t.id] : [];
+  });
+}
+
 // ── sizes ────────────────────────────────────────────────────────────────────
 /** The smallest box a subtree can be drawn in, every pane at its minimum. */
 export function minExtent(node: SplitNode, min: MinSize, gap = SPLIT_GAP): MinSize {
