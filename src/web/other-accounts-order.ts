@@ -11,8 +11,9 @@
 // Three rules live here, as functions the suite can call without a DOM:
 //
 //   - the ORDER: by availability — usable now, then not read yet, then
-//     waiting on a window or a rate limit, then the week spent, then the
-//     accounts no switch can reach — and slot order inside each group;
+//     near the weekly limit, then waiting on a window or a rate limit, then
+//     the week spent, then the accounts no switch can reach — and slot order
+//     inside each group;
 //   - which rows are OPEN, as a mode and its exceptions, so "expand all" is a
 //     fact that holds for an account that arrives later rather than a list of
 //     whoever was there when it was pressed;
@@ -30,36 +31,56 @@ import { lapsed } from "./lane-view";
 const isModelLane = (l: Lane) => l.id.startsWith("scoped-");
 
 /**
- * WHERE AN ACCOUNT STANDS FOR A SWITCH NOW (internal #94). Lower is nearer
- * the top of the list:
+ * WHERE THE WEEK COUNTS AS NEAR ITS LIMIT: 90% of the 7-day window. It is the
+ * level every quota meter in the deck turns to its error ink at (QuotaBar.tsx
+ * quotaLevel, "⚠ 93% · high"), so the row the order moves down is the one
+ * whose weekly bar is already drawn red — and it is where auto-switch acts
+ * unless told otherwise. Near is not spent: such an account can still be
+ * switched to and its row says "high", never "Weekly limit". Display only;
+ * auto-switch keeps its own rule and its own threshold.
+ */
+export const NEAR_WEEK_PCT = 90;
+
+/**
+ * WHERE AN ACCOUNT STANDS FOR A SWITCH NOW. Lower is nearer the top of the
+ * list:
  *
- *   0  USABLE: a switch reaches it, nothing limits it, and every window it
- *      has was read, is still running and is under 100%;
+ *   0  USABLE: a switch reaches it, nothing limits it, every window it has
+ *      was read, is still running and is under 100%, and the week is under
+ *      NEAR_WEEK_PCT;
  *   1  NOT READ YET: a switch reaches it, but a window has no reading or has
  *      reset since it was read. It may well have room; nothing says so yet,
  *      and a list that put it on top on no evidence would be wrong half the
  *      time. A fresh reading moves it up;
- *   2  WAITING: rate limited, or a window short of the week is full. It
+ *   2  NEAR THE WEEKLY LIMIT: usable, but its 7-day window, still running, is
+ *      at NEAR_WEEK_PCT or more. A few percent of a week is all it has until
+ *      that window resets, so every account with real room goes above it.
+ *      Said even when another window has reset since it was read:
+ *      a running week only grows until its reset, so the number stands. Once
+ *      the week resets the account is not read yet again, and a fresh reading
+ *      puts it back on top;
+ *   3  WAITING: rate limited, or a window short of the week is full. It
  *      clears by itself, within hours;
- *   3  WEEK SPENT: its 7-day window is full, whatever the 5-hour one says —
- *      the first of the issue's checks;
- *   4  OUT OF REACH: held out of rotation, or a login only a sign-in brings
+ *   4  WEEK SPENT: its 7-day window is full, whatever the 5-hour one says;
+ *   5  OUT OF REACH: held out of rotation, or a login only a sign-in brings
  *      back. Its row withholds Switch.
  *
  * A model's own window (Opus) is left out: a full one stops that model, not
  * the account. `reachable` is account-fold.ts's rule and `rateLimited` the
  * row's own issue, so the list and the row never disagree about either.
  */
-export type Availability = 0 | 1 | 2 | 3 | 4;
+export type Availability = 0 | 1 | 2 | 3 | 4 | 5;
 
 export function availability(
   a: Account, { reachable, rateLimited }: { reachable: boolean; rateLimited: boolean }, nowSec: number,
 ): Availability {
-  if (!reachable) return 4;
+  if (!reachable) return 5;
   const lanes = (a.lanes ?? []).filter(l => !isModelLane(l) && Number.isFinite(l.pct));
   const running = lanes.filter(l => !lapsed(l, nowSec));
-  if (running.some(l => l.id === "seven_day" && l.pct >= 100)) return 3;
-  if (rateLimited || running.some(l => l.pct >= 100)) return 2;
+  const week = running.find(l => l.id === "seven_day");
+  if (week && week.pct >= 100) return 4;
+  if (rateLimited || running.some(l => l.pct >= 100)) return 3;
+  if (week && week.pct >= NEAR_WEEK_PCT) return 2;
   if (lanes.length === 0 || running.length < lanes.length) return 1;
   return 0;
 }
