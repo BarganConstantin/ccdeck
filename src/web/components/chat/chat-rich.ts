@@ -112,14 +112,16 @@ export function workCounts(turns: readonly ChatTurn[]): Map<WorkKind, number> {
   return counts;
 }
 
-/** "Ran 3 commands · read 2 files · edited 1 file": the largest kinds first
- *  named in a fixed order, the rest counted as other calls, sentence case. */
+/** "Ran 3 commands · read 2 files · edited 1 file": when there are more kinds
+ *  than a head holds, edits are named first (they are what changed), then the
+ *  largest; named in a fixed order, the rest counted as other calls, sentence case. */
 export function workSummary(turns: readonly ChatTurn[], t: TFunction, lang = currentLanguage()): string {
   const counts = workCounts(turns);
   const kinds = WORK_ORDER.filter(kind => counts.has(kind));
   let named = kinds;
   if (kinds.length > MAX_WORK_PARTS) {
-    const top = new Set<WorkKind>([...kinds].filter(k => k !== "other").sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0)).slice(0, MAX_WORK_PARTS - 1));
+    const rank = (k: WorkKind) => (k === "edit" ? Infinity : counts.get(k) ?? 0);
+    const top = new Set<WorkKind>([...kinds].filter(k => k !== "other").sort((a, b) => rank(b) - rank(a)).slice(0, MAX_WORK_PARTS - 1));
     named = kinds.filter(k => top.has(k));
     const rest = kinds.filter(k => !top.has(k)).reduce((n, k) => n + (counts.get(k) ?? 0), 0);
     counts.set("other", rest);

@@ -187,6 +187,12 @@ describe("a run of calls", () => {
     expect(workSummary([{ kind: "tool", name: "WebSearch", arg: "q" }], t)).toBe("Browsed the web once");
   });
 
+  it("always names an edit, since that is what changed", () => {
+    const busy: ChatTurn[] = [TESTS, { ...TESTS, arg: "b" }, { ...TESTS, arg: "c" }, read("a"), read("b"),
+      { kind: "tool", name: "Grep", arg: "x" }, { kind: "tool", name: "WebFetch", arg: "u" }, { kind: "tool", name: "Edit", arg: "a.ts" }];
+    expect(workSummary(busy, t)).toBe("Ran 3 commands · edited 1 file · made 4 other calls");
+  });
+
   it("is said in the language's own plural forms", () => {
     setLanguage("ro");
     expect(workSummary(RUN, t)).toBe("A rulat 3 comenzi · a citit 2 fișiere · a editat 1 fișier");

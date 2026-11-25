@@ -40,6 +40,7 @@
 .chat-table { min-width: 100%; border-collapse: collapse; line-height: 1.5; }
 .chat-table :is(th, td) { padding: 6px 10px; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: top; overflow-wrap: normal; }
 .chat-table th { background: var(--sunken); font-weight: 600; white-space: nowrap; }
+.chat-table code { white-space: nowrap; }
 .chat-table tbody tr:last-child td { border-bottom: 0; }
 .chat-table [data-align="center"] { text-align: center; }
 .chat-table [data-align="right"] { text-align: right; }
@@ -85,6 +86,8 @@
 .chat-thinking-label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .chat-thinking-text { margin: 0 8px 8px 30px; padding: 2px 0 2px 12px; max-height: 320px; overflow-y: auto; overscroll-behavior: contain; border-left: 2px solid var(--line); color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.6; }
 .chat-thinking-text .chat-markdown code { color: var(--text-secondary); }
+/* With nothing to open, the row keeps the chevron's room so its mark lines up with the others'. */
+.chat-thinking[data-empty]::before { content: ""; flex: none; width: 14px; }
 
 /* When things were said. Your message's time and Copy sit in the gap under
    it, shown while the pointer or the keys are on it; the answer's start time
@@ -94,8 +97,6 @@
 .chat-you:is(:hover, :focus-within) .chat-meta { opacity: 1; }
 .chat-response-time { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; opacity: 0; }
 .chat-response:is(:hover, :focus-within) .chat-response-time { opacity: 1; }
-.chat-response-time + .chat-copy { margin-left: 0; }
-.chat-response-author:has(.chat-response-time) .chat-response-time { margin-left: auto; }
 .chat-turn-foot { margin: 12px 0 0 28px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-variant-numeric: tabular-nums; }
 
 @media (hover: hover) and (pointer: fine) {
