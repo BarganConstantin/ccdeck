@@ -93,6 +93,7 @@ import { useOlderHosts } from "./use-older-hosts";
 import type { WaitingCard } from "./stage-board";
 import type { RenameFacts } from "../../session-rename";
 import { useRenaming } from "../SessionNameField";
+import type { PaneTabsView } from "./PaneTabs";
 
 /** One empty transcript for every render, so the card's words are not rebuilt for nothing. */
 const NO_TURNS: readonly ChatTurn[] = [];
@@ -293,6 +294,15 @@ export interface TerminalStageProps {
    *  than the screen, and the header drags the pane to another place. Left
    *  out: the one stage, as before. */
   split?: StageSplit | null;
+  /** WORKSPACE, a pane holding two tabs or more: the element's id where it
+   *  is not the Workspace pane's own, for the strip's tabs to point at. */
+  panelId?: string;
+  /** WORKSPACE, a pane holding two tabs or more: its strip, drawn in this
+   *  stage's header in place of the one name (PaneTabs.tsx). */
+  tabs?: PaneTabsView | null;
+  /** WORKSPACE, a pane holding two tabs or more: the id of the tab on show,
+   *  which names this stage as the panel it shows. */
+  tabbedBy?: string;
   /** The suite's seam into the session. The integrator passes nothing. */
   sessionDeps?: Partial<SessionDeps>;
   /** The suite's seam into the older hosts' routes. */
@@ -960,13 +970,14 @@ export default function TerminalStage(p: TerminalStageProps) {
     <section
       ref={rootRef}
       className="ts-stage"
-      role="region"
+      role={p.tabbedBy ? "tabpanel" : "region"}
       aria-label={t("board.stage.region", { name })}
       data-kind={phase.kind}
       data-empty={p.show.kind === "empty" || undefined}
       data-live={live || undefined}
       data-takeover={p.geometry.takeover || undefined}
-      id={workspace && (p.split?.primary ?? true) ? WORKSPACE_PANE_ID : undefined}
+      id={workspace && (p.split?.primary ?? true) ? WORKSPACE_PANE_ID : p.panelId}
+      aria-labelledby={p.tabbedBy}
       tabIndex={workspace ? -1 : undefined}
       data-fill={workspace || undefined}
       data-secondary={p.split?.primary === false || undefined}
@@ -1020,6 +1031,9 @@ export default function TerminalStage(p: TerminalStageProps) {
         onExpand={p.split ? p.split.onMax : fullStage.toggle}
         onClose={p.onClose}
         end={endAt.header}
+        // The strip: the tab on show says the header's own state, which knows
+        // the pane is reconnecting or not attached; the others, the board's.
+        tabs={p.tabs ? { ...p.tabs, items: p.tabs.items.map(x => (x.on ? { ...x, status } : x)) } : undefined}
       />
       <StageBody
         hostRef={session.hostRef}
@@ -1062,6 +1076,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         notice={notice}
         firstRun={p.firstRun}
         workspace={workspace}
+        tabbed={workspace && !!p.tabs}
         paneless={p.show.kind === "empty" || paneless(phase) || onItsWay(phase, frame)}
         onFirstRunDone={p.onFirstRunDone}
         chat={chatOn}

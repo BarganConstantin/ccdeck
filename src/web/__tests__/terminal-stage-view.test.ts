@@ -1028,7 +1028,8 @@ describe("asking for the session again from the stage", () => {
     // A new key, so the deck starts an agent rather than finding the one that exited.
     // CHANGED ON PURPOSE (internal #102): per pane, and that pane takes the keys first.
     expect(web("components/terminal/StageShell.tsx"))
-      .toContain('onLaunchAgain={ps.kind === "launch" ? () => { keysHere(); stage.launch(ps.agent, ps.cwd, ps.options); } : undefined}');
+      // CHANGED ON PURPOSE (pane tabs): in its tab's place in the strip.
+      .toContain('onLaunchAgain={ps.kind === "launch" ? () => { keysHere(); stage.launch(ps.agent, ps.cwd, ps.options, held ? { replace: held } : undefined); } : undefined}');
     // CHANGED ON PURPOSE (missing folder): the same press, once the deck says
     // its folder is still there (startIfFolder); else the folder-gone choices.
     const stage = web("components/terminal/TerminalStage.tsx");

@@ -26,8 +26,10 @@ export function ProviderGlyph({ provider, size = 10 }: { provider: TerminalProvi
     : <Glyph size={size} box={12}><path d="M6 1.5v9M1.5 6h9M2.8 2.8l6.4 6.4M9.2 2.8 2.8 9.2" /></Glyph>;
 }
 
-/** The four marks the rail draws a row with (RailGlyph, RailParts.tsx). */
-export type StageGlyphKind = "waiting" | "working" | "done" | "idle";
+/** The marks the rail draws a row with (RailGlyph, RailParts.tsx). The
+ *  header says four of them (glyphForState); a pane's tab wears its row's,
+ *  partial and error among them. */
+export type StageGlyphKind = "waiting" | "working" | "done" | "partial" | "error" | "idle";
 
 /**
  * The rail's glyph for a stage state (V4): the header and the keys bar say
@@ -63,6 +65,8 @@ export function StageGlyph({ kind }: { kind: StageGlyphKind }) {
       {kind === "waiting" && <AlertMark size={14} />}
       {kind === "working" && <StateMark kind="live" size={14} />}
       {kind === "done" && <StateMark kind="done" size={14} />}
+      {kind === "partial" && <StateMark kind="partial" size={14} />}
+      {kind === "error" && <StateMark kind="err" size={14} />}
       {kind === "idle" && <StateMark kind="idle" size={14} />}
     </span>
   );

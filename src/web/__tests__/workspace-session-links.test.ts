@@ -19,20 +19,27 @@ function grid(): SplitState {
 }
 
 describe("sessions linked to Workspace panes", () => {
-  it("uses the live shell session instead of the focused pane's stale saved session", () => {
+  // CHANGED ON PURPOSE (pane tabs): a session the focused pane showed before
+  // the shell's live one is not stale, it is a tab of that pane, still open.
+  it("marks the live shell session active, and the focused pane's earlier session as its tab", () => {
     const links = sessionPaneLinks(two(), session("live"));
     expect(Object.fromEntries(links)).toEqual({
+      saved: { number: 1, active: false },
       live: { number: 1, active: true },
       right: { number: 2, active: false },
     });
-    expect(links.has("saved")).toBe(false);
   });
 
   it.each<StageTarget>([
     { kind: "empty" },
     { kind: "launch", agent: "claude", cwd: "/project", key: "launch-1" },
-  ])("does not badge the previous session while the live focused target is $kind", target => {
+  ])("badges no session for a live focused target that is $kind, and keeps the pane's tabs", target => {
     expect(Object.fromEntries(sessionPaneLinks(two(), target))).toEqual({
+      saved: { number: 1, active: false },
+      right: { number: 2, active: false },
+    });
+    const emptied = { ...two(), tabs: { ...two().tabs, p0: [] } };
+    expect(Object.fromEntries(sessionPaneLinks(emptied, target))).toEqual({
       right: { number: 2, active: false },
     });
   });
@@ -50,6 +57,7 @@ describe("sessions linked to Workspace panes", () => {
     expect(paneIds(state.root)).toEqual(["p0", "p2", "p1", "p3"]);
     expect(arrangement.order).toEqual(["p0", "p1", "p2", "p3"]);
     expect(Object.fromEntries(sessionPaneLinks(state, session("live"), arrangement.order))).toEqual({
+      saved: { number: 1, active: false },
       live: { number: 1, active: true },
       right: { number: 2, active: false },
       "bottom-left": { number: 3, active: false },
@@ -65,6 +73,7 @@ describe("sessions linked to Workspace panes", () => {
       "bottom-right": { number: 1, active: false },
       right: { number: 2, active: false },
       "bottom-left": { number: 3, active: false },
+      saved: { number: 4, active: false },
       live: { number: 4, active: true },
     });
   });
@@ -82,13 +91,15 @@ describe("sessions linked to Workspace panes", () => {
     expect(strip.order).toEqual(["p3", "p1", "p2", "p0"]);
     const links = sessionPaneLinks(state, session("live"), strip.order);
     expect(links).toEqual(sessionPaneLinks(state, session("live"), split.order));
-    expect(links.size).toBe(4);
+    expect(links.size).toBe(5);
     expect(links.get("live")).toEqual({ number: 4, active: true });
+    expect(links.get("saved")).toEqual({ number: 4, active: false });
   });
 
   it("moves the active reference with focus and remembers the session the shell just left", () => {
     const focused = focusSplit(two(), "p1", session("live"));
     expect(Object.fromEntries(sessionPaneLinks(focused, session("right")))).toEqual({
+      saved: { number: 1, active: false },
       live: { number: 1, active: false },
       right: { number: 2, active: true },
     });
@@ -96,12 +107,10 @@ describe("sessions linked to Workspace panes", () => {
 
   it("keeps empty and launching panes in the count without creating session references for them", () => {
     const state = grid();
-    const targets = {
-      ...state.targets,
-      p1: { kind: "empty" } as const,
-      p2: { kind: "launch", agent: "codex", cwd: "/project", key: "launch-2" } as const,
-    };
-    expect(Object.fromEntries(sessionPaneLinks({ ...state, targets }, session("live"), arrange(state, DESKTOP, MIN).order))).toEqual({
+    const launching = { kind: "launch", agent: "codex", cwd: "/project", key: "launch-2" } as const;
+    const targets = { ...state.targets, p0: session("live"), p1: { kind: "empty" } as const, p2: launching };
+    const tabs = { ...state.tabs, p0: [session("live")], p1: [], p2: [launching] };
+    expect(Object.fromEntries(sessionPaneLinks({ ...state, targets, tabs }, session("live"), arrange(state, DESKTOP, MIN).order))).toEqual({
       live: { number: 1, active: true },
       "bottom-right": { number: 4, active: false },
     });

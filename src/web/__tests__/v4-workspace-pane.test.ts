@@ -307,7 +307,9 @@ describe("the hook", () => {
 
   it("empties the pane without ending anything, and clears the selection", () => {
     const at = stage.indexOf("const emptyPane = useCallback");
-    const body = stage.slice(at, stage.indexOf("}, [enabledRef, openOn, clearRef]);", at));
+    // CHANGED ON PURPOSE (pane tabs): it lets go of the pane's tabs too.
+    const body = stage.slice(at, stage.indexOf("}, [enabledRef, openOn, clearRef, workspaceRef, splitRef, setSplit]);", at));
+    expect(body).toContain("setSplit(emptyPaneTabs(splitRef.current, splitRef.current.focused))");
     // Asks for the focus through the stage's request (review 10), so it lands on the
     // empty pane's action once that is drawn.
     expect(body).toContain('openOn({ kind: "empty" }, { focusPane: true })');
