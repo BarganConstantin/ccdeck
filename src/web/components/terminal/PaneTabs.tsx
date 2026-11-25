@@ -329,7 +329,7 @@ export function TabsMenu({ view, words, menu, setMenu, over, toStrip }: {
   // The row the keyboard goes to once a close is drawn: the × that was
   // pressed has gone with its row. A close of the tab on show draws the
   // header afresh, and this menu with it: the row comes with the open state.
-  const land = useRef<string | null>(menu?.land ?? null);
+  const land = useRef<string | null | undefined>(menu?.land);
   // Drawn afresh by such a close, the menu was on screen already: no entrance.
   const [kept] = useState(() => menu?.land != null);
   // After the menu's own first focus (AnchoredPopover's, an effect of a child,
