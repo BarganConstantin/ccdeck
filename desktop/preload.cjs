@@ -7,7 +7,8 @@
 // Deliberately small: audio calls by opaque id, caption colours, a menu, the
 // page's zoom, whether the terminal pane has the keys, and the system's
 // folder dialog, which returns only the folder the person chose in it, plus
-// native paths for File objects explicitly dropped by the user.
+// native paths for File objects explicitly dropped by the user, and the session
+// id the app opened the window for (a notification or a tray row).
 // No path from the page, window handle, generic IPC, or generic read or write
 // primitive. main.mjs checks who is calling and notification-audio-store.mjs
 // checks what they sent, so nothing here is trusted to have done either.
@@ -43,6 +44,13 @@ contextBridge.exposeInMainWorld("ccdeckFiles", {
     try { return files.map(file => webUtils.getPathForFile(file)); }
     catch { return []; }
   },
+});
+
+// The session a notification or a tray row opened the window on (main.mjs,
+// session-link.mjs), taken once: the page asks as it starts and when the app
+// says one is waiting, and opens it in Chat. A session id or null, nothing else.
+contextBridge.exposeInMainWorld("ccdeckSession", {
+  take: () => ipcRenderer.invoke("ccdeck:session:take"),
 });
 
 // No window handle or generic IPC is exposed to the page. It may also read its

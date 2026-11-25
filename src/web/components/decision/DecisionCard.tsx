@@ -41,6 +41,9 @@ export interface DecisionCardProps extends DecisionHooks {
   /** The card's state at first draw. For a harness and for tests; the deck has none. */
   initial?: Partial<DecisionState>;
   size?: "desktop" | "phone";
+  /** An answer chosen on an alert (use-intent-press.ts): row `index` is picked
+   *  once, as a press of it would be, on the card whose model id is `for`. */
+  press?: { id: number; index: number; for: string };
 }
 
 let nextId = 0;
@@ -118,6 +121,17 @@ export default function DecisionCard(p: DecisionCardProps) {
     dispatch({ type: "reset" });
     if (hooks.current.outcome) dispatch({ type: "outcome", input: hooks.current.outcome });
   }, [model.id, dispatch]);
+
+  // An answer chosen on an alert: a pick like any other (the re-read, then the
+  // keys), once per intent, and never on a card that replaced its own. The
+  // ring stays where it is: focus does not move on its own.
+  const pressedId = useRef(0);
+  useEffect(() => {
+    const press = p.press;
+    if (!press || press.id === pressedId.current || press.for !== model.id) return;
+    pressedId.current = press.id;
+    dispatch({ type: "pick", index: press.index });
+  }, [p.press, model.id, dispatch]);
 
   // The ring moves the browser's focus with it, but only once the card has it.
   useEffect(() => {

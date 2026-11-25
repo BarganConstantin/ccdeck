@@ -62,7 +62,7 @@ export function statusWorthAsking(snapshot) {
  *
  * @param {object} s
  * @param {number} s.now
- * @param {{ icon: string, waiting: number, running: number, blocked: Array<{ label: string, kind: string, since: number }> }} s.snapshot
+ * @param {{ icon: string, waiting: number, running: number, blocked: Array<{ id?: string, label: string, kind: string, since: number }> }} s.snapshot
  * @param {{ port: number, version?: string } | null} s.deck
  * @param {unknown} s.starting    a deck start in flight
  * @param {unknown} s.restarting  a restart asked for and not yet answered
@@ -83,7 +83,8 @@ export function trayMenuItems({ now, snapshot, deck, starting, restarting, start
   const items = [{ label: statusLine({ restarting, starting, deck, snapshot, startFailed }), enabled: false }];
   for (const b of snapshot.blocked.slice(0, 6)) {
     const what = b.kind === "asked" ? "asking" : "needs permission";
-    items.push({ label: `${b.label} — ${what}, ${ago(now - b.since)}`, click: () => on.openWindow() });
+    // That session in Chat, where the app knows how (on.openSession).
+    items.push({ label: `${b.label} — ${what}, ${ago(now - b.since)}`, click: () => (on.openSession && b.id ? on.openSession(b.id) : on.openWindow()) });
   }
   // A provider's own incident (#1311), under the sessions it may be the cause
   // of, so an outage can be seen without opening the window. The row opens the

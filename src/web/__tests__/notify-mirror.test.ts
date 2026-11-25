@@ -76,7 +76,8 @@ describe("when it speaks", () => {
     const { n, notify } = harness();
     expect(n.consider(STOP, { clients: 0 })).toBe("notified");
     // And which tone it stands in for, so the desktop app can play that one.
-    expect(notify).toHaveBeenCalledWith("vcrm-core — ccdeck", STOP.last_assistant_message, { chime: "done", who: "vcrm-core" });
+    // CHANGED ON PURPOSE: and the session, which the desktop app's click opens.
+    expect(notify).toHaveBeenCalledWith("vcrm-core — ccdeck", STOP.last_assistant_message, { chime: "done", who: "vcrm-core", session: SID });
   });
 
   it("says a Codex turn too, which carries no message", () => {

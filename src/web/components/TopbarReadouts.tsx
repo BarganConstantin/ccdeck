@@ -24,7 +24,7 @@ import type { useVersionCheck } from "../use-version-check";
 import type { useWelcomeAndNotes } from "../use-welcome-and-notes";
 import type { Incident } from "../provider-status";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
-import { queueEntryName, queueName, waitWhat } from "../waiting-queue";
+import { OPEN_QUEUE_EVENT, queueEntryName, queueName, waitWhat } from "../waiting-queue";
 import AnchoredPopover from "./AnchoredPopover";
 import ChipPresence from "./ChipPresence";
 import { IncidentChips } from "./ProviderIncidents";
@@ -284,6 +284,13 @@ export function WaitingStat({ waitingSessions, waitingCursorRef, focusSession, n
   }, []);
   // Everyone answered while it was up: nothing left to list.
   useEffect(() => { if (count === 0 && pop !== "closed") setPop("closed"); }, [count, pop]);
+  // The alert stack's "+N more" opens this list rather than one of its own.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.addEventListener) return;
+    const open = () => { if (popRef.current === "closed") setPop("open"); };
+    window.addEventListener(OPEN_QUEUE_EVENT, open);
+    return () => window.removeEventListener(OPEN_QUEUE_EVENT, open);
+  }, []);
 
   if (count === 0) return null;
   const waitingLabel = t("board.queue.waitingForYou", { count });

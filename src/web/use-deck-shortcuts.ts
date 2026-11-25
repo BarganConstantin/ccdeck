@@ -38,7 +38,8 @@ import type { LodMode } from "./semantic-zoom";
 import { isSettingsChord, type SettingsSection } from "./settings";
 import { characterKeyMuted, singleKeyShortcutsOn } from "./single-key-shortcuts";
 import { CAUGHT_KEYS_ATTR, canvasModalOpen, closesKeySheet, inAnchoredPopover, isBrowserChord, isTypingTarget, keepsThemeKey, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
-import { inTerminalPanel, isReleaseChord, isViewChord, paneFocusDirection, PANE_ARROWS, STAGE_FLIP_REST_MS, stageKeyIntent, stepSession, type PaneDirection, type StageKeyIntent } from "./terminal-keys";
+import { hasViewToggle, toggleFocusedView } from "./chat-view-memory";
+import { inTerminalPanel, isChatViewChord, isReleaseChord, isViewChord, paneFocusDirection, PANE_ARROWS, STAGE_FLIP_REST_MS, stageKeyIntent, stepSession, type PaneDirection, type StageKeyIntent } from "./terminal-keys";
 import { nextTheme, type Theme } from "./theme";
 
 type Read<T> = { readonly current: T };
@@ -343,6 +344,17 @@ export function useDeckShortcuts({
           }
           return;
         }
+      }
+      // Ctrl + Shift + backtick, the focused pane's Chat or Term
+      // (chat-view-memory.ts): from anywhere, the keys in the terminal or in
+      // Chat's composer included, as the view chord above. Not claimed where
+      // no pane has the switch: then it is the page's.
+      if (isChatViewChord(e) && hasViewToggle()) {
+        if (!canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() })) {
+          e.preventDefault();
+          if (!e.repeat) toggleFocusedView();
+        }
+        return;
       }
       if (inTerminalPanel(el)) {
         if (isReleaseChord(e)) {

@@ -17,6 +17,9 @@ const sseClients = new Set();       // res handles
 // the one thing the app exists to deliver. See `pageCount`.
 const trayClients = new Set();
 
+/** What a session id looks like in a notify frame (src/web/alert-worker.ts). */
+const TRAY_SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
+
 /** Pages — deck tabs and the app's window — as opposed to the app's tray
  *  connection, which is a reader and not somebody looking. */
 function pageCount() {
@@ -25,11 +28,14 @@ function pageCount() {
 
 /** A notification for the desktop app to raise as itself, instead of the OS
  *  helper raising it as Script Editor (osascript) or PowerShell. */
-function notifyTrays(title, body, { chime = null, who = null, silent = false } = {}) {
+function notifyTrays(title, body, { chime = null, who = null, silent = false, session = null } = {}) {
   // The app names itself above the notification, so the title is the session.
   // `silent` only when asked for: the account notifications make no sound, and
   // an app that did not send it would get the system's default one.
   const frame = silent === true ? { title: who ?? title, body, chime, silent: true } : { title: who ?? title, body, chime };
+  // The session a click opens in Chat, when it is one: a hook's id and
+  // nothing a path or a selector could hide in.
+  if (typeof session === "string" && TRAY_SESSION_ID.test(session)) frame.session = session;
   const line = `event: notify\ndata: ${JSON.stringify(frame)}\n\n`;
   for (const res of trayClients) writeSse(res, line);
   return true;
