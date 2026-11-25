@@ -188,18 +188,25 @@ function textLines(text) {
   return lines;
 }
 
-/** The diff lines of a recorded structuredPatch, or null when there is none. */
+const lineNumber = value => (Number.isSafeInteger(value) && value >= 0 ? value : undefined);
+
+/** The diff lines of a recorded structuredPatch, and where each hunk starts
+ *  in the old and the new file when every hunk says; null when there is none. */
 function patchLines(own) {
   const hunks = own && typeof own === "object" && Array.isArray(own.structuredPatch) ? own.structuredPatch : null;
   if (!hunks) return null;
   const lines = [];
+  const starts = [];
   for (const hunk of hunks) {
     const body = hunk && typeof hunk === "object" && Array.isArray(hunk.lines) ? hunk.lines.filter(l => typeof l === "string") : [];
     if (!body.length) continue;
     if (lines.length) lines.push(DIFF_GAP);
     lines.push(...body);
+    const from = lineNumber(hunk.oldStart);
+    const to = lineNumber(hunk.newStart);
+    starts.push(from !== undefined && to !== undefined ? { old: from, new: to } : null);
   }
-  return lines.length ? lines : null;
+  return lines.length ? { lines, starts: starts.every(Boolean) ? starts : undefined } : null;
 }
 
 /** The diff lines an edit's input describes. */
@@ -218,10 +225,14 @@ function inputLines(name, input) {
   return lines;
 }
 
-/** The diff and note of an Edit, MultiEdit or Write call, or null when it changed nothing. */
+/** The diff and note of an Edit, MultiEdit or Write call, or null when it changed nothing.
+ *  `starts` (old and new line number of each hunk) comes with a recorded
+ *  patch, or with a file written whole, which starts at line 1. */
 export function editDiff(name, input, own) {
-  const all = patchLines(own) ?? inputLines(name, input);
+  const patch = patchLines(own);
+  const all = patch?.lines ?? inputLines(name, input);
   if (!all.length) return null;
+  const starts = patch ? patch.starts : name === "Write" ? [{ old: 0, new: 1 }] : undefined;
   let added = 0;
   let removed = 0;
   for (const line of all) {
@@ -244,6 +255,7 @@ export function editDiff(name, input, own) {
     chars += line.length;
   }
   const diff = over ? { lines, cut: true } : { lines };
+  if (starts) diff.starts = starts;
   return { diff, note: `+${added} −${removed}` };
 }
 

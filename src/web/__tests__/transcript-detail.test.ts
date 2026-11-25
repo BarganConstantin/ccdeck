@@ -160,9 +160,23 @@ describe("an edit's change", () => {
     ]);
     expect(turns).toEqual([{
       kind: "tool", name: "Edit", arg: "src/a.ts", note: "+2 −2",
-      diff: { lines: [" const a = 1;", "-const b = 2;", "+const b = 3;", "+const c = 4;", " export {};", DIFF_GAP, " end();", "-old();"] },
+      // CHANGED ON PURPOSE (diff cards with line numbers): where each hunk starts rides with the lines.
+      diff: { lines: [" const a = 1;", "-const b = 2;", "+const b = 3;", "+const c = 4;", " export {};", DIFF_GAP, " end();", "-old();"],
+        starts: [{ old: 10, new: 10 }, { old: 40, new: 41 }] },
     }]);
     expect(DIFF_GAP).toBe("…");
+  });
+
+  it("gives line numbers only when every hunk has them, and a written file starts at line 1", () => {
+    const [partial] = transcriptTurns([
+      call("e1", "Edit", { file_path: "a.ts", old_string: "x", new_string: "y" }),
+      answer("e1", "ok", { own: { structuredPatch: [PATCH[0], { lines: ["-x", "+y"] }] } }),
+    ]);
+    expect(partial.diff.starts).toBeUndefined();
+    const [fromInput] = transcriptTurns([call("e2", "Edit", { file_path: "a.ts", old_string: "x", new_string: "y" }), answer("e2", "ok")]);
+    expect(fromInput.diff.starts).toBeUndefined();
+    const [written] = transcriptTurns([call("w1", "Write", { file_path: "n.ts", content: "a\nb\n" })]);
+    expect(written.diff).toEqual({ lines: ["+a", "+b"], starts: [{ old: 0, new: 1 }] });
   });
 
   it("reads the change from the input when there is no patch: what went as -, what came as +", () => {
