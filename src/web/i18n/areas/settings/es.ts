@@ -199,6 +199,7 @@ const catalog: Catalog = {
   "settings.key.undo": "deshacer una reorganización, mientras el lienzo lo ofrezca",
   "settings.key.clear": "vaciar ccdeck y el registro de eventos: pregunta antes",
   "settings.key.quick": "buscar paneles, sesiones, ajustes, acciones y temas",
+  "settings.key.quickShift": "la misma búsqueda, desde cualquier sitio; también con las teclas en la terminal",
   "settings.key.usage": "panel de uso",
   "settings.key.sessions": "lista de sesiones",
   "settings.key.detail": "Inspector",

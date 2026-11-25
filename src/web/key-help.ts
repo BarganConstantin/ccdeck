@@ -173,6 +173,10 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       // with the single-key shortcuts off; ⌘ on a Mac, where Ctrl+K belongs
       // to the text field.
       { cap: "Ctrl + K", macCap: "⌘ K", get action() { return t("settings.key.quick"); }, binds: ["k", "K"], chord: true },
+      // Its other way in, from anywhere the chord answers and from the
+      // terminal too: Shift tapped twice on its own (quick-open.ts,
+      // shiftTaps). No letter, so it stays with the single keys off.
+      { cap: "Shift ×2", get action() { return t("settings.key.quickShift"); }, binds: ["Shift"], chord: true },
       { cap: "U", get action() { return t("settings.key.usage"); }, binds: ["u", "U"] },
       { cap: "S", get action() { return t("settings.key.sessions"); }, binds: ["s", "S"] },
       // The list's own key (internal #101), on the row that has focus, in

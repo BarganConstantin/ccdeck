@@ -216,6 +216,7 @@ const catalog: Catalog = {
   "settings.key.rearrange": "reorganizar a tela e soltar os fixados",
   "settings.key.undo": "desfazer uma reorganização, enquanto a tela oferecer",
   "settings.key.quick": "buscar painéis, sessões, configurações, ações e temas",
+  "settings.key.quickShift": "a mesma busca, de qualquer lugar — também com as teclas no terminal",
   "settings.key.usage": "painel de uso",
   "settings.key.sessions": "lista de sessões",
   "settings.key.detail": "Inspetor",

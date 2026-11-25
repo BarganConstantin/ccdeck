@@ -260,3 +260,15 @@ export function canvasModalOpen(
 ): boolean {
   return appModal || dialogDepth > 0;
 }
+
+/** A popover hung off one control (components/AnchoredPopover.tsx). It keeps
+ *  every character typed in it from the deck, the K of ⌘K and Ctrl+K among
+ *  them, and is no dialog, so the gate above leaves it out: Quick open's
+ *  other way in, two Shift taps, asks for it by name (quick-open.ts). */
+export const ANCHORED_POPOVER_SELECTOR = ".anchored-popover";
+
+/** Whether a keystroke's target sits inside such a popover. Structural, as
+ *  inTerminalPanel is: the window and the document have no `closest`. */
+export function inAnchoredPopover(target: { closest?: (selector: string) => unknown } | null | undefined): boolean {
+  return typeof target?.closest === "function" && target.closest(ANCHORED_POPOVER_SELECTOR) != null;
+}
