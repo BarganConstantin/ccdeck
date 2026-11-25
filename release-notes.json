@@ -1,4 +1,26 @@
 {
+  "4.3.13": [
+    {
+      "title": "🗂️ Keep several sessions open as tabs in a Workspace pane",
+      "body": "A session you open from Board or the session list now opens as a tab in the pane you are in, and your other panes stay as they were. At four panes, or when there is no room for another, it opens as a tab instead of replacing the session in that pane. Each tab wears its session's mark and the tabs stay after a reload. On the tab strip, the arrows move between tabs, Space shows one and Enter also gives it the keys."
+    },
+    {
+      "title": "📁 Fold the groups in the session list",
+      "body": "Click a group's heading in the session list, such as Done, to fold it down to its name and count, and click again to open it. Each group stays as you left it after a reload. A folded group opens again by itself when one of its sessions needs you or when you jump to one of its sessions. Pinned always stays open."
+    },
+    {
+      "title": "🔌 A folder on a disconnected drive says so",
+      "body": "When a session's folder sits on a drive or network folder that is not connected, its pane now says the folder is not reachable, instead of offering to start a new session in a folder nobody can read. Check again picks up the same conversation once the folder is back, and Choose folder… starts a new session elsewhere. For a missing, locked or unreachable folder, the line about it now sits above the terminal instead of covering its first row."
+    },
+    {
+      "title": "🍎 The Mac app's logo stays clear of the window buttons",
+      "body": "In the macOS desktop app, zooming the page out could slide the ccdeck logo under the green window button. The title bar now keeps room for the window buttons at any zoom, and in full screen, where macOS hides them, the logo moves to the edge."
+    },
+    {
+      "title": "🔑 The notice about an unlisted Claude account reads correctly",
+      "body": "When Claude Code is signed in to an account that is not in your list, the notice in Accounts showed raw markup around the email address. It now shows the address in bold, in every language."
+    }
+  ],
   "4.3.12": [
     {
       "title": "⌨️ New keys for the session list, This machine and sound",
@@ -466,6 +488,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.3.13": "Tabs in Workspace panes, foldable session groups, a clear notice for disconnected folders, and Mac title bar fixes",
     "4.3.12": "New keys for lists and panes, Quick Open from a terminal, the Inspector stays closed, fixes for ccdeck tui and the app",
     "4.3.11": "ccdeck tui shows its version, takes updates and shares accounts; sessions can be pinned; Chat can set a question aside",
     "4.3.10": "Subagent costs count requests that ran side by side, and Throttling shows on Linux machines with no temperature sensor",
