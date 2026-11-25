@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import {
-  DECISION_GROUP_TITLE, DECISION_HINTS, DECISION_KEY_GROUP, decisionEventFor, decisionKeyGroup, decisionStatusView,
+  DECISION_HINTS, DECISION_KEY_GROUP, decisionEventFor, decisionKeyGroup, decisionStatusView,
 } from "../components/decision/decision-keys";
 import { KEY_HELP, documentedKeys, keyHelpFor } from "../key-help";
 import { BOARD_HINTS, DECK_HINTS, statusViewFor } from "../status-hints";
@@ -24,9 +24,10 @@ describe("every key the tables name does what it says", () => {
     expect([...new Set(binds(DECISION_KEY_GROUP.rows))].sort()).toEqual([...new Set(binds(DECISION_HINTS))].sort());
   });
 
-  it("each bound key is read by decisionEventFor (with three rows, and the switch on)", () => {
+  // CHANGED ON PURPOSE (herdr's keys): the digits go to 9, for a card of up to nine rows.
+  it("each bound key is read by decisionEventFor (with nine rows, and the switch on)", () => {
     for (const key of binds(DECISION_KEY_GROUP.rows)) {
-      expect(decisionEventFor({ key }, true, 3), key).not.toBeNull();
+      expect(decisionEventFor({ key }, true, 9), key).not.toBeNull();
     }
   });
 
@@ -42,7 +43,7 @@ describe("every key the tables name does what it says", () => {
   });
 
   it("reads nothing else, and no chord", () => {
-    for (const key of ["4", "0", "a", " ", "Delete", "j", "k", "n"]) expect(decisionEventFor({ key }, true, 3), key).toBeNull();
+    for (const key of ["4", "9", "0", "a", " ", "Delete", "j", "k", "n"]) expect(decisionEventFor({ key }, true, 3), key).toBeNull();
     expect(decisionEventFor({ key: "1", ctrlKey: true }, true, 3)).toBeNull();
     expect(decisionEventFor({ key: "1", metaKey: true }, true, 3)).toBeNull();
     expect(decisionEventFor({ key: "1", altKey: true }, true, 3)).toBeNull();
@@ -56,7 +57,7 @@ describe("every key the tables name does what it says", () => {
 
 describe("the single-key switch", () => {
   it("silences the digits and keeps the named keys", () => {
-    for (const key of ["1", "2", "3"]) expect(decisionEventFor({ key }, false, 3), key).toBeNull();
+    for (const key of ["1", "2", "3", "9"]) expect(decisionEventFor({ key }, false, 9), key).toBeNull();
     for (const key of ["ArrowUp", "ArrowDown", "Tab", "Enter", "Escape"]) expect(decisionEventFor({ key }, false, 3), key).not.toBeNull();
   });
 
@@ -67,31 +68,41 @@ describe("the single-key switch", () => {
     expect(decisionKeyGroup(true).rows).toHaveLength(4);
   });
 
-  it("says the bar's words: 1 to 3 pick and send, move, send, close", () => {
+  // CHANGED ON PURPOSE (herdr's keys, and the tables keyed): 1 to 9 pick, Esc
+  // answers No, in the reader's language.
+  it("says the bar's words: 1 to 9 pick, Esc no, move, send", () => {
     const hints = decisionStatusView(true).hints;
-    expect(hints.map(h => h.word)).toEqual(["pick and send", "move", "send", "close"]);
-    expect(hints[0].caps[0]).toEqual({ text: "1–3", spoken: "1 to 3" });
+    expect(hints.map(h => h.word)).toEqual(["pick", "no", "move", "send"]);
+    expect(hints[0].caps[0]).toEqual({ text: "1–9", spoken: "1 to 9" });
+    expect(decisionStatusView(true).label).toBe("Keys on the question");
   });
 });
 
 describe("with the flags off nothing names a Decision key", () => {
+  // CHANGED ON PURPOSE (the tables keyed): the group is known by its id, and
+  // its words by their message keys, in whatever language is on.
   it("the deck's own tables carry no Decision group, hint or word", () => {
-    expect(KEY_HELP.map(g => g.title)).not.toContain(DECISION_GROUP_TITLE);
-    expect(keyHelpFor(true, undefined, true).map(g => g.title)).not.toContain(DECISION_GROUP_TITLE);
-    for (const view of [BOARD_HINTS, DECK_HINTS]) expect(view.map(h => h.word)).not.toContain("pick and send");
+    expect(KEY_HELP.map(g => g.id)).not.toContain(DECISION_KEY_GROUP.id);
+    expect(KEY_HELP.map(g => g.title)).not.toContain(DECISION_KEY_GROUP.title);
+    expect(keyHelpFor(true, undefined, true).map(g => g.id)).not.toContain(DECISION_KEY_GROUP.id);
     const bar = statusViewFor({ stageOpen: true, pane: null, onCard: false, zoomedOut: false, singleKeys: true, platform: "linux", viewChord: "workspace" });
     expect(bar.layer).not.toBe("decision");
-    expect(bar.hints.map(h => h.word)).not.toContain("pick and send");
+    for (const view of [BOARD_HINTS, DECK_HINTS, bar.hints]) {
+      expect(view.flatMap(h => h.caps.map(c => c.text))).not.toContain("1–9");
+    }
   });
 
   it("the sheet and the bar get the Decision words only by prop; first-load files do not name them", () => {
-    for (const file of ["key-help.ts", "status-hints.ts", "components/StatusBar.tsx", "components/KeyboardHelp.tsx"]) {
+    for (const file of ["key-help.ts", "status-hints.ts", "components/StatusBar.tsx", "components/KeyboardHelp.tsx", "screen-keys.ts"]) {
       const text = read(file);
-      expect(text, file).not.toMatch(/decision-keys|components\/decision/);
-      expect(text, file).not.toContain("pick and send");
+      expect(text, file).not.toMatch(/decision-keys|components\/decision|board\.chat\.compose\.keys/);
     }
     expect(read("components/StatusBar.tsx")).toContain("extra?:");
     expect(read("components/KeyboardHelp.tsx")).toContain("extraGroups?:");
+    // The card hands them over itself, while it is drawn (screen-keys.ts).
+    expect(read("components/decision/DecisionCard.tsx")).toMatch(/showScreenKeys\(keysOwner\.current, keysLive/);
+    expect(read("App.tsx")).toContain("extra={screenKeys?.status}");
+    expect(read("components/DeckDialogs.tsx")).toContain("extraGroups={screenKeys ? [screenKeys.group] : undefined}");
   });
 
   // CHANGED ON PURPOSE (first use of Workspace): the deck's own 1 to 4, which

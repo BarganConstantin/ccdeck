@@ -172,3 +172,18 @@
   outline: 1px dashed var(--ctl-edge);
   outline-offset: -1px;
 }
+
+/* THE KEYS A WAITING QUESTION TAKES (answer-keys.ts). The prompt's No on the
+   Decision card says Esc at its end, in the card's own chip; a question
+   card's options name their digit at theirs, while the digits answer it. */
+.dc-esc {
+  flex: none;
+  box-sizing: border-box;
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: var(--r-ctl);
+  background: var(--ctl-fill);
+  color: var(--text);
+  font: 400 11px/14px var(--font-mono);
+}
+.chat-ask-pick .chat-ask-key { margin-left: auto; }
