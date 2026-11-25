@@ -712,6 +712,7 @@ const catalog: Catalog = {
   "board.stage.split.noRoom": "ここには別のペインを置く余裕がありません。このペインのタブとして開きました",
   "board.stage.tabs.label": "このペインで開いているセッション",
   "board.stage.tabs.all": "このペインのすべてのタブ ({count})",
+  "board.stage.tabs.close": "「{name}」を閉じる",
   "board.stage.split.maximize": "このペインで Workspace を埋める",
   "board.stage.split.restore": "ペインを再び並べて表示",
   "board.stage.split.paneNumber": "ペイン {number}",

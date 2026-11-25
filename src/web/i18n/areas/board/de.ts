@@ -712,6 +712,7 @@ const catalog: Catalog = {
   "board.stage.split.noRoom": "Kein Platz für einen weiteren Bereich: Die Sitzung wurde als Tab in diesem Bereich geöffnet",
   "board.stage.tabs.label": "In diesem Bereich geöffnete Sitzungen",
   "board.stage.tabs.all": "Alle Tabs in diesem Bereich ({count})",
+  "board.stage.tabs.close": "{name} schließen",
   "board.stage.split.maximize": "Workspace mit diesem Bereich füllen",
   "board.stage.split.restore": "Bereiche wieder nebeneinander zeigen",
   "board.stage.split.paneNumber": "Bereich {number}",

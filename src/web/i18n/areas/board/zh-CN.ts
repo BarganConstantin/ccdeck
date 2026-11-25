@@ -712,6 +712,7 @@ const catalog: Catalog = {
   "board.stage.split.noRoom": "此处没有空间再放一个窗格：已作为标签页在此窗格中打开",
   "board.stage.tabs.label": "此窗格中打开的会话",
   "board.stage.tabs.all": "此窗格中的所有标签页（{count}）",
+  "board.stage.tabs.close": "关闭“{name}”",
   "board.stage.split.maximize": "让此窗格占满 Workspace",
   "board.stage.split.restore": "重新并排显示窗格",
   "board.stage.split.paneNumber": "窗格 {number}",

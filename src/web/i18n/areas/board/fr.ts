@@ -712,6 +712,7 @@ const catalog: Catalog = {
   "board.stage.split.noRoom": "Pas de place pour un autre volet ici : la session s'est ouverte dans un onglet de ce volet",
   "board.stage.tabs.label": "Sessions ouvertes dans ce volet",
   "board.stage.tabs.all": "Tous les onglets de ce volet ({count})",
+  "board.stage.tabs.close": "Fermer {name}",
   "board.stage.split.maximize": "Remplir le Workspace avec ce volet",
   "board.stage.split.restore": "Remettre les volets côte à côte",
   "board.stage.split.paneNumber": "Volet {number}",

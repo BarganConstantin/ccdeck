@@ -18,7 +18,11 @@
    is filled and in --text, as the strip's tab on show is; the others are
    quiet words in --muted. No ring: a fill is not a boundary that has to reach
    3:1, a ring is. Wider than the room, the strip scrolls and the chevron
-   after it lists every tab. */
+   after it lists every tab.
+   EVERY WORD STAYS IN ITS OWN TAB. A tab clips what it holds, so a squeezed
+   tab never paints its state word over the next one. The tab on show is as
+   wide as its words, up to 240 or the strip's whole width, never wider: the
+   strip's edge never cuts its name, which ends in an ellipsis instead. */
 .ts-tabs {
   flex: 0 1 auto;
   min-width: 0;
@@ -36,28 +40,50 @@
   max-width: 200px;
   height: 28px;
   padding: 0 8px;
+  overflow: hidden;
   border-radius: var(--r-ctl);
 }
 .ts-tabs .ts-tab[data-on] {
-  min-width: max-content;
-  max-width: 240px;
+  flex: none;
+  max-width: min(240px, 100%);
   background: var(--ctl-fill);
   color: var(--text);
 }
 .ts-tab .ts-glyph { flex: none; }
 /* The state word a tab says where the header would: "waiting 6m". Waiting
-   keeps the rail's colour, the reason to look. */
+   keeps the rail's colour, the reason to look. It gives way before the name
+   does: it shrinks first, to an ellipsis and then to nothing; the whole
+   sentence stays in the tab's tooltip and its accessible name. */
 .ts-tab-word {
-  flex: none;
+  flex: 0 1000 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--muted);
   font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
 .ts-tab-word[data-state="waiting"] { color: var(--warn); }
 .ts-tabs-more { flex: none; }
+/* A narrow header with tabs (a split pane beside the side columns): the strip
+   needs the room more than the context chip, which the Inspector's Context
+   tab still says. Without it the tab on show read "Mi…" at 354 wide. */
+@container ts-head (max-width: 480px) {
+  .ts-head:has(> .ts-id[data-tabs]) > .ts-ctxchip { display: none; }
+}
 .ts-tabs-item { display: flex; align-items: center; gap: 6px; }
 .ts-tabs-item .wsp-tab-name { font-weight: 400; }
 .ts-tabs-item[aria-checked="true"] .wsp-tab-name { font-weight: 600; }
+/* A tab's row in the menu with its × after it: two items side by side, the
+   name giving way (ellipsis) so the × keeps its square at any length. The ×
+   is the header's own bare glyph button (.glyph-btn). */
+.ts-tabs-row { display: flex; align-items: center; gap: 2px; }
+.ts-tabs-row > .ts-tabs-item { flex: 1 1 auto; min-width: 0; }
+.ts-tabs-x { flex: none; }
+/* Drawn afresh for the tab that comes on after the tab on show was closed
+   from it, the menu was on screen already: it does not arrive again. */
+.anchored-popover.ts-tabs-pop-kept { animation: none; }
 
 /* Side by side, the stage's own left edge is the line between panes. */
 .stage-in[data-split] .ts-stage { border-left: 0; }
