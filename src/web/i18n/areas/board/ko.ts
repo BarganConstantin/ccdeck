@@ -782,6 +782,7 @@ const catalog: Catalog = {
   "board.chat.ask.waiting": "답변을 기다리는 중",
   "board.chat.ask.answered": "답변함",
   "board.chat.ask.unanswered": "답변 안 함",
+  "board.chat.ask.chatted": "대화를 위해 보류함",
   "board.chat.ask.multi": "여러 개 선택 가능",
   "board.chat.ask.chosen": "선택됨",
   "board.chat.ask.yourAnswer": "내 답변",
@@ -795,6 +796,10 @@ const catalog: Catalog = {
   "board.chat.ask.result.partial": "답변의 일부만 전송되었습니다. Term에서 마무리하세요.",
   "board.chat.ask.result.unavailable": "답변을 보낼 수 없습니다. Term에서 답하세요.",
   "board.chat.ask.inTerm": "이 질문은 직접 입력해야 합니다. Term에서 답하세요.",
+  "board.chat.ask.chat": "이것에 대해 대화하기",
+  "board.chat.ask.chatSending": "대화를 위해 보류하는 중…",
+  "board.chat.ask.result.chat": "대화를 위해 보류했습니다. Claude Code가 무엇을 명확히 하고 싶은지 물어보면 아래에서 답하세요.",
+  "board.chat.ask.result.chatMissing": "Term의 이 질문에는 대화 옵션이 없어 아무것도 보내지 않았습니다. Term에서 답하세요.",
   "board.chat.plan.title": "계획",
   "board.chat.plan.waiting": "승인을 기다리는 중",
   "board.chat.plan.approved": "승인됨",
@@ -1026,6 +1031,7 @@ const catalog: Catalog = {
   "board.railGroup.new": "완료 · 신규",
   "board.railGroup.done": "완료",
   "board.railGroup.ready": "준비됨",
+  "board.railGroup.pinned": "고정됨",
   "board.rail.held.one": "목록에서 나가면 이동 {count}건이 적용됩니다",
   "board.rail.held.other": "목록에서 나가면 이동 {count}건이 적용됩니다",
   "board.nav.none": "세션 없음",
@@ -1082,6 +1088,9 @@ const catalog: Catalog = {
   "board.list.hiddenRow": "{name} 세션을 목록에서 숨겼습니다",
   "board.list.hiddenSaid": "{name} 세션을 목록에서 숨겼습니다. 실행 취소할 수 있습니다.",
   "board.list.hiddenCount": "숨김 · {n}",
+  "board.list.pinRow": "고정",
+  "board.list.unpinRow": "고정 해제",
+  "board.list.pinnedSuffix": ", 고정됨",
 };
 
 export default catalog;

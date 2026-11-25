@@ -108,6 +108,16 @@ describe("reading the prompt off the screen", () => {
     expect(readScreenPrompt(screen)).toBeNull();
   });
 
+  it("draws nothing for the question prompt with its Chat about this row either (Claude Code 2.1.331)", () => {
+    const screen = [
+      " ☐ Database", "", " Which database should the service use?", "",
+      " ❯ 1. Postgres", "   2. SQLite", "   3. Type something.",
+      " ─────────────────────────────────", "   4. Chat about this", "",
+      " Enter to select · ↑/↓ to navigate · Esc to cancel",
+    ].join("\n");
+    expect(readScreenPrompt(screen)).toBeNull();
+  });
+
   it("draws nothing for a list in the assistant's own text, which has no pointer", () => {
     const screen = "⏺ Do you want to proceed?\n  1. Yes\n  2. No\n\n> ";
     expect(readScreenPrompt(screen)).toBeNull();

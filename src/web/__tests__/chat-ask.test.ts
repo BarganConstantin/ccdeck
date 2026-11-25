@@ -231,3 +231,125 @@ describe("when the card cannot send, or the keys did not all go", () => {
     expect(r.choices(0)).toEqual([]);
   });
 });
+
+// Claude Code's prompt ends with "Chat about this", set apart from the
+// answers. The card offers it as a quiet link at the end of Send answer's row,
+// sends it through the stage like an answer, and says the questions were set
+// aside rather than answered.
+describe("Chat about this", () => {
+  function chatRig(turn: AskTurn, ask: Partial<ChatAsk> = {}) {
+    let settle: (result: AskSendResult) => void = () => {};
+    const chat = vi.fn<NonNullable<ChatAsk["chat"]>>(() => new Promise(resolve => { settle = resolve; }));
+    const r = rig(turn, { chat, ...ask });
+    return {
+      ...r, chat,
+      settleChat: async (result: AskSendResult) => { settle(result); await flush(); },
+      link: () => one(r.view.tree, el => el.type === "button" && el.props.className === "chat-ask-term chat-ask-chat"),
+    };
+  }
+  const click = (el: Drawn | null) => (el!.props.onClick as () => void)();
+
+  it("is offered last, after Send answer, as a quiet link and not as an answer", () => {
+    const r = chatRig(waiting(DB));
+    const actions = one(r.view.tree, el => el.props.className === "chat-ask-actions")!;
+    const buttons = all(actions, el => el.type === "button");
+    expect(buttons.map(textOf)).toEqual(["Send answer", "Chat about this"]);
+    expect(buttons.at(-1)!.props.type).toBe("button");
+    expect(r.choices(0), "not one of the options").toHaveLength(4);
+  });
+
+  it("is not offered by a stage that cannot pick it, a read-only card, or a blocked stage", () => {
+    expect(rig(waiting(DB), {}).text()).not.toContain("Chat about this");
+    expect(chatRig({ kind: "ask", questions: [DB], answers: ["Postgres"] }).link()).toBeNull();
+    expect(chatRig(waiting(DB), { blocked: "This session is read-only." }).link()).toBeNull();
+    expect(rig(waiting(DB)).text(), "no stage at all").not.toContain("Chat about this");
+  });
+
+  it("is offered with several questions and several choices, and sends them all", async () => {
+    const r = chatRig(waiting(DB, FEATURES));
+    r.pick(0, 1);
+    click(r.link());
+    expect(r.chat).toHaveBeenCalledWith([DB, FEATURES]);
+    expect(r.send).not.toHaveBeenCalled();
+    expect(chatRig(waiting(FEATURES)).link()).not.toBeNull();
+    expect(chatRig(waiting(LAYOUT)).link(), "beside a preview too").not.toBeNull();
+  });
+
+  it("pressed: says it is setting the question aside, then that it was, and locks the card", async () => {
+    const r = chatRig(waiting(DB));
+    r.pick(0, 2);
+    click(r.link());
+    expect(textOf(r.status())).toBe("Setting it aside to chat…");
+    expect(r.link(), "gone while it goes").toBeNull();
+    expect(r.sendButton().props.disabled).toBe(true);
+    await r.settleChat("sent");
+    expect(textOf(r.status())).toBe("Set aside to chat. Claude Code will ask what you want to clarify; reply below.");
+    expect(r.status()!.props["data-result"]).toBe("sent");
+    expect(r.link(), "never sent twice").toBeNull();
+    expect(r.sendButton().props.disabled).toBe(true);
+    expect(r.choices(0).every(el => el.props.disabled)).toBe(true);
+    expect(all(r.view.tree, el => el.props.className === "chat-ask-chosen"), "the pick made before was not chosen").toEqual([]);
+    expect(r.term()).toBeNull();
+  });
+
+  it("Term without the row: nothing went, the link goes, the status says to answer in Term, and an answer can still go", async () => {
+    const r = chatRig(waiting(DB));
+    click(r.link());
+    await r.settleChat("changed");
+    expect(textOf(r.status())).toBe("Term has no Chat about this row for this question, so nothing was sent. Answer it in Term.");
+    expect(r.status()!.props["data-result"]).toBe("changed");
+    expect(r.term()).not.toBeNull();
+    expect(r.link(), "not offered again: Term has no such row").toBeNull();
+    r.pick(0, 0);
+    r.submit();
+    expect(textOf(r.status()), "an answer says it is an answer").toBe("Sending the answer…");
+    await r.settle("sent");
+    expect(textOf(r.status())).toBe("Answer sent. The conversation updates when Claude Code continues.");
+    expect(all(r.view.tree, el => el.props.className === "chat-ask-chosen").map(textOf)).toEqual(["Chosen"]);
+    expect(r.link(), "the question was answered").toBeNull();
+  });
+
+  it("a chat that fails says so as an answer that fails does, and stays on offer", async () => {
+    const r = chatRig(waiting(DB), { chat: vi.fn(() => Promise.reject(new Error("socket closed"))) });
+    click(r.link());
+    await flush();
+    expect(textOf(r.status())).toBe("The answer could not be sent. Answer in Term.");
+    expect(r.term()).not.toBeNull();
+    expect(r.link(), "a dropped socket is not a missing row").not.toBeNull();
+  });
+
+  it("the status line can take focus, so the press does not drop it to the page when the link goes", () => {
+    const r = chatRig(waiting(DB));
+    expect(r.status()!.props.tabIndex).toBe(-1);
+    expect(r.status()!.props.role).toBe("status");
+  });
+
+  it("says the missing row in every language", async () => {
+    setLanguage("ro");
+    const r = chatRig(waiting(DB));
+    click(r.link());
+    await r.settleChat("changed");
+    expect(textOf(r.status())).toBe("În Term întrebarea asta nu are opțiunea de discuție, așa că nu s-a trimis nimic. Răspunde în Term.");
+  });
+
+  it("an answer sent from the card takes the offer away, and answers go as before", async () => {
+    const r = chatRig(waiting(DB));
+    r.other(0);
+    r.type("MySQL");
+    r.submit();
+    expect(r.send).toHaveBeenCalledWith([DB], [{ options: [], text: "MySQL" }]);
+    expect(r.link()).toBeNull();
+    await r.settle("sent");
+    expect(r.chat).not.toHaveBeenCalled();
+  });
+
+  it("set aside in the transcript, the card says so instead of Not answered", () => {
+    const r = chatRig({ kind: "ask", questions: [DB, FEATURES], answers: ["", ""], chat: true });
+    expect(r.text()).toContain("Set aside to chat");
+    expect(r.text()).not.toContain("Not answered");
+    expect(one(r.view.tree, el => el.type === "section")!.props["data-state"]).toBe("chatted");
+    expect(r.link()).toBeNull();
+    setLanguage("ro");
+    expect(rig({ kind: "ask", questions: [DB], answers: [""], chat: true }).text()).toContain("Lăsată deoparte pentru discuție");
+  });
+});

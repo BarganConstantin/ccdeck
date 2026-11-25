@@ -805,6 +805,7 @@ const catalog: Catalog = {
   "board.chat.ask.waiting": "Așteaptă răspunsul tău",
   "board.chat.ask.answered": "Răspuns dat",
   "board.chat.ask.unanswered": "Fără răspuns",
+  "board.chat.ask.chatted": "Lăsată deoparte pentru discuție",
   "board.chat.ask.multi": "Poți alege mai multe",
   "board.chat.ask.chosen": "Ales",
   "board.chat.ask.yourAnswer": "Răspunsul tău",
@@ -818,6 +819,10 @@ const catalog: Catalog = {
   "board.chat.ask.result.partial": "S-a trimis doar o parte din răspuns. Termină-l în Term.",
   "board.chat.ask.result.unavailable": "Răspunsul nu a putut fi trimis. Răspunde în Term.",
   "board.chat.ask.inTerm": "Întrebarea cere text scris. Răspunde în Term.",
+  "board.chat.ask.chat": "Discută despre asta",
+  "board.chat.ask.chatSending": "Se lasă deoparte pentru discuție…",
+  "board.chat.ask.result.chat": "Lăsată deoparte pentru discuție. Claude Code te va întreba ce vrei să clarifici; răspunde mai jos.",
+  "board.chat.ask.result.chatMissing": "În Term întrebarea asta nu are opțiunea de discuție, așa că nu s-a trimis nimic. Răspunde în Term.",
   "board.chat.plan.title": "Plan",
   "board.chat.plan.waiting": "Așteaptă aprobarea ta",
   "board.chat.plan.approved": "Aprobat",
@@ -1059,6 +1064,7 @@ const catalog: Catalog = {
   "board.railGroup.new": "Gata · noi",
   "board.railGroup.done": "Gata",
   "board.railGroup.ready": "Pregătite",
+  "board.railGroup.pinned": "Fixate",
   "board.rail.held.one": "{count} mutare așteaptă până ieși din listă",
   "board.rail.held.few": "{count} mutări așteaptă până ieși din listă",
   "board.rail.held.other": "{count} de mutări așteaptă până ieși din listă",
@@ -1117,6 +1123,9 @@ const catalog: Catalog = {
   "board.list.hiddenRow": "{name} a fost ascunsă din listă",
   "board.list.hiddenSaid": "{name} a fost ascunsă din listă. Se poate anula.",
   "board.list.hiddenCount": "Ascunse · {n}",
+  "board.list.pinRow": "Fixează",
+  "board.list.unpinRow": "Anulează fixarea",
+  "board.list.pinnedSuffix": ", fixată",
 };
 
 export default catalog;

@@ -782,6 +782,7 @@ const catalog: Catalog = {
   "board.chat.ask.waiting": "En attente de votre réponse",
   "board.chat.ask.answered": "Répondu",
   "board.chat.ask.unanswered": "Sans réponse",
+  "board.chat.ask.chatted": "Mis de côté pour en discuter",
   "board.chat.ask.multi": "Plusieurs choix possibles",
   "board.chat.ask.chosen": "Choisi",
   "board.chat.ask.yourAnswer": "Votre réponse",
@@ -795,6 +796,10 @@ const catalog: Catalog = {
   "board.chat.ask.result.partial": "Seule une partie de la réponse a été envoyée. Terminez-la dans Term.",
   "board.chat.ask.result.unavailable": "La réponse n’a pas pu être envoyée. Répondez dans Term.",
   "board.chat.ask.inTerm": "Cette question demande un texte saisi. Répondez-y dans Term.",
+  "board.chat.ask.chat": "En discuter",
+  "board.chat.ask.chatSending": "Mise de côté pour en discuter…",
+  "board.chat.ask.result.chat": "Mis de côté pour en discuter. Claude Code va vous demander ce que vous voulez clarifier ; répondez ci-dessous.",
+  "board.chat.ask.result.chatMissing": "Dans Term, cette question n’a pas d’option pour en discuter : rien n’a été envoyé. Répondez dans Term.",
   "board.chat.plan.title": "Plan",
   "board.chat.plan.waiting": "En attente de votre approbation",
   "board.chat.plan.approved": "Approuvé",
@@ -1026,6 +1031,7 @@ const catalog: Catalog = {
   "board.railGroup.new": "Terminé · nouveau",
   "board.railGroup.done": "Terminé",
   "board.railGroup.ready": "Prêt",
+  "board.railGroup.pinned": "Épinglées",
   "board.rail.held.one": "{count} déplacement attend que vous quittiez la liste",
   "board.rail.held.other": "{count} déplacements attendent que vous quittiez la liste",
   "board.nav.none": "Aucune session",
@@ -1082,6 +1088,9 @@ const catalog: Catalog = {
   "board.list.hiddenRow": "{name} masquée de la liste",
   "board.list.hiddenSaid": "{name} masquée de la liste. Annulation possible.",
   "board.list.hiddenCount": "Masquées · {n}",
+  "board.list.pinRow": "Épingler",
+  "board.list.unpinRow": "Désépingler",
+  "board.list.pinnedSuffix": ", épinglée",
 };
 
 export default catalog;

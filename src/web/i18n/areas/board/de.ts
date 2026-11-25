@@ -782,6 +782,7 @@ const catalog: Catalog = {
   "board.chat.ask.waiting": "Wartet auf deine Antwort",
   "board.chat.ask.answered": "Beantwortet",
   "board.chat.ask.unanswered": "Nicht beantwortet",
+  "board.chat.ask.chatted": "Zum Besprechen zurückgestellt",
   "board.chat.ask.multi": "Mehrere möglich",
   "board.chat.ask.chosen": "Gewählt",
   "board.chat.ask.yourAnswer": "Deine Antwort",
@@ -795,6 +796,10 @@ const catalog: Catalog = {
   "board.chat.ask.result.partial": "Nur ein Teil der Antwort wurde gesendet. Beende sie in Term.",
   "board.chat.ask.result.unavailable": "Die Antwort konnte nicht gesendet werden. Antworte in Term.",
   "board.chat.ask.inTerm": "Diese Frage verlangt eingegebenen Text. Beantworte sie in Term.",
+  "board.chat.ask.chat": "Darüber sprechen",
+  "board.chat.ask.chatSending": "Wird zum Besprechen zurückgestellt…",
+  "board.chat.ask.result.chat": "Zum Besprechen zurückgestellt. Claude Code fragt gleich, was du klären möchtest; antworte unten.",
+  "board.chat.ask.result.chatMissing": "In Term hat diese Frage keine Option zum Besprechen, daher wurde nichts gesendet. Antworte in Term.",
   "board.chat.plan.title": "Plan",
   "board.chat.plan.waiting": "Wartet auf deine Genehmigung",
   "board.chat.plan.approved": "Genehmigt",
@@ -1026,6 +1031,7 @@ const catalog: Catalog = {
   "board.railGroup.new": "Fertig · neu",
   "board.railGroup.done": "Fertig",
   "board.railGroup.ready": "Bereit",
+  "board.railGroup.pinned": "Angeheftet",
   "board.rail.held.one": "{count} Verschiebung wartet, bis du die Liste verlässt",
   "board.rail.held.other": "{count} Verschiebungen warten, bis du die Liste verlässt",
   "board.nav.none": "Keine Sitzungen",
@@ -1082,6 +1088,9 @@ const catalog: Catalog = {
   "board.list.hiddenRow": "{name} aus der Liste ausgeblendet",
   "board.list.hiddenSaid": "{name} aus der Liste ausgeblendet. Rückgängig möglich.",
   "board.list.hiddenCount": "Ausgeblendet · {n}",
+  "board.list.pinRow": "Anheften",
+  "board.list.unpinRow": "Loslösen",
+  "board.list.pinnedSuffix": ", angeheftet",
 };
 
 export default catalog;

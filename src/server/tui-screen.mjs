@@ -36,6 +36,15 @@
 // cursor; the next frame is written whole all the same, so a terminal that
 // printed the sequence instead of taking it has it painted over.
 //
+// A PASTE, BRACKETED, while a field that takes a whole share is up and only
+// then (DEC mode 2004): the terminal marks where a paste starts and ends, so
+// the app can take it as one piece — a newline inside it, from a selection
+// copied off wrapped rows, is then a character and not enter, and thousands of
+// characters are one redraw. Off again as soon as the field goes, and on every
+// way out: a shell left in the mode gets the marks pasted into its prompt. A
+// terminal that does not know the mode ignores it, and its pastes arrive a
+// character at a time, as they always did.
+//
 // Pure in the sense that matters for a test: everything goes through `write`,
 // and nothing reads the terminal.
 import { CURSOR_HIDE, CURSOR_SHOW } from "./term.mjs";
@@ -46,6 +55,8 @@ export const WRAP_OFF = "\x1b[?7l";
 export const WRAP_ON = "\x1b[?7h";
 export const SYNC_ON = "\x1b[?2026h";
 export const SYNC_OFF = "\x1b[?2026l";
+export const PASTE_ON = "\x1b[?2004h";
+export const PASTE_OFF = "\x1b[?2004l";
 const RESET = "\x1b[0m";
 const CLEAR = "\x1b[2J";
 const HOME = "\x1b[H";
@@ -79,8 +90,9 @@ export function clipboardSequence(text) {
  * whole (a resize, Ctrl+L), and `leave` puts the terminal back. `leave` is
  * safe to call twice and before `enter`, since every way out calls it.
  * `copy(text)` asks the terminal to put `text` on the clipboard, while the
- * screen is up. `held` says whether a frame goes between the
- * synchronized-output marks.
+ * screen is up. `bracketPaste(on)` turns the bracketed paste on or off, and
+ * writes only when that changes it. `held` says whether a frame goes between
+ * the synchronized-output marks.
  *
  * `run` is `{ row, rows, text, full }`: `text` written from the start of `row`
  * with wrapping on, over the `rows` rows whose `lines` are its pieces, and
@@ -92,6 +104,7 @@ export function createScreen(write, { held = framesHeld() } = {}) {
   let shownRun = null;
   let wrapped = new Set();
   let on = false;
+  let pasting = false;
   const send = (s) => {
     try { write(s); } catch { /* the terminal went away; nothing left to draw on */ }
   };
@@ -129,6 +142,11 @@ export function createScreen(write, { held = framesHeld() } = {}) {
       if (out) send(held ? `${SYNC_ON}${out}${SYNC_OFF}` : out);
     },
     invalidate() { shown = null; shownRun = null; },
+    bracketPaste(want) {
+      if (!on || Boolean(want) === pasting) return;
+      pasting = Boolean(want);
+      send(pasting ? PASTE_ON : PASTE_OFF);
+    },
     copy(text) {
       if (!on) return;
       send(clipboardSequence(text));
@@ -141,7 +159,9 @@ export function createScreen(write, { held = framesHeld() } = {}) {
       shown = null;
       shownRun = null;
       wrapped = new Set();
-      send(`${held ? SYNC_OFF : ""}${RESET}${WRAP_ON}${CURSOR_SHOW}${ALT_SCREEN_OFF}`);
+      const paste = pasting ? PASTE_OFF : "";
+      pasting = false;
+      send(`${paste}${held ? SYNC_OFF : ""}${RESET}${WRAP_ON}${CURSOR_SHOW}${ALT_SCREEN_OFF}`);
     },
   };
 }

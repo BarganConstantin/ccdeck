@@ -782,6 +782,7 @@ const catalog: Catalog = {
   "board.chat.ask.waiting": "等待你的回答",
   "board.chat.ask.answered": "已回答",
   "board.chat.ask.unanswered": "未回答",
+  "board.chat.ask.chatted": "已搁置，先聊聊",
   "board.chat.ask.multi": "可多选",
   "board.chat.ask.chosen": "已选",
   "board.chat.ask.yourAnswer": "你的回答",
@@ -795,6 +796,10 @@ const catalog: Catalog = {
   "board.chat.ask.result.partial": "只发送了部分回答。请在 Term 中完成。",
   "board.chat.ask.result.unavailable": "无法发送回答。请在 Term 中回答。",
   "board.chat.ask.inTerm": "此问题需要输入文字。请在 Term 中回答。",
+  "board.chat.ask.chat": "就此聊聊",
+  "board.chat.ask.chatSending": "正在搁置…",
+  "board.chat.ask.result.chat": "已搁置，先聊聊。Claude Code 会问你想澄清什么，请在下方回复。",
+  "board.chat.ask.result.chatMissing": "Term 中这个问题没有“聊聊”选项，因此未发送任何内容。请在 Term 中回答。",
   "board.chat.plan.title": "计划",
   "board.chat.plan.waiting": "等待你的批准",
   "board.chat.plan.approved": "已批准",
@@ -1026,6 +1031,7 @@ const catalog: Catalog = {
   "board.railGroup.new": "已完成 · 新",
   "board.railGroup.done": "已完成",
   "board.railGroup.ready": "就绪",
+  "board.railGroup.pinned": "已置顶",
   "board.rail.held.one": "有 {count} 项移动，待您离开列表后执行",
   "board.rail.held.other": "有 {count} 项移动，待您离开列表后执行",
   "board.nav.none": "没有会话",
@@ -1082,6 +1088,9 @@ const catalog: Catalog = {
   "board.list.hiddenRow": "已从列表中隐藏 {name}",
   "board.list.hiddenSaid": "已从列表中隐藏 {name}，可以撤销。",
   "board.list.hiddenCount": "已隐藏 · {n}",
+  "board.list.pinRow": "置顶",
+  "board.list.unpinRow": "取消置顶",
+  "board.list.pinnedSuffix": "，已置顶",
 };
 
 export default catalog;

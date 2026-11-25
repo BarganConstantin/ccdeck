@@ -14,21 +14,29 @@
 // Command Panel's, and a second way of doing it here would be a second set of
 // rules to keep in step.
 //
+// Updates are the deck's too. The title bar says when the deck names one, in
+// its page's words, and u takes it through the deck's own install and restart
+// — never npm from here. And this screen follows them: a process left open for
+// days keeps the code it started with, so once the deck runs a newer version
+// and this screen's own package on disk says that same version, it reopens
+// itself on the new code, on the tab it was on (see `follow` below).
+//
 // The view and the keys are pure (src/server/tui-view.mjs) and the painting is
 // a row diff over the alternate screen (src/server/tui-screen.mjs). This file is
 // the rest: the readings, on a timer each, the effects a key asks for, and the
 // terminal handed back on every way out — q, a signal, a closed connection, a
 // throw.
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
+import { realpathSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { emitKeypressEvents } from "node:readline";
 import {
   EXIT, ask, autoRules, deckTrouble, load, rosterTrouble, silentDecks, switchHere, switchThroughDeck,
 } from "./commands.js";
 import { oneLine } from "../../src/server/cli-lines.mjs";
 import { stripAnsi } from "../../src/server/term.mjs";
-import { COMMAND, PKG_ROOT } from "./package.js";
+import { COMMAND, PKG_ROOT, PKG_VERSION, versionOnDisk } from "./package.js";
 import { G, LINKS, P, PROFILE, UNICODE } from "./screen.js";
 
 /** How often each reading is taken while the screen is up. The sessions are
@@ -45,7 +53,30 @@ export const POLL_MS = Object.freeze({
   // use-lan-section.ts); off its tab often enough that a deck asking to pair
   // is said within half a minute.
   lan: 5_000, lanAway: 30_000,
+  // The deck's update report: the deck asks npm at most hourly and caches the
+  // answer, so every ten minutes says a release within the hour it is seen —
+  // and asks npm nothing; only u asks it now. And this screen's own package on
+  // disk, for the version an install left there.
+  update: 600_000, disk: 10_000,
 });
+
+/** How long each part of an update is waited for: the install (an npm
+ *  install on a slow line), the restart onto files already here, and npx's,
+ *  which fetches the new version before it hands the port over. The deck's
+ *  report is asked every `poll` while one runs. */
+export const UPDATE_WAIT_MS = Object.freeze({ install: 300_000, restart: 90_000, npx: 180_000, poll: 2_000 });
+
+/** How long the screen has to be left alone before it reopens itself on new
+ *  code: a key in that time is somebody in the middle of something. */
+export const REST_MS = 5_000;
+
+/**
+ * INTERNAL, not a flag anybody types: set on the screen this one reopens as,
+ * `{"side":"codex","from":"4.3.10"}` — the tab to open on and the version it
+ * came from — read once at its start and taken out of its environment, so a
+ * deck started from it, or the next reopen, does not carry it on.
+ */
+export const RESUMED_ENV = "AGENTS_DECK_TUI_RESUMED";
 
 /** How long a deck started from here is waited for before saying it did not
  *  come up. A first run installs hooks and claude-swap before it listens. */
@@ -55,7 +86,9 @@ export const START_WAIT_MS = 90_000;
  * Run the screen until q, resolving to the exit code. `deps` replaces the
  * terminal, the clock and the deck for a test: `input`, `output`, `now`,
  * `source` (see deckSource), `tone`, `g`, `unicode`, `profile`, `links`,
- * `tickMs`.
+ * `tickMs` — and the reopen onto new code: `own` (this screen's version),
+ * `versionOnDisk`, `newCodeStarts(version)`, `reopen({ port, side, from, to })`
+ * resolving to the new screen's exit code, and `resumed` (RESUMED_ENV's text).
  */
 export async function runTui(flags, out, deps = {}) {
   const input = deps.input ?? process.stdin;
@@ -76,6 +109,13 @@ export async function runTui(flags, out, deps = {}) {
   const { HISTORY_GROUPS, historyMachine, withReading } = await load("src/server/tui-machine.mjs");
   const { CODEX_REFUSED, codexLiveSaid, codexSigninRunning } = await load("src/server/tui-codex.mjs");
   const { LAN_REFUSED } = await load("src/server/tui-network.mjs");
+  const share = await load("src/server/tui-share.mjs");
+  const { isOlder } = await load("src/server/version-order.mjs");
+  const own = deps.own ?? PKG_VERSION;
+  const onDisk = deps.versionOnDisk ?? versionOnDisk;
+  // Read once, and out of the environment: see RESUMED_ENV.
+  const resumed = resumedFrom(deps.resumed !== undefined ? deps.resumed : process.env[RESUMED_ENV]);
+  if (deps.resumed === undefined) delete process.env[RESUMED_ENV];
   const port = flags.port != null ? Number(flags.port) : null;
   const base = deps.source ?? deckSource(port);
   const look = {
@@ -91,14 +131,28 @@ export async function runTui(flags, out, deps = {}) {
     return out.fail(EXIT.NO_DECK, "no_deck", `no deck is listening on ${port} ${G.dash} \`${COMMAND} status\` lists them`);
   }
 
-  let state = { ...view.initialState(), deck: deck ? { port: deck.port, version: deck.version ?? null } : null };
-  const last = { roster: 0, auto: 0, sessions: 0, system: 0, history: 0, signin: 0, codex: 0, codexQuota: 0, codexSignin: 0, lan: 0, find: clock() };
+  let state = { ...view.initialState(), own, deck: deck ? { port: deck.port, version: deck.version ?? null } : null };
+  const last = { roster: 0, auto: 0, sessions: 0, system: 0, history: 0, signin: 0, codex: 0, codexQuota: 0, codexSignin: 0, lan: 0, update: 0, find: clock() };
   const inflight = new Set();
   const screen = createScreen(s => output.write(s));
   let done = null;
 
   const set = (patch) => { state = { ...state, ...patch }; };
-  const tell = (tone, text) => set({ notice: view.note(tone, text, clock()) });
+  const tell = (tone, text, short = null) => set({ notice: { ...view.note(tone, text, clock()), ...(short ? { short } : {}) } });
+  /** A notice the view worked out: `{ tone, text, short? }`. */
+  const say = (n) => tell(n.tone, n.text, n.short ?? null);
+
+  // Opened by the screen before this one, on older code: back on its tab, once
+  // the deck has said it serves it, and said that the update took.
+  let resumeSide = resumed && resumed.side !== "claude" ? resumed.side : null;
+  if (resumed) tell("ok", resumed.from && isOlder(resumed.from, own) ? `updated to ${own}` : `reopened on ${own}`);
+  /** The tab the screen before this one was on, once the deck has answered
+   *  for it — or never, when it answered without it. */
+  const landSide = (side) => {
+    if (resumeSide !== side) return;
+    resumeSide = null;
+    state = view.showSide(state, side);
+  };
 
   /**
    * The deck held here, looked up again (#100). A deck that restarts — an
@@ -120,6 +174,9 @@ export async function runTui(flags, out, deps = {}) {
     if (!found || !held || (found.port === held.port && found.token === held.token)) return null;
     deck = found;
     set({ deck: { port: found.port, version: found.version ?? null }, silent: [] });
+    // A deck that restarted may have restarted into an update: its report is
+    // asked for again at the next tick.
+    last.update = 0;
     return found;
   })().finally(() => { refinding = null; }));
 
@@ -148,6 +205,15 @@ export async function runTui(flags, out, deps = {}) {
     if (done) return;
     const frame = view.tuiFrame(state, { ...size(), ...look, now: clock() });
     if (frame.top !== state.top) set({ top: frame.top });
+    if (frame.parts != null && state.share?.view === "shown" && state.share.parts !== frame.parts) {
+      // A resize changes how many parts there are; the one shown stays one of them.
+      const part = Math.min(state.share.part ?? 0, Math.max(0, frame.parts - 1));
+      set({ share: { ...state.share, parts: frame.parts, part } });
+    }
+    // On while the screen is up, not only under a share's field: a paste
+    // anywhere else then comes bracketed, and is set aside whole rather than
+    // run a character a key (pasted).
+    screen.bracketPaste(true);
     screen.paint(frame.lines, frame.run);
   };
 
@@ -170,7 +236,7 @@ export async function runTui(flags, out, deps = {}) {
    *  in the meantime. */
   const lost = () => {
     deck = null;
-    set({ deck: null, auto: null, sessions: null, codexAuto: null, lanPrefs: null });
+    set({ deck: null, auto: null, sessions: null, codexAuto: null, lanPrefs: null, update: null });
     state = view.withLan(state, null);
     state = view.withCodex(state, null);
     if (codexSigninRunning(state.codexSignin)) {
@@ -269,6 +335,7 @@ export async function runTui(flags, out, deps = {}) {
     state = view.withCodex(state, r.ok && Array.isArray(r.body?.profiles) ? r.body : null);
     set({ codexAuto: a.ok && a.body && typeof a.body === "object" && a.body.ok !== false ? a.body : null });
     last.codexQuota = 0;
+    landSide("codex");
   });
 
   // Each account's quota when it is due: at once for one new or signed in
@@ -327,6 +394,7 @@ export async function runTui(flags, out, deps = {}) {
     if (!found) return;
     deck = found;
     set({ deck: { port: found.port, version: found.version ?? null }, silent: [] });
+    last.update = 0;
     readAll(true);
   });
 
@@ -339,6 +407,7 @@ export async function runTui(flags, out, deps = {}) {
       if (found) {
         deck = found;
         set({ deck: { port: found.port, version: found.version ?? null } });
+        last.update = 0;
       } else {
         const silent = await src.silent();
         if (silent.length) {
@@ -602,6 +671,7 @@ export async function runTui(flags, out, deps = {}) {
       if (found) {
         deck = found;
         set({ deck: { port: found.port, version: found.version ?? null }, starting: false, busy: null, silent: [] });
+        last.update = 0;
         tell("ok", `the deck is running on ${found.port}`);
         await readAll(true);
         return;
@@ -710,6 +780,83 @@ export async function runTui(flags, out, deps = {}) {
     tell("ok", "signed in to Codex");
   }
 
+  // ── sharing, through the deck's own routes ──────────────────────────────
+  //
+  // What the Accounts panel's Share, its ↗ and its Paste a share post, and the
+  // Codex panel's two. The share comes back in the answer and goes on the
+  // page and nowhere else: not into a notice, and a refusal is said by its
+  // reason code alone (tui-share.mjs shareTrouble), never by the route's text.
+
+  async function doShare(e) {
+    if (!deck) return;
+    const codex = e.codex === true;
+    const n = codex ? e.ids.length : e.nums.length;
+    set({ busy: { text: "making the share", since: clock() }, notice: null });
+    render();
+    // One `cswap export` an account, each with claude-swap's own minute.
+    const r = codex
+      ? await src.ask(deck, { method: "POST", path: "/api/codex-accounts-share", body: { ids: e.ids, ...(e.protect ? { preparePermissions: true } : {}) }, timeoutMs: 60_000 })
+      : await src.ask(deck, { method: "POST", path: ADMIN, body: { action: "share", accounts: e.nums }, timeoutMs: Math.min(600_000, 60_000 + 30_000 * n) });
+    set({ busy: null });
+    if (r.status === 0) lost();
+    const made = r.ok && r.body?.ok !== false ? share.shareMade(state, e, r.body) : null;
+    if (made) {
+      state = made;
+      return;
+    }
+    const why = share.shareTrouble(r, { codex, fallback: "the share could not be made", deck, detail: true });
+    state = share.shareFailed(state, e, why, r.body?.reason, { note: view.note, now: clock(), g });
+  }
+
+  async function doShareImport(e) {
+    if (!deck || state.share?.view !== "paste") return;
+    const codex = e.codex === true;
+    set({ busy: { text: "importing the share", since: clock() }, notice: null });
+    render();
+    const r = codex
+      ? await src.ask(deck, { method: "POST", path: "/api/codex-accounts-import", body: { blob: e.blob, expectedRevision: e.revision }, timeoutMs: 60_000 })
+      : await src.ask(deck, { method: "POST", path: ADMIN, body: { action: "import", blob: e.blob }, timeoutMs: 150_000 });
+    set({ busy: null });
+    if (r.status === 0) lost();
+    if (r.ok && r.body?.ok === true) {
+      // The field's text goes with the field. Claude's results keep it while
+      // they are up, for "update anyway", as the Add dialog keeps it.
+      if (state.share?.view === "paste") state = share.withImported(state, { codex, results: r.body.results, blob: codex ? null : e.blob });
+      await (codex ? readCodex() : readRoster(true));
+      return;
+    }
+    // A list that moved under the paste is read again, for enter to try once more.
+    if (codex && r.body?.reason === "selection_conflict") await readCodex();
+    const why = share.shareTrouble(r, { codex, fallback: "the import failed", deck });
+    if (state.share?.view === "paste") set({ share: { ...state.share, sending: false, error: why } });
+  }
+
+  /** "update anyway": the one account named, overwritten from the share
+   *  still held by the results (AddAccountDialog.tsx forceOne). */
+  async function doShareUpdate(e) {
+    const sh = state.share;
+    if (!deck || sh?.view !== "results" || sh.codex || !sh.blob) return;
+    const row = sh.results.find(r => share.importRowKey(r) === e.key);
+    if (!row) return;
+    set({ busy: { text: `updating ${row.email || "the account"}`, since: clock() }, notice: null });
+    render();
+    const r = await src.ask(deck, {
+      method: "POST", path: ADMIN, timeoutMs: 150_000,
+      body: { action: "import", blob: sh.blob, force: true, only: { email: row.email, org: row.org ?? "" } },
+    });
+    set({ busy: null });
+    if (r.status === 0) lost();
+    if (r.ok && r.body?.ok === true) {
+      const fresh = Array.isArray(r.body.results) ? r.body.results[0] : null;
+      state = fresh ? share.withUpdated(state, e.key, fresh)
+        : state.share?.view === "results" ? { ...state, share: { ...state.share, forcing: null } } : state;
+    } else if (state.share?.view === "results") {
+      const why = share.shareTrouble(r, { fallback: "that account could not be updated", deck });
+      set({ share: { ...state.share, forcing: null, rowError: { key: e.key, text: why } } });
+    }
+    await readRoster(true);
+  }
+
   // ── the Local network ────────────────────────────────────────────────────
 
   /** The decks that asked to pair, so each one is said once. */
@@ -740,9 +887,10 @@ export async function runTui(flags, out, deps = {}) {
       tab ? src.ask(deck, { path: "/api/prefs" }) : null,
     ]);
     if (r.status === 0) return lost();
-    if (r.status === 404) { state = view.withLan(state, null, { missing: true }); return; }
+    if (r.status === 404) { state = view.withLan(state, null, { missing: true }); landSide("lan"); return; }
     if (!r.ok || !r.body || typeof r.body !== "object") return;
     landLan(r.body);
+    landSide("lan");
     const prefs = p?.ok ? p.body?.prefs?.lan : null;
     if (prefs && typeof prefs === "object") set({ lanPrefs: prefs });
   });
@@ -821,7 +969,208 @@ export async function runTui(flags, out, deps = {}) {
     last.lan = 0;
   }
 
+  // ── an update, through the deck's own routes ────────────────────────────
+  //
+  // What the page's chip and banner do (use-version-check.ts,
+  // use-deck-upgrade.ts, VersionBanner.tsx), one key: GET /api/version for
+  // what is out, POST /api/upgrade for the install, POST /api/restart for the
+  // restart onto it. The deck decides everything the page leaves to it — which
+  // package, which prefix, whether npx relaunches — and refuses for itself
+  // what would cost the canvas. A restart is then the one this screen already
+  // lives through: the readings are refused or go unanswered, and the deck is
+  // found again on its port (refind, lost, lookForDeck).
+
+  /**
+   * The deck's report, landed when the deck that answered is the one still
+   * held: `{ body }`, `{ changed: true }` when the deck changed under the ask
+   * — a restart, mid-request — or `{ r }`, the answer that was not one.
+   * `force` is ?refresh=1: npm asked now, which only u does.
+   */
+  // The deck whose report was last answered, 404 and silence included: what
+  // is on disk is said beside it only once the deck has had its say.
+  let reportFrom = null;
+  async function report(force = false) {
+    const asked = deck;
+    const r = await src.ask(asked, { path: force ? "/api/version?refresh=1" : "/api/version", timeoutMs: force ? 20_000 : 15_000 });
+    // From the deck before a restart, it says what was true of that one.
+    if (deck !== asked) { last.update = 0; return { changed: true }; }
+    reportFrom = asked;
+    if (r.ok && r.body && typeof r.body === "object" && !Array.isArray(r.body)) {
+      state = view.withUpdate(state, r.body);
+      last.update = clock();
+      return { body: r.body };
+    }
+    return { r };
+  }
+
+  // Every ten minutes, and as soon as a deck is found: never ?refresh=1. A
+  // deck from before the report answers 404, and says nothing; one too slow to
+  // answer — the report can wait on npm — keeps what it said last, since a
+  // deck that is gone is noticed by the readings every few seconds.
+  const readUpdate = once("update", async () => {
+    if (!deck) return;
+    const a = await report();
+    if (a.r?.status === 404) state = view.withUpdate(state, null);
+  });
+
+  /** The update landed: the deck answers on `to`. */
+  function landed(to) {
+    set({ busy: null });
+    tell("ok", `the deck runs ${to}`);
+    last.update = 0;
+  }
+
+  /** Why the deck would not restart, when it said so by name. */
+  const RESTART_REFUSED = {
+    unsupervised: `the deck was started without its launcher ${g.dash} it cannot restart itself`,
+    no_persist: `a restart would lose the canvas ${g.dash} this deck runs with --no-persist`,
+    log_unwritable: `a restart would lose the canvas ${g.dash} the deck cannot write its event log`,
+  };
+  /** Why the deck would not install, when it said so by name — the banner's
+   *  reasons (shell.banner.block), for an install refused after the report. */
+  const UPGRADE_REFUSED = {
+    git_checkout: "this deck runs from a git checkout",
+    npx: "npx runs from a cache that cannot be upgraded in place",
+    one_off: "this deck runs from a one-off copy that cannot be upgraded in place",
+    not_writable: "the install directory is not writable by this user",
+    opted_out: "installs are off (AGENTS_DECK_NO_INSTALL=1)",
+    retired_name: "this install came from a name that is no longer published",
+    spawn_failed: "npm could not be started",
+  };
+
+  /**
+   * u. With no update named: npm asked now, and what it said. With one: the
+   * report asked again first — the one on screen can be ten minutes old, and
+   * an update the deck took by itself since, while nobody looked, is not one
+   * to install twice — and then the install, or the restart, it names.
+   */
+  async function doUpdate() {
+    if (!deck) return;
+    const named = view.updateNotice(state);
+    set({ busy: { text: "checking for an update", since: clock() }, notice: null });
+    render();
+    const a = await report(!named);
+    if (!a.body) {
+      set({ busy: null });
+      if (a.changed) return tell("info", `the deck restarted while it was asked ${g.dash} u asks again`);
+      return tell("err", `could not check for an update ${g.dash} ${deckTrouble(deck ?? { port: state.deck?.port ?? "?" }, a.r)}`);
+    }
+    const u = state.update;
+    const n = u?.notice;
+    if (!named || !n) {
+      set({ busy: null });
+      return say(view.updateChecked(u, g));
+    }
+    const held = view.updateHeld(u, g);
+    if (held) {
+      set({ busy: null });
+      return say(held);
+    }
+    if (n.kind === "restart") return doRestart(n.to);
+    if (u.mode === "install") return doInstall(n.to);
+    return doRestart(n.to, { npx: true });
+  }
+
+  /** Whether the report now says an install or a relaunch failed — one that
+   *  failed since `before`, not the last attempt's note still standing. */
+  const failedSince = (before) => state.update?.state === "failed" && state.update.at !== before;
+
+  /**
+   * The deck's install, then the restart onto it. The deck answers at once
+   * and installs in the background; its report says how it went, and that
+   * the newer files are there — a notice that turned to "restart".
+   */
+  async function doInstall(to) {
+    set({ busy: { text: `installing ${to}`, since: clock() }, notice: null });
+    render();
+    const before = state.update?.state === "failed" ? state.update.at : undefined;
+    const r = await src.ask(deck, { method: "POST", path: "/api/upgrade", timeoutMs: 30_000 });
+    const b = r.body && typeof r.body === "object" ? r.body : {};
+    if (!r.ok || b.ok === false) {
+      set({ busy: null });
+      const why = UPGRADE_REFUSED[b.reason] ?? b.reason ?? deckTrouble(deck ?? { port: state.deck?.port ?? "?" }, r);
+      const cmd = b.command ? `: ${oneLine(b.command)}` : "";
+      // Short of room, the reason and the command to run by hand stay.
+      return tell("err", `could not install ${to} ${g.dash} ${why}${cmd}`, cmd ? `${why}${cmd}` : null);
+    }
+    const until = clock() + UPDATE_WAIT_MS.install;
+    while (!done && clock() < until) {
+      await src.wait(UPDATE_WAIT_MS.poll);
+      if (done) return;
+      // Taken by the deck itself meanwhile: the away-update restarts onto an
+      // install the moment nobody is looking, and this screen is not looking.
+      if (state.deck?.version === to) return landed(to);
+      if (!deck) { last.find = 0; continue; }
+      const a = await report();
+      if (!a.body) continue;
+      if (state.update?.running === to) return landed(to);
+      if (failedSince(before)) {
+        set({ busy: null });
+        return tell("err", `could not install ${to} ${g.dash} ${state.update.error ?? "npm gave no reason"}`);
+      }
+      const n = state.update?.notice;
+      if (n?.kind === "restart") {
+        const held = view.updateHeld(state.update, g);
+        if (held) {
+          set({ busy: null });
+          return say(held);
+        }
+        return doRestart(n.to);
+      }
+    }
+    if (done) return;
+    set({ busy: null });
+    tell("err", `${to} did not finish installing in ${UPDATE_WAIT_MS.install / 60_000} minutes ${g.dash} the deck's page says how it went`);
+  }
+
+  /**
+   * The deck's restart onto `to`: the files already here, or with `npx`
+   * npx's relaunch, which fetches the new version beside the deck still
+   * serving and only then hands the port over. Waited for until the deck
+   * answers on `to` — found again by the readings, as any restart is.
+   */
+  async function doRestart(to, { npx = false } = {}) {
+    set({ busy: { text: `restarting the deck on ${to}`, since: clock() }, notice: null });
+    render();
+    const before = state.update?.state === "failed" ? state.update.at : undefined;
+    const command = state.update?.command;
+    const r = await src.ask(deck, { method: "POST", path: "/api/restart", ...(npx ? { body: { upgrade: true } } : {}), timeoutMs: 15_000 });
+    const b = r.body && typeof r.body === "object" ? r.body : {};
+    if (!r.ok || b.ok === false) {
+      set({ busy: null });
+      if (b.reason === "not_npx") {
+        return tell("warn", `this deck cannot update through npx ${g.dash} ${command ? `run: ${command}` : "update it the way it was installed"}`);
+      }
+      if (RESTART_REFUSED[b.reason]) return tell("warn", RESTART_REFUSED[b.reason]);
+      return tell("err", `could not restart the deck ${g.dash} ${b.reason ?? deckTrouble(deck ?? { port: state.deck?.port ?? "?" }, r)}`);
+    }
+    const until = clock() + (npx ? UPDATE_WAIT_MS.npx : UPDATE_WAIT_MS.restart);
+    let asked = clock();
+    while (!done && clock() < until) {
+      await src.wait(1_000);
+      if (done) return;
+      if (state.deck?.version === to) return landed(to);
+      // Away: looked for again now, rather than at the next five seconds.
+      if (!deck) { last.find = 0; continue; }
+      if (clock() - asked < UPDATE_WAIT_MS.poll) continue;
+      asked = clock();
+      const a = await report();
+      if (!a.body) continue;
+      if (state.update?.running === to) return landed(to);
+      // npx's fetch failed, and the deck went on serving: its report says why.
+      if (npx && failedSince(before)) {
+        set({ busy: null });
+        return tell("err", `could not update to ${to} ${g.dash} ${state.update.error ?? "npx gave no reason"}`);
+      }
+    }
+    if (done) return;
+    set({ busy: null });
+    if (!state.deck) tell("err", `the deck did not come back ${g.dash} \`${COMMAND} --logs\` shows what it wrote`);
+    else tell("warn", `the deck is still on ${state.deck.version ?? "the version it ran"} ${g.dash} \`${COMMAND} --logs\` shows what it wrote`);
+  }
+
   const effects = {
+    update: () => doUpdate(),
     "lan-prefs": (e) => doLanPrefs(e),
     "lan-peer": (e) => doLanPeer(e),
     "lan-invite": (e) => doLanInvite(e),
@@ -844,18 +1193,32 @@ export async function runTui(flags, out, deps = {}) {
     "signin-code": (e) => doSigninCode(e.code),
     "signin-cancel": (e) => doSigninCancel(e),
     "signin-done": (e) => doSigninDone(e.account),
-    // The sign-in's link or code, to the terminal's clipboard: written to the
-    // terminal alone, never to the deck, a log or a count.
+    share: (e) => doShare(e),
+    "share-import": (e) => doShareImport(e),
+    "share-update": (e) => doShareUpdate(e),
+    // The sign-in's link or code, or a share, to the terminal's clipboard:
+    // written to the terminal alone, never to the deck, a log or a count.
     copy: (e) => screen.copy(e.text),
   };
 
   return new Promise(resolve => {
     const wasRaw = input.isRaw === true;
     let timer = null;
-    const finish = (code = EXIT.OK) => {
-      if (done) return;
-      done = { code };
+    // A redraw after a key, once for every key that arrived together: a paste
+    // that the terminal did not bracket comes a character a key.
+    let soonTimer = null;
+    const soon = () => { soonTimer ??= setImmediate(() => { soonTimer = null; render(); }); };
+    // A bracketed paste being gathered: `{ text, at }` (screen.bracketPaste).
+    let pasting = null;
+    // A paste the terminal did not bracket, into a share's field: the keys
+    // that came with the last character, or hard on its heels.
+    const burst = { at: -Infinity, open: false };
+    /** The terminal handed back as it was found: what q does, and what the
+     *  reopen onto new code does before the new screen takes the terminal. */
+    const release = () => {
       clearInterval(timer);
+      if (soonTimer) clearImmediate(soonTimer);
+      pasting = null;
       input.off("keypress", onKey);
       output.off?.("resize", onResize);
       output.off?.("error", onGone);
@@ -866,9 +1229,17 @@ export async function runTui(flags, out, deps = {}) {
       // The keys stop being read before the mode goes back. On Windows, raw
       // mode ended while they were still read left the PowerShell that ran us
       // dead behind us: not one more line ran, and an SSH session closed.
+      // Paused, process.stdin also stops reading the terminal, a tick later
+      // (Node does that for stdin alone) — before any key typed into the
+      // screen reopened after us could be read here instead of there.
       input.pause();
       try { input.setRawMode?.(wasRaw); } catch { /* the terminal went away */ }
       screen.leave();
+    };
+    const finish = (code = EXIT.OK) => {
+      if (done) return;
+      done = { code };
+      release();
       resolve(code);
     };
     // Every way out hands the terminal back: a signal (the SSH connection
@@ -903,8 +1274,69 @@ export async function runTui(flags, out, deps = {}) {
       process.stderr.write(`${COMMAND} tui: ${e?.stack ?? e}\n`);
     };
     const onResize = () => { screen.invalidate(); render(); };
+    // A paste into a share's field, whole: the terminal brackets it while that
+    // field is up, and what comes between the brackets is gathered here and
+    // handed over as one key — a newline inside it is a character, and a
+    // paste of thousands of characters is one redraw. Anywhere else a paste
+    // arrives as it always did, a character a key.
     function onKey(str, key) {
       if (done || leaving) return;
+      lastKey = clock();
+      // A key before the tab came back: the person has moved on from it.
+      resumeSide = null;
+      const name = key?.name;
+      if (name === "paste-start") {
+        pasting = { text: "", at: clock() };
+        return;
+      }
+      if (pasting) {
+        if (name === "paste-end") return pasted();
+        if (typeof str === "string" && pasting.text.length < PASTE_GATHER_MAX) pasting.text += str;
+        pasting.at = clock();
+        return;
+      }
+      if (name === "paste-end") return;
+      if (view.takesPaste(state) && inBurst(str, key)) return;
+      press(str, key);
+    }
+    // A terminal that does not bracket a paste (one over an older SSH client,
+    // a paste that beat the field's switch to it) types it: a character a key,
+    // all in one read or a few close together. An enter among them is a line
+    // end in what was copied — a share copied with its newline, or one part of
+    // several — not the import; the enter pressed after it is. Wall time, not
+    // the screen's clock: it is how close together the keys came that counts.
+    function inBurst(str, key) {
+      const t = performance.now();
+      const enter = key?.name === "return" || key?.name === "enter";
+      if (enter) return burst.open || t - burst.at < PASTE_BURST_MS;
+      if (typeof str === "string" && str.length > 0 && !key?.ctrl && !key?.meta && key?.name !== "escape") {
+        burst.at = t;
+        if (!burst.open) { burst.open = true; setImmediate(() => { burst.open = false; }); }
+      }
+      return false;
+    }
+    // A paste goes whole into a share's field, as one line into a Network
+    // field, and nowhere else: its characters are not keys. A share pasted
+    // over the list (or a line of anything) would otherwise switch accounts,
+    // turn auto-switch, start an update.
+    function pasted() {
+      const text = pasting?.text ?? "";
+      pasting = null;
+      if (!text) return;
+      if (view.takesPaste(state)) return press(text, { name: "paste" });
+      if (view.takesText(state)) {
+        const line = text.replace(/[\x00-\x1f\x7f]+/g, " ").trim();
+        if (line) press(line, {});
+        return;
+      }
+      const lead = text.trimStart();
+      const where = lead.startsWith("ccdeck2:") ? "Claude" : lead.startsWith("ccdeck-codex-v1.") ? "Codex" : null;
+      tell("info", where
+        ? `nothing was pasted ${g.dash} to take in that share, press + on the ${where} tab, then tab`
+        : `nothing was pasted ${g.dash} only a field takes a paste`);
+      soon();
+    }
+    function press(str, key) {
       const { state: next, effect } = view.tuiKey(state, str, key ?? {}, { now: clock(), g });
       // The Local network's tab opened: read it now, with the settings it needs.
       const opened = view.onLan(next) && !view.onLan(state);
@@ -913,16 +1345,90 @@ export async function runTui(flags, out, deps = {}) {
       if (effect?.type === "quit") return leave(EXIT.OK);
       if (effect?.type === "redraw") screen.invalidate();
       else if (effect && effects[effect.type]) {
-        Promise.resolve(effects[effect.type](effect)).catch(e => tell("err", String(e?.message ?? e))).finally(render);
+        keyWork++;
+        let work;
+        try { work = effects[effect.type](effect); } catch (e) { work = Promise.reject(e); }
+        Promise.resolve(work).catch(e => tell("err", String(e?.message ?? e))).finally(() => { keyWork--; render(); });
       }
-      render();
+      soon();
     }
+
+    // ── following an update onto the new code ─────────────────────────────
+    //
+    // Node runs the code a process started with until the process ends. A
+    // screen left open for days — the usual thing over SSH — kept its old code
+    // through every update the deck took, its own fixes on disk unused, and
+    // nothing said so. So once the deck runs a newer version than this screen
+    // AND this screen's own package on disk says that same version — proof it
+    // is this install that moved, not another one, such as the desktop app's
+    // deck — the screen reopens itself on the new code, at a moment it can
+    // interrupt nobody: nothing over the list, nothing under way, no key for
+    // REST_MS. Its tab comes back, and the new screen says it was updated.
+
+    /** When the last key came, and how many of the requests a key started are
+     *  still out. The screen opening counts as a key. */
+    let lastKey = clock();
+    let keyWork = 0;
+    // The version on disk, when it was read, and for which deck version: read
+    // again when the deck's changes, and every POLL_MS.disk besides.
+    let disk = null;
+    let diskAt = -Infinity;
+    let diskFor;
+    // Said once each: an install the screen will not follow, and a new code
+    // that would not start.
+    let toldDisk = null;
+    let failedFor = null;
+
+    const follow = (now) => {
+      if (done || leaving) return;
+      const dv = state.deck?.version ?? null;
+      if (diskFor !== dv || now - diskAt >= POLL_MS.disk) {
+        disk = onDisk();
+        diskAt = now;
+        diskFor = dv;
+      }
+      if (!disk || disk === own) return;
+      if (dv === disk && isOlder(own, dv)) {
+        if (failedFor === disk || keyWork > 0 || now - lastKey < REST_MS || !view.screenAtRest(state)) return;
+        return reopen(disk);
+      }
+      // Installed, and not the deck's: another install's deck, a downgrade, no
+      // deck at all. Said, not followed — except while the deck is about to
+      // restart onto it, or is being asked to, when the reopen above follows.
+      const coming = state.update?.notice?.kind === "restart" && state.update.notice.to === disk;
+      if (toldDisk === disk || (deck && reportFrom !== deck) || coming || state.busy) return;
+      toldDisk = disk;
+      tell("warn", `ccdeck ${disk} is installed ${g.dash} q, then open the tui again`);
+    };
+
+    /** This screen handed over to the same command on the new code. */
+    const reopen = (to) => {
+      // Proved first, while the screen is still up: a new code that does not
+      // start would leave the person at a shell prompt with no screen at all.
+      if (!(deps.newCodeStarts ?? newCodeStarts)(to)) {
+        failedFor = to;
+        tell("warn", `could not open the new screen ${g.dash} q, then open the tui again`);
+        return;
+      }
+      const port = state.deck.port;
+      const side = state.side;
+      done = { code: null, reopened: to };
+      release();
+      Promise.resolve()
+        .then(() => (deps.reopen ?? reopenScreen)({ port, side, from: own, to }))
+        .then(code => resolve(Number.isInteger(code) ? code : EXIT.FAILED), (e) => {
+          process.stderr.write(`${COMMAND} tui: could not open the new screen (${e?.message ?? e}) ${G.dash} open the tui again\n`);
+          resolve(EXIT.FAILED);
+        });
+    };
     // The timer that keeps the screen current: the readings when they are due,
     // and a repaint for the clock — the ages and the resets move, and a
     // spinner while something is under way.
     const tick = () => {
       if (done) return;
       const now = clock();
+      // A paste whose closing bracket never came is taken as it stands.
+      if (pasting && now - pasting.at > PASTE_SETTLE_MS) pasted();
       if (!deck) {
         if (!state.starting && now - last.find >= POLL_MS.find) lookForDeck();
         if (now - last.roster >= POLL_MS.roster * 2) readRoster(false);
@@ -937,7 +1443,9 @@ export async function runTui(flags, out, deps = {}) {
         if (state.codex && now - last.codexQuota >= POLL_MS.codexQuota) readCodexQuotas();
         if (state.codexSignin?.login && codexSigninRunning(state.codexSignin) && now - last.codexSignin >= POLL_MS.codexSignin) readCodexSignin();
         if (now - last.lan >= (view.onLan(state) ? POLL_MS.lan : POLL_MS.lanAway)) readLan();
+        if (now - last.update >= POLL_MS.update) readUpdate();
       }
+      follow(now);
       render();
     };
 
@@ -967,6 +1475,15 @@ const KEPT = Object.freeze({
   rules: "the account Auto-switch's rules keep",
 });
 
+/** The most of a bracketed paste gathered, past the longest share any import
+ *  route reads; and how long one may go quiet before it is taken as it is. */
+const PASTE_GATHER_MAX = 600_000;
+const PASTE_SETTLE_MS = 1_500;
+/** How close behind a typed character an enter is still part of a paste the
+ *  terminal did not bracket: well under any hand's, well over a slow link's
+ *  gap between two reads of one paste. */
+const PASTE_BURST_MS = 30;
+
 /** What each reading is called when it fails; looking for a deck that is not
  *  there is not a failure. */
 const READINGS = Object.freeze({ roster: "the accounts", auto: "Auto-switch", sessions: "the sessions", lan: "the Local network" });
@@ -974,6 +1491,105 @@ const READINGS = Object.freeze({ roster: "the accounts", auto: "Auto-switch", se
 // SIGHUP is a closed SSH connection, and on Windows a closed console window;
 // SIGBREAK is Windows' Ctrl+Break.
 const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP", ...(process.platform === "win32" ? ["SIGBREAK"] : [])];
+
+// ── the screen reopened on new code ─────────────────────────────────────────
+
+/**
+ * The script to start the new screen with: bin/deck.js in this package, by
+ * its real path — the worker every `ccdeck` command runs in, under the
+ * supervisor (bin/agent-dag.js → bin/deck.js → bin/cli/commands.js → here).
+ * Started straight it answers `tui` and `--version` as it does under the
+ * supervisor, which adds nothing to a command. Always this package's, never a
+ * script outside the package whose version was just proved; and never worked
+ * out from argv, which names what was typed (invoked-as.mjs) rather than which
+ * code is on disk.
+ */
+export function tuiEntry({ pkgRoot = PKG_ROOT, real = realpathSync } = {}) {
+  const realOr = (p) => { try { return real(p); } catch { return resolve(p); } };
+  return join(realOr(pkgRoot), "bin", "deck.js");
+}
+
+/** The environment the new code starts in: this one, read as a first start
+ *  — a respawn's worker reads no word as a command (bin/deck.js) — and without
+ *  the note this screen itself was opened with. */
+function childEnv(extra = {}) {
+  const env = { ...process.env, AGENTS_DECK_RESPAWN: "", ...extra };
+  if (!(RESUMED_ENV in extra)) delete env[RESUMED_ENV];
+  return env;
+}
+
+/**
+ * Whether the new code starts: `node <entry> --version`, as the screen will be
+ * started, answers 0 and names `version`. Synchronous, so the screen stands
+ * still for the fraction of a second it takes — fifteen at the most — rather
+ * than taking keys it would then drop.
+ */
+function newCodeStarts(version) {
+  try {
+    const r = spawnSync(process.execPath, [tuiEntry(), "--version"], {
+      encoding: "utf8", timeout: 15_000, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], env: childEnv({ NO_COLOR: "1" }),
+    });
+    return r.status === 0 && String(r.stdout ?? "").split(/\r?\n/).some(l => l.trim() === version);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The same command on the new code, owning the terminal until it ends:
+ * `tui --port <the deck's>`, its tab and the version it came from in
+ * RESUMED_ENV. Resolves to its exit code, which this process exits with.
+ *
+ * This process stays, the parent of the new one, and ignores SIGINT, SIGTERM,
+ * SIGQUIT and SIGHUP while it waits. It has nothing left to tidy, and gone
+ * before the child, it would hand the shell its prompt back over a screen
+ * still running — two readers of one terminal. The child is in the same
+ * process group, so whatever the terminal sends — a Ctrl+C outside raw mode,
+ * the hangup of an SSH connection closing — reaches it directly; forwarding
+ * would deliver it twice.
+ */
+function reopenScreen({ port, side, from }) {
+  const ignore = () => {};
+  const signals = ["SIGINT", "SIGTERM", "SIGQUIT", "SIGHUP", ...(process.platform === "win32" ? ["SIGBREAK"] : [])];
+  for (const sig of signals) {
+    try { process.on(sig, ignore); } catch { /* not a signal this platform has */ }
+  }
+  return new Promise(resolveCode => {
+    const end = (code) => {
+      for (const sig of signals) process.off(sig, ignore);
+      resolveCode(code);
+    };
+    const failed = (e) => {
+      process.stderr.write(`${COMMAND} tui: could not open the new screen (${e?.message ?? e}) ${G.dash} open the tui again\n`);
+      end(EXIT.FAILED);
+    };
+    let child;
+    try {
+      child = spawn(process.execPath, [tuiEntry(), "tui", "--port", String(port)], {
+        stdio: "inherit",
+        env: childEnv({ [RESUMED_ENV]: JSON.stringify({ side, from }) }),
+      });
+    } catch (e) {
+      failed(e);
+      return;
+    }
+    child.on("error", failed);
+    // Killed by a signal, the screen did not end by itself: 1, as any failure.
+    child.on("exit", (code, signal) => end(signal ? EXIT.FAILED : code ?? EXIT.FAILED));
+  });
+}
+
+/** RESUMED_ENV's note, or null for none, or one that is not one. */
+export function resumedFrom(raw) {
+  if (typeof raw !== "string" || !raw) return null;
+  let v;
+  try { v = JSON.parse(raw); } catch { return null; }
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  return {
+    side: ["claude", "codex", "lan"].includes(v.side) ? v.side : "claude",
+    from: typeof v.from === "string" && /^[0-9A-Za-z.+-]{1,40}$/.test(v.from) ? v.from : null,
+  };
+}
 
 /**
  * Where the screen's answers come from: the running deck through the commands'

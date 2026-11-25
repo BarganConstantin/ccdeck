@@ -80,6 +80,9 @@ export type ChatTurn =
       answers?: string[];
       /** What you wrote back instead of choosing. */
       reply?: string;
+      /** You picked "Chat about this": the questions were set aside to talk
+       *  them over, not left unanswered. */
+      chat?: boolean;
     }
   /** A plan the assistant asks you to approve (ExitPlanMode), in Markdown. */
   | {
@@ -128,6 +131,9 @@ export interface ChatAsk {
   blocked?: string;
   /** Sends the picks as the keys a person would press, once Term shows the question. */
   send(questions: ChatQuestion[], picks: AskPick[]): Promise<AskSendResult>;
+  /** Picks the prompt's "Chat about this" the same way: its keys, once Term
+   *  shows the question and that row. Without it the card does not offer it. */
+  chat?(questions: ChatQuestion[]): Promise<AskSendResult>;
   onShowTerm?(): void;
 }
 

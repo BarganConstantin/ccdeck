@@ -56,6 +56,10 @@ const MAX_ANSWER = 1000;
 const NOTES_ONLY = "(notes only)";
 // What it hands the model when the person wrote back instead of choosing.
 const RESPONDED = /^The user responded: ([\s\S]*)$/;
+// What it hands the model when the person picked "Chat about this" (2.1.8 and
+// later), inside its refusal of the call: the questions were set aside to talk
+// them over, and the card says so rather than "Not answered".
+const CLARIFY = /\bThe user wants to clarify these questions\./;
 
 const bounded = (value, max) => (typeof value === "string" && value.trim() ? cut(value.trim(), max) : "");
 
@@ -500,6 +504,7 @@ export function transcriptWindow(lines) {
               const { answers, reply } = askAnswers(questions, result);
               turn.answers = answers;
               if (reply) turn.reply = reply;
+              if (CLARIFY.test(result.text)) turn.chat = true;
             } else turn.running = true;
             turns.push(turn);
             continue;

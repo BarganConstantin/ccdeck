@@ -1603,7 +1603,10 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
               if (!writable()) return "partial";
             }
             typed();
-            const ok = "paste" in key ? current.sendPaste(key.paste) : current.sendInput(key.input);
+            // An arrow goes as the terminal would send it when typed: ESC O B
+            // for a program that asked for application cursor keys.
+            const ok = "paste" in key ? current.sendPaste(key.paste)
+              : current.sendInput(term?.applicationCursorKeys() ? applicationArrow(key.input) : key.input);
             if (!ok) return sent ? "partial" : "unavailable";
             sent = true;
             if (!writable()) return "partial";

@@ -617,6 +617,10 @@ function formSpec(state, inner, { tone, g, unicode, now }) {
 
 /** Whether the invite shows as a page of its own: once there is one to send.
  *  In a box its text would wrap between borders and copy with them. */
+/** Whether a Network form with a text field is up: this deck's name, a name
+ *  for another deck, an address, an invite. A paste goes into it as typed. */
+export const lanTakesText = (state) => ["name", "alias", "address", "join"].includes(state.lanForm?.view);
+
 export const lanInvitePage = (state) => state.lanForm?.view === "invite" && Boolean(state.lan?.invite?.token);
 
 /** The keys the invite page takes. */

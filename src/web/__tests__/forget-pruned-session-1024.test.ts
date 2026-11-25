@@ -468,7 +468,8 @@ describe("the page's tick runs that sweep and posts what it named", () => {
     + "\n" + readFileSync(fileURLToPath(new URL("../use-board-tick.ts", import.meta.url)), "utf8");
 
   it("calls sweepTick and POSTs the ids only when there are some", () => {
-    expect(app).toMatch(/const \{ changed, forgotten \} = sweepTick\(stateRef\.current, t\);/);
+    // The pins ride along: a pinned session is not the cap's (list-pinned.ts).
+    expect(app).toMatch(/const \{ changed, forgotten \} = sweepTick\(stateRef\.current, t, pinned\);/);
     expect(app).toMatch(
       /if \(forgotten\.length > 0\) \{[\s\S]{0,600}?fetch\("\/api\/forget", \{[\s\S]{0,200}?body: JSON\.stringify\(\{ ids: forgotten \}\),/);
     // And the sweeps are not also written out here, which is how the constants

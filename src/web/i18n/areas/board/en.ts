@@ -782,6 +782,7 @@ const catalog: Catalog = {
   "board.chat.ask.waiting": "Waiting for your answer",
   "board.chat.ask.answered": "Answered",
   "board.chat.ask.unanswered": "Not answered",
+  "board.chat.ask.chatted": "Set aside to chat",
   "board.chat.ask.multi": "Choose any",
   "board.chat.ask.chosen": "Chosen",
   "board.chat.ask.yourAnswer": "Your answer",
@@ -795,6 +796,10 @@ const catalog: Catalog = {
   "board.chat.ask.result.partial": "Only part of the answer was sent. Finish it in Term.",
   "board.chat.ask.result.unavailable": "The answer could not be sent. Answer in Term.",
   "board.chat.ask.inTerm": "This question asks for typed text. Answer it in Term.",
+  "board.chat.ask.chat": "Chat about this",
+  "board.chat.ask.chatSending": "Setting it aside to chat…",
+  "board.chat.ask.result.chat": "Set aside to chat. Claude Code will ask what you want to clarify; reply below.",
+  "board.chat.ask.result.chatMissing": "Term has no Chat about this row for this question, so nothing was sent. Answer it in Term.",
   "board.chat.plan.title": "Plan",
   "board.chat.plan.waiting": "Waiting for your approval",
   "board.chat.plan.approved": "Approved",
@@ -1026,6 +1031,7 @@ const catalog: Catalog = {
   "board.railGroup.new": "Done · new",
   "board.railGroup.done": "Done",
   "board.railGroup.ready": "Ready",
+  "board.railGroup.pinned": "Pinned",
   "board.rail.held.one": "{count} move waits until you leave the list",
   "board.rail.held.other": "{count} moves wait until you leave the list",
   "board.nav.none": "No sessions",
@@ -1082,6 +1088,9 @@ const catalog: Catalog = {
   "board.list.hiddenRow": "{name} hidden from the list",
   "board.list.hiddenSaid": "{name} hidden from the list. Undo available.",
   "board.list.hiddenCount": "Hidden · {n}",
+  "board.list.pinRow": "Pin",
+  "board.list.unpinRow": "Unpin",
+  "board.list.pinnedSuffix": ", pinned",
 };
 
 export default catalog;

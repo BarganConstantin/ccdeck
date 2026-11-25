@@ -29,10 +29,15 @@ import {
 } from "./tui-codex.mjs";
 import { machinePanel } from "./tui-machine.mjs";
 import {
-  hasLan, lanAsking, lanFooterKeys, lanFormSpec, lanInviteKeys, lanInviteLines, lanInvitePage, lanKey, lanLines, onLan,
+  hasLan, lanAsking, lanFooterKeys, lanFormSpec, lanInviteKeys, lanInviteLines, lanInvitePage, lanKey, lanLines, lanTakesText, onLan,
 } from "./tui-network.mjs";
+import {
+  addTabs, openPaste, openPick, shareKey, shareKeys, sharePage, sharePageLines, sharePickSpec, sharePicking, shareValue, takesPaste,
+} from "./tui-share.mjs";
 
-export { hasLan, onLan };
+export { hasLan, onLan, takesPaste };
+/** Whether a field that takes typed text is up, a share's aside. */
+export const takesText = lanTakesText;
 
 /** Text from elsewhere — the deck's own sentences, an alias — on a console
  *  that draws ASCII alone: its punctuation in ASCII's, anything else a "?". */
@@ -51,6 +56,7 @@ export const NOTICE_MS = 8_000;
 export function initialState() {
   return {
     deck: null,         // { port, version } while a deck answers
+    own: null,          // the version this screen's own code is (tui.js), for when no deck says one
     readAt: null,       // when the deck last answered a reading, for "live"
     source: null,       // "deck" | "local": where the roster was read
     silent: [],         // decks alive but not answering, which hold the store's lock
@@ -82,6 +88,8 @@ export function initialState() {
     codexAuto: null,    // GET /api/codex-auto, or null
     codexAt: null,      // the selected Codex account, by index; null until the side is first shown
     codexSignin: null,  // the Codex sign-in page while it is up: { id, name, adding, started, login }
+    share: null,        // a share while it is up (tui-share.mjs): the picker, the text, the paste, the results
+    update: null,       // GET /api/version, the little of it this screen says and acts on (withUpdate), or null
   };
 }
 
@@ -187,6 +195,11 @@ export function withRoster(state, roster, trouble = null) {
  *   { type: "alias", account, alias }   rename it ("" takes the alias away)
  *   { type: "move", account, slot }
  *   { type: "remove", account }
+ *   { type: "share", codex, nums | ids, from, several, name? }   make a share
+ *   { type: "share-import", codex, blob, revision? }             take one in
+ *   { type: "share-update", key }       "update anyway" on one imported account
+ *   { type: "update" }                  u: ask npm now, or take the update the
+ *                                       deck names (updateKey)
  *
  * The refusals a switch can be told before it is asked for — the account in
  * use, a deck that is running and not answering — are answered here, in the
@@ -199,6 +212,7 @@ export function tuiKey(state, str, key = {}, { now = 0, g } = {}) {
   if (key.ctrl && name === "l") return { state, effect: { type: "redraw" } };
   if (state.signin) return signinKey(state, str, key, { now, g });
   if (state.codexSignin) return codexSigninKey(state, str, key, { now, g });
+  if (state.share) return shareKey(state, str, key, { now, g, note, copied: (s, text, alone) => copied(s, text, alone, { now, g }), forgetCopied, signinTab, selectSlot });
   // Help is a page over the view: any key puts the view back, and the key is
   // spent doing it — q there closes the page, it does not quit.
   if (state.help) return { state: { ...state, help: false }, effect: null };
@@ -212,6 +226,9 @@ export function tuiKey(state, str, key = {}, { now = 0, g } = {}) {
   // network, and back) stay as shortcuts for whoever learnt them.
   if (str === "c") return sideKey({ ...state, notice: null }, null, { now, g });
   if (str === "l") return lanSideKey({ ...state, notice: null }, { now, g });
+  // The deck's update, from every tab: Ctrl+U is the forms' "empty the
+  // field", and the forms have the keys before this line.
+  if (str === "u" && !key.ctrl && !key.meta) return updateKey({ ...state, notice: null }, { now, g });
   if (name === "left" || name === "right") return stepSide({ ...state, notice: null }, name === "right" ? 1 : -1);
   if (onLan(state)) {
     const done = lanKey({ ...state, notice: null }, str, key, { now, g, note });
@@ -244,6 +261,7 @@ export function tuiKey(state, str, key = {}, { now = 0, g } = {}) {
   }
   if (str === "a") return autoKey(s, { now, g });
   if (str === "+") return onCodex(state) ? codexAddKey(s, { now, g }) : addKey(s, { now, g });
+  if (str === "E") return sharePickKey(s, { now, g });
   // The account's own actions: the menu, or one of them straight from the list.
   const row = rows[at];
   if (row && (str === "m" || str === ".")) return menuOpen(s, row, "menu", { now, g });
@@ -259,6 +277,9 @@ export function tuiKey(state, str, key = {}, { now = 0, g } = {}) {
   if (str === "d") {
     if (state.deck) return { state: { ...s, notice: note("info", `the deck is already running on ${state.deck.port}`, now) }, effect: null };
     if (state.starting) return { state: s, effect: null };
+    // A deck restarting into an update is away for a moment, and one started
+    // here then would be a second deck beside the one coming back.
+    if (state.busy) return { state: { ...s, notice: note("info", `${state.busy.text} ${g.dash} one thing at a time`, now) }, effect: null };
     return { state: s, effect: { type: "start" } };
   }
   return { state, effect: null };
@@ -399,6 +420,8 @@ function codexSigninKey(state, str, key, { now, g }) {
   const login = si.login?.state;
   if (!si.started || login === "failed" || login === "expired" || login === "cancelled") {
     if (enter) return { state: { ...forgetCopied(state), codexSignin: { ...si, started: true, login: null, alone: false } }, effect: { type: "codex-signin-start" } };
+    // A new account has the Codex panel's second way in: a pasted share.
+    if (name === "tab" && si.adding && !si.started) return { state: { ...state, codexSignin: null, share: openPaste(true) }, effect: null };
     return back ? close() : stay;
   }
   if (login === "done") return enter || back ? close({ type: "codex-signin-done" }) : stay;
@@ -413,6 +436,23 @@ function codexSigninKey(state, str, key, { now, g }) {
   // Leaving while it runs lets the deck's codex login go: no process stays behind.
   if (back) return close(si.id ? { type: "codex-signin-cancel", id: si.id } : null);
   return stay;
+}
+
+/** E: several accounts in one share, the deck's ↗ above its list — Claude's
+ *  every one ticked, Codex's none, as each panel opens its picker. */
+function sharePickKey(state, { now, g }) {
+  const told = (tone, text) => ({ state: { ...state, notice: note(tone, text, now) }, effect: null });
+  const codex = onCodex(state);
+  if (!state.deck) return told("info", `${codex ? "Codex accounts" : "accounts"} are shared through the deck ${g.dash} d starts one`);
+  if (state.busy) return told("info", `${state.busy.text} ${g.dash} one thing at a time`);
+  return { state: { ...state, share: openPick(codex) }, effect: null };
+}
+
+/** The Add page's other tab, from the paste field: the sign-in it came from. */
+function signinTab(state, sh) {
+  const next = { ...state, share: null };
+  if (sh.codex) return { ...next, codexSignin: { id: null, name: null, adding: true, started: false, login: null } };
+  return { ...next, signin: openSignin(sh.email ?? null) };
 }
 
 function addKey(state, { now, g }) {
@@ -432,13 +472,21 @@ function addKey(state, { now, g }) {
 // The deck's ⋯ menu on an account row (AccountMenuPopover.tsx), item for item
 // and by the same rules: hold out is offered on every account but the one in
 // use, putting one back whenever it is out; home whenever the account has an
-// address or already is home; remove asks first. Share and Projects stay in
-// the deck: one hands over a login as text, the other is a chart. Each item
-// has a key that works from the list too, so the menu is where they are
-// learnt, not the only way to them.
+// address or already is home; share on every Claude account and on a Codex
+// one that has a login to hand over; remove asks first. Projects stays in the
+// deck: it is a chart. Share hands over a login as text, drawn on a page of
+// its own (tui-share.mjs) and copied on a key, as the deck's popover does.
+// Each item has a key that works from the list too, so the menu is where they
+// are learnt, not the only way to them.
 
 /** The keys that reach an item straight from the list. */
-const ACTION_KEYS = Object.freeze({ n: "rename", v: "move", o: "hold", h: "home", x: "remove" });
+const ACTION_KEYS = Object.freeze({ n: "rename", v: "move", o: "hold", h: "home", x: "remove", e: "share" });
+
+/** Share, in the deck's menu as in its words. */
+const SHARE_ITEM = Object.freeze({ id: "share", key: "e", label: "Share…" });
+
+/** A Codex account the Codex panel offers to share: one with a login. */
+const codexShareable = (row) => row.issue?.word !== "not signed in";
 
 /** What claude-swap takes as an alias (cswap-admin.mjs ALIAS_OK). */
 const ALIAS_OK = /^(?!-)[A-Za-z0-9 ._-]{1,64}$/;
@@ -447,12 +495,20 @@ const ALIAS_OK = /^(?!-)[A-Za-z0-9 ._-]{1,64}$/;
  *  a Codex account. */
 export function menuItems(state, row) {
   const home = homeSlot(state) === row.num;
-  if (row.codex) return codexMenuItems(row, { home, homeable: state.codexAuto?.ok === true });
+  if (row.codex) {
+    // The Codex panel's order: Share after the sign-in and the name, and only
+    // on an account with a login to share.
+    const items = codexMenuItems(row, { home, homeable: state.codexAuto?.ok === true });
+    if (!codexShareable(row)) return items;
+    const at = items.findIndex(i => i.id === "rename") + 1;
+    return [...items.slice(0, at), SHARE_ITEM, ...items.slice(at)];
+  }
   const dead = !switchable(row) && !row.disabled;
   return [
     !row.active || dead ? { id: "switch", key: "enter", label: dead ? "Sign in again" : "Switch to this account" } : null,
     { id: "rename", key: "n", label: "Rename…" },
     { id: "move", key: "v", label: "Move to slot…" },
+    SHARE_ITEM,
     !row.active || row.disabled ? { id: "hold", key: "o", label: row.disabled ? "Put back in rotation" : "Hold out of rotation" } : null,
     home || row.email ? { id: "home", key: "h", label: home ? "Remove home" : "Set as home" } : null,
     { id: "remove", key: "x", label: "Remove…", danger: true },
@@ -483,6 +539,16 @@ function menuAct(state, row, id, { now, g }) {
   } else if (id === "switch") return switchKey({ ...state, menu: null }, row, { now, g });
   if (!state.deck || state.busy) return menuOpen(state, row, "menu", { now, g });
   if (id === "signin" && row.codex) return codexSigninOpen(state, row);
+  if (id === "share") {
+    if (row.codex && !codexShareable(row)) {
+      return { state: { ...state, notice: note("info", `${accountName(row)} is not signed in ${g.dash} there is no login to share; i signs it in`, now) }, effect: null };
+    }
+    // A Codex login leaves only after its warnings are read: the picker opens
+    // with this account ticked and enter makes the code, as the Codex panel's
+    // Share opens its dialog. Claude's share says its warning on its own page.
+    if (row.codex) return { state: { ...state, menu: null, share: openPick(true, { picked: [row.id] }) }, effect: null };
+    return { state, effect: { type: "share", codex: false, nums: [row.num], from: state.menu ? "menu" : "list", several: false, name: accountName(row) } };
+  }
   if (id === "rename" || id === "move" || id === "remove") {
     const open = menuOpen(state, row, id, { now, g });
     // Back from a form lands on the item it came from.
@@ -564,6 +630,165 @@ function menuKey(state, str, key, { now, g }) {
   return { state, effect: null };
 }
 
+// ── an update ───────────────────────────────────────────────────────────────
+//
+// The deck's page says when a newer ccdeck is out ("4.3.11 is out") or already
+// installed and waiting for a restart ("4.3.11 is ready"), and offers Update
+// now and Restart. Somebody who only ever opens this screen, over SSH, saw
+// none of it. The deck updates itself while nobody looks at a page and no turn
+// runs (auto-update.mjs), and this screen's readings do not count as looking —
+// so a deck watched only from here does get its updates, but never said so,
+// and could not be asked for one sooner.
+//
+// So the title bar says what the page's chip says, in its words, and u does
+// what the page's buttons do, through the same routes: the deck's own
+// install, the deck's own restart. Never npm from here — the deck knows how
+// it was installed, and which install a restart lands on.
+
+/** A version as the deck reports one, or null: printable, short, and nothing
+ *  in it a terminal could take for anything but a character. */
+const versionOf = (v) => (typeof v === "string" && /^[0-9A-Za-z.+-]{1,40}$/.test(v) ? v : null);
+const timeOf = (t) => (typeof t === "number" && Number.isFinite(t) ? t : null);
+const UPGRADE_STATES = new Set(["idle", "running", "done", "failed"]);
+
+/**
+ * The deck's update report (GET /api/version, self-update.mjs versionReport
+ * and what lifecycle.mjs adds) in place of the last, kept as the little this
+ * screen says and acts on — or null for no answer, which says nothing: a deck
+ * from before the report, or one that did not answer as one.
+ *
+ *   notice      { kind: "upgrade" | "restart", from, to } or null
+ *   mode        "install" | "npx" | null — how this deck's copy updates itself
+ *   blocked     why it may not install over itself, by name, or null
+ *   state       its install: "idle" | "running" | "done" | "failed"
+ *   error, at   why the last one failed, and when it got where it is
+ *   canRestart  false when a restart would lose the canvas — or the deck has
+ *               no launcher to restart it; unknown is taken as true, and the
+ *               deck refuses for itself
+ *   command     the line that updates this copy, for whoever types it
+ *   checkDisabled, checkedAt, checkFailedAt, latest, latestPending, running
+ */
+export function withUpdate(state, report) {
+  if (!report || typeof report !== "object" || Array.isArray(report)) return { ...state, update: null };
+  const n = report.notice;
+  const notice = n && (n.kind === "upgrade" || n.kind === "restart") && versionOf(n.to)
+    ? { kind: n.kind, from: versionOf(n.from), to: n.to } : null;
+  const u = report.upgrade && typeof report.upgrade === "object" ? report.upgrade : {};
+  return {
+    ...state,
+    update: {
+      notice,
+      mode: report.upgradeMode === "install" || report.upgradeMode === "npx" ? report.upgradeMode : null,
+      blocked: typeof report.upgradeBlocked === "string" ? report.upgradeBlocked : null,
+      state: UPGRADE_STATES.has(u.state) ? u.state : "idle",
+      error: typeof u.error === "string" && u.error.trim() ? oneLine(u.error).slice(0, 300) : null,
+      at: timeOf(u.at),
+      canRestart: report.canRestart !== false,
+      command: typeof report.command === "string" && report.command.trim() ? oneLine(report.command).slice(0, 200) : null,
+      checkDisabled: report.checkDisabled === true,
+      checkedAt: timeOf(report.checkedAt),
+      checkFailedAt: timeOf(report.checkFailedAt),
+      latest: versionOf(report.latest),
+      latestPending: versionOf(report.latestPending),
+      running: versionOf(report.running),
+    },
+  };
+}
+
+/** The update the deck names while one does, or null — and none it already
+ *  runs: a report from before the restart, until it is read again. */
+export function updateNotice(state) {
+  const n = state.deck ? state.update?.notice ?? null : null;
+  return n && n.to !== state.deck.version ? n : null;
+}
+
+/** The page's chip, word for word (shell.chip.textUpgrade / textRestart). */
+const updateWords = (n) => `${n.to} is ${n.kind === "restart" ? "ready" : "out"}`;
+
+/**
+ * Why u will not take the update the deck names, as a notice, or null when it
+ * will — or when none is named, and u asks npm instead. The two the page
+ * answers with a command or no button at all, said before anything is asked:
+ *
+ *   a copy that cannot install over itself — a git checkout, a one-off
+ *   runner's cache, a prefix this user cannot write, an opt-out, a retired
+ *   name: the command that updates it, which the deck worked out;
+ *
+ *   an update that is a restart, on a deck that cannot restart without losing
+ *   its canvas (no event log, or none it can write) or has no launcher.
+ */
+export function updateHeld(update, g) {
+  const n = update?.notice;
+  if (!n) return null;
+  if (n.kind === "upgrade" && update.mode !== "install" && update.mode !== "npx") {
+    return update.command
+      ? { tone: "warn", text: `${n.to} is out ${g.dash} this copy cannot update itself: ${update.command}`, short: `this copy cannot update itself: ${update.command}` }
+      : { tone: "warn", text: `${n.to} is out ${g.dash} this copy cannot update itself` };
+  }
+  if (!update.canRestart && (n.kind === "restart" || update.mode === "npx")) {
+    return n.kind === "restart"
+      ? { tone: "warn", text: `${n.to} is installed ${g.dash} a restart from here would lose the canvas`, short: "a restart from here would lose the canvas" }
+      : { tone: "warn", text: `${n.to} is out ${g.dash} npx updates by a restart, which would lose the canvas`, short: "a restart from here would lose the canvas" };
+  }
+  return null;
+}
+
+/**
+ * What u found when it asked npm (GET /api/version?refresh=1), as a notice.
+ * In the order the page's own line takes them (update-check.ts): a deck that
+ * does not check at all, then what it found, then a lookup that failed —
+ * which is not "nothing newer" — and a tag npm cannot serve yet.
+ */
+export function updateChecked(update, g) {
+  if (!update) return { tone: "err", text: "the deck did not say whether an update is out" };
+  if (update.checkDisabled) {
+    return {
+      tone: "info",
+      text: `update checks are off on this deck ${g.dash} AGENTS_DECK_NO_UPDATE_CHECK, AGENTS_DECK_NO_INSTALL or the desktop app`,
+      short: "update checks are off on this deck",
+    };
+  }
+  const n = update.notice;
+  if (n) {
+    return updateHeld(update, g)
+      ?? { tone: "info", text: n.kind === "restart" ? `${n.to} is ready ${g.dash} u restarts the deck on it` : `${n.to} is out ${g.dash} u updates` };
+  }
+  if (update.checkFailedAt != null && update.checkFailedAt > (update.checkedAt ?? 0)) {
+    return { tone: "warn", text: `npm could not be reached ${g.dash} u asks again` };
+  }
+  const pending = update.latestPending && update.latestPending !== update.running ? update.latestPending : null;
+  if (pending) {
+    return { tone: "info", text: `${pending} is tagged on npm but cannot be installed yet ${g.dash} the deck looks again in five minutes`, short: `${pending} cannot be installed yet` };
+  }
+  return { tone: "ok", text: `${update.running ?? "this deck"} is the newest` };
+}
+
+/** u: what it asks for, or why not, said at once. */
+function updateKey(state, { now, g }) {
+  const told = (tone, text, short) => ({ state: { ...state, notice: { ...note(tone, text, now), ...(short ? { short } : {}) } }, effect: null });
+  if (!state.deck) return told("info", `updates come through the deck ${g.dash} d starts one`);
+  if (state.busy) return told("info", `${state.busy.text} ${g.dash} one thing at a time`);
+  const held = updateNotice(state) ? updateHeld(state.update, g) : null;
+  if (held) return told(held.tone, held.text, held.short);
+  return { state, effect: { type: "update" } };
+}
+
+/**
+ * Whether nothing on screen is somebody's work half done: no page, menu, form
+ * or help over the list, and nothing under way. What the app asks before it
+ * reopens itself on new code (tui.js), with its own two on top: no request a
+ * key started still out, and no key for a few seconds.
+ */
+export const screenAtRest = (state) => !state.signin && !state.codexSignin && !state.lanForm && !lanInvitePage(state)
+  && !state.menu && !state.help && !state.busy && !state.starting;
+
+/** The screen turned to `side` once the deck serves it; as it was otherwise.
+ *  A screen reopened on new code opens on the tab it was left on. */
+export function showSide(state, side) {
+  if (side === state.side || !sidesOf(state).includes(side)) return state;
+  return toSide(state, side);
+}
+
 
 // ── the frame ───────────────────────────────────────────────────────────────
 
@@ -623,17 +848,21 @@ export function tuiFrame(state, { columns = 80, rows = 24, tone, g, unicode = tr
   // `plain` is for text from elsewhere that is measured inside a panel: in
   // ASCII it has to be ASCII before it is cut, or "…" grows past the border.
   const look = { tone, g, unicode, now, links, plain, skin: skinOf(profile ?? (tone.reset ? "ansi16" : "none")) };
-  if (state.signin || state.codexSignin || lanInvitePage(state)) {
+  if (state.signin || state.codexSignin || sharePage(state) || lanInvitePage(state)) {
     const page = state.signin ? signinLines(state, rows - 3, width, columns, look)
       : state.codexSignin ? codexSigninLines(state, rows - 3, width, columns, look)
+      : sharePage(state) ? sharePageLines(state, rows - 3, width, columns, { ...look, box: (w, h, spec) => panel(w, h, spec, look) })
       : lanInviteLines(state, rows - 3, width, columns, look);
     const run = page.run ? { ...page.run, row: page.run.row + 1 } : null;
     const lines = [titleBar(state, width, look), ...page.lines, noticeLine(state, look, width), footerLine(state, width, look)];
-    return { lines: fill(lines, run), top: state.top, run };
+    // `parts`: how many the share's text is cut into on its own at this size,
+    // kept by the app as `top` is, for the keys that walk them.
+    return { lines: fill(lines, run), top: state.top, run, parts: page.parts ?? null };
   }
   const body = bodyLines(state, rows - 3, width, look);
   const lines = [titleBar(state, width, look), ...body.lines, noticeLine(state, look, width), footerLine(state, width, look)];
-  const over = state.help ? withHelp(lines, width, look) : state.menu ? withMenu(lines, state, width, look)
+  const over = state.help ? withHelp(lines, state, width, look) : sharePicking(state) ? withSharePicker(lines, state, width, look)
+    : state.menu ? withMenu(lines, state, width, look)
     : state.lanForm ? withLanForm(lines, state, width, look) : lines;
   return { lines: fill(over), top: body.top, run: null };
 }
@@ -759,7 +988,22 @@ function titleBar(state, width, { tone, g, unicode, now, skin }) {
   const what = sides.length > 1
     ? sides.map(side => (side === "claude" ? tab("Claude", state.side === "claude") : side === "codex" ? tab("Codex", onCodex(state)) : lanTab(onLan(state)))).join("")
     : `${tone.bold}Claude accounts${tone.reset}`;
-  const left = `  ${tone.accent}${tone.bold}ccdeck${tone.reset}  ${what}`;
+  // The version beside the name, so a screen over SSH, often the only window
+  // on the deck, says which release it is on: the running deck's while one
+  // answers — it follows the deck through a restart, as an update makes one —
+  // and this screen's own while none does. Left out only when the line has no
+  // room for it, the tabs being the one thing here a key needs.
+  //
+  // After it, the update the deck names, in the page's chip's words — "4.3.11
+  // is out", "4.3.11 is ready" — for the person who never opens the page and
+  // so never saw the chip. Short of room these words go first, then the
+  // version: u is in the footer and ? either way.
+  const version = state.deck?.version ?? state.own;
+  const n = updateNotice(state);
+  const name = `  ${tone.accent}${tone.bold}ccdeck${tone.reset}`;
+  const v = version ? ` ${tone.muted}${version}${tone.reset}` : "";
+  const said = n ? ` ${tone.muted}${g.bullet}${tone.reset} ${tone.warn}${updateWords(n)}${tone.reset}` : "";
+  const left = [`${name}${v}${said}  ${what}`, `${name}${v}  ${what}`].find(l => textWidth(l) <= width) ?? `${name}  ${what}`;
   let right = "";
   if (state.deck) {
     const ago = state.readAt == null ? null : now - state.readAt;
@@ -787,7 +1031,7 @@ function noticeLine(state, { tone, g, unicode, now }, width = Infinity) {
   if (!n || (n.until != null && now > n.until)) return "";
   // That a link or a code was sent to the clipboard, said for as long as it is
   // the one on the page: not past the sign-in that had it.
-  if (n.copy && !signinValue(state)) return "";
+  if (n.copy && !signinValue(state) && !shareValue(state)) return "";
   const [toneName, glyph] = NOTICE_MARK[n.tone] ?? NOTICE_MARK.info;
   // A notice with a short form says that one where the long one would be cut:
   // a copy's hint is read on a phone over SSH, where the screen is narrowest.
@@ -803,10 +1047,15 @@ function footerLine(state, width, look) {
   // The tabs are walked with the arrows, offered once there is more than one.
   const tabsKey = unicode ? "←→" : "left/right";
   const tabs = sidesOf(state).length > 1 ? [[tabsKey, "tabs"]] : [];
+  // u is offered while the deck names an update, on every tab: the title bar
+  // says what, and this says how. With none named it is in ? alone.
+  const update = updateNotice(state) ? [["u", "update"]] : [];
   const keys = state.signin ? signinKeys(state.signin) : state.codexSignin ? codexSigninKeys(state.codexSignin)
+    : state.share ? shareKeys(state, { unicode, now: look.now })
     : lanInvitePage(state) ? lanInviteKeys() : onLan(state) ? [
     ...lanFooterKeys(state, { now: look.now, unicode }),
     ...tabs,
+    ...update,
     ["?", "keys"],
     ["q", "quit"],
   ] : [
@@ -817,7 +1066,9 @@ function footerLine(state, width, look) {
     ["b", "best"],
     state.deck ? ["a", "auto-switch"] : ["d", "start the deck"],
     ["+", "add"],
+    ["e", "share"],
     ["r", "refresh"],
+    ...update,
     ["?", "keys"],
     ["q", "quit"],
   ];
@@ -827,8 +1078,11 @@ function footerLine(state, width, look) {
   // r goes first, then the moves, then b: the screen says what they do, and ?
   // and q are how to find out and how to leave. On a sign-in page enter goes
   // before the copy keys: the page itself says to press it after the paste,
-  // and nothing else there tells of ctrl+o or tab on a narrow screen.
-  for (const drop of ["r", unicode ? "↑↓" : "up/down", "b", "+", "a", "d", "m", tabsKey, "n", "x", "space", "enter", "tab", "ctrl+o"]) {
+  // and nothing else there tells of ctrl+o or tab on a narrow screen. u stays
+  // past the tabs, which the title bar draws anyway, while nothing but this
+  // says which key takes the update it names. e goes before all of them: m's
+  // menu lists it, with its key.
+  for (const drop of ["e", "r", unicode ? "↑↓" : "up/down", "b", "+", "a", "d", "m", tabsKey, "u", "n", "x", "space", "enter", "tab", "ctrl+o"]) {
     if (textWidth(draw(list)) <= width) break;
     const i = list.findIndex(([k]) => k === drop);
     if (i !== -1) list.splice(i, 1);
@@ -1019,6 +1273,14 @@ function lanBody(state, room, width, look) {
 function withLanForm(base, state, width, look) {
   const boxW = Math.min(width - 2, 64);
   const spec = lanFormSpec(state, boxW - 4, look);
+  const height = Math.min(base.length - 2, spec.lines.length + 2);
+  return overlay(base, panel(boxW, height, spec, look), boxW, width, look);
+}
+
+/** The share picker, in a box over the screen as an account's menu is. */
+function withSharePicker(base, state, width, look) {
+  const boxW = Math.min(width - 2, 64);
+  const spec = sharePickSpec(state, boxW - 4, base.length - 4, look);
   const height = Math.min(base.length - 2, spec.lines.length + 2);
   return overlay(base, panel(boxW, height, spec, look), boxW, width, look);
 }
@@ -1364,6 +1626,8 @@ function signinKey(state, str, key, { now, g }) {
   const close = (effect = null) => ({ state: { ...forgetCopied(state), signin: null }, effect });
   if (!si.started) {
     if (enter) return { state, effect: { type: "signin-start" } };
+    // The Add dialog's second tab: an account shared from another deck.
+    if (name === "tab") return { state: { ...state, signin: null, share: openPaste(false, si.email ?? null) }, effect: null };
     return back ? close() : stay;
   }
   const at = signinStage(si);
@@ -1418,7 +1682,7 @@ function signinKey(state, str, key, { now, g }) {
 
 /** The page's keys, for the footer. */
 function signinKeys(si) {
-  if (!si.started) return [["enter", "get the sign-in link"], ["esc", "back"]];
+  if (!si.started) return [["enter", "get the sign-in link"], ["tab", "paste a share"], ["esc", "back"]];
   const at = signinStage(si);
   if (at.done) return [["enter", "done"]];
   if (at.failed) return [["enter", "try again"], ["esc", "back"]];
@@ -1556,7 +1820,7 @@ function signinLines(state, room, width, columns, look) {
       "",
       ...wrap(what, inner),
     ].map((l, i) => (i ? `${tone.muted}${l}${tone.reset}` : l));
-    return out(panel(width, Math.min(room, lines.length + 2), { title, lines }, look));
+    return out(panel(width, Math.min(room, lines.length + 2), { title, note: addTabs(false, look), lines }, look));
   }
 
   const at = signinStage(si);
@@ -1648,7 +1912,7 @@ function signinLines(state, room, width, columns, look) {
 /** The footer's keys while the Codex sign-in page is up. */
 function codexSigninKeys(si) {
   const login = si.login?.state;
-  if (!si.started) return [["enter", "get the code"], ["esc", "back"]];
+  if (!si.started) return [["enter", "get the code"], ...(si.adding ? [["tab", "paste a share"]] : []), ["esc", "back"]];
   if (login === "done") return [["enter", "done"]];
   if (login === "failed" || login === "expired" || login === "cancelled") return [["enter", "try again"], ["esc", "back"]];
   if (!codexValue(si)) return [["esc", "cancel"]];
@@ -1680,7 +1944,7 @@ function codexSigninLines(state, room, width, columns, look) {
       ...wrap(si.adding
         ? "The deck adds a new account for it. Codex keeps running on the account it runs on now."
         : "Signing in replaces this account's login in place: it keeps its name, settings and history.", inner),
-    ].map(quiet)));
+    ].map(quiet), si.adding ? addTabs(false, look) : ""));
   }
   const frames = spinnerFrames(unicode);
   const spin = frames[Math.floor(now / 100) % frames.length];
@@ -1792,19 +2056,22 @@ function aloneLines(state, room, width, columns, look) {
 // ── help ────────────────────────────────────────────────────────────────────
 
 /** The keys, in a box over the screen, the screen under it faded. */
-function withHelp(base, width, look) {
+function withHelp(base, state, width, look) {
   const { tone, g, unicode, skin } = look;
+  const n = updateNotice(state);
   const keys = [
     [unicode ? "↑ ↓  j k" : "up down  j k", "move"],
     ["1-9", "the account in that slot"],
     ["enter  s", "switch to it, or sign it in again"],
     ["m", "its actions, as in the deck's account menu"],
     ["h  o", `set or clear home  ${g.bullet}  hold out, or put back`],
-    ["n  v  x", `rename  ${g.bullet}  move to another slot  ${g.bullet}  remove`],
+    ["n  v  e  x", `rename  ${g.bullet}  move to a slot  ${g.bullet}  share  ${g.bullet}  remove`],
     ["b", "select the account Auto-switch would pick"],
     ["a", "turn Auto-switch on or off"],
-    ["+", "add an account, signed in from any browser"],
-    ["r", "read the usage again"],
+    // The deck's two buttons above its list: + and ↗.
+    ["+  E", `add an account or paste one  ${g.bullet}  share several`],
+    // On r's line rather than one of its own: at 80 by 24 the box is full.
+    ["r  u", `read the usage again  ${g.bullet}  ${n ? `update to ${n.to}` : "check for an update"}`],
     [unicode ? "← →" : "left right", `the tabs  ${g.bullet}  c Codex  ${g.bullet}  l Local network`],
     ["t", "the machine: live, or the last hours"],
     ["d", "start the deck, when none is running"],

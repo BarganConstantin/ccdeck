@@ -41,6 +41,17 @@ export const BrowserWatchGlyph = ({ watching }: { watching: boolean }) => (
   )
 );
 
+// The Sessions list's pin (list-pinned.ts), beside the crossed eye and drawn on
+// its spec: a push pin standing up, its head, its collar and its point. Like
+// the eye, the glyph shows what the press does: the pin to pin a row, the pin
+// struck through, with the eye's own stroke, to take it off.
+export const PinGlyph = ({ pinned }: { pinned: boolean }) => (
+  <Glyph>
+    <path d="M4.6 1.6h4.8M5.6 1.6v3.9L3.6 9.2h6.8L8.4 5.5V1.6M7 9.2v3.6" />
+    {pinned && <line x1="2.4" y1="11.6" x2="11.6" y2="2.4" />}
+  </Glyph>
+);
+
 export const SettingsGlyph = () => <KitIcon name="settings" className="glyph" />;
 
 export const FeedbackGlyph = () => <KitIcon name="feedback" className="glyph" />;

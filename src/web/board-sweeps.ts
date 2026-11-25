@@ -188,14 +188,18 @@ export function pruneOldAgents(
  *  and an idle-but-open one is only spent when nothing better is available. */
 export function pruneDoneSessions(
   state: GraphState, now: number, cap: number, graceMs: number, onForget?: ForgetSession,
+  keep?: ReadonlySet<string>,
 ): boolean {
   // sessionId -> { agent ids, latest endedAt, whether anything is still live,
-  //                whether the session itself is known to be over }
-  const sessions = new Map<string, { ids: string[]; endedAt: number; live: boolean; closed: boolean }>();
+  //                whether the session itself is known to be over, whether it
+  //                is pinned }
+  const sessions = new Map<string, { ids: string[]; endedAt: number; live: boolean; closed: boolean; kept: boolean }>();
   for (const [id, a] of state.agents) {
     let s = sessions.get(a.sessionId);
-    if (!s) { s = { ids: [], endedAt: 0, live: false, closed: false }; sessions.set(a.sessionId, s); }
+    if (!s) { s = { ids: [], endedAt: 0, live: false, closed: false, kept: keep?.has(a.sessionId) === true }; sessions.set(a.sessionId, s); }
     s.ids.push(id);
+    // A pin is kept on the session's root, by the root's id (list-pinned.ts).
+    if (a.kind === "root" && keep?.has(id)) s.kept = true;
     // Only the root carries `closedAt`, for the same reason it is the only one
     // carrying `waiting` and `lastEventAt`: being over is a property of the
     // session and not of any one agent inside it.
@@ -208,8 +212,12 @@ export function pruneDoneSessions(
   // session that leaves the board has to be reported by. See `ForgetSession`.
   const groups = canvasSessions(state.agents.values());
   const liveGroups = new Set([...state.agents.values()].filter(a => a.state !== "done" || a.endedAt == null).map(a => groups.get(a.id)));
+  // A PINNED SESSION IS PASSED OVER (list-pinned.ts): the list keeps it in
+  // Pinned for as long as the pin is on, so the cap neither evicts it nor
+  // counts it. Unpinned, it is one more finished session and the next tick
+  // treats it as any other.
   const finished = [...sessions]
-    .filter(([sid, s]) => !liveGroups.has(groups.get(sid)) && !s.live && s.endedAt > 0 && now - s.endedAt > graceMs)
+    .filter(([sid, s]) => !s.kept && !liveGroups.has(groups.get(sid)) && !s.live && s.endedAt > 0 && now - s.endedAt > graceMs)
     // Genuinely-closed sessions first, and oldest-finished first within each
     // group — so the old ordering is exactly what remains when nothing on the
     // board is known to be closed, which is every board a Codex-only or a
@@ -218,7 +226,7 @@ export function pruneDoneSessions(
 
   // Sessions still inside the grace period already count against the cap, so
   // the board settles at `cap` rather than briefly overshooting it.
-  const finishedTotal = [...sessions.values()].filter(s => !s.live).length;
+  const finishedTotal = [...sessions.values()].filter(s => !s.live && !s.kept).length;
   let over = finishedTotal - cap;
   if (over <= 0) return false;
 

@@ -15,6 +15,12 @@
 // once seen, beside sessions never given a prompt, whose card said Working.
 // One state, one name: a finished turn is Done (new until looked at), and a
 // session waiting for its first prompt is Ready, in a group of its own.
+//
+// PINNED (-1) is a sixth place, above them all, and not one of rank()'s: what a
+// session wants never puts it there, only a person's pin does (list-pinned.ts).
+// It is -1 so the order the groups are compared in stays the number, and every
+// rule here that compares groups (holdOrder above all) treats a row going into
+// Pinned or out of it as one more group change.
 
 import { t } from "./i18n";
 
@@ -24,9 +30,24 @@ export const RAIL_GROUP_LABEL_MSGS = [
   "board.railGroup.needs", "board.railGroup.new", "board.railGroup.working", "board.railGroup.done", "board.railGroup.ready",
 ] as const;
 
+/** The pinned sessions' group, first in the list. */
+export const RAIL_PINNED = -1;
+/** A place in the drawn list: Pinned, or one of rank()'s five groups. */
+export type RailSection = typeof RAIL_PINNED | RailGroup;
+/** Every place in the order it is drawn. */
+export const RAIL_SECTIONS: readonly RailSection[] = [RAIL_PINNED, ...RAIL_GROUPS];
+export const RAIL_PINNED_LABEL_MSG = "board.railGroup.pinned";
+
+/** The key of a place's header, Pinned's included. */
+export function railSectionLabelMsg(section: RailSection): string {
+  return section === RAIL_PINNED ? RAIL_PINNED_LABEL_MSG : RAIL_GROUP_LABEL_MSGS[section];
+}
+
 /** Rows drawn before the rail folds. Needs you and Working are never part of
- *  the budget's cut: nobody waiting on you is ever hidden. Done · new, Done and
- *  Ready share what is left, in the order they are drawn. */
+ *  the budget's cut: nobody waiting on you is ever hidden. Neither is Pinned,
+ *  which is drawn whole: a pin is a person asking for that row on top, and a
+ *  pinned row folded away under "N more" would be the one place it is not.
+ *  Done · new, Done and Ready share what is left, in the order they are drawn. */
 export const RAIL_FOLD_AT = 8;
 /** Inside a group opened or folded, or in the whole list, above this a change
  *  is made at once: a parade of twenty rows is not news. */
@@ -35,21 +56,37 @@ export const RAIL_LONG_LIST = 20;
  *  each travelling to its place. */
 export const RAIL_CROSSFADE_AT = 12;
 
-export interface Slot { id: string; group: RailGroup }
+export interface Slot { id: string; group: RailSection }
 
-/** The groups the fold never cuts: Needs you and Working. */
+/** The groups the fold never cuts: Needs you and Working (and Pinned, which
+ *  has no fold at all). */
 const UNCUT: readonly RailGroup[] = [0, 2];
 
 /** How many of a group's rows are drawn before its fold, and how many wait
- *  behind it. `counts` is rows per group, in group order. */
-export function foldPlan(counts: readonly [number, number, number, number, number]): { shown: number; rest: number }[] {
-  let budget = Math.max(0, RAIL_FOLD_AT - counts[0] - counts[2]);
+ *  behind it. `counts` is rows per group, in group order. `pinned` is how many
+ *  rows Pinned draws above them: all of them, always, so they take their room
+ *  from the budget the way Needs you and Working do. */
+export function foldPlan(counts: readonly [number, number, number, number, number], pinned = 0): { shown: number; rest: number }[] {
+  let budget = Math.max(0, RAIL_FOLD_AT - pinned - counts[0] - counts[2]);
   return counts.map((n, g) => {
     if (UNCUT.includes(g as RailGroup)) return { shown: n, rest: 0 };
     const shown = Math.min(n, budget);
     budget -= shown;
     return { shown, rest: n - shown };
   });
+}
+
+/** The order the rules give the list, Pinned first: the pinned sessions that
+ *  have a row, in the order they were pinned (`pinned`, oldest first), then
+ *  every other row as `rows` has it, in its own group. A pinned row is in
+ *  Pinned only, never in its state's group as well. A pin with no row draws
+ *  nothing. */
+export function railSlots(rows: readonly Slot[], pinned: readonly string[]): Slot[] {
+  const listed = new Set(rows.map(s => s.id));
+  const first = [...new Set(pinned)].filter(id => listed.has(id));
+  if (first.length === 0) return [...rows];
+  const pins = new Set(first);
+  return [...first.map((id): Slot => ({ id, group: RAIL_PINNED })), ...rows.filter(s => !pins.has(s.id))];
 }
 
 /** The longest run of `seq` that only goes up: the rows that can stay where

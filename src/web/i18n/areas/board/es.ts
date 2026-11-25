@@ -782,6 +782,7 @@ const catalog: Catalog = {
   "board.chat.ask.waiting": "Esperando tu respuesta",
   "board.chat.ask.answered": "Respondida",
   "board.chat.ask.unanswered": "Sin respuesta",
+  "board.chat.ask.chatted": "Apartada para conversar",
   "board.chat.ask.multi": "Elige varias",
   "board.chat.ask.chosen": "Elegida",
   "board.chat.ask.yourAnswer": "Tu respuesta",
@@ -795,6 +796,10 @@ const catalog: Catalog = {
   "board.chat.ask.result.partial": "Solo se envió parte de la respuesta. Termínala en Term.",
   "board.chat.ask.result.unavailable": "No se pudo enviar la respuesta. Responde en Term.",
   "board.chat.ask.inTerm": "Esta pregunta pide texto escrito. Respóndela en Term.",
+  "board.chat.ask.chat": "Hablar de esto",
+  "board.chat.ask.chatSending": "Apartándola para conversar…",
+  "board.chat.ask.result.chat": "Apartada para conversar. Claude Code te preguntará qué quieres aclarar; responde abajo.",
+  "board.chat.ask.result.chatMissing": "En Term esta pregunta no tiene la opción de conversar, así que no se envió nada. Responde en Term.",
   "board.chat.plan.title": "Plan",
   "board.chat.plan.waiting": "Esperando tu aprobación",
   "board.chat.plan.approved": "Aprobado",
@@ -1026,6 +1031,7 @@ const catalog: Catalog = {
   "board.railGroup.new": "Hechas · nuevas",
   "board.railGroup.done": "Hechas",
   "board.railGroup.ready": "Listas",
+  "board.railGroup.pinned": "Fijadas",
   "board.rail.held.one": "{count} movimiento espera a que salgas de la lista",
   "board.rail.held.other": "{count} movimientos esperan a que salgas de la lista",
   "board.nav.none": "Sin sesiones",
@@ -1082,6 +1088,9 @@ const catalog: Catalog = {
   "board.list.hiddenRow": "Se ocultó {name} de la lista",
   "board.list.hiddenSaid": "Se ocultó {name} de la lista. Se puede deshacer.",
   "board.list.hiddenCount": "Ocultas · {n}",
+  "board.list.pinRow": "Fijar",
+  "board.list.unpinRow": "Dejar de fijar",
+  "board.list.pinnedSuffix": ", fijada",
 };
 
 export default catalog;
