@@ -81,6 +81,9 @@
 .ts-tabs-row { display: flex; align-items: center; gap: 2px; }
 .ts-tabs-row > .ts-tabs-item { flex: 1 1 auto; min-width: 0; }
 .ts-tabs-x { flex: none; }
+/* Drawn afresh for the tab that comes on after the tab on show was closed
+   from it, the menu was on screen already: it does not arrive again. */
+.anchored-popover.ts-tabs-pop-kept { animation: none; }
 
 /* Side by side, the stage's own left edge is the line between panes. */
 .stage-in[data-split] .ts-stage { border-left: 0; }

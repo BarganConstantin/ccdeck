@@ -76,6 +76,18 @@ export interface PaneTabsView {
    *  row's × or Delete in the strip's menu (`keys` and `menu`: the menu keeps
    *  the keyboard, on its next row, and no terminal takes it). */
   onClose(key: string, how: { keys: boolean; menu?: boolean }): void;
+  /** The strip's menu, open or not, held above the header (TerminalStage.tsx):
+   *  the close of the tab on show draws the header afresh for the tab that
+   *  comes on, and the menu stays open through that. Left out, the strip
+   *  holds it. */
+  menu?: { open: TabsMenuOpen | null; set(next: TabsMenuOpen | null): void };
+}
+
+/** The strip's menu while open: the end its focus starts at, and the row a
+ *  close from it lands on. */
+export interface TabsMenuOpen {
+  at: "first" | "last";
+  land?: string;
 }
 
 /** A tab as the header draws it: its glyph, and the words StageHeader has
@@ -170,7 +182,8 @@ export default function PaneTabs({ view, words, onRename }: {
   // stop. Back to the tab on show once the keyboard leaves the strip.
   const [focused, setFocused] = useState<string | null>(null);
   // The menu, open at its first row or its last; open, it keeps its chevron.
-  const [menu, setMenu] = useState<"first" | "last" | null>(null);
+  const held = useState<TabsMenuOpen | null>(null);
+  const [menu, setMenu] = view.menu ? [view.menu.open, view.menu.set] : held;
   const count = view.items.length;
   const onKey = view.items.find(x => x.on)?.key ?? null;
   const stop = stripStop(view.items, focused);
@@ -299,8 +312,8 @@ export default function PaneTabs({ view, words, onRename }: {
 export function TabsMenu({ view, words, menu, setMenu, over, toStrip }: {
   view: PaneTabsView;
   words(status: StageStatus): PaneTabWords;
-  menu: "first" | "last" | null;
-  setMenu(menu: "first" | "last" | null): void;
+  menu: TabsMenuOpen | null;
+  setMenu(next: TabsMenuOpen | null): void;
   /** The strip holds more than it shows: the chevron stays once the menu shuts. */
   over: boolean;
   /** The keyboard to the strip, for a chevron that goes as the menu shuts. */
@@ -314,16 +327,24 @@ export function TabsMenu({ view, words, menu, setMenu, over, toStrip }: {
   const rows = useRef(new Map<string, HTMLButtonElement>());
   const xs = useRef(new Map<string, HTMLButtonElement>());
   // The row the keyboard goes to once a close is drawn: the × that was
-  // pressed has gone with its row.
-  const land = useRef<string | null>(null);
-  useLayoutEffect(() => {
+  // pressed has gone with its row. A close of the tab on show draws the
+  // header afresh, and this menu with it: the row comes with the open state.
+  const land = useRef<string | null>(menu?.land ?? null);
+  // Drawn afresh by such a close, the menu was on screen already: no entrance.
+  const [kept] = useState(() => menu?.land != null);
+  // After the menu's own first focus (AnchoredPopover's, an effect of a child,
+  // so it runs before this one), which it overrides.
+  useEffect(() => {
     const key = land.current;
     if (key == null) return;
     land.current = null;
     rows.current.get(key)?.focus();
   });
   const close = (key: string) => {
-    land.current = menuLanding(view.items, key);
+    const next = menuLanding(view.items, key);
+    land.current = next;
+    // The strip's last close takes the strip, and the menu with it.
+    setMenu(next == null ? null : { at: menu?.at ?? "first", land: next });
     view.onClose(key, { keys: true, menu: true });
   };
   const rowKey = (e: KeyboardEvent<HTMLButtonElement>, at: number, on: "row" | "x") => {
@@ -357,14 +378,15 @@ export function TabsMenu({ view, words, menu, setMenu, over, toStrip }: {
         onKeyDown={e => {
           if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
           e.preventDefault();
-          setMenu(e.key === "ArrowUp" ? "last" : "first");
+          setMenu({ at: e.key === "ArrowUp" ? "last" : "first" });
         }}
-        onClick={() => setMenu(open ? null : "first")}
+        onClick={() => setMenu(open ? null : { at: "first" })}
       >
         <KitIcon name="chevron-down" />
       </button>
       {open && (
-        <AnchoredPopover anchorId={id} id={menuId} className="ap-pop dock-more-pop" role="menu" labelledBy={id} start={menu} onClose={shut}>
+        <AnchoredPopover anchorId={id} id={menuId} className={`ap-pop dock-more-pop${kept ? " ts-tabs-pop-kept" : ""}`} role="menu" labelledBy={id}
+          start={menu?.at} onClose={shut}>
           {view.items.map((x, i) => {
             const w = words(x.status);
             const glyph = x.mark ?? w.glyph;

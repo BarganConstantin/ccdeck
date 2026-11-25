@@ -16,8 +16,8 @@ vi.mock("../components/AnchoredPopover", () => ({
     createElement("div", { className, role }, children),
 }));
 
-import { TabsMenu, menuLanding, menuRowKey, type PaneTabsView } from "../components/terminal/PaneTabs";
-import { tabWords } from "../components/terminal/StageHeader";
+import { TabsMenu, menuLanding, menuRowKey, type PaneTabsView, type TabsMenuOpen } from "../components/terminal/PaneTabs";
+import StageHeader, { tabWords, type StageHeaderProps } from "../components/terminal/StageHeader";
 import { catalogFor } from "../i18n/catalogs";
 import { en } from "../i18n/en";
 import { withoutComments } from "./tsx-scan";
@@ -35,7 +35,7 @@ const view = (over: Partial<PaneTabsView> = {}): PaneTabsView => ({
   ...over,
 });
 
-const menu = (open: "first" | "last" | null = "first", v = view()) => renderToStaticMarkup(createElement(TabsMenu, {
+const menu = (open: TabsMenuOpen | null = { at: "first" }, v = view()) => renderToStaticMarkup(createElement(TabsMenu, {
   view: v, words: tabWords, menu: open, setMenu() {}, over: true, toStrip() {},
 }));
 
@@ -75,6 +75,21 @@ describe("each row of the tab menu", () => {
     expect(out).not.toContain('role="menu"');
     expect(out).not.toContain("ts-tabs-x");
     expect(out).toContain('aria-haspopup="menu"');
+  });
+
+  it("is drawn open by a strip drawn afresh while its menu is open, with no second entrance once a close brought it", () => {
+    const header = (open: TabsMenuOpen | null) => renderToStaticMarkup(createElement(StageHeader, {
+      identity: "session:s2", name: "docs pass", provider: "claude", workspace: "pane", split: true,
+      status: { state: "idle", phrase: "idle" }, keysOwner: "pane", chordLabel: "Ctrl+Shift+X",
+      canType: true, expanded: false, takeover: false, onKeys() {}, onExpand() {}, onClose() {},
+      tabs: { ...view(), menu: { open, set() {} } },
+    } satisfies StageHeaderProps));
+    // The strip has not measured itself yet (no overflow known), and the menu
+    // held above it is open: the chevron and its menu are drawn.
+    expect(header({ at: "first" })).toContain('role="menu"');
+    expect(header(null)).not.toContain('role="menu"');
+    expect(menu({ at: "first", land: "s:s3" })).toContain('class="ap-pop dock-more-pop ts-tabs-pop-kept"');
+    expect(menu({ at: "first" })).toContain('class="ap-pop dock-more-pop"');
   });
 
   it("says Close and the tab's name in every language", () => {
@@ -141,7 +156,7 @@ describe("the close it makes", () => {
   const popover = withoutComments(sourceOf("components/AnchoredPopover.tsx"));
 
   it("is the strip's own close, keyboard and pointer alike, with the menu keeping the keyboard", () => {
-    expect(tabs).toContain("land.current = menuLanding(view.items, key);");
+    expect(tabs).toContain("const next = menuLanding(view.items, key);");
     expect(tabs).toContain("view.onClose(key, { keys: true, menu: true });");
     expect(tabs).toContain("onClick={() => close(x.key)}>");
     // Showing stays the strip's tab and the menu's row; the × never shows.
@@ -156,6 +171,13 @@ describe("the close it makes", () => {
 
   it("keeps the menu and its chevron open for the next close, even once the strip has room again", () => {
     expect(tabs).toContain("{(over || menu) && (");
+    // Held above the header, so the close of the tab on show (a new identity,
+    // the strip drawn afresh) keeps it open, on the row the close landed on.
+    expect(tabs).toContain('setMenu(next == null ? null : { at: menu?.at ?? "first", land: next });');
+    expect(tabs).toContain("const [menu, setMenu] = view.menu ? [view.menu.open, view.menu.set] : held;");
+    const stage = withoutComments(sourceOf("components/terminal/TerminalStage.tsx"));
+    expect(stage).toContain("menu: { open: tabMenu, set: setTabMenu }");
+    expect(stage).toContain("useEffect(() => { if (!tabbed) setTabMenu(null); }, [tabbed]);");
     expect(tabs).toContain("if (!over && document.activeElement === document.getElementById(id)) toStrip();");
   });
 
