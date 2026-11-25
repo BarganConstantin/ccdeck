@@ -199,6 +199,7 @@ const catalog: Catalog = {
   "settings.key.undo": "annuler une réorganisation, tant que le canevas le propose",
   "settings.key.clear": "vider ccdeck et le journal des événements — demande d’abord",
   "settings.key.quick": "rechercher panneaux, sessions, paramètres, actions et thèmes",
+  "settings.key.quickShift": "la même recherche, de partout — aussi avec les touches dans le terminal",
   "settings.key.usage": "panneau d’utilisation",
   "settings.key.sessions": "liste des sessions",
   "settings.key.detail": "Inspector",

@@ -199,6 +199,7 @@ const catalog: Catalog = {
   "settings.key.undo": "undo a re-arrange, while the canvas offers it",
   "settings.key.clear": "clear the deck and the event log — asks first",
   "settings.key.quick": "search panels, sessions, settings, actions and themes",
+  "settings.key.quickShift": "the same search, from anywhere — also with the keys in the terminal",
   "settings.key.usage": "usage panel",
   "settings.key.sessions": "session list",
   "settings.key.detail": "Inspector",

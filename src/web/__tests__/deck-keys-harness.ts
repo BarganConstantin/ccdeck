@@ -45,6 +45,18 @@ export interface KeyTarget {
    *  Left out, the target has no `closest` at all, as every target here had
    *  before the stage existed. */
   inPanel?: boolean;
+  /** Inside a popover hung off a control (AnchoredPopover): the target
+   *  answers `closest(".anchored-popover")`. */
+  inPopover?: boolean;
+}
+
+/** The target's answer to `closest`, for the two places the deck asks about:
+ *  the pane and an anchored popover. None at all when the test said neither. */
+function closestOf({ inPanel, inPopover }: KeyTarget) {
+  if (inPanel === undefined && inPopover === undefined) return {};
+  return {
+    closest: (sel: string) => ((inPanel && sel === "[data-terminal-panel]") || (inPopover && sel === ".anchored-popover") ? {} : null),
+  };
 }
 
 export const BODY: KeyTarget = { tagName: "BODY" };
@@ -96,10 +108,16 @@ export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange 
   let onKey: ((e: KeyboardEvent) => void) | null = null;
   let releaseKey: ((e: KeyboardEvent) => void) | undefined;
   let captureKey: ((e: KeyboardEvent) => void) | undefined;
+  // Everything else the hook listens for on window — the pointer, the wheel,
+  // focus moving, the window's blur — by type, for `fire`.
+  const others = new Map<string, (e: unknown) => void>();
   vi.stubGlobal("window", {
-    addEventListener: (type: string, fn: (e: KeyboardEvent) => void, capture = false) => {
+    addEventListener: (type: string, fn: (e: KeyboardEvent) => void, capture: boolean | AddEventListenerOptions = false) => {
       if (type === "keyup") releaseKey = fn;
-      if (type !== "keydown") return;
+      if (type !== "keydown") {
+        if (type !== "keyup") others.set(type, fn as (e: unknown) => void);
+        return;
+      }
       if (capture) captureKey = fn;
       else onKey = fn;
     },
@@ -160,17 +178,18 @@ export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange 
   /** One keydown. `pointer` marks the target as focused by a pointer press (#851). */
   function press(key: string, o: {
     target?: KeyTarget; repeat?: boolean; shiftKey?: boolean; pointer?: boolean;
-    ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; code?: string;
+    ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; code?: string; isComposing?: boolean;
   } = {}) {
     const target = o.target ?? BODY;
-    const { inPanel, ...rest } = target;
+    const { inPanel: _inPanel, inPopover: _inPopover, ...rest } = target;
     const e = {
       key, code: o.code, repeat: o.repeat ?? false, shiftKey: o.shiftKey ?? false,
       ctrlKey: o.ctrlKey ?? false, metaKey: o.metaKey ?? false, altKey: o.altKey ?? false,
+      isComposing: o.isComposing ?? false,
       target: {
         ...rest,
         getAttribute: (name: string) => (name === "role" ? target.role ?? null : null),
-        ...(inPanel !== undefined ? { closest: (sel: string) => (inPanel && sel === "[data-terminal-panel]" ? {} : null) } : {}),
+        ...closestOf(target),
       },
       preventDefault: vi.fn(),
       stopPropagation: vi.fn(),
@@ -182,9 +201,28 @@ export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange 
     return e;
   }
 
-  const release = (key: string, target: KeyTarget) => releaseKey?.({
-    key, target: { closest: () => target.inPanel ? {} : null },
-  } as unknown as KeyboardEvent);
+  /** One keyup, on the same kind of target `press` builds. Handed back, so a
+   *  test can put focus on its target (document.activeElement). */
+  const release = (key: string, target: KeyTarget = BODY) => {
+    const e = { key, target: { tagName: target.tagName, ...closestOf(target) } };
+    releaseKey?.(e as unknown as KeyboardEvent);
+    return e;
+  };
 
-  return { props, press, release, keyHelp, theme, detail, usage, removeSelected };
+  /** Shift pressed and let go on its own, `holdMs` apart (fake timers move
+   *  Date.now with them). */
+  const tapShift = (target: KeyTarget = BODY, holdMs = 50) => {
+    press("Shift", { target, shiftKey: true });
+    vi.advanceTimersByTime(holdMs);
+    return release("Shift", target);
+  };
+
+  /** Any other event the hook listens for on window, by type. */
+  const fire = (type: string) => {
+    const fn = others.get(type);
+    if (!fn) throw new Error(`useDeckShortcuts put no ${type} listener on window`);
+    fn({ type });
+  };
+
+  return { props, press, release, tapShift, fire, keyHelp, theme, detail, usage, removeSelected };
 }

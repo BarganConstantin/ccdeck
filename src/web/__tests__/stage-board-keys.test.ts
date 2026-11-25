@@ -21,6 +21,7 @@ vi.mock("react", async (orig) => ({ ...(await orig<typeof import("react")>()), u
 const { BODY, button, mountDeckKeys, stageKeys } = await import("./deck-keys-harness");
 const { modalStack } = await import("../modal-dismiss");
 const { KEY_HELP } = await import("../key-help");
+const { SHIFT_TAP_MS } = await import("../quick-open");
 
 beforeEach(() => { vi.useFakeTimers(); });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
@@ -349,4 +350,66 @@ it("uses two clean Shift taps to run a terminal shortcut without sending it", ()
   expect(focusPaneDirection).toHaveBeenCalledWith("down");
   vi.runAllTimers();
   expect(deck.props.openQuickOpen).not.toHaveBeenCalled();
+});
+
+describe("two Shift taps with the keys in a pane", () => {
+  const target = { tagName: "TEXTAREA", inPanel: true };
+
+  it("open Quick open once the short window has passed, with focus still in the pane", () => {
+    const deck = mountDeckKeys({ stage: stageKeys({ open: true }) });
+    deck.tapShift(target);
+    vi.advanceTimersByTime(100);
+    const up = deck.tapShift(target);
+    vi.stubGlobal("document", { activeElement: up.target });
+    // Two more taps inside the window start nothing new.
+    deck.tapShift(target);
+    deck.tapShift(target);
+    expect(deck.props.openQuickOpen).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(300);
+    expect(deck.props.openQuickOpen).toHaveBeenCalledOnce();
+  });
+
+  it("open nothing when focus has left the pane by the end of the window", () => {
+    const deck = mountDeckKeys({ stage: stageKeys({ open: true }) });
+    deck.tapShift(target);
+    vi.advanceTimersByTime(100);
+    deck.tapShift(target);
+    vi.stubGlobal("document", { activeElement: null });
+    vi.advanceTimersByTime(300);
+    expect(deck.props.openQuickOpen).not.toHaveBeenCalled();
+  });
+
+  it("leave Shift typing, a held Shift and a slow pair to the session, and take no key from it", () => {
+    const deck = mountDeckKeys({ stage: stageKeys({ open: true }) });
+    vi.stubGlobal("document", { activeElement: null });
+    const pressed = [
+      deck.press("Shift", { target, shiftKey: true }),
+      deck.press("A", { target, shiftKey: true }),
+    ];
+    deck.release("A", target);
+    deck.release("Shift", target);
+    pressed.push(deck.press("Shift", { target, shiftKey: true }), deck.press("Shift", { target, shiftKey: true, repeat: true }));
+    deck.release("Shift", target);
+    deck.tapShift(target);
+    vi.advanceTimersByTime(SHIFT_TAP_MS + 1);
+    deck.tapShift(target);
+    vi.runAllTimers();
+    for (const e of pressed) {
+      expect(e.preventDefault).not.toHaveBeenCalled();
+      expect(e.stopPropagation).not.toHaveBeenCalled();
+    }
+    expect(deck.props.openQuickOpen).not.toHaveBeenCalled();
+  });
+
+  it("keep Ctrl + Shift + arrows moving between panes", () => {
+    vi.stubGlobal("navigator", { platform: "Win32", userAgent: "Chrome" });
+    const focusPaneDirection = vi.fn(() => true);
+    const deck = mountDeckKeys({ stage: stageKeys({ open: true, focusPaneDirection }) });
+    deck.press("Shift", { target, shiftKey: true });
+    expect(deck.press("ArrowLeft", { target, ctrlKey: true, shiftKey: true }).stopPropagation).toHaveBeenCalledOnce();
+    deck.release("Shift", target);
+    expect(focusPaneDirection).toHaveBeenCalledWith("left");
+    vi.runAllTimers();
+    expect(deck.props.openQuickOpen).not.toHaveBeenCalled();
+  });
 });

@@ -199,6 +199,7 @@ const catalog: Catalog = {
   "settings.key.undo": "Neuanordnung rückgängig machen, solange der Canvas es anbietet",
   "settings.key.clear": "ccdeck und Ereignisprotokoll leeren — fragt vorher nach",
   "settings.key.quick": "Panels, Sitzungen, Einstellungen, Aktionen und Farbschemata durchsuchen",
+  "settings.key.quickShift": "dieselbe Suche, von überall — auch mit den Tasten im Terminal",
   "settings.key.usage": "Nutzungs-Panel",
   "settings.key.sessions": "Sitzungsliste",
   "settings.key.detail": "Inspector",

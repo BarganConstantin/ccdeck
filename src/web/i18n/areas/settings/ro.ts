@@ -207,6 +207,7 @@ const catalog: Catalog = {
   "settings.key.undo": "anulează o rearanjare, cât timp canvasul o oferă",
   "settings.key.clear": "golește ccdeck-ul și jurnalul de evenimente — întreabă mai întâi",
   "settings.key.quick": "caută panouri, sesiuni, setări, acțiuni și teme",
+  "settings.key.quickShift": "aceeași căutare, de oriunde — și cu tastele din terminal",
   "settings.key.usage": "panoul de utilizare",
   "settings.key.sessions": "lista de sesiuni",
   "settings.key.detail": "Inspector",
