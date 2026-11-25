@@ -138,6 +138,16 @@ const catalog: Catalog = {
   "codex.menu.save": "儲存",
   "codex.menu.saveTitle": "顯示用的簡短名稱，取代電子郵件",
 
+  // Codex's own home: why it has no Remove, and its Hide / Show
+  "codex.menu.hide": "隱藏",
+  "codex.menu.hideTitle": "在維持未登入期間隱藏此列。Codex 在這裡登入後，它會自動重新出現。",
+  "codex.menu.show": "顯示 {name}",
+  "codex.menu.showTitle": "將隱藏的帳號放回清單",
+  "codex.menu.notRemovable": "無法移除：這是 Codex 自己的登入資料夾，{product} 從不刪除它。",
+  "codex.panel.hidden": "已隱藏 {name}。任一帳號的 ⋯ 選單都可以重新顯示它。",
+  "codex.panel.hideFailed": "無法隱藏帳號，請重新載入後再試。",
+  "codex.panel.showFailed": "無法顯示帳號，請重新載入後再試。",
+
   // The Add / Sign in dialog (AddCodexAccountDialog)
   "codex.add.reason.missing": "這台電腦未安裝 Codex，或 ccdeck 找不到它。",
   "codex.add.reason.expired": "驗證碼在使用前已過期。",

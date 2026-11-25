@@ -112,7 +112,7 @@ describe("the features added after 4.3.0", () => {
     expect(Object.fromEntries([
       "/api/terminal/launch", "/api/terminal/adopt", "/api/session-name", "/api/claude-install", "/api/claude-settings",
       "/api/codex-profile-select", "/api/codex-profile-add", "/api/codex-profile-remove", "/api/codex-profile-rename",
-      "/api/codex-profile-replace-login", "/api/codex-auto", "/api/codex-install",
+      "/api/codex-profile-hide", "/api/codex-profile-replace-login", "/api/codex-auto", "/api/codex-install",
     ].map(path => [path, routeFeature("POST", path)]))).toEqual({
       "/api/terminal/launch": "session-launch",
       "/api/terminal/adopt": "session-reopen",
@@ -123,6 +123,7 @@ describe("the features added after 4.3.0", () => {
       "/api/codex-profile-add": "codex-accounts-manage",
       "/api/codex-profile-remove": "codex-accounts-manage",
       "/api/codex-profile-rename": "codex-accounts-manage",
+      "/api/codex-profile-hide": "codex-accounts-manage",
       "/api/codex-profile-replace-login": "codex-accounts-manage",
       "/api/codex-auto": "codex-auto-switch",
       // CHANGED ON PURPOSE (Install Codex): Codex's install, as Claude Code's.
