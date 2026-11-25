@@ -179,6 +179,8 @@ export function stageShowFor(
       // The Inspector's Context tab reads the same two numbers (contextFill).
       contextUse: contextUseOf(root),
       promptCount: typedPrompts(root.prompts).length,
+      // When the turn now running began, as the Sessions list counts it: Chat's working row counts from it.
+      turnStartedAt: root.prompts.at(-1)?.at ?? root.startedAt,
       // Every event the board hears for the session moves it: Chat asks soon after.
       ...(root.lastEventAt != null ? { heardAt: root.lastEventAt } : {}),
       // While the pane attaches: what the face says the session is doing, or

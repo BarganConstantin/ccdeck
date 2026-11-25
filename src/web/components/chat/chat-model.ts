@@ -191,6 +191,10 @@ export interface ChatSince {
   toolCalls: number;
   /** "now asking", or what the session is doing now. */
   label: string;
+  /** Where the first turn that came since you looked is: the divider goes
+   *  right before it, a reply it falls in drawn as two. Without it, over the
+   *  whole conversation. */
+  at?: number;
 }
 
 /** A message sent from Chat that the conversation does not show yet
@@ -211,6 +215,10 @@ export interface ChatActivity {
   detail?: string;
   /** How long nothing was heard from a session at work with no call open: "3m". */
   quiet?: string;
+  /** What the agent's own screen says it is doing: "Pondering…". */
+  status?: string;
+  /** When the turn at work began (epoch ms): the row counts from it. */
+  since?: number;
 }
 
 /** The part of the conversation before the turns held, offered on request. */
