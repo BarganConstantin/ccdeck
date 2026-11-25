@@ -199,6 +199,7 @@ const catalog: Catalog = {
   "settings.key.undo": "撤销重新排列（仅在画布提供时）",
   "settings.key.clear": "清除整个 ccdeck 和事件日志——会先询问",
   "settings.key.quick": "搜索面板、会话、设置、操作和主题",
+  "settings.key.quickShift": "随处使用同一搜索——终端内的按键同样可用",
   "settings.key.usage": "用量面板",
   "settings.key.sessions": "会话列表",
   "settings.key.detail": "检查器",

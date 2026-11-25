@@ -85,7 +85,9 @@ describe("Keyboard shortcuts", () => {
     expect(keyHelpFor(true, () => true, true).map(g => g.title)).toEqual(["Deck", "The question", "Workspace", "Terminal", "Canvas", "Panels"]);
     expect(KEY_HELP.find(g => g.title === "The question")!.rows.map(r => r.cap)).toEqual(["W", "N", "Shift + N"]);
     // CHANGED ON PURPOSE: S is the session list and M this machine now.
-    expect(KEY_HELP.find(g => g.title === "Panels")!.rows.map(r => r.cap)).toEqual(["Ctrl + K", "U", "S", "F2", "D", "H", "A", "M", "B", "I"]);
+    // CHANGED ON PURPOSE: two Shift taps open Quick open from anywhere, so
+    // they sit beside Ctrl + K.
+    expect(KEY_HELP.find(g => g.title === "Panels")!.rows.map(r => r.cap)).toEqual(["Ctrl + K", "Shift ×2", "U", "S", "F2", "D", "H", "A", "M", "B", "I"]);
     expect(KEY_HELP.find(g => g.title === "Panels")!.rows.find(r => r.cap === "D")!.action).toBe("Inspector");
   });
   it("keeps every shortcut the deck listed before: keys, chords, mouse and the Command Panel's", () => {
@@ -100,8 +102,11 @@ describe("Keyboard shortcuts", () => {
     // CHANGED ON PURPOSE (first use of Workspace): F2, Workspace's five rows
     // after its chord and the Terminal group's five are new. Then the chord
     // that moves between split panes, and the two Shift taps in a terminal.
+    // CHANGED ON PURPOSE: and the two Shift taps again in Panels, beside
+    // Ctrl + K, since they open Quick open from anywhere.
     for (const cap of ["F2", "1 – 4", "Ctrl + Shift + X", "Ctrl + =", "Ctrl + -", "Ctrl + 0", PANE_FOCUS_CAP, "Shift ×2"]) expect(caps, cap).toContain(cap);
-    expect(caps).toHaveLength(49);
+    expect(caps.filter(cap => cap === "Shift ×2")).toHaveLength(2);
+    expect(caps).toHaveLength(50);
     expect(caps).not.toContain("Space");
   });
   // CHANGED ON PURPOSE (first use of Workspace): with the Command Panel's two

@@ -199,6 +199,7 @@ const catalog: Catalog = {
   "settings.key.undo": "並べ直しを元に戻す（画面に表示されている間のみ）",
   "settings.key.clear": "ボードとイベントログをクリア（先に確認します）",
   "settings.key.quick": "パネル・セッション・設定・操作・テーマを検索",
+  "settings.key.quickShift": "同じ検索をどこからでも — ターミナル内のキーでも可",
   "settings.key.usage": "使用量パネル",
   "settings.key.sessions": "セッション一覧",
   "settings.key.detail": "インスペクター",

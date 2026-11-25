@@ -378,3 +378,81 @@ export function isQuickOpenChord(e: QuickChordKey, apple: boolean): boolean {
 export function quickOpenChordLabel(apple: boolean): string {
   return apple ? "⌘K" : "Ctrl+K";
 }
+
+/** Where Quick open's keys open it: the rules ⌘K and Ctrl+K follow, which
+ *  two Shift taps follow too (use-deck-shortcuts.ts asks this for both).
+ *  Never behind a dialog or inside one — Quick open is a dialog itself, so a
+ *  second activation leaves the field that is open as it is — and never from
+ *  inside a popover hung off a control, which keeps every key typed in it
+ *  (AnchoredPopover.tsx, shortcuts.ts inAnchoredPopover). A text field is no
+ *  reason not to: the session list's filter is where somebody looking for
+ *  something already is, and what opens is the field that finds more. */
+export function quickOpenAnswers({ dialogOpen, inPopover }: { dialogOpen: boolean; inPopover: boolean }): boolean {
+  return !dialogOpen && !inPopover;
+}
+
+// ── two Shift taps ──────────────────────────────────────────────────────────
+//
+// Quick open's other way in, from anywhere in the deck, the terminal included:
+// Shift pressed and let go on its own, twice in a row. Only a clean tap counts,
+// so Shift keeps every job it had: Shift + a letter types a capital, a held
+// Shift (and its key repeat) is a held modifier, Shift with another key or a
+// mouse button is a chord or a Shift-click, and two taps further apart than
+// SHIFT_TAP_MS are two separate presses.
+
+/** The longest a tap may be held down, and the longest pause from the first
+ *  tap's release to the second's press. */
+export const SHIFT_TAP_MS = 350;
+
+/** What the counter reads off a keydown. Structural, so a test can hand it a
+ *  plain object. */
+export interface ShiftTapKey {
+  key: string;
+  repeat?: boolean;
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  altKey?: boolean;
+  isComposing?: boolean;
+  keyCode?: number;
+  defaultPrevented?: boolean;
+}
+
+export interface ShiftTaps {
+  /** Every keydown, wherever focus is. Shift on its own starts a tap; any
+   *  other key, a held Shift's repeat or Shift with a modifier ends the run. */
+  down(e: ShiftTapKey, now: number): void;
+  /** Every keyup: true when it lets go of the second clean tap in a row. The
+   *  run starts again after it, so a third tap is a first one. */
+  up(e: { key: string }, now: number): boolean;
+  /** A mouse button went down (`held`) or came back up. Either ends the run,
+   *  and no tap counts while a button is down. */
+  pointer(held: boolean): void;
+  /** Start again: the window lost focus, focus moved, the wheel turned. */
+  reset(): void;
+}
+
+export function shiftTaps(windowMs = SHIFT_TAP_MS): ShiftTaps {
+  let downAt: number | null = null;
+  let lastTap: number | null = null;
+  let buttonHeld = false;
+  const reset = () => { downAt = null; lastTap = null; };
+  return {
+    down(e, now) {
+      const clean = e.key === "Shift" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey
+        && !e.isComposing && e.keyCode !== 229 && !e.defaultPrevented && !buttonHeld && downAt === null;
+      if (clean) downAt = now;
+      else reset();
+    },
+    up(e, now) {
+      if (e.key !== "Shift") { reset(); return false; }
+      const pressedAt = downAt;
+      downAt = null;
+      if (pressedAt === null || now - pressedAt > windowMs) { lastTap = null; return false; }
+      if (lastTap !== null && pressedAt - lastTap <= windowMs) { lastTap = null; return true; }
+      lastTap = now;
+      return false;
+    },
+    pointer(held) { buttonHeld = held; reset(); },
+    reset,
+  };
+}

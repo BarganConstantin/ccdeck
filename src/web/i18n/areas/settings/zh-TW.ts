@@ -199,6 +199,7 @@ const catalog: Catalog = {
   "settings.key.undo": "復原重新排列（僅在畫布提供時）",
   "settings.key.clear": "清除 ccdeck 與事件記錄——會先詢問",
   "settings.key.quick": "搜尋面板、工作階段、設定、動作與佈景主題",
+  "settings.key.quickShift": "隨處使用同一搜尋——終端機中的按鍵也可以",
   "settings.key.usage": "使用量面板",
   "settings.key.sessions": "工作階段清單",
   "settings.key.detail": "檢查器",

@@ -2,8 +2,8 @@
 // order, what it remembers, the chord through the deck's one keydown handler,
 // and that every row runs the press its door, setting or action already had.
 // How it looks and moves is checked in a browser; this holds the rules.
-import { afterEach, describe, expect, it, vi } from "vitest";
-import type { QuickItem } from "../quick-open";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { QuickItem, ShiftTapKey } from "../quick-open";
 import type { RailItem } from "../components/EdgeRails";
 import type { RailItems } from "../rail-items";
 import type { Row } from "../components/SessionList";
@@ -11,11 +11,11 @@ import type { AgentNodeData } from "../types";
 
 vi.mock("react", async (orig) => ({ ...(await orig<typeof import("react")>()), useEffect: (run: () => void) => { run(); } }));
 
-const { mountDeckKeys } = await import("./deck-keys-harness");
+const { BODY, mountDeckKeys } = await import("./deck-keys-harness");
 const { modalStack } = await import("../modal-dismiss");
 const {
-  EMPTY_SESSIONS, RECENT_KEY, SECTION_CAP, flatGroupRows, fuzzyMatch, groupQuick, isQuickOpenChord, quickOpenChordLabel,
-  rankQuick, readRecent, rememberRecent, stepRow, withRecent,
+  EMPTY_SESSIONS, RECENT_KEY, SECTION_CAP, SHIFT_TAP_MS, flatGroupRows, fuzzyMatch, groupQuick, isQuickOpenChord, quickOpenAnswers,
+  quickOpenChordLabel, rankQuick, readRecent, rememberRecent, shiftTaps, stepRow, withRecent,
 } = await import("../quick-open");
 const { quickOpenItems, sessionLine, startFolder } = await import("../quick-open-items");
 const { indexFor } = await import("../settings-search");
@@ -266,9 +266,256 @@ describe("the chord", () => {
     // CHANGED ON PURPOSE (V4's Figma): Quick open is still alone in the panels group with the letters off, which V4 names Panels.
     // CHANGED ON PURPOSE (first use of Workspace): F2 joins it there, the list's rename; it opens no panel, so
     // Ctrl + K is still the one way to the panels.
-    expect(keyHelpFor(false).find(g => g.title === "Panels")?.rows.map(r => r.cap)).toEqual(["Ctrl + K", "F2"]);
+    // CHANGED ON PURPOSE: with its other way in, two Shift taps, beside it.
+    expect(keyHelpFor(false).find(g => g.title === "Panels")?.rows.map(r => r.cap)).toEqual(["Ctrl + K", "Shift ×2", "F2"]);
+    const taps = keyHelpFor(true).find(g => g.title === "Panels")?.rows.find(r => r.cap === "Shift ×2");
+    expect(taps).toMatchObject({ action: "the same search, from anywhere — also with the keys in the terminal", binds: ["Shift"], chord: true });
+    expect(taps?.macCap).toBeUndefined();
   });
 });
+
+// ── two Shift taps ──────────────────────────────────────────────────────────
+
+const shift = (o: Partial<ShiftTapKey> = {}): ShiftTapKey => ({ key: "Shift", ...o });
+
+describe("what counts as two clean Shift taps", () => {
+  /** A tap pressed at `at` and let go `hold` later; true when it was the second. */
+  const tap = (taps: ReturnType<typeof shiftTaps>, at: number, hold = 60) => {
+    taps.down(shift(), at);
+    return taps.up(shift(), at + hold);
+  };
+
+  it("is Shift pressed and let go on its own, twice, each quick and close to the last", () => {
+    const taps = shiftTaps();
+    expect(tap(taps, 0)).toBe(false);
+    expect(tap(taps, 200)).toBe(true);
+    // The run starts again after it: a third tap is a first one.
+    expect(tap(taps, 400)).toBe(false);
+    expect(tap(taps, 600)).toBe(true);
+  });
+
+  it("is not Shift typing a capital, nor Shift with Ctrl, Alt or ⌘, nor a key between the taps", () => {
+    const taps = shiftTaps();
+    // Shift + A, twice: the letter ends each press.
+    for (const at of [0, 200]) {
+      taps.down(shift(), at);
+      taps.down({ key: "A" }, at + 20);
+      taps.up({ key: "A" }, at + 40);
+      expect(taps.up(shift(), at + 60)).toBe(false);
+    }
+    for (const mod of [{ ctrlKey: true }, { altKey: true }, { metaKey: true }]) {
+      expect(tap(taps, 1000)).toBe(false);
+      taps.down(shift(mod), 1200);
+      expect(taps.up(shift(), 1260), JSON.stringify(mod)).toBe(false);
+    }
+    // A key pressed between two clean taps ends the run.
+    expect(tap(taps, 3000)).toBe(false);
+    taps.down({ key: "x" }, 3100);
+    taps.up({ key: "x" }, 3120);
+    expect(tap(taps, 3200)).toBe(false);
+  });
+
+  it("is not a held Shift: one held past the window, or one the keyboard repeats", () => {
+    const taps = shiftTaps();
+    expect(tap(taps, 0)).toBe(false);
+    expect(tap(taps, 200, SHIFT_TAP_MS + 1)).toBe(false);
+    // Repeat arrives sooner than the window on a fast keyboard: still held.
+    expect(tap(taps, 1000)).toBe(false);
+    taps.down(shift(), 1100);
+    taps.down(shift({ repeat: true }), 1130);
+    expect(taps.up(shift(), 1160)).toBe(false);
+  });
+
+  it("is not two taps further apart than the window", () => {
+    const taps = shiftTaps();
+    expect(tap(taps, 0)).toBe(false);
+    expect(tap(taps, 60 + SHIFT_TAP_MS + 1)).toBe(false);
+    // The slow second tap counts as a first one, so a quick third completes a pair.
+    expect(tap(taps, 600)).toBe(true);
+  });
+
+  it("is not Shift with a mouse button, pressed during a tap or held through both", () => {
+    const taps = shiftTaps();
+    expect(tap(taps, 0)).toBe(false);
+    taps.down(shift(), 200);
+    taps.pointer(true);
+    taps.pointer(false);
+    expect(taps.up(shift(), 260)).toBe(false);
+    taps.pointer(true);
+    expect(tap(taps, 1000)).toBe(false);
+    expect(tap(taps, 1200)).toBe(false);
+    taps.pointer(false);
+    expect(tap(taps, 2000)).toBe(false);
+    expect(tap(taps, 2200)).toBe(true);
+  });
+
+  it("starts again on a reset, and never while a character is being composed", () => {
+    const taps = shiftTaps();
+    expect(tap(taps, 0)).toBe(false);
+    taps.reset();
+    expect(tap(taps, 200)).toBe(false);
+    taps.down(shift({ isComposing: true }), 400);
+    expect(taps.up(shift(), 460)).toBe(false);
+    taps.down(shift({ keyCode: 229 }), 600);
+    expect(taps.up(shift(), 660)).toBe(false);
+  });
+});
+
+describe("two Shift taps through the deck's keys", () => {
+  beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal("navigator", { platform: "Linux x86_64" }); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  const twice = (deck: ReturnType<typeof mountDeckKeys>, target?: Parameters<ReturnType<typeof mountDeckKeys>["tapShift"]>[0]) => {
+    deck.tapShift(target);
+    vi.advanceTimersByTime(100);
+    deck.tapShift(target);
+  };
+
+  it("open Quick open at once from the canvas, a card, the session list, a side column, Chat and a text field", () => {
+    const surfaces = {
+      canvas: { tagName: "BODY" },
+      card: { tagName: "DIV", role: "button" },
+      row: { tagName: "BUTTON" },
+      column: { tagName: "BUTTON", inPanel: false },
+      chat: { tagName: "TEXTAREA", inPanel: false, inPopover: false },
+      filter: { tagName: "INPUT", type: "text" },
+    };
+    for (const [name, target] of Object.entries(surfaces)) {
+      const deck = mountDeckKeys();
+      twice(deck, target);
+      expect(deck.props.openQuickOpen, name).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("leave every key they did not use where it was going: no Shift is taken from anyone", () => {
+    const deck = mountDeckKeys();
+    const down = deck.press("Shift", { shiftKey: true, target: { tagName: "INPUT", type: "text" } });
+    expect(down.preventDefault).not.toHaveBeenCalled();
+    expect(down.stopPropagation).not.toHaveBeenCalled();
+  });
+
+  it("open it with the single-key shortcuts off, as the chord does", () => {
+    const deck = mountDeckKeys({ singleKeys: false });
+    twice(deck);
+    expect(deck.props.openQuickOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("open nothing over a dialog, the key sheet among them, as the chord opens nothing there", () => {
+    const deck = mountDeckKeys();
+    const closeDialog = modalStack.push(noop);
+    try {
+      twice(deck, { tagName: "INPUT", type: "text" });
+      expect(deck.press("k", { ctrlKey: true, target: { tagName: "INPUT", type: "text" } }).preventDefault).not.toHaveBeenCalled();
+    } finally {
+      closeDialog();
+    }
+    deck.keyHelp.value = true;
+    twice(deck);
+    deck.press("k", { ctrlKey: true });
+    expect(deck.props.openQuickOpen).not.toHaveBeenCalled();
+  });
+
+  it("open nothing from a popover that keeps its keys, where the chord asks the same question", () => {
+    const deck = mountDeckKeys();
+    const inPopover = { tagName: "INPUT", type: "text", inPopover: true };
+    twice(deck, inPopover);
+    deck.press("k", { ctrlKey: true, target: inPopover });
+    expect(deck.props.openQuickOpen).not.toHaveBeenCalled();
+    expect(quickOpenAnswers({ dialogOpen: false, inPopover: true })).toBe(false);
+    expect(quickOpenAnswers({ dialogOpen: true, inPopover: false })).toBe(false);
+    expect(quickOpenAnswers({ dialogOpen: false, inPopover: false })).toBe(true);
+    // The popover is the one that keeps the chord's K, and carries the class asked for.
+    const popover = sourceOf("components/AnchoredPopover.tsx");
+    expect(popover).toContain("if (e.key.length === 1) e.stopPropagation();");
+    expect(popover).toContain("className={`anchored-popover");
+  });
+
+  it("open one menu per activation: a third tap starts again, and taps over the open field leave it", () => {
+    const deck = mountDeckKeys();
+    twice(deck);
+    vi.advanceTimersByTime(100);
+    deck.tapShift();
+    expect(deck.props.openQuickOpen).toHaveBeenCalledTimes(1);
+    // Quick open is a dialog once drawn: two more taps in its field do nothing.
+    const field = modalStack.push(noop);
+    try {
+      vi.advanceTimersByTime(100);
+      deck.tapShift({ tagName: "INPUT", type: "text" });
+      vi.advanceTimersByTime(100);
+      deck.tapShift({ tagName: "INPUT", type: "text" });
+    } finally {
+      field();
+    }
+    expect(deck.props.openQuickOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("do nothing for Shift typing, a held Shift, Shift with another key or a slow pair", () => {
+    const deck = mountDeckKeys();
+    const field = { tagName: "INPUT", type: "text" };
+    // Shift + H, Shift + I.
+    for (const letter of ["H", "I"]) {
+      deck.press("Shift", { shiftKey: true, target: field });
+      deck.press(letter, { shiftKey: true, target: field });
+      deck.release(letter, field);
+      deck.release("Shift", field);
+    }
+    // Held, with the keyboard's repeat.
+    deck.tapShift();
+    deck.press("Shift", { shiftKey: true });
+    deck.press("Shift", { shiftKey: true, repeat: true });
+    deck.release("Shift");
+    // Held past the window, without repeat.
+    deck.tapShift();
+    deck.tapShift(BODY, SHIFT_TAP_MS + 50);
+    // Ctrl + Shift, twice; then an arrow with Shift between two taps.
+    for (let i = 0; i < 2; i++) {
+      deck.press("Shift", { shiftKey: true, ctrlKey: true });
+      deck.release("Shift");
+    }
+    deck.tapShift();
+    deck.press("ArrowDown", { shiftKey: true });
+    deck.tapShift();
+    // Two taps, a pause longer than the window between them.
+    vi.advanceTimersByTime(1000);
+    deck.tapShift();
+    vi.advanceTimersByTime(SHIFT_TAP_MS + 1);
+    deck.tapShift();
+    expect(deck.props.openQuickOpen).not.toHaveBeenCalled();
+    // Shift + M is still the sound, S and M still their panels.
+    deck.press("M", { shiftKey: true });
+    deck.press("s");
+    deck.press("m");
+    expect(deck.props.activateSoundRef.current).toHaveBeenCalledTimes(1);
+    expect(deck.props.toggleSessionList).toHaveBeenCalledTimes(1);
+    expect(deck.props.setMachinePanelOpen).toHaveBeenCalledTimes(1);
+    expect(deck.props.openQuickOpen).not.toHaveBeenCalled();
+  });
+
+  it("start again when the window loses focus, focus moves, a mouse button goes down or the wheel turns", () => {
+    for (const type of ["blur", "focusout", "pointerdown", "wheel"]) {
+      const deck = mountDeckKeys();
+      deck.tapShift();
+      deck.fire(type);
+      vi.advanceTimersByTime(100);
+      deck.tapShift();
+      expect(deck.props.openQuickOpen, type).not.toHaveBeenCalled();
+      if (type === "pointerdown") deck.fire("pointerup");
+      // And the next clean pair opens it.
+      vi.advanceTimersByTime(100);
+      twice(deck);
+      expect(deck.props.openQuickOpen, type).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("count no tap while a mouse button is held, as in a Shift-drag", () => {
+    const deck = mountDeckKeys();
+    deck.fire("pointerdown");
+    twice(deck);
+    deck.fire("pointerup");
+    expect(deck.props.openQuickOpen).not.toHaveBeenCalled();
+  });
+});
+
 
 // ── what each row runs ──────────────────────────────────────────────────────
 

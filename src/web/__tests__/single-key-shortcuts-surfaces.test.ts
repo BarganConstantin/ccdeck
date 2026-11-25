@@ -309,13 +309,15 @@ describe("the shortcuts sheet with the switch off", () => {
     // Canvas, Panels), so the order follows the groups.
     // CHANGED ON PURPOSE (first use of Workspace): F2, the list's rename, is a
     // named key, so it stays with the letters off, after Ctrl + K.
+    // CHANGED ON PURPOSE: two Shift taps, Quick open's other way in, type no
+    // letter either, so they stay beside Ctrl + K.
     expect(rows.map(r => r.cap)).toEqual([
       "Ctrl + ,", "Ctrl + Z", "Esc",
       "Delete", "Tab", "Enter", "Shift + Enter",
       "drag", "shift-click", "click", "double-click", "hover",
-      "Ctrl + K", "F2",
+      "Ctrl + K", "Shift ×2", "F2",
     ]);
-    expect(keyHelpFor(false).find(g => g.title === "Panels")?.rows.map(r => r.cap)).toEqual(["Ctrl + K", "F2"]);
+    expect(keyHelpFor(false).find(g => g.title === "Panels")?.rows.map(r => r.cap)).toEqual(["Ctrl + K", "Shift ×2", "F2"]);
     expect(rows.find(r => r.cap === "Delete")?.action).toBe("take the selected card off the board — the session list brings it back");
     expect(keyHelpFor(true)).toBe(KEY_HELP);
   });

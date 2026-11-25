@@ -32,12 +32,12 @@ import { escapeOutcome, modalStack } from "./modal-dismiss";
 import { isUndoChord } from "./rearrange-undo";
 import { noteKeyUse, type LearnedKey } from "./key-learning";
 import { isApplePlatform, platformName } from "./platform";
-import { isQuickOpenChord } from "./quick-open";
+import { isQuickOpenChord, quickOpenAnswers, shiftTaps } from "./quick-open";
 import type { GraphState } from "./reducer";
 import type { LodMode } from "./semantic-zoom";
 import { isSettingsChord, type SettingsSection } from "./settings";
 import { characterKeyMuted, singleKeyShortcutsOn } from "./single-key-shortcuts";
-import { CAUGHT_KEYS_ATTR, canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, keepsThemeKey, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
+import { CAUGHT_KEYS_ATTR, canvasModalOpen, closesKeySheet, inAnchoredPopover, isBrowserChord, isTypingTarget, keepsThemeKey, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
 import { inTerminalPanel, isReleaseChord, isViewChord, paneFocusDirection, PANE_ARROWS, STAGE_FLIP_REST_MS, stageKeyIntent, stepSession, type PaneDirection, type StageKeyIntent } from "./terminal-keys";
 import { nextTheme, type Theme } from "./theme";
 
@@ -136,7 +136,7 @@ export interface DeckShortcuts {
   /** A connected tracker's panel by kind (#2178), or nothing when that kind
    *  has no connection — the rail button is not drawn then either. */
   openIntegrationRef?: Read<(kind: string) => void>;
-  /** Quick open, on ⌘K or Ctrl+K (quick-open.ts). */
+  /** Quick open, on ⌘K or Ctrl+K and on two Shift taps (quick-open.ts). */
   openQuickOpen: () => void;
   /** The terminal stage, where the terminal flag put one. Left out, or not
    *  open, and the keys are the deck's as they always were. */
@@ -239,6 +239,8 @@ export function useDeckShortcuts({
       if (flip) clearTimeout(flip.timer);
       flip = null;
     };
+    // A dialog covers the canvas (shortcuts.ts canvasModalOpen).
+    const dialogOpen = () => canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() });
     const stageKey = (intent: StageKeyIntent, stage: StageShortcuts, at: EventTarget | null) => {
       if (intent.kind === "step") {
         if (stage.mode === "rail") {
@@ -395,9 +397,10 @@ export function useDeckShortcuts({
       // the one below. Not to the field gate: the session list's filter is
       // where a reader looking for something already is, and what this opens
       // is the field that finds more. Its own field closes it on the same
-      // chord (QuickOpen.tsx), ahead of this listener.
+      // chord (QuickOpen.tsx), ahead of this listener. Two Shift taps ask
+      // the same question (quickOpenAnswers), below.
       if (isQuickOpenChord(e, isApplePlatform(platformName()))) {
-        if (canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() })) return;
+        if (!quickOpenAnswers({ dialogOpen: dialogOpen(), inPopover: inAnchoredPopover(el) })) return;
         e.preventDefault();
         if (!e.repeat) openQuickOpen();
         return;
@@ -674,57 +677,62 @@ export function useDeckShortcuts({
       // test, so the sheet cannot fall behind the keys again.
       if (e.key === "?") setKeyHelpOpen(o => !o);
     };
-    // Two clean Shift taps open the palette, with a short window for a direct action.
-    const SHIFT_TAP_MS = 350;
+    // Two clean Shift taps open Quick open, from anywhere in the deck: the
+    // canvas, the session list, the side columns, Chat, a field, the terminal.
+    // shiftTaps (quick-open.ts) says what a clean tap is. The taps are counted
+    // in the capture phase, ahead of every surface, so a key that a surface
+    // keeps to itself still ends the run, and so do a mouse button, the wheel,
+    // focus moving and the window losing focus. Where they open the field is
+    // the chord's own rule (quickOpenAnswers): never over a dialog, Quick open
+    // included, so two more taps leave the open field as it is; never from a
+    // popover that keeps its keys. Off the terminal it opens at once, through
+    // the chord's door, and focus goes back where it was when it closes.
+    //
+    // In a pane the taps wait QUICK_ACTION_MS first: S, M or an arrow pressed
+    // in that window runs Sessions, This machine or the next pane instead,
+    // keys the terminal would otherwise have sent to the session.
     const QUICK_ACTION_MS = 230;
-    let shiftDownAt: number | null = null;
-    let previousShiftAt: number | null = null;
+    const taps = shiftTaps();
     let quickAction: ReturnType<typeof setTimeout> | null = null;
     const clearQuickAction = () => {
       if (quickAction !== null) clearTimeout(quickAction);
       quickAction = null;
     };
     const resetShift = () => {
-      shiftDownAt = null;
-      previousShiftAt = null;
+      taps.reset();
       clearQuickAction();
     };
+    const pointerDown = () => { taps.pointer(true); clearQuickAction(); };
+    const pointerUp = () => { taps.pointer(false); };
+    const windowBlur = () => { taps.pointer(false); resetShift(); };
     const terminalActive = (target: EventTarget | null) =>
-      inTerminalPanel(target as HTMLElement | null)
-      && !canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() });
+      inTerminalPanel(target as HTMLElement | null) && !dialogOpen();
     const onShiftUp = (e: KeyboardEvent) => {
-      if (e.key !== "Shift") return;
-      const downAt = shiftDownAt;
-      shiftDownAt = null;
-      const now = Date.now();
-      if (downAt === null || now - downAt > SHIFT_TAP_MS || !terminalActive(e.target)) {
-        previousShiftAt = null;
-        return;
-      }
-      if (previousShiftAt === null || downAt - previousShiftAt > SHIFT_TAP_MS) {
-        previousShiftAt = now;
-        return;
-      }
-      previousShiftAt = null;
+      if (!taps.up(e, Date.now())) return;
       const opener = e.target;
+      if (!quickOpenAnswers({ dialogOpen: dialogOpen(), inPopover: inAnchoredPopover(opener as HTMLElement | null) })) return;
+      if (!inTerminalPanel(opener as HTMLElement | null)) {
+        openQuickOpen();
+        return;
+      }
       quickAction = setTimeout(() => {
         quickAction = null;
         if (document.activeElement === opener && terminalActive(opener)) openQuickOpen();
       }, QUICK_ACTION_MS);
     };
-    // Capture before xterm can send an app command to the PTY.
+    // Every keydown, in the capture phase: counted for the taps wherever focus
+    // is, and in a pane answered before xterm can send an app command to the PTY.
     const onTerminalKey = (e: KeyboardEvent) => {
+      const shift = e.key === "Shift";
+      // Within the pane's window a Shift starts no new run: the taps have
+      // been answered, and the field is on its way.
+      if (!(shift && quickAction !== null)) taps.down(e, Date.now());
       if (e.defaultPrevented || e.isComposing || e.keyCode === 229 || !terminalActive(e.target)) {
-        resetShift();
+        clearQuickAction();
         return;
       }
       const unmodified = !e.ctrlKey && !e.metaKey && !e.altKey;
-      if (e.key === "Shift" && unmodified) {
-        if (!e.repeat && quickAction === null) shiftDownAt = Date.now();
-        return;
-      }
-      shiftDownAt = null;
-      previousShiftAt = null;
+      if (shift && unmodified) return;
 
       const stage = stageRef?.current;
       let handled = false;
@@ -750,15 +758,23 @@ export function useDeckShortcuts({
     };
     window.addEventListener("keydown", onTerminalKey, true);
     window.addEventListener("keyup", onShiftUp, true);
+    window.addEventListener("pointerdown", pointerDown, true);
+    window.addEventListener("pointerup", pointerUp, true);
+    window.addEventListener("pointercancel", pointerUp, true);
+    window.addEventListener("wheel", resetShift, { capture: true, passive: true });
     window.addEventListener("focusout", resetShift);
-    window.addEventListener("blur", resetShift);
+    window.addEventListener("blur", windowBlur);
     window.addEventListener("keydown", onKey);
     return () => {
       resetShift();
       window.removeEventListener("keydown", onTerminalKey, true);
       window.removeEventListener("keyup", onShiftUp, true);
+      window.removeEventListener("pointerdown", pointerDown, true);
+      window.removeEventListener("pointerup", pointerUp, true);
+      window.removeEventListener("pointercancel", pointerUp, true);
+      window.removeEventListener("wheel", resetShift, { capture: true });
       window.removeEventListener("focusout", resetShift);
-      window.removeEventListener("blur", resetShift);
+      window.removeEventListener("blur", windowBlur);
       window.removeEventListener("keydown", onKey);
       dropFlip();
     };

@@ -199,6 +199,7 @@ const catalog: Catalog = {
   "settings.key.undo": "캔버스가 제안하는 동안 재배열 실행 취소",
   "settings.key.clear": "캔버스와 이벤트 로그 지우기 — 먼저 확인합니다",
   "settings.key.quick": "패널, 세션, 설정, 동작, 테마 검색",
+  "settings.key.quickShift": "어디서나 같은 검색 — 터미널의 키로도 가능",
   "settings.key.usage": "사용량 패널",
   "settings.key.sessions": "세션 목록",
   "settings.key.detail": "인스펙터",
