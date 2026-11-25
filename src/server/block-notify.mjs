@@ -338,7 +338,9 @@ export function createBlockNotifier({ notify, product, now = Date.now, enabled =
       // `who` alone as well: the desktop app shows its own name above every
       // notification, so the "— ccdeck" the title carries for osascript's sake
       // would be said twice there.
-      raise(at, title, body, { chime: chimeOf(raw), who: whoOf(raw) });
+      // `session` so the desktop app's click opens that session in Chat
+      // (desktop/session-link.mjs); the app checks it before it uses it.
+      raise(at, title, body, { chime: chimeOf(raw), who: whoOf(raw), session: raw.session_id ?? null });
       return "notified";
     },
   };
