@@ -53,11 +53,14 @@ describe("restart in the tray", () => {
 
   it("sits above Quit, and only while there is a deck to restart", () => {
     expect(from, "trayMenuItems is gone or renamed").toBeGreaterThan(-1);
-    const restart = menu.indexOf('label: "Restart ccdeck"');
+    // Its words are restartLabel's: "Restart ccdeck", or the version a restart
+    // brings when the deck serves older code than its install holds.
+    const restart = menu.indexOf("label: restartLabel(");
     const quit = menu.indexOf('label: "Quit ccdeck"');
     expect(restart).toBeGreaterThan(-1);
     expect(restart).toBeLessThan(quit);
-    expect(menu).toMatch(/label: "Restart ccdeck", enabled: !!deck && !starting && !restarting, click: \(\) => on\.restartDeck\(\)/);
+    expect(menu).toMatch(/label: restartLabel\(\{ update, drift, updateAsksPassword \}\), enabled: !!deck && !starting && !restarting, click: \(\) => on\.restartDeck\(\)/);
+    expect(TRAY_MENU).toMatch(/: "Restart ccdeck";/);
     // And the row's action is this app's restartDeck.
     expect(TRAY).toMatch(/restartDeck: \(\) => restartDeck\(\),/);
   });
