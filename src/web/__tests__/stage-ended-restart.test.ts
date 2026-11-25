@@ -31,7 +31,7 @@ import TerminalStage, { endView, rowsUnderNote, settlesFocus, type StageShow, ty
 import KeysBar, { type KeysBarProps } from "../components/terminal/KeysBar";
 import StageHeader, { type StageHeaderProps } from "../components/terminal/StageHeader";
 import StageBody, { StateCard, type StageBodyProps } from "../components/terminal/StageBody";
-import { CLEAN_END_MIN_LIVE_MS, headerStatus, stageAnnouncement, type StagePhase } from "../components/terminal/stage-model";
+import { CLEAN_END_MIN_LIVE_MS, folderGoneBody, folderGoneLine, folderStillGone, headerStatus, stageAnnouncement, type FolderGonePhase, type StagePhase } from "../components/terminal/stage-model";
 import { ASSUMED_CELL, stageGeometry } from "../stage-geometry";
 import type { ConnectOptions, TerminalConnection, TerminalExit } from "../terminal-protocol";
 import type { SessionDeps, StageTerminal, StageTerminalEvents } from "../use-terminal-session";
@@ -691,7 +691,8 @@ describe("an ended pane whose folder is not reachable", () => {
   };
 
   it("names the folder as not reachable when the reopened agent says so, with Choose folder…, Check again and Cancel, never a new session here", async () => {
-    const s = stageOn(SHOW, { folder: answers(THERE) });
+    // There when asked before the reopen; not reachable once the agent says it cannot read it.
+    const s = stageOn(SHOW, { folder: answers(THERE, { ok: false, code: "unreachable" }) });
     await s.crashed();
     await reopenDies(s, 1, CANT_READ);
     expect(s.phase()).toEqual({ kind: "folder-gone", cwd: "/w/paycore", code: "folder-unreachable", agent: "codex", sessionId: CODEX_REF.sessionId, frame: true });
@@ -728,7 +729,7 @@ describe("an ended pane whose folder is not reachable", () => {
   });
 
   it("resumes the same conversation on Check again once the drive is back, and says so while it is not", async () => {
-    const s = stageOn(SHOW, { folder: answers(THERE, { ok: false, code: "unreachable" }, THERE) });
+    const s = stageOn(SHOW, { folder: answers(THERE, { ok: false, code: "unreachable" }, { ok: false, code: "unreachable" }, THERE) });
     await s.crashed();
     await reopenDies(s, 1, CANT_READ);
     s.header().end!.alt!.onAction();
@@ -848,5 +849,40 @@ describe("the folder-gone line above a kept frame", () => {
     expect(s.phase().kind).toBe("live");
     expect(s.term.rows, "the whole pane again").toBe(geometry.rows);
     s.view.unmount();
+  });
+});
+
+// An agent this pane started that ended at once saying it could not read its
+// working folder, while the deck finds the folder there (`there`): the folder
+// is not what failed, and the words never say it is gone.
+describe("a pane whose agent could not open its working folder, though the folder is there", () => {
+  const cwd = "/Users/u/code/paycore";
+  const launch = { kind: "folder-gone", cwd, code: "folder-missing", agent: "codex", frame: true, there: true } as FolderGonePhase;
+  const resume = { ...launch, agent: "claude", sessionId: "s1" } as FolderGonePhase;
+
+  it("names the agent and the folder, says the folder is there, and what each way on starts", () => {
+    page(false);
+    expect(folderGoneLine(launch)).toEqual({
+      lead: "Codex could not open its working folder as it started, though paycore is there.",
+      next: "Choose folder… starts Codex in another folder.",
+    });
+    expect(folderGoneBody(launch), "a launch: a new start elsewhere").toBe("Choose another folder to start Codex there.");
+    expect(folderGoneLine(resume).next).toBe("Choose folder… starts a new session elsewhere; this conversation stays with its folder.");
+    expect(folderGoneBody(resume), "Check again resumes this conversation; another folder starts a new one")
+      .toBe("The conversation stays with this folder. Check again to resume it here, or choose another folder to start a new session there.");
+    expect(headerStatus(null, launch)).toEqual({ state: "ended", phrase: "could not start in paycore", arg: cwd });
+    expect(stageAnnouncement("paycore", launch)).toBe(`Codex could not open its working folder as it started, though ${cwd} is there.`);
+    for (const p of [launch, resume]) {
+      const said = `${folderGoneLine(p).lead} ${folderGoneBody(p)} ${headerStatus(null, p).phrase}`;
+      expect(said, "never gone, missing or not reachable").not.toMatch(/not there|not found|not reachable|still not/i);
+    }
+  });
+
+  it("says it again, changed, when a Check again started it and it still could not", () => {
+    page(false);
+    expect(folderStillGone({ ...launch, checked: true })).toBe("Codex still could not open its working folder.");
+    expect(folderGoneLine({ ...launch, checked: true }).lead).toBe("Codex still could not open its working folder.");
+    expect(folderStillGone({ ...launch, checked: true, busy: true }), "not while it asks").toBeNull();
+    expect(folderStillGone(launch)).toBeNull();
   });
 });
