@@ -185,6 +185,9 @@ export interface ChatAsk {
    *  shows the question and that row. Without it the card does not offer it. */
   chat?(questions: ChatQuestion[]): Promise<AskSendResult>;
   onShowTerm?(): void;
+  /** An answer chosen on an alert (use-intent-press.ts): option `index` of the
+   *  one question, sent once by the card whose questions are `for`. */
+  press?: { id: number; index: number; for: string };
 }
 
 export interface ChatSince {

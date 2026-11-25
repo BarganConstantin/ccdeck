@@ -456,6 +456,20 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
     setResult(outcome);
   }
 
+  // An answer chosen on an alert: the option is picked and sent by this card's
+  // own Send, once, and only on the question it was chosen for.
+  const pressedId = useRef(0);
+  const press = live?.press;
+  useEffect(() => {
+    if (!press || press.id === pressedId.current) return;
+    if (press.for !== turn.questions.map(q => q.question).join("\n") || turn.questions.length !== 1 || turn.questions[0].multi) return;
+    pressedId.current = press.id;
+    const chosen: AskPick[] = [{ options: [press.index] }];
+    setPicks(chosen);
+    void send(chosen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [press]);
+
   async function chat() {
     if (!live?.chat || !canChat) return;
     statusRef.current?.focus({ preventScroll: true });
