@@ -303,11 +303,50 @@ describe("with the stage open, the board's keys move the stage", () => {
     expect(deck.props.stepAgent, "the canvas stepped behind the stage").not.toHaveBeenCalled();
   });
 
-  it("leaves every other key to the deck: T still turns the theme, L the session list", () => {
+  it("leaves every other key to the deck: T still turns the theme, S the session list", () => {
     const deck = mountDeckKeys({ stage: stageKeys() });
     deck.press("t");
-    deck.press("l");
+    deck.press("s");
     expect(deck.theme.value).toBe("rider-black");
     expect(deck.props.toggleSessionList).toHaveBeenCalledTimes(1);
   });
+});
+
+it("claims the directional chord before the terminal only when split focus is available", () => {
+  vi.stubGlobal("navigator", { platform: "Win32", userAgent: "Chrome" });
+  const focusPaneDirection = vi.fn(() => true);
+  const deck = mountDeckKeys({ stage: stageKeys({ open: true, focusPaneDirection }) });
+  const target = { tagName: "TEXTAREA", inPanel: true };
+  const options = { ctrlKey: true, shiftKey: true };
+  expect(deck.press("ArrowRight", { target, ...options }).stopPropagation).toHaveBeenCalledOnce();
+  expect(focusPaneDirection).toHaveBeenCalledWith("right");
+  expect(deck.press("ArrowRight", { target }).stopPropagation).not.toHaveBeenCalled();
+  expect(deck.press("ArrowRight", options).stopPropagation).not.toHaveBeenCalled();
+  focusPaneDirection.mockReturnValue(false);
+  expect(deck.press("ArrowLeft", { target, ...options }).stopPropagation).not.toHaveBeenCalled();
+});
+
+
+it("uses two clean Shift taps to run a terminal shortcut without sending it", () => {
+  const focusPaneDirection = vi.fn(() => true);
+  const deck = mountDeckKeys({ stage: stageKeys({ open: true, focusPaneDirection }) });
+  const target = { tagName: "TEXTAREA", inPanel: true };
+  const twice = () => {
+    for (let i = 0; i < 2; i++) {
+      deck.press("Shift", { target, shiftKey: true });
+      deck.release("Shift", target);
+    }
+  };
+  expect(deck.press("s", { target }).stopPropagation).not.toHaveBeenCalled();
+  twice();
+  expect(deck.press("s", { target }).stopPropagation).toHaveBeenCalledOnce();
+  expect(deck.props.toggleSessionList).toHaveBeenCalledOnce();
+  twice();
+  expect(deck.press("m", { target }).stopPropagation).toHaveBeenCalledOnce();
+  expect(deck.props.setMachinePanelOpen).toHaveBeenCalledOnce();
+  twice();
+  expect(deck.press("ArrowDown", { target }).stopPropagation).toHaveBeenCalledOnce();
+  expect(focusPaneDirection).toHaveBeenCalledWith("down");
+  vi.runAllTimers();
+  expect(deck.props.openQuickOpen).not.toHaveBeenCalled();
 });

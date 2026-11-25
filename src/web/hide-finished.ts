@@ -7,7 +7,7 @@
 // done sessions after a delay".
 //
 // HIDDEN, NOT DELETED. Hiding is Remove from board's (remove-node.ts): the
-// session keeps its row in the session list (L), comes back from there, and
+// session keeps its row in the session list (S), comes back from there, and
 // comes back by itself when it starts working or needs you (#1315). Nothing is
 // forgotten by the page or by the server, so a session hidden too early costs
 // one click, never its history.

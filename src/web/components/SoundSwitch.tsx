@@ -3,7 +3,7 @@
 // Settings › Sounds holds it above everything the tones can be set to. It was
 // drawn in the topbar speaker's quick popover as well, until the speaker left
 // the bar (2026-10-07). One switch in the source and one door behind it —
-// onToggleSound is use-sound-switch.ts's toggle, the one M reaches too.
+// onToggleSound is use-sound-switch.ts's toggle, the one Shift+M reaches too.
 import { useId } from "react";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { useT } from "../i18n";
@@ -37,16 +37,16 @@ export default function SoundSwitch({ soundOn, onToggleSound }: Props) {
         nameId={labelId}
         control={
           <>
-            {/* The key, drawn as a key, beside the switch it flips: M is the
+            {/* The key, drawn as a key, beside the switch it flips: Shift+M is the
                 one-press route to silence from anywhere on the deck — while
                 the single-key shortcuts are on, and only then is it shown. */}
-            {singleKeys && <kbd className="settings-key" aria-hidden title={t("radio.sound.keyTitle")}>M</kbd>}
+            {singleKeys && <kbd className="settings-key" aria-hidden title={t("radio.sound.keyTitle")}>Shift+M</kbd>}
             <button
               type="button"
               role="switch"
               aria-checked={soundOn}
               aria-labelledby={labelId}
-              aria-keyshortcuts={singleKeys ? "M" : undefined}
+              aria-keyshortcuts={singleKeys ? "Shift+M" : undefined}
               className="switch"
               onClick={onToggleSound}
             >

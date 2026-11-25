@@ -158,7 +158,7 @@ const catalog: Catalog = {
   "radio.fm.unavailable.builtin": "这个电台目前没有直播。请改选其他电台，或稍后再次选择以重试。",
   "radio.sound.name": "播放提示音",
   "radio.sound.note": "回合结束时，以及 Claude 需要您回应时，播放提示音。",
-  "radio.sound.keyTitle": "随时按 M 即可静音或取消静音",
+  "radio.sound.keyTitle": "随时按 Shift+M 即可静音或取消静音",
   "radio.tone.two": "双音",
   "radio.tone.descent": "下行",
   "radio.tone.ascent": "上行",

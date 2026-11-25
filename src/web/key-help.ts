@@ -33,6 +33,7 @@
 import type { IntegrationKind } from "./integrations/types";
 import { isCharacterKey } from "./single-key-shortcuts";
 import { t } from "./i18n";
+import { PANE_FOCUS_CAP, paneFocusMacCap } from "./terminal-keys";
 
 /** One line of the sheet: what you press, and what happens. */
 export interface KeyHelpRow {
@@ -118,7 +119,7 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       // The one-press route to silence from anywhere, and the only one with no
       // dialog in the way: the switch it flips is in Settings › Sounds, the
       // row above.
-      { cap: "M", get action() { return t("settings.key.mute"); }, binds: ["m", "M"] },
+      { cap: "Shift + M", get action() { return t("settings.key.mute"); }, binds: ["m", "M"] },
       // Every theme in turn, in Settings › Appearance's order, not a
       // light/dark pair — and from inside a dialog too, the one letter that
       // goes through one (use-deck-shortcuts.ts).
@@ -173,7 +174,7 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       // to the text field.
       { cap: "Ctrl + K", macCap: "⌘ K", get action() { return t("settings.key.quick"); }, binds: ["k", "K"], chord: true },
       { cap: "U", get action() { return t("settings.key.usage"); }, binds: ["u", "U"] },
-      { cap: "L", get action() { return t("settings.key.sessions"); }, binds: ["l", "L"] },
+      { cap: "S", get action() { return t("settings.key.sessions"); }, binds: ["s", "S"] },
       // The list's own key (internal #101), on the row that has focus, in
       // both views: answered by the row (RailParts.tsx), not by the deck's
       // handler, and a named key, so it stays with the single keys off.
@@ -185,7 +186,7 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       // see the handler in use-deck-shortcuts.ts.
       { cap: "A", get action() { return t("settings.key.accounts"); }, binds: ["a", "A"] },
       // #826: the three topbar panels that were pointer-only.
-      { cap: "S", get action() { return t("settings.key.machine"); }, binds: ["s", "S"] },
+      { cap: "M", get action() { return t("settings.key.machine"); }, binds: ["m", "M"] },
       { cap: "B", get action() { return t("settings.key.bw"); }, binds: ["b", "B"] },
       // Drawn once a Jira connection exists (#2178); the key does nothing before.
       // On the sheet only where the deck offers Jira (keyHelpFor).
@@ -215,6 +216,7 @@ export const WORKSPACE_GROUP: KeyHelpGroup = {
   get title() { return t("settings.key.group.workspace"); },
   rows: [
     WORKSPACE_KEY_ROW,
+    { cap: PANE_FOCUS_CAP, get macCap() { return paneFocusMacCap(); }, get action() { return t("board.keys.focusPane"); }, binds: [], chord: true },
     { get cap() { return t("settings.key.cap.click"); }, get action() { return t("settings.key.wsClick"); }, binds: [] },
     { cap: "Enter", get action() { return t("settings.key.wsEnter"); }, binds: ["Enter"] },
     { cap: "Shift + Enter", get action() { return t("settings.key.wsBeside"); }, binds: ["Enter"] },
@@ -233,6 +235,7 @@ export const TERMINAL_GROUP: KeyHelpGroup = {
   id: "terminal",
   get title() { return t("settings.key.group.terminal"); },
   rows: [
+    { cap: "Shift ×2", get action() { return t("board.keys.shiftCommandsTip"); }, binds: ["Shift"], chord: true },
     { cap: "Esc", get action() { return t("settings.key.paneEsc"); }, binds: ["Escape"] },
     { cap: "Ctrl + Shift + X", macCap: "⌃ ⇧ X", get action() { return t("settings.key.release"); }, binds: ["x", "X"], chord: true },
     { cap: "Ctrl + =", macCap: "⌘ =", get action() { return t("settings.key.textLarger"); }, binds: ["=", "+"], chord: true },
@@ -253,7 +256,7 @@ function withCommandPanel(groups: readonly KeyHelpGroup[]): readonly KeyHelpGrou
 }
 
 /** An action naming another row's letter in passing — Delete's "the session
- *  list (L)" — which would point at a dead key with the shortcuts off. */
+ *  list (S)" — which would point at a dead key with the shortcuts off. */
 const SINGLE_KEY_ASIDE = / ?\([A-Z?]\)/g;
 
 /** The sheet as it stands with the single-key shortcuts off (Settings ›

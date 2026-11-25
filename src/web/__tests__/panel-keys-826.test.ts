@@ -31,8 +31,8 @@ const every = [...items.left, ...items.right.flat(), ...items.utilities];
 const rows = KEY_HELP.flatMap(g => g.rows);
 
 describe("the three pointer-only panels get keys (#826)", () => {
-  it("binds S to the machine panel and B to Browser Watch", () => {
-    expect(app).toMatch(/if \(e\.key === "s" \|\| e\.key === "S"\) setMachinePanelOpen\(o => !o\);/);
+  it("binds M to the machine panel and B to Browser Watch", () => {
+    expect(app).toMatch(/else \{\s*setMachinePanelOpen\(o => !o\);/);
     expect(app).toMatch(/if \(e\.key === "b" \|\| e\.key === "B"\) setBrowserWatchOpen\(o => !o\);/);
   });
 
@@ -43,14 +43,14 @@ describe("the three pointer-only panels get keys (#826)", () => {
     expect(app).not.toMatch(/setSoundMenuOpen/);
   });
 
-  it("lists all three in the sheet: S and B under Panels, V under Deck (V4's groups)", () => {
+  it("lists all three in the sheet: M and B under Panels, V under Deck (V4's groups)", () => {
     // CHANGED ON PURPOSE (V4's Figma): the group is named Panels, and V sits in Deck.
     const panels = KEY_HELP.find(g => g.title === "Panels")!.rows.map(r => r.cap);
-    for (const cap of ["S", "B"]) expect(panels, cap).toContain(cap);
+    for (const cap of ["M", "B"]) expect(panels, cap).toContain(cap);
     const settings = KEY_HELP.find(g => g.title === "Deck")!.rows;
     expect(settings.map(r => r.cap)).toContain("V");
     expect(settings.find(r => r.cap === "V")!.action).toMatch(/^sound settings/);
-    expect(rows.find(r => r.cap === "S")!.binds).toEqual(["s", "S"]);
+    expect(rows.find(r => r.cap === "M")!.binds).toEqual(["m", "M"]);
     expect(rows.find(r => r.cap === "B")!.binds).toEqual(["b", "B"]);
     expect(rows.find(r => r.cap === "V")!.binds).toEqual(["v", "V"]);
   });
@@ -62,9 +62,9 @@ describe("the three pointer-only panels get keys (#826)", () => {
     // titles said beyond the word: whether Browser watch is watching.
     const machine = every.find(i => i.id === "machine")!;
     const watch = every.find(i => i.id === "browser-watch")!;
-    expect(machine.key).toEqual({ cap: "S", aria: "S", single: true });
+    expect(machine.key).toEqual({ cap: "M", aria: "M", single: true });
     expect(watch.key).toEqual({ cap: "B", aria: "B", single: true });
-    expect(railHint(machine, true, true)?.keys).toBe("S");
+    expect(railHint(machine, true, true)?.keys).toBe("M");
     expect(railHint(watch, true, true)?.keys).toBe("B");
     expect(railHint(watch, true, true)?.detail).toMatch(/^Not watching\b/);
   });

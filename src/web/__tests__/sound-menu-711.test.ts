@@ -855,7 +855,7 @@ describe("the one press allowed past the switch", () => {
 
 // ── the shape, held to the source ───────────────────────────────────────────
 
-describe("M silences the deck from anywhere, and the switch is in Settings › Sounds", () => {
+describe("Shift + M silences the deck from anywhere, and the switch is in Settings › Sounds", () => {
   it("draws no speaker on the topbar, and V opens Settings at Sounds instead", () => {
     // The speaker's popover held the switch and the two volumes, and Settings ›
     // Sounds holds both (below), so the bar lost a door rather than a control.
@@ -869,13 +869,15 @@ describe("M silences the deck from anywhere, and the switch is in Settings › S
     expect(app).toMatch(/if \(e\.key === "v" \|\| e\.key === "V"\) openSettings\("sounds"\);/);
   });
 
-  it("keeps M on the toggle, the one-press route to silence", () => {
+  // CHANGED ON PURPOSE: M opens This machine now, and Shift + M is the
+  // toggle, still from anywhere.
+  it("keeps Shift + M on the toggle, the one-press route to silence", () => {
     // The half a redesign loses quietly. Guarded only by the state the switch
     // waits for — the stored flag read back.
-    expect(app).toMatch(/if \(e\.key === "m" \|\| e\.key === "M"\) \{\s*if \(soundOnRef\.current !== null\) activateSoundRef\.current\(e\.shiftKey\);/);
+    expect(app).toMatch(/if \(e\.key === "m" \|\| e\.key === "M"\) \{\s*if \(e\.shiftKey\) \{\s*if \(soundOnRef\.current !== null\) activateSoundRef\.current\(e\.shiftKey\);/);
     // And the sheet says so, in the words a user reads.
     const rows = KEY_HELP.flatMap(g => g.rows);
-    expect(rows.find(r => /^m$/i.test(r.cap))!.action).toMatch(/sound on or off/);
+    expect(rows.find(r => r.cap === "Shift + M")!.action).toMatch(/sound on or off/);
     // The click that disagreed with M — it opened a menu where M toggled — is
     // gone with the speaker, and so is the sheet's row that wrote the
     // divergence down.

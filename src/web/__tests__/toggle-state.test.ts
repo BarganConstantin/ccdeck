@@ -549,7 +549,7 @@ describe("what each of the four toggles announces", () => {
     //   the toggle really inverts — a setter that only ever opened would be a
     //     trap now that nothing else can shut it,
     //   and the panel's own ‹ still calls the close.
-    expect(app).toMatch(/if \(e\.key === "l" \|\| e\.key === "L"\) toggleSessionList\(\);/);
+    expect(app).toMatch(/if \(e\.key === "s" \|\| e\.key === "S"\) toggleSessionList\(\);/);
     // The toggles and the close moved to use-left-column.ts; the key binding and
     // the panel's markup are still App.tsx's. The close is two links now, and
     // both are pinned, because "cannot be closed" is exactly what a broken link
@@ -582,10 +582,10 @@ describe("what each of the four toggles announces", () => {
     // where every deck starts; with them off the key is not named (WCAG 2.1.4,
     // edge-keys-switch.test.ts draws both).
     const rows = KEY_HELP.flatMap(g => g.rows);
-    expect(rows.find(r => r.cap === "L")!.action).toMatch(/session list/);
+    expect(rows.find(r => r.cap === "S")!.action).toMatch(/session list/);
     const list = items().left.find(i => i.id === "session-list")!;
-    expect(railHint(list, true, true)?.keys).toBe("L");
-    expect(attr(stripes().get("session-list")!, "aria-keyshortcuts")).toBe("L");
+    expect(railHint(list, true, true)?.keys).toBe("S");
+    expect(attr(stripes().get("session-list")!, "aria-keyshortcuts")).toBe("S");
   });
 
   it("keeps the sound setting's state on a real switch, in Settings › Sounds", () => {

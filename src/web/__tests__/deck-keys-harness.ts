@@ -94,8 +94,15 @@ export function stageKeys(over: Partial<StageShortcuts> = {}): StageShortcuts {
 
 export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange = () => false, stage, view, selected = "s1", cards = true, inspectorDoor }: DeckKeysOptions = {}) {
   let onKey: ((e: KeyboardEvent) => void) | null = null;
+  let releaseKey: ((e: KeyboardEvent) => void) | undefined;
+  let captureKey: ((e: KeyboardEvent) => void) | undefined;
   vi.stubGlobal("window", {
-    addEventListener: (type: string, fn: (e: KeyboardEvent) => void) => { if (type === "keydown") onKey = fn; },
+    addEventListener: (type: string, fn: (e: KeyboardEvent) => void, capture = false) => {
+      if (type === "keyup") releaseKey = fn;
+      if (type !== "keydown") return;
+      if (capture) captureKey = fn;
+      else onKey = fn;
+    },
     removeEventListener: () => {},
   });
   setSingleKeyShortcuts(singleKeys);
@@ -160,19 +167,24 @@ export function mountDeckKeys({ claude = true, singleKeys = true, undoRearrange 
     const e = {
       key, code: o.code, repeat: o.repeat ?? false, shiftKey: o.shiftKey ?? false,
       ctrlKey: o.ctrlKey ?? false, metaKey: o.metaKey ?? false, altKey: o.altKey ?? false,
-      code: o.code,
       target: {
         ...rest,
         getAttribute: (name: string) => (name === "role" ? target.role ?? null : null),
         ...(inPanel !== undefined ? { closest: (sel: string) => (inPanel && sel === "[data-terminal-panel]" ? {} : null) } : {}),
       },
       preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
     };
     // The handler compares the target with the pointer's mark by identity.
     if (o.pointer) pointerFocusRef.current = e.target as unknown as EventTarget;
-    listener(e as unknown as KeyboardEvent);
+    captureKey?.(e as unknown as KeyboardEvent);
+    if (!e.stopPropagation.mock.calls.length) listener(e as unknown as KeyboardEvent);
     return e;
   }
 
-  return { props, press, keyHelp, theme, detail, usage, removeSelected };
+  const release = (key: string, target: KeyTarget) => releaseKey?.({
+    key, target: { closest: () => target.inPanel ? {} : null },
+  } as unknown as KeyboardEvent);
+
+  return { props, press, release, keyHelp, theme, detail, usage, removeSelected };
 }

@@ -26,6 +26,7 @@
 // is not a terminal anyone can read. Dividers stop there; a window too small
 // for the whole arrangement shows the pane with the keys alone, with a strip
 // naming the others, and the arrangement comes back when there is room.
+import type { PaneDirection } from "./terminal-keys";
 import type { StageTarget } from "./stage-shell";
 import { readStored, removeStored, writeStored } from "./storage";
 
@@ -192,6 +193,23 @@ export function readingOrder(panes: ReadonlyMap<string, Rect>): string[] {
   return [...panes.entries()]
     .sort(([, a], [, b]) => (Math.abs(a.y - b.y) > 2 ? a.y - b.y : a.x - b.x))
     .map(([id]) => id);
+}
+
+/** Find a pane across the requested edge with a shared cross-axis span. */
+export function adjacentPane(rects: ReadonlyMap<string, Rect>, from: string, direction: PaneDirection): string | null {
+  const origin = rects.get(from);
+  if (!origin) return null;
+  const horizontal = direction === "left" || direction === "right";
+  const reverse = direction === "left" || direction === "up";
+  const [start, size, cross, span] = horizontal ? ["x", "w", "y", "h"] as const : ["y", "h", "x", "w"] as const;
+  let best: { id: string; gap: number; overlap: number } | null = null;
+  for (const [id, rect] of rects) {
+    const gap = reverse ? origin[start] - (rect[start] + rect[size]) : rect[start] - (origin[start] + origin[size]);
+    const overlap = Math.min(origin[cross] + origin[span], rect[cross] + rect[span]) - Math.max(origin[cross], rect[cross]);
+    if (gap < 0 || overlap <= 0) continue;
+    if (!best || gap < best.gap || (gap === best.gap && overlap > best.overlap)) best = { id, gap, overlap };
+  }
+  return best?.id ?? null;
 }
 
 /** The strip that names every pane while one fills the Workspace. */
