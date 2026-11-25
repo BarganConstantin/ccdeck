@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import { sheetText } from "./sheet-source";
 import { clearCopy } from "../clear-confirm";
 import { KEY_HELP, WORKSPACE_KEY_ROW, keyHelpFor } from "../key-help";
+import { paneFocusChordLabel } from "../terminal-keys";
 import { capChips, splitColumns } from "../components/KeyboardHelp";
 import board from "../i18n/areas/board/en";
 import shell from "../i18n/areas/shell/en";
@@ -83,20 +84,24 @@ describe("Keyboard shortcuts", () => {
     expect(KEY_HELP.map(g => g.title)).toEqual(["Deck", "The question", "Canvas", "Panels"]);
     expect(keyHelpFor(true, () => true, true).map(g => g.title)).toEqual(["Deck", "The question", "Workspace", "Terminal", "Canvas", "Panels"]);
     expect(KEY_HELP.find(g => g.title === "The question")!.rows.map(r => r.cap)).toEqual(["W", "N", "Shift + N"]);
-    expect(KEY_HELP.find(g => g.title === "Panels")!.rows.map(r => r.cap)).toEqual(["Ctrl + K", "U", "L", "F2", "D", "H", "A", "S", "B", "I"]);
+    // CHANGED ON PURPOSE: S is the session list and M this machine now.
+    expect(KEY_HELP.find(g => g.title === "Panels")!.rows.map(r => r.cap)).toEqual(["Ctrl + K", "U", "S", "F2", "D", "H", "A", "M", "B", "I"]);
     expect(KEY_HELP.find(g => g.title === "Panels")!.rows.find(r => r.cap === "D")!.action).toBe("Inspector");
   });
   it("keeps every shortcut the deck listed before: keys, chords, mouse and the Command Panel's", () => {
     const caps = keyHelpFor(true, () => true, true).flatMap(g => g.rows.map(r => r.cap));
+    // CHANGED ON PURPOSE: the session list moved from L to S, this machine
+    // from S to M, and the sound switch from M to Shift + M.
     for (const cap of ["J", "K", "W", "N", "Shift + N", "P", "F", "Z", "Delete", "R", "Ctrl + Z", "C",
-      "Ctrl + K", "U", "L", "D", "H", "A", "S", "B", "I", "?", "Ctrl + ,", "V", "M", "T",
+      "Ctrl + K", "U", "S", "D", "H", "A", "M", "B", "I", "?", "Ctrl + ,", "V", "Shift + M", "T",
       "Tab", "Enter", "Shift + Enter", "Esc", "drag", "shift-click", "click", "double-click", "hover", WORKSPACE_KEY_ROW.cap]) {
       expect(caps, cap).toContain(cap);
     }
     // CHANGED ON PURPOSE (first use of Workspace): F2, Workspace's five rows
-    // after its chord and the Terminal group's five are new.
-    for (const cap of ["F2", "1 – 4", "Ctrl + Shift + X", "Ctrl + =", "Ctrl + -", "Ctrl + 0"]) expect(caps, cap).toContain(cap);
-    expect(caps).toHaveLength(47);
+    // after its chord and the Terminal group's five are new. Then the chord
+    // that moves between split panes, and the two Shift taps in a terminal.
+    for (const cap of ["F2", "1 – 4", "Ctrl + Shift + X", "Ctrl + =", "Ctrl + -", "Ctrl + 0", paneFocusChordLabel(), "Shift ×2"]) expect(caps, cap).toContain(cap);
+    expect(caps).toHaveLength(49);
     expect(caps).not.toContain("Space");
   });
   // CHANGED ON PURPOSE (first use of Workspace): with the Command Panel's two
@@ -107,7 +112,9 @@ describe("Keyboard shortcuts", () => {
     expect(cols[0].map(g => g.id)).toEqual(["deck", "question", "panels"]);
     expect(cols[1].map(g => g.id)).toEqual(["workspace", "terminal", "canvas"]);
     const rows = (column: readonly { rows: readonly unknown[] }[]) => column.reduce((n, g) => n + g.rows.length + 1, 0);
-    expect(Math.abs(rows(cols[0]) - rows(cols[1])), "about as long").toBeLessThanOrEqual(3);
+    // CHANGED ON PURPOSE: the pane chord and the two Shift taps add a row
+    // each to the right column; moving a whole group would only tip it further.
+    expect(Math.abs(rows(cols[0]) - rows(cols[1])), "about as long").toBeLessThanOrEqual(5);
     const off = splitColumns(keyHelpFor(true));
     expect(off[0].map(g => g.id)).toEqual(["deck", "question"]);
     expect(off[1].map(g => g.id)).toEqual(["canvas", "panels"]);

@@ -199,9 +199,9 @@ describe("Hide words and »", () => {
     const usage = r.rightStripe[1][0];
     const radio = r.leftFoot[0];
     // Icons: the name and its key, as before.
-    expect(railHint(sessions, true, false)).toEqual({ label: "Session list", keys: "L", detail: undefined });
+    expect(railHint(sessions, true, false)).toEqual({ label: "Session list", keys: "S", detail: undefined });
     // Words: the longer name where the word is short of it, the key, the help.
-    expect(stripeHint(sessions, true, "Sessions")).toEqual({ label: "Session list", keys: "L", detail: undefined });
+    expect(stripeHint(sessions, true, "Sessions")).toEqual({ label: "Session list", keys: "S", detail: undefined });
     expect(stripeHint(capacity, true, "Capacity")).toMatchObject({ label: "Account capacity", detail: capacity.detail });
     // The word is the whole name: the key alone, the help alone.
     expect(stripeHint(usage, true, "Usage")).toEqual({ label: "", keys: "U", detail: undefined });
