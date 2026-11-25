@@ -23,12 +23,29 @@
 // A leaf, like stop-deck.mjs: node:http and running-deck.mjs, and nothing that
 // starts a server or arms a timer.
 import { request as httpRequest } from "node:http";
+import { performance } from "node:perf_hooks";
 import { liveDecks } from "./running-deck.mjs";
 
 /** Long enough for a roster read, which can wait on claude-swap's store; short
  *  enough that a wedged deck does not hold the terminal. A switch passes its
  *  own, since `cswap switch` is given thirty seconds inside the deck. */
 export const ASK_MS = 10_000;
+
+/**
+ * How late a timeout may come before it says more about this process than
+ * about the deck.
+ *
+ * Node writes to a terminal synchronously, so `ccdeck tui` on a terminal that
+ * stopped reading — an SSH link that stalled, a pane nobody scrolls — stands
+ * still as a whole. When it runs again, timers run before I/O: every request in
+ * flight times out while the deck's answer is already in its socket, and the
+ * TUI lets go of a deck that answered. A timeout that comes this much past due
+ * gives the request a fresh wait instead. Nothing is sent again, so a POST is
+ * as safe as a GET, and a deck that really stopped still times out, one wait
+ * later.
+ */
+export const STOOD_STILL_MS = 1_000;
+const FRESH_WAITS = 3;
 
 /**
  * The deck a command talks to, or null when none is running.
@@ -71,9 +88,44 @@ export function askDeck(rec, {
 } = {}) {
   return new Promise(resolve => {
     let settled = false;
-    const finish = (v) => { if (!settled) { settled = true; resolve(v); } };
+    // The socket a fresh wait listens on (onTimeout): its listener goes when
+    // the request ends, not with a socket the pool hands on to the next one.
+    let waitingOn = null;
+    const finish = (v) => {
+      if (settled) return;
+      settled = true;
+      waitingOn?.removeListener("timeout", onTimeout);
+      waitingOn = null;
+      resolve(v);
+    };
     const payload = body === undefined ? null : JSON.stringify(body);
+    // When the socket last did something this side saw: its idle timeout is
+    // due `timeoutMs` after that, and one that comes far later came late.
+    let heardAt = performance.now();
+    const heard = () => { heardAt = performance.now(); };
+    let freshWaits = 0;
     let req;
+    function onTimeout() {
+      if (settled) return;
+      // Heard from only just now: the same timeout said twice (should Node ever
+      // hand it on to the request every time), not a wait that ran out.
+      if (performance.now() - heardAt < timeoutMs / 2) return;
+      // Past due by more than a beat: this process stood still, and the deck
+      // was not given the wait it was promised (STOOD_STILL_MS). Node hands a
+      // socket's timeout on to the request once, so the fresh wait listens to
+      // the socket itself.
+      const socket = req.socket;
+      if (socket && !socket.destroyed && freshWaits < FRESH_WAITS
+        && performance.now() - (heardAt + timeoutMs) > STOOD_STILL_MS) {
+        freshWaits += 1;
+        heard();
+        if (waitingOn !== socket) { waitingOn?.removeListener("timeout", onTimeout); waitingOn = socket; socket.on("timeout", onTimeout); }
+        socket.setTimeout(timeoutMs);
+        return;
+      }
+      req.destroy();
+      finish({ ok: false, status: 0, body: null, reason: "timeout" });
+    }
     try {
       req = request({
         hostname: "127.0.0.1",
@@ -81,6 +133,13 @@ export function askDeck(rec, {
         path,
         method,
         timeout: timeoutMs,
+        // A connection of its own, every time. Node keeps one to the deck alive
+        // between requests; the deck closes it once it has sat idle, and a
+        // `ccdeck tui` that stood still (STOOD_STILL_MS) never heard it go: the
+        // first request after it ran again went down a closed connection and
+        // came back ECONNRESET, a deck lost that was fine. On 127.0.0.1 a new
+        // connection costs next to nothing.
+        agent: false,
         headers: {
           // The token, and nothing a browser would send: a request that carried
           // an Origin or Sec-Fetch-Site would be judged as a page's, and a page
@@ -92,9 +151,10 @@ export function askDeck(rec, {
             : { "content-type": "application/json", "content-length": String(Buffer.byteLength(payload)) }),
         },
       }, res => {
+        heard();
         let text = "";
         res.setEncoding("utf8");
-        res.on("data", d => { text += d; });
+        res.on("data", d => { heard(); text += d; });
         res.on("end", () => {
           let parsed = null;
           try { parsed = JSON.parse(text); } catch { /* not JSON: the status speaks */ }
@@ -113,7 +173,11 @@ export function askDeck(rec, {
       return finish({ ok: false, status: 0, body: null, reason: err?.code ?? "request_failed" });
     }
     req.on("error", err => finish({ ok: false, status: 0, body: null, reason: err?.code ?? "unreachable" }));
-    req.on("timeout", () => { req.destroy(); finish({ ok: false, status: 0, body: null, reason: "timeout" }); });
+    // A kept-alive socket comes connected and never says `connect` again: only
+    // one still connecting is listened to, or each request would leave a
+    // listener behind on it.
+    req.on("socket", socket => { heard(); if (socket?.connecting) socket.once("connect", heard); });
+    req.on("timeout", onTimeout);
     if (payload !== null) req.write(payload);
     req.end();
   });

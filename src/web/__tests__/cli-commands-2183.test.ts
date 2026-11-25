@@ -744,4 +744,115 @@ describe("askDeck", () => {
       await new Promise(done => srv.close(done));
     }
   });
+
+  // `ccdeck tui` writes to its terminal synchronously, so a terminal that stops
+  // reading (a stalled SSH link) stops the whole process. When it runs again,
+  // timers run before I/O: every request in flight timed out while the deck's
+  // answer sat unread in its socket, and the TUI let go of a deck that was fine.
+  // The server below answers and then holds this process still, which is the
+  // same thing from the client's side.
+  const standStill = (ms: number) => { const end = Date.now() + ms; while (Date.now() < end) { /* the process stands still */ } };
+
+  it("reads an answer that came while this process stood still, rather than calling it a timeout", async () => {
+    const srv = createServer((_req, res) => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ ok: true, accounts: [] }));
+      standStill(1_800);
+    });
+    await new Promise<void>(done => srv.listen(0, "127.0.0.1", done));
+    try {
+      const { port } = srv.address() as AddressInfo;
+      expect(await askDeck({ port, token: "t" }, { path: "/api/claude-accounts", timeoutMs: 100 }))
+        .toMatchObject({ ok: true, status: 200, body: { ok: true, accounts: [] } });
+    } finally {
+      await new Promise(done => srv.close(done));
+    }
+  }, 15_000);
+
+  it("still times out on time when the deck does not answer", async () => {
+    const srv = createServer(() => { /* never answers */ });
+    await new Promise<void>(done => srv.listen(0, "127.0.0.1", done));
+    try {
+      const { port } = srv.address() as AddressInfo;
+      const t0 = Date.now();
+      expect(await askDeck({ port, token: "t" }, { path: "/api/sessions", timeoutMs: 150 }))
+        .toMatchObject({ ok: false, status: 0, reason: "timeout" });
+      expect(Date.now() - t0).toBeLessThan(1_000);
+    } finally {
+      srv.closeAllConnections?.();
+      await new Promise(done => srv.close(done));
+    }
+  });
+
+  it("gives a deck one fresh wait after a stand-still, not an endless one", async () => {
+    // Stands still without answering: the late timeout is not the deck's fault,
+    // so it gets a fresh wait; that wait runs on time and ends in a timeout.
+    const srv = createServer(() => { standStill(1_800); });
+    await new Promise<void>(done => srv.listen(0, "127.0.0.1", done));
+    try {
+      const { port } = srv.address() as AddressInfo;
+      const t0 = Date.now();
+      expect(await askDeck({ port, token: "t" }, { path: "/api/sessions", timeoutMs: 150 }))
+        .toMatchObject({ ok: false, status: 0, reason: "timeout" });
+      const took = Date.now() - t0;
+      expect(took).toBeGreaterThanOrEqual(1_800 + 150);
+      expect(took).toBeLessThan(1_800 + 1_500);
+    } finally {
+      srv.closeAllConnections?.();
+      await new Promise(done => srv.close(done));
+    }
+  }, 15_000);
+
+  it("asks over a connection of its own, never one kept from an earlier request", async () => {
+    // A kept connection the deck closed while this process stood still is the
+    // ECONNRESET a stalled `ccdeck tui` read as a lost deck.
+    let connections = 0;
+    const srv = createServer((_req, res) => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
+    });
+    srv.on("connection", () => { connections += 1; });
+    await new Promise<void>(done => srv.listen(0, "127.0.0.1", done));
+    try {
+      const { port } = srv.address() as AddressInfo;
+      expect(await askDeck({ port, token: "t" }, { path: "/api/system" })).toMatchObject({ ok: true });
+      expect(await askDeck({ port, token: "t" }, { path: "/api/sessions" })).toMatchObject({ ok: true });
+      expect(connections).toBe(2);
+    } finally {
+      srv.closeAllConnections?.();
+      await new Promise(done => srv.close(done));
+    }
+  });
+
+  it("leaves nothing behind on a kept-alive socket after a fresh wait", async () => {
+    // The fresh wait listens on the socket itself; the pool hands that socket
+    // to the next request, which must not inherit a listener per stand-still.
+    const { Agent, request } = await import("node:http");
+    const agent = new Agent({ keepAlive: true, maxSockets: 1 });
+    const viaAgent = (opts: object, cb: (res: unknown) => void) => request({ ...opts, agent }, cb);
+    let stall = false;
+    const srv = createServer((_req, res) => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
+      if (stall) standStill(1_800);
+    });
+    await new Promise<void>(done => srv.listen(0, "127.0.0.1", done));
+    const freeListeners = () => Object.values(agent.freeSockets).flat().map(s => s?.listenerCount("timeout"));
+    const settledIntoPool = () => new Promise(done => setImmediate(done));
+    try {
+      const { port } = srv.address() as AddressInfo;
+      expect(await askDeck({ port, token: "t" }, { path: "/a", timeoutMs: 100, request: viaAgent })).toMatchObject({ ok: true });
+      await settledIntoPool();
+      const before = freeListeners();
+      expect(before).toHaveLength(1);
+      stall = true;
+      expect(await askDeck({ port, token: "t" }, { path: "/b", timeoutMs: 100, request: viaAgent })).toMatchObject({ ok: true });
+      await settledIntoPool();
+      expect(freeListeners()).toEqual(before);
+    } finally {
+      agent.destroy();
+      srv.closeAllConnections?.();
+      await new Promise(done => srv.close(done));
+    }
+  }, 15_000);
 });
