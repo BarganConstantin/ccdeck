@@ -38,7 +38,8 @@ describe("conversation reading", () => {
   it("puts actual calls behind native disclosures and retains their arguments", () => {
     const html = render();
     expect(html).toContain('<details class="chat-activity" open="">');
-    expect(html).toContain("2 tool calls");
+    // CHANGED ON PURPOSE: a run of calls is summed up by kind, not counted.
+    expect(html).toContain('<span class="chat-work">Ran 1 command · read 1 file</span>');
     expect(html.match(/<details class="chat-tool-call">/g)).toHaveLength(2);
     expect(html).toContain('<pre class="chat-tool-input"><code>npm test -- layout</code></pre>');
     expect(html).toContain("Running");
@@ -48,7 +49,7 @@ describe("conversation reading", () => {
   it("collapses completed activity without presenting it as a successful result", () => {
     const html = render([{ kind: "tool", name: "Read", arg: "src/layout.tsx" }]);
     expect(html).toContain('<details class="chat-activity">');
-    expect(html).toContain("1 tool call");
+    expect(html).toContain('<span class="chat-work">Read 1 file</span>');
     expect(html).not.toContain("Running");
     expect(html).not.toContain("Passed");
   });
