@@ -1802,6 +1802,26 @@ describe("keys, paste and the pane's size", () => {
     r.events().onPaste("y");
     expect(s.sentBytes()).toEqual([]);
   });
+
+  it("fits an ended pane's kept frame to the rows it is given at once, columns as drawn, telling nothing", async () => {
+    const { r, ctl, s } = await liveRig();
+    const sizes = () => s.sentText().filter(m => m.t === "size");
+    r.clock.now += 60_000;
+    s.text({ t: "exit", reason: "ended", exitStatus: 1 });
+    expect(r.last().phase.kind).toBe("ended");
+    const term = r.terminal();
+    const drawn = term.cols;
+    ctl.resize(100, 38, false);
+    expect(term.log.at(-1), "at once, no settle to wait for").toBe(`resize ${drawn}x38`);
+    expect(term.cols, "nothing rewrapped").toBe(drawn);
+    ctl.resize(100, 40, false);
+    expect(term.log.at(-1), "the rows back").toBe(`resize ${drawn}x40`);
+    const at = term.log.length;
+    ctl.resize(100, 40, false);
+    await vi.advanceTimersByTimeAsync(RESIZE_SETTLE_MS);
+    expect(term.log.length, "the same rows: nothing").toBe(at);
+    expect(sizes(), "only the first, from when it was live").toHaveLength(1);
+  });
 });
 
 describe("the theme's colours, for tmux to answer a program's colour question with", () => {

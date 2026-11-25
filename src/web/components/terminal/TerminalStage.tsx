@@ -30,7 +30,7 @@ import { terminalTarget, type LaunchOptions, type SessionRef, type TerminalProvi
 import { terminalTheme } from "../../terminal-palette";
 import { releaseChordLabel } from "../../terminal-keys";
 import { platformName } from "../../platform";
-import type { Cell, StageGeometry } from "../../stage-geometry";
+import { ASSUMED_CELL, type Cell, type StageGeometry } from "../../stage-geometry";
 import {
   TERMINAL_FONT_TOKEN,
   subjectKey,
@@ -409,6 +409,17 @@ export function endPlacement(slotPresent: boolean, end: EndView | null): { heade
 }
 
 /**
+ * The rows a kept frame keeps under the folder-gone line: the stage's rows
+ * less every row the line's height reaches into, so that the frame, moved
+ * down by that height, ends no lower than it did and no row of it is cut.
+ */
+export function rowsUnderNote(rows: number, noteH: number, cellH: number): number {
+  if (!(noteH > 0)) return rows;
+  const h = cellH > 0 ? cellH : ASSUMED_CELL.h;
+  return Math.max(1, rows - Math.ceil(noteH / h));
+}
+
+/**
  * Says how tall the stage drew one of its parts, once it is drawn and again
  * whenever its size changes. Rounded up, so no fraction of a row stays
  * covered; to the hundredth first, so layout's own noise on an exact height
@@ -488,11 +499,14 @@ export default function TerminalStage(p: TerminalStageProps) {
   // The pane's own zoom (terminal-text-size.ts): the header's −/+ and the
   // keys while typing set it, every pane and tab of this browser follow it.
   const textStep = useTerminalTextStep();
+  // The folder-gone line's height as drawn over a kept frame, 0 without one:
+  // the frame starts under it, with the rows it reaches into taken away.
+  const [noteH, setNoteH] = useState(0);
 
   const session = useTerminalSession({
     subject,
     cols: p.geometry.cols,
-    rows: p.geometry.rows,
+    rows: rowsUnderNote(p.geometry.rows, noteH, p.cell.h),
     holdResize: held,
     theme,
     fontFamily,
@@ -926,6 +940,26 @@ export default function TerminalStage(p: TerminalStageProps) {
   // action is drawn in this pane's header instead; on a phone, in the bar.
   const statusSlot = useStageStatusSlot();
   const endAt = endPlacement(statusSlot !== null, end);
+  // Beside a mouse the end bar's buttons are in the header and its sentence
+  // only a tooltip there: the kept frame carries the line. On a phone the
+  // keys bar in the pane says it (endPlacement).
+  const frameNote = endAt.header && phase.kind === "folder-gone" && phase.frame
+    ? { ...folderGoneLine(phase), where: phase.cwd } : undefined;
+  const noted = frameNote !== undefined;
+  // The line is measured as it is drawn and before it is painted, so the
+  // frame is never seen under it: its height moves the frame down (the
+  // section's --ts-note-h) and takes its rows from the terminal, which is
+  // fitted again as it is on any resize. Gone, the frame has the room back.
+  useLayoutEffect(() => {
+    const line = noted ? rootRef.current?.querySelector?.<HTMLElement>(".ts-frame-note") ?? null : null;
+    if (!line) { setNoteH(0); return; }
+    const measure = () => setNoteH(Math.ceil(Math.round(line.getBoundingClientRect().height * 100) / 100));
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(measure);
+    watch.observe(line);
+    return () => watch.disconnect();
+  }, [noted, chatOn]);
   const hosts = useOlderHosts(p.windows === true, key, s => onAnnounce.current?.(s), p.hostsApi);
 
   const composer = chatOn && chatSession !== null && !chatReadOnly ? <ChatComposerSlot
@@ -960,6 +994,7 @@ export default function TerminalStage(p: TerminalStageProps) {
 
   const style = {
     "--ts-term-top": `${p.geometry.termTop}px`,
+    ...(noteH > 0 ? { "--ts-note-h": `${noteH}px` } : {}),
   } as CSSProperties;
 
   return (
@@ -1042,10 +1077,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         onStartNew={startNew}
         onChooseFolder={chooseFolderHere}
         chooseFolderId={chooseId}
-        // Beside a mouse the end bar's buttons are in the header and its
-        // sentence only a tooltip there: the kept frame carries the line.
-        // On a phone the keys bar in the pane says it (endPlacement).
-        frameNote={endAt.header && phase.kind === "folder-gone" && phase.frame ? { ...folderGoneLine(phase), where: phase.cwd } : undefined}
+        frameNote={frameNote}
         startNewTip={p.show.kind === "session" ? t(START_NEW_TIP_MSG, { name: agentName(p.show.session.ref.provider) }) : undefined}
         onNewSession={p.onNewSession}
         workspace={workspace && p.show.kind === "empty"}

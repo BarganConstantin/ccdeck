@@ -27,7 +27,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("react", async () => (await import("./fake-react")).react);
 
 import { flush, mount, one, textOf, type Drawn } from "./fake-react";
-import TerminalStage, { endView, settlesFocus, type StageShow, type TerminalStageProps } from "../components/terminal/TerminalStage";
+import TerminalStage, { endView, rowsUnderNote, settlesFocus, type StageShow, type TerminalStageProps } from "../components/terminal/TerminalStage";
 import KeysBar, { type KeysBarProps } from "../components/terminal/KeysBar";
 import StageHeader, { type StageHeaderProps } from "../components/terminal/StageHeader";
 import StageBody, { StateCard, type StageBodyProps } from "../components/terminal/StageBody";
@@ -68,8 +68,11 @@ function page(statusBar: boolean) {
 }
 
 /** The stage on a fake deck, showing `show`, live once opened. */
-function stageOn(show: StageShow, { statusBar = true, adopt, open, folder }: {
+function stageOn(show: StageShow, { statusBar = true, adopt, open, folder, noteH }: {
   statusBar?: boolean;
+  /** How tall the page draws the folder-gone line while it is there (the
+   *  stage measures it); none: a page that draws it at no height. */
+  noteH?: number;
   adopt?: () => Promise<unknown>;
   /** The deck's answer to an open; the pane is attached when it is left out. */
   open?: () => Promise<unknown>;
@@ -83,14 +86,16 @@ function stageOn(show: StageShow, { statusBar = true, adopt, open, folder }: {
   const pressed = { tagName: "BUTTON", focus: vi.fn(() => { doc().activeElement = pressed; }) };
   const root = {
     contains: (n: unknown) => n === pressed,
-    querySelector: (sel: string) => (sel === "[data-stage-land]" ? pressed : null),
+    querySelector: (sel: string) => (sel === "[data-stage-land]" ? pressed
+      : sel === ".ts-frame-note" && noteH !== undefined && (one(view.tree, el => el.type === StageBody)?.props as unknown as StageBodyProps | undefined)?.frameNote
+        ? { getBoundingClientRect: () => ({ height: noteH }) } : null),
   };
   let events: StageTerminalEvents | null = null;
   const textarea = { id: `pane-${show.kind === "session" ? show.session.name : "x"}` };
-  const term: StageTerminal & { focus: ReturnType<typeof vi.fn> } = {
-    cols: 80, rows: 24,
+  const term: StageTerminal & { focus: ReturnType<typeof vi.fn>; resized: string[] } = {
+    cols: 80, rows: 24, resized: [],
     write: (_data, done) => { done?.(); },
-    reset() {}, resize() {}, setTheme() {}, tmuxVersion() {}, viewAnswers() {},
+    reset() {}, resize(cols, rows) { term.cols = cols; term.rows = rows; term.resized.push(`${cols}x${rows}`); }, setTheme() {}, tmuxVersion() {}, viewAnswers() {},
     focus: vi.fn(() => { doc().activeElement = textarea; events?.onFocusChange(true); }),
     blur: () => { events?.onFocusChange(false); },
     hasFocus: () => doc().activeElement === textarea,
@@ -785,5 +790,63 @@ describe("an ended pane whose folder is not reachable", () => {
     expect(textOf(draw({ ...phase, sessionId: undefined } as StagePhase))).toContain("Reconnect its drive or network folder and Check again, or choose another folder to start Claude Code there.");
     expect(textOf(one(draw({ ...phase, checked: true } as StagePhase), el => el.props?.role === "status")!)).toBe("The folder is still not reachable.");
     expect(stageAnnouncement("paycore", phase)).toBe(en["board.stage.announceFolderGone"].replace("{name}", "paycore").replace("{folder}", cwd));
+  });
+});
+
+describe("the folder-gone line above a kept frame", () => {
+  const answers = (...said: unknown[]) => async () => (said.length > 1 ? said.shift() : said[0]);
+  const THERE = { ok: true, cwd: "/w/paycore" };
+  /** The section's custom properties: where the frame starts. */
+  const sectionStyle = (s: ReturnType<typeof stageOn>) => (one(s.view.tree, el => el.type === "section")!.props.style ?? {}) as Record<string, string>;
+
+  it("takes from the frame every row the line reaches into, and no more", () => {
+    expect(rowsUnderNote(42, 0, 18), "no line: every row").toBe(42);
+    expect(rowsUnderNote(42, 29, 18), "29px over 18px rows reaches into two").toBe(40);
+    expect(rowsUnderNote(42, 36, 18)).toBe(40);
+    expect(rowsUnderNote(42, 37, 18)).toBe(39);
+    expect(rowsUnderNote(42, 29, 0), "no cell yet: the assumed one").toBe(40);
+    expect(rowsUnderNote(2, 29, 18), "never no terminal at all").toBe(1);
+  });
+
+  for (const [code, said] of [["folder-missing", "missing"], ["folder-denied", "denied"], ["folder-unreachable", "unreachable"]] as const) {
+    it(`starts a ${code} pane's kept frame under its line, fitted to the rows left, and gives them back on Cancel`, async () => {
+      const s = stageOn(SHOW, { folder: answers({ ok: false, code: said }), noteH: 29 });
+      await s.crashed();
+      const full = geometry.rows;
+      const drawn = s.term.cols;
+      expect(s.term.rows, "the frame as it ended").toBe(full);
+      expect(sectionStyle(s)["--ts-note-h"], "no line, nothing moved").toBeUndefined();
+      s.header().end!.onAction();
+      await flush();
+      expect(s.phase()).toMatchObject({ kind: "folder-gone", code, frame: true });
+      expect(s.body().frameNote, "the line is drawn").toBeDefined();
+      expect(sectionStyle(s)["--ts-note-h"], "the frame starts under the line").toBe("29px");
+      expect(s.term.resized.at(-1), "two rows fewer, the columns as drawn").toBe(`${drawn}x${full - 2}`);
+      expect(s.conns, "nothing attached to tell").toHaveLength(1);
+      s.header().end!.back!.onAction();
+      await flush();
+      expect(s.phase()).toEqual({ kind: "ended" });
+      expect(s.body().frameNote).toBeUndefined();
+      expect(sectionStyle(s)["--ts-note-h"], "the frame back at the top").toBeUndefined();
+      expect(s.term.resized.at(-1), "every row back").toBe(`${drawn}x${full}`);
+      s.view.unmount();
+    });
+  }
+
+  it("gives the rows back to a session resumed by Check again, which starts at the pane's full size", async () => {
+    const s = stageOn(SHOW, { folder: answers({ ok: false, code: "unreachable" }, THERE), noteH: 29 });
+    await s.crashed();
+    s.header().end!.onAction();
+    await flush();
+    expect(sectionStyle(s)["--ts-note-h"]).toBe("29px");
+    s.header().end!.alt!.onAction();
+    await flush();
+    expect(s.api.adopt).toHaveBeenCalledTimes(1);
+    expect(s.body().frameNote, "no line once it reopens").toBeUndefined();
+    expect(sectionStyle(s)["--ts-note-h"]).toBeUndefined();
+    s.live(1);
+    expect(s.phase().kind).toBe("live");
+    expect(s.term.rows, "the whole pane again").toBe(geometry.rows);
+    s.view.unmount();
   });
 });

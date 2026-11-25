@@ -1415,11 +1415,23 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   function applySize() {
     clearTimer(sizeTimer);
     sizeTimer = null;
-    if (!conn || sizeOwner === "pane") return;
+    if (!conn) { fitKeptFrame(); return; }
+    if (sizeOwner === "pane") return;
     if (term && snap.phase.kind === "live" && (term.cols !== want.cols || term.rows !== want.rows)) {
       term.resize(want.cols, want.rows);
     }
     conn.sendSize(want.cols, want.rows);
+  }
+
+  /** A frame kept on show with nothing attached (an ended pane's last screen)
+   *  takes the rows it is given: fewer while the folder-gone line sits above
+   *  it, all of them again once the line goes, so no row of it is cut at the
+   *  pane's bottom. xterm keeps what no longer fits in its scrollback and
+   *  brings it back when the rows return. Its columns stay as drawn, so
+   *  nothing is rewrapped, and there is no session to tell. */
+  function fitKeptFrame() {
+    if (!term || sizeOwner === "pane" || !showsFrame(snap.phase)) return;
+    if (term.rows !== want.rows) term.resize(term.cols, want.rows);
   }
 
   // -- the terminal's own events ---------------------------------------------
@@ -1587,6 +1599,9 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       clearTimer(sizeTimer);
       sizeTimer = null;
       if (hold) return;
+      // Nothing attached, nothing to send: a kept frame is fitted at once,
+      // in the same paint as the line that moved it.
+      if (!conn) { fitKeptFrame(); return; }
       sizeTimer = setTimeout(applySize, RESIZE_SETTLE_MS);
     },
 
