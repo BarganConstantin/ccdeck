@@ -6,6 +6,8 @@ export interface DesktopWindow {
   platform: string;
   colors: (value: { color: string; symbolColor: string }) => Promise<void>;
   menu: () => Promise<void>;
+  /** The page's zoom factor (Cmd+- and Cmd+=). Not in an app older than it. */
+  zoom?: () => number;
 }
 declare global {
   interface Window { ccdeckWindow?: DesktopWindow }

@@ -65,16 +65,18 @@ import type { Provider } from "../../types";
  *    session in the same folder.
  *  - detached: someone else took the pane away; the session runs on.
  *  - folder-gone: the folder the press needs is not one to start in — gone
- *    (a removed worktree, a project moved or renamed) or not this account's
- *    to open — found before anything was started (the stage asked the deck
- *    first) or said by the deck refusing the launch or the adopt. Named, with
+ *    (a removed worktree, a project moved or renamed), not this account's
+ *    to open, or not reachable right now (a disconnected drive or network
+ *    folder) — found before anything was started (the stage asked the deck
+ *    first), said by the deck refusing the launch or the adopt, or said by
+ *    the agent itself as it ended at once (agentFolderFailure). Named, with
  *    Choose folder… (a NEW session there, never this conversation in another
  *    folder) and Check again, which runs the press again only once the folder
  *    is back; never asked again by itself. `sessionId` for a conversation,
  *    which stays with its folder; none for a launch. `frame` when it came
  *    from an ended pane, whose last frame stays and whose end bar offers the
- *    choices; else a card. `busy` while Check again asks; `checked` once one
- *    found it still gone.
+ *    choices, Cancel among them (back to that pane as it was); else a card.
+ *    `busy` while Check again asks; `checked` once one found it still gone.
  *  - error: anything else, said in a sentence, with a way to try again.
  *    `reopen` when it is the deck refusing a Reopen here: Try again reopens
  *    again, and a new session in the same folder is offered beside it.
@@ -345,24 +347,42 @@ export const FOLDER_GONE_LEAD_MSG = "board.stage.folderGone.lead";
 export const FOLDER_DENIED_LEAD_MSG = "board.stage.folderGone.leadDenied";
 export const FOLDER_GONE_NEXT_MSG = "board.stage.folderGone.next";
 export const FOLDER_GONE_NEXT_LAUNCH_MSG = "board.stage.folderGone.nextLaunch";
+/** The same words for a folder that is not reachable right now: there, on a
+ *  drive or a network folder that is disconnected, and back once it is. */
+export const FOLDER_UNREACHABLE_MSG = "board.stage.folderGone.unreachable";
+export const FOLDER_UNREACHABLE_BODY_MSG = "board.stage.folderGone.bodyUnreachable";
+export const FOLDER_UNREACHABLE_LAUNCH_MSG = "board.stage.folderGone.bodyLaunchUnreachable";
+export const STILL_UNREACHABLE_MSG = "board.stage.folderGone.stillUnreachable";
+export const FOLDER_UNREACHABLE_PHRASE_MSG = "board.stage.folderGone.phraseUnreachable";
+export const FOLDER_UNREACHABLE_LEAD_MSG = "board.stage.folderGone.leadUnreachable";
 
-/** The folder-gone title: gone, or not this account's to open. */
+/** The folder-gone phase's words, by why the folder is not one to start in. */
+const FOLDER_WORDS: Record<FolderGonePhase["code"], { title: string; still: string; phrase: string; lead: string }> = {
+  "folder-missing": { title: FOLDER_GONE_MSG, still: STILL_MISSING_MSG, phrase: FOLDER_GONE_PHRASE_MSG, lead: FOLDER_GONE_LEAD_MSG },
+  "folder-denied": { title: FOLDER_DENIED_MSG, still: STILL_DENIED_MSG, phrase: FOLDER_DENIED_PHRASE_MSG, lead: FOLDER_DENIED_LEAD_MSG },
+  "folder-unreachable": { title: FOLDER_UNREACHABLE_MSG, still: STILL_UNREACHABLE_MSG, phrase: FOLDER_UNREACHABLE_PHRASE_MSG, lead: FOLDER_UNREACHABLE_LEAD_MSG },
+};
+
+/** The folder-gone title: gone, not this account's to open, or not reachable right now. */
 export function folderGoneTitle(phase: FolderGonePhase): string {
-  return t(phase.code === "folder-denied" ? FOLDER_DENIED_MSG : FOLDER_GONE_MSG);
+  return t(FOLDER_WORDS[phase.code].title);
 }
 
 /** What the folder-gone card explains. A conversation stays with the folder
  *  it started in — the agent keeps it there — so another folder is a new
  *  session, and the old conversation waits for its folder; a launch had no
- *  conversation yet. */
+ *  conversation yet. A folder that is only unreachable says how it comes
+ *  back: its drive or network folder reconnected, then Check again. */
 export function folderGoneBody(phase: FolderGonePhase): string {
-  return phase.sessionId ? t(FOLDER_GONE_BODY_MSG) : t(FOLDER_GONE_LAUNCH_MSG, { name: agentName(phase.agent) });
+  const away = phase.code === "folder-unreachable";
+  if (phase.sessionId) return t(away ? FOLDER_UNREACHABLE_BODY_MSG : FOLDER_GONE_BODY_MSG);
+  return t(away ? FOLDER_UNREACHABLE_LAUNCH_MSG : FOLDER_GONE_LAUNCH_MSG, { name: agentName(phase.agent) });
 }
 
 /** What a Check again that found the folder still gone adds, or null. */
 export function folderStillGone(phase: FolderGonePhase): string | null {
   if (!phase.checked || phase.busy) return null;
-  return t(phase.code === "folder-denied" ? STILL_DENIED_MSG : STILL_MISSING_MSG);
+  return t(FOLDER_WORDS[phase.code].still);
 }
 
 /**
@@ -375,8 +395,7 @@ export function folderStillGone(phase: FolderGonePhase): string | null {
  */
 export function folderGoneLine(phase: FolderGonePhase): { lead: string; next: string } {
   const folder = folderName(phase.cwd);
-  const lead = folderStillGone(phase)
-    ?? t(phase.code === "folder-denied" ? FOLDER_DENIED_LEAD_MSG : FOLDER_GONE_LEAD_MSG, { folder });
+  const lead = folderStillGone(phase) ?? t(FOLDER_WORDS[phase.code].lead, { folder });
   const next = phase.sessionId ? t(FOLDER_GONE_NEXT_MSG) : t(FOLDER_GONE_NEXT_LAUNCH_MSG, { name: agentName(phase.agent) });
   return { lead, next };
 }
@@ -435,7 +454,7 @@ export function headerStatus(board: StageStatus | null, phase: StagePhase): Stag
       // own name in the word, the whole path in the tooltip.
       return {
         state: "ended",
-        phrase: t(phase.code === "folder-denied" ? FOLDER_DENIED_PHRASE_MSG : FOLDER_GONE_PHRASE_MSG, { folder: folderName(phase.cwd) }),
+        phrase: t(FOLDER_WORDS[phase.code].phrase, { folder: folderName(phase.cwd) }),
         arg: phase.cwd,
       };
     default:

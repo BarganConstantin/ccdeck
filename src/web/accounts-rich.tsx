@@ -6,16 +6,21 @@ import type { TFunction } from "./i18n";
 
 const MARK = /<(b|c)>(.*?)<\/\1>/g;
 
-export function richParts(text: string, bold: "strong" | "b" = "strong"): ReactNode[] {
+/** The catalog text with its marks drawn. With `nodes`, every "{name}" in it is
+ *  then replaced by that node — inside a mark too — AFTER the marks are read,
+ *  so a value is never read for marks itself: see tNodes. */
+export function richParts(text: string, bold: "strong" | "b" = "strong", nodes?: Record<string, ReactNode>): ReactNode[] {
   const out: ReactNode[] = [];
   let last = 0;
   let i = 0;
+  const words = (part: string): ReactNode => (nodes ? <Fragment key={i++}>{fillNodes(part, nodes)}</Fragment> : part);
   for (const m of text.matchAll(MARK)) {
-    if (m.index > last) out.push(text.slice(last, m.index));
-    out.push(m[1] === "c" ? <code key={i++}>{m[2]}</code> : bold === "b" ? <b key={i++}>{m[2]}</b> : <strong key={i++}>{m[2]}</strong>);
+    if (m.index > last) out.push(words(text.slice(last, m.index)));
+    const inner = nodes ? fillNodes(m[2], nodes) : m[2];
+    out.push(m[1] === "c" ? <code key={i++}>{inner}</code> : bold === "b" ? <b key={i++}>{inner}</b> : <strong key={i++}>{inner}</strong>);
     last = m.index + m[0].length;
   }
-  if (last < text.length) out.push(text.slice(last));
+  if (last < text.length) out.push(words(text.slice(last)));
   return out;
 }
 
@@ -37,8 +42,18 @@ export function fillNodes(template: string, nodes: Record<string, ReactNode>): R
   return out;
 }
 
-/** t() for a sentence that carries nodes: `nodes(t, "key", { name: <b>…</b> })`. */
+/**
+ * t() for a sentence that carries values and nodes, and may carry marks:
+ * `tNodes(t, "key", { email: address, time: <span>…</span> })`.
+ *
+ * THE MARKS ARE READ WITH THE PLACEHOLDERS STILL IN THE TEXT, and only then are
+ * the values put in. A catalog that says "signed in to <b>{email}</b>" draws the
+ * address in bold, never the "<b>" itself, and an address is always text: one
+ * with "<b>", "</b>" or "&" in it is shown exactly as it is, and cannot open,
+ * close or move a mark. Filling first (t(key, { email })) and reading the marks
+ * after is what let a value be taken for a mark.
+ */
 export function tNodes(t: TFunction, key: string, nodes: Record<string, ReactNode>): ReactNode[] {
   const keep = Object.fromEntries(Object.keys(nodes).map(k => [k, `{${k}}`]));
-  return fillNodes(t(key, keep), nodes);
+  return richParts(t(key, keep), "strong", nodes);
 }

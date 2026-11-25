@@ -80,6 +80,7 @@ import ProviderAvatar from "../ProviderAvatar";
 import type { PaneLink } from "../../workspace-split";
 import { canGoLarger, canGoSmaller } from "../../terminal-text-size";
 import type { EndView } from "./KeysBar";
+import PaneTabs, { type PaneTabsView } from "./PaneTabs";
 
 /** A menu row's words. The full-screen item's label carries the shortcut hint
  *  after " — " (it stays on the desktop button's tooltip); the menu shows the
@@ -229,6 +230,10 @@ export interface StageHeaderProps {
    *  (TerminalStage endPlacement); on a phone the keys bar inside the pane
    *  carries it. Left out, nothing is drawn. */
   end?: EndView | null;
+  /** WORKSPACE, a pane holding two sessions or more: its tabs, each the
+   *  session's state glyph and name, in the place of the one name. One
+   *  session draws the header as it always was. */
+  tabs?: PaneTabsView;
   /** Ask the session for keys, or give them back. */
   onKeys(): void;
   onExpand(): void;
@@ -282,6 +287,11 @@ export const SPLIT_RESTORE_LABEL_MSG = "board.stage.split.restore";
  *  not, and the browser's own bubble says which. */
 export const FULL_LEAVE_LABEL_MSG = "board.stage.fullLeaveLabel";
 
+/** A tab's glyph and words in a pane's strip: the header's own, for its state. */
+export function tabWords(status: StageStatus) {
+  return { glyph: glyphForState(status.state), word: stateWord(status), sentence: status.phrase ? stateSentence(status) : "" };
+}
+
 /** The chip's figure, or null when there is none to say. */
 export function contextChipText(context: StageHeaderProps["context"]): string | null {
   return context && context.used > 0 ? contextFigure(context.used, context.window) : null;
@@ -331,12 +341,16 @@ export default function StageHeader(p: StageHeaderProps) {
           <BackGlyph />
         </button>
       )}
-      <div className="ts-id" key={p.identity}>
+      <div className="ts-id" key={p.identity} data-tabs={p.tabs ? "" : undefined}>
         {p.paneLink && <PaneBadge pane={p.paneLink} />}
-        {p.workspace && p.provider ? <ProviderAvatar provider={p.provider} /> : glyph && <StageGlyph kind={glyph} />}
+        {!p.tabs && (p.workspace && p.provider ? <ProviderAvatar provider={p.provider} /> : glyph && <StageGlyph kind={glyph} />)}
         {renaming?.on
           ? <SessionNameField facts={renaming.facts} place="header" onDone={renaming.done} />
-          : <h2 className="ts-name" data-renamable={renaming ? "" : undefined} onDoubleClick={renaming?.start}>{p.name}</h2>}
+          : p.tabs
+            // The pane's name is its tab on show; the heading stays for a
+            // screen reader's walk by headings.
+            ? <><h2 className="ts-name vis-hidden">{p.name}</h2><PaneTabs view={p.tabs} words={tabWords} onRename={renaming?.start} /></>
+            : <h2 className="ts-name" data-renamable={renaming ? "" : undefined} onDoubleClick={renaming?.start}>{p.name}</h2>}
         {/* The pencil: on a phone the ⋯ menu holds Rename instead. */}
         {renaming && !renaming.on && (
           <button ref={renaming.back} type="button" className="glyph-btn ts-rename"
@@ -348,7 +362,7 @@ export default function StageHeader(p: StageHeaderProps) {
         {p.provider && !p.workspace && <span className="vis-hidden">{agentName(p.provider)}</span>}
         {/* One state word, only where the state is not the normal one; the
             rest of the sentence in its tooltip and for a screen reader. */}
-        {word ? (
+        {p.tabs ? null : word ? (
           <div className="ts-meta" data-state={status.state} title={rest ? stateSentence(status) : undefined}>
             <span className="ts-meta-state">{word}</span>
             {rest && <span className="vis-hidden"> · {rest}</span>}
@@ -370,6 +384,13 @@ export default function StageHeader(p: StageHeaderProps) {
         {p.end?.alt && (
           <button type="button" className="btn ts-end-act" title={p.end.alt.title} aria-busy={p.end.alt.busy || undefined} onClick={p.end.alt.onAction}>
             {p.end.alt.action}
+          </button>
+        )}
+        {/* Cancel on a folder that was gone: the ended pane back, as it was.
+            Plain, after the two ways on. */}
+        {p.end?.back && (
+          <button type="button" className="btn ts-end-act ts-plain" onClick={p.end.back.onAction}>
+            {p.end.back.action}
           </button>
         )}
       </div>

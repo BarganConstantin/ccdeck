@@ -365,6 +365,12 @@ describe("the New session form", () => {
     click(startButton(m.tree));
     await flush();
     expect(textOf(alert(m.tree))).toBe("This account may not open this folder: /home/u/code/paycore");
+    // A folder on a drive or a network folder that is disconnected right now.
+    answer = { ok: false, code: "unreachable" };
+    click(startButton(m.tree));
+    await flush();
+    expect(textOf(alert(m.tree))).toBe("This folder is not reachable right now. Reconnect its drive or network folder: /home/u/code/paycore");
+    expect(p.onStart, "never started there").not.toHaveBeenCalled();
     answer = { ok: false, code: "offline" };
     click(startButton(m.tree));
     await flush();

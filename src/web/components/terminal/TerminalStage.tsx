@@ -30,7 +30,7 @@ import { terminalTarget, type LaunchOptions, type SessionRef, type TerminalProvi
 import { terminalTheme } from "../../terminal-palette";
 import { releaseChordLabel } from "../../terminal-keys";
 import { platformName } from "../../platform";
-import type { Cell, StageGeometry } from "../../stage-geometry";
+import { ASSUMED_CELL, type Cell, type StageGeometry } from "../../stage-geometry";
 import {
   TERMINAL_FONT_TOKEN,
   subjectKey,
@@ -93,6 +93,7 @@ import { useOlderHosts } from "./use-older-hosts";
 import type { WaitingCard } from "./stage-board";
 import type { RenameFacts } from "../../session-rename";
 import { useRenaming } from "../SessionNameField";
+import type { PaneTabsView } from "./PaneTabs";
 
 /** One empty transcript for every render, so the card's words are not rebuilt for nothing. */
 const NO_TURNS: readonly ChatTurn[] = [];
@@ -293,6 +294,15 @@ export interface TerminalStageProps {
    *  than the screen, and the header drags the pane to another place. Left
    *  out: the one stage, as before. */
   split?: StageSplit | null;
+  /** WORKSPACE, a pane holding two tabs or more: the element's id where it
+   *  is not the Workspace pane's own, for the strip's tabs to point at. */
+  panelId?: string;
+  /** WORKSPACE, a pane holding two tabs or more: its strip, drawn in this
+   *  stage's header in place of the one name (PaneTabs.tsx). */
+  tabs?: PaneTabsView | null;
+  /** WORKSPACE, a pane holding two tabs or more: the id of the tab on show,
+   *  which names this stage as the panel it shows. */
+  tabbedBy?: string;
   /** The suite's seam into the session. The integrator passes nothing. */
   sessionDeps?: Partial<SessionDeps>;
   /** The suite's seam into the older hosts' routes. */
@@ -346,15 +356,16 @@ export const EMPTY_PANE_NAME_MSG = "board.stage.emptyPane";
  * An ended pane whose folder is gone (folder-gone with its frame) offers
  * neither: the bar names the folder, Choose folder… starts a new session
  * elsewhere (`chooseFolder`, its tooltip saying what becomes of the
- * conversation), and Check again (`checkAgain`) runs the press again only
- * once the folder is back. Without its frame, the card says all that instead.
+ * conversation), Check again (`checkAgain`) runs the press again only once
+ * the folder is back, and Cancel (`cancel`) puts the ended pane back as it
+ * was. Without its frame, the card says all that instead.
  */
 export function endView(
   phase: StagePhase,
   show: StageShow,
   act: {
     reopen(): void; launchAgain?: () => void; attachAgain(): void; startNew?: () => void;
-    chooseFolder?: () => void; chooseId?: string; checkAgain?: () => void;
+    chooseFolder?: () => void; chooseId?: string; checkAgain?: () => void; cancel?: () => void;
   },
 ): EndView | null {
   if (phase.kind === "folder-gone") {
@@ -366,10 +377,11 @@ export function endView(
     const said = { sentence: `${line.lead} ${line.next}`, where: phase.cwd, live: true };
     const check = tNow(phase.busy ? "board.stage.checking" : "board.stage.checkAgain");
     const checkAgain = act.checkAgain ?? act.attachAgain;
-    if (!act.chooseFolder) return { ...said, action: check, busy: phase.busy, onAction: checkAgain };
+    const back = act.cancel ? { back: { action: tNow("common.cancel"), onAction: act.cancel } } : {};
+    if (!act.chooseFolder) return { ...said, action: check, busy: phase.busy, onAction: checkAgain, ...back };
     return {
       ...said, action: tNow(CHOOSE_FOLDER_MSG), title: folderGoneBody(phase), id: act.chooseId, onAction: act.chooseFolder,
-      alt: { action: check, busy: phase.busy, onAction: checkAgain },
+      alt: { action: check, busy: phase.busy, onAction: checkAgain }, ...back,
     };
   }
   if (phase.kind === "ended") {
@@ -404,6 +416,17 @@ export function endView(
  */
 export function endPlacement(slotPresent: boolean, end: EndView | null): { header: EndView | null; bar: EndView | null } {
   return slotPresent ? { header: end, bar: null } : { header: null, bar: end };
+}
+
+/**
+ * The rows a kept frame keeps under the folder-gone line: the stage's rows
+ * less every row the line's height reaches into, so that the frame, moved
+ * down by that height, ends no lower than it did and no row of it is cut.
+ */
+export function rowsUnderNote(rows: number, noteH: number, cellH: number): number {
+  if (!(noteH > 0)) return rows;
+  const h = cellH > 0 ? cellH : ASSUMED_CELL.h;
+  return Math.max(1, rows - Math.ceil(noteH / h));
 }
 
 /**
@@ -486,11 +509,14 @@ export default function TerminalStage(p: TerminalStageProps) {
   // The pane's own zoom (terminal-text-size.ts): the header's −/+ and the
   // keys while typing set it, every pane and tab of this browser follow it.
   const textStep = useTerminalTextStep();
+  // The folder-gone line's height as drawn over a kept frame, 0 without one:
+  // the frame starts under it, with the rows it reaches into taken away.
+  const [noteH, setNoteH] = useState(0);
 
   const session = useTerminalSession({
     subject,
     cols: p.geometry.cols,
-    rows: p.geometry.rows,
+    rows: rowsUnderNote(p.geometry.rows, noteH, p.cell.h),
     holdResize: held,
     theme,
     fontFamily,
@@ -498,6 +524,9 @@ export default function TerminalStage(p: TerminalStageProps) {
     onCell: p.onCell,
     onLaunched: p.onLaunched,
     onNotice: setNotice,
+    // Check again on a launch whose agent ended at once for want of its
+    // folder: the launch again, once the folder is back.
+    onLaunchAgain: p.onLaunchAgain,
     deps: p.sessionDeps,
     windows: p.windows,
   });
@@ -887,7 +916,8 @@ export default function TerminalStage(p: TerminalStageProps) {
   const chooseFolderHere = goneAt ? () => chooseFolderFor(goneAt.agent, goneAt.cwd) : undefined;
 
   const end = endView(phase, p.show, {
-    reopen, launchAgain: startAgain, startNew, chooseFolder: chooseFolderHere, chooseId, checkAgain: retry, attachAgain: retry });
+    reopen, launchAgain: startAgain, startNew, chooseFolder: chooseFolderHere, chooseId, checkAgain: retry,
+    cancel: session.cancelFolder, attachAgain: retry });
 
   // A CODEX THAT UPDATED ITSELF comes back by itself. Its own "Update now"
   // installs the new version, asks to be restarted and exits; the session
@@ -920,6 +950,26 @@ export default function TerminalStage(p: TerminalStageProps) {
   // action is drawn in this pane's header instead; on a phone, in the bar.
   const statusSlot = useStageStatusSlot();
   const endAt = endPlacement(statusSlot !== null, end);
+  // Beside a mouse the end bar's buttons are in the header and its sentence
+  // only a tooltip there: the kept frame carries the line. On a phone the
+  // keys bar in the pane says it (endPlacement).
+  const frameNote = endAt.header && phase.kind === "folder-gone" && phase.frame
+    ? { ...folderGoneLine(phase), where: phase.cwd } : undefined;
+  const noted = frameNote !== undefined;
+  // The line is measured as it is drawn and before it is painted, so the
+  // frame is never seen under it: its height moves the frame down (the
+  // section's --ts-note-h) and takes its rows from the terminal, which is
+  // fitted again as it is on any resize. Gone, the frame has the room back.
+  useLayoutEffect(() => {
+    const line = noted ? rootRef.current?.querySelector?.<HTMLElement>(".ts-frame-note") ?? null : null;
+    if (!line) { setNoteH(0); return; }
+    const measure = () => setNoteH(Math.ceil(Math.round(line.getBoundingClientRect().height * 100) / 100));
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(measure);
+    watch.observe(line);
+    return () => watch.disconnect();
+  }, [noted, chatOn]);
   const hosts = useOlderHosts(p.windows === true, key, s => onAnnounce.current?.(s), p.hostsApi);
 
   const composer = chatOn && chatSession !== null && !chatReadOnly ? <ChatComposerSlot
@@ -954,19 +1004,21 @@ export default function TerminalStage(p: TerminalStageProps) {
 
   const style = {
     "--ts-term-top": `${p.geometry.termTop}px`,
+    ...(noteH > 0 ? { "--ts-note-h": `${noteH}px` } : {}),
   } as CSSProperties;
 
   return (
     <section
       ref={rootRef}
       className="ts-stage"
-      role="region"
+      role={p.tabbedBy ? "tabpanel" : "region"}
       aria-label={t("board.stage.region", { name })}
       data-kind={phase.kind}
       data-empty={p.show.kind === "empty" || undefined}
       data-live={live || undefined}
       data-takeover={p.geometry.takeover || undefined}
-      id={workspace && (p.split?.primary ?? true) ? WORKSPACE_PANE_ID : undefined}
+      id={workspace && (p.split?.primary ?? true) ? WORKSPACE_PANE_ID : p.panelId}
+      aria-labelledby={p.tabbedBy}
       tabIndex={workspace ? -1 : undefined}
       data-fill={workspace || undefined}
       data-secondary={p.split?.primary === false || undefined}
@@ -1020,6 +1072,9 @@ export default function TerminalStage(p: TerminalStageProps) {
         onExpand={p.split ? p.split.onMax : fullStage.toggle}
         onClose={p.onClose}
         end={endAt.header}
+        // The strip: the tab on show says the header's own state, which knows
+        // the pane is reconnecting or not attached; the others, the board's.
+        tabs={p.tabs ? { ...p.tabs, items: p.tabs.items.map(x => (x.on ? { ...x, status } : x)) } : undefined}
       />
       <StageBody
         hostRef={session.hostRef}
@@ -1036,10 +1091,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         onStartNew={startNew}
         onChooseFolder={chooseFolderHere}
         chooseFolderId={chooseId}
-        // Beside a mouse the end bar's buttons are in the header and its
-        // sentence only a tooltip there: the kept frame carries the line.
-        // On a phone the keys bar in the pane says it (endPlacement).
-        frameNote={endAt.header && phase.kind === "folder-gone" && phase.frame ? { ...folderGoneLine(phase), where: phase.cwd } : undefined}
+        frameNote={frameNote}
         startNewTip={p.show.kind === "session" ? t(START_NEW_TIP_MSG, { name: agentName(p.show.session.ref.provider) }) : undefined}
         onNewSession={p.onNewSession}
         workspace={workspace && p.show.kind === "empty"}
@@ -1062,6 +1114,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         notice={notice}
         firstRun={p.firstRun}
         workspace={workspace}
+        tabbed={workspace && !!p.tabs}
         paneless={p.show.kind === "empty" || paneless(phase) || onItsWay(phase, frame)}
         onFirstRunDone={p.onFirstRunDone}
         chat={chatOn}

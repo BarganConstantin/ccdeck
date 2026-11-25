@@ -843,6 +843,28 @@ describe("a launch or an adopt whose folder is gone", () => {
     expect(resolved).toEqual([]);
   });
 
+  // A folder on a drive or a network folder that is disconnected right now: a
+  // FUSE or sshfs mount whose helper went away answers ENOTCONN. No root here
+  // to unmount anything, so the system's answer is given to the deck's real
+  // question. Not reachable is not gone: it is said as such, and nothing is
+  // started, here or in the home folder tmux would fall back to.
+  it("says folder-unreachable for a folder on a disconnected drive, for a launch, an adopt and the picker's question alike", async () => {
+    for (const errno of ["ENOTCONN", "ESTALE", "EIO", "EHOSTDOWN"]) {
+      const err = Object.assign(new Error(errno), { code: errno });
+      folderImpl = (cwd: string) => realCheckFolder(cwd, { statFn: async () => { throw err; } });
+      const cwd = join(DIR, "nas", "paycore");
+      const launch = await ask("POST", "/api/terminal/launch", { agent: "claude", cwd, key: `k-nas-${errno}` });
+      expect([launch.status, launch.body], errno).toEqual([409, { ok: false, code: "folder-unreachable", cwd }]);
+      target = { kind: "gone", adoptable: true, deadSessions: ["ccdeck-claude-00000001"] };
+      const adopt = await ask("POST", "/api/terminal/adopt", session({ cwd }));
+      expect([adopt.status, adopt.body], errno).toEqual([409, { ok: false, code: "folder-unreachable", cwd }]);
+      expect((await ask("POST", "/api/terminal/folder", { cwd })).body, errno).toEqual({ ok: false, code: "unreachable" });
+    }
+    expect(launches, "nothing started").toEqual([]);
+    expect(resolved, "the session was not looked for").toEqual([]);
+    expect(killed, "its dead pane is kept, with the conversation's last frame").toEqual([]);
+  });
+
   it("starts as before in a folder that is there, and leaves a path that is no full path to the backend", async () => {
     const got = await ask("POST", "/api/terminal/launch", { agent: "claude", cwd: PROJECT });
     expect(got.status).toBe(200);

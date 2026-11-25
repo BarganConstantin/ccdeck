@@ -27,7 +27,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("react", async () => (await import("./fake-react")).react);
 
 import { flush, mount, one, textOf, type Drawn } from "./fake-react";
-import TerminalStage, { endView, settlesFocus, type StageShow, type TerminalStageProps } from "../components/terminal/TerminalStage";
+import TerminalStage, { endView, rowsUnderNote, settlesFocus, type StageShow, type TerminalStageProps } from "../components/terminal/TerminalStage";
 import KeysBar, { type KeysBarProps } from "../components/terminal/KeysBar";
 import StageHeader, { type StageHeaderProps } from "../components/terminal/StageHeader";
 import StageBody, { StateCard, type StageBodyProps } from "../components/terminal/StageBody";
@@ -68,8 +68,11 @@ function page(statusBar: boolean) {
 }
 
 /** The stage on a fake deck, showing `show`, live once opened. */
-function stageOn(show: StageShow, { statusBar = true, adopt, open, folder }: {
+function stageOn(show: StageShow, { statusBar = true, adopt, open, folder, noteH }: {
   statusBar?: boolean;
+  /** How tall the page draws the folder-gone line while it is there (the
+   *  stage measures it); none: a page that draws it at no height. */
+  noteH?: number;
   adopt?: () => Promise<unknown>;
   /** The deck's answer to an open; the pane is attached when it is left out. */
   open?: () => Promise<unknown>;
@@ -83,14 +86,16 @@ function stageOn(show: StageShow, { statusBar = true, adopt, open, folder }: {
   const pressed = { tagName: "BUTTON", focus: vi.fn(() => { doc().activeElement = pressed; }) };
   const root = {
     contains: (n: unknown) => n === pressed,
-    querySelector: (sel: string) => (sel === "[data-stage-land]" ? pressed : null),
+    querySelector: (sel: string) => (sel === "[data-stage-land]" ? pressed
+      : sel === ".ts-frame-note" && noteH !== undefined && (one(view.tree, el => el.type === StageBody)?.props as unknown as StageBodyProps | undefined)?.frameNote
+        ? { getBoundingClientRect: () => ({ height: noteH }) } : null),
   };
   let events: StageTerminalEvents | null = null;
   const textarea = { id: `pane-${show.kind === "session" ? show.session.name : "x"}` };
-  const term: StageTerminal & { focus: ReturnType<typeof vi.fn> } = {
-    cols: 80, rows: 24,
+  const term: StageTerminal & { focus: ReturnType<typeof vi.fn>; resized: string[] } = {
+    cols: 80, rows: 24, resized: [],
     write: (_data, done) => { done?.(); },
-    reset() {}, resize() {}, setTheme() {}, tmuxVersion() {}, viewAnswers() {},
+    reset() {}, resize(cols, rows) { term.cols = cols; term.rows = rows; term.resized.push(`${cols}x${rows}`); }, setTheme() {}, tmuxVersion() {}, viewAnswers() {},
     focus: vi.fn(() => { doc().activeElement = textarea; events?.onFocusChange(true); }),
     blur: () => { events?.onFocusChange(false); },
     hasFocus: () => doc().activeElement === textarea,
@@ -653,6 +658,195 @@ describe("opening an ended session whose folder is gone", () => {
     await flush();
     await flush();
     expect(s.phase()).toMatchObject({ kind: "not-attachable", target: { kind: "gone", adoptable: false } });
+    s.view.unmount();
+  });
+});
+
+// A folder that is not reachable right now: on a drive or a network folder
+// that is disconnected. The reported case: Reopen here on an ended Claude Code
+// session, the deck's question passed, and the agent itself ended at once
+// with "Can't read the current directory (ENOTCONN)". The pane offered Try
+// again and Start new session here — a new session in the very folder that
+// could not be read. Now the pane names the folder as not reachable, keeps
+// its frame and the conversation, and offers Choose folder…, Check again
+// (the same conversation, once the folder is back) and Cancel (the ended
+// pane again). Nothing starts by itself.
+describe("an ended pane whose folder is not reachable", () => {
+  const NEXT = "Choose folder… starts a new session elsewhere; this conversation stays with its folder.";
+  const LEAD = "paycore is not reachable right now. Its drive or network folder may be disconnected.";
+  const CANT_READ = "Can't read the current directory (ENOTCONN). Start Claude Code from a different directory.";
+  const THERE = { ok: true, cwd: "/w/paycore" };
+  const answers = (...said: unknown[]) => async () => (said.length > 1 ? said.shift() : said[0]);
+  /** The pane's terminal reads back what its agent drew last. */
+  const showing = (s: ReturnType<typeof stageOn>, text: string) => { s.term.screen = () => text; };
+  /** Reopen here; the agent the deck starts draws `text` and ends at once. */
+  const reopenDies = async (s: ReturnType<typeof stageOn>, i: number, text: string) => {
+    s.header().end!.onAction();
+    await flush();
+    showing(s, text);
+    s.conns[i].onReset?.({ cols: 80, rows: 24, seed: new TextEncoder().encode(text) });
+    s.clock.now += 300;
+    s.conns[i].onExit?.({ reason: "ended", exitStatus: 1 });
+    await flush();
+  };
+
+  it("names the folder as not reachable when the reopened agent says so, with Choose folder…, Check again and Cancel, never a new session here", async () => {
+    const s = stageOn(SHOW, { folder: answers(THERE) });
+    await s.crashed();
+    await reopenDies(s, 1, CANT_READ);
+    expect(s.phase()).toEqual({ kind: "folder-gone", cwd: "/w/paycore", code: "folder-unreachable", agent: "codex", sessionId: CODEX_REF.sessionId, frame: true });
+    expect(s.header().status.phrase, "the header names it").toBe("paycore not reachable");
+    expect(s.header().status.arg, "the whole path in its tooltip").toBe("/w/paycore");
+    expect(s.header().end).toMatchObject({
+      sentence: `${LEAD} ${NEXT}`, action: "Choose folder…", alt: { action: "Check again" }, back: { action: "Cancel" },
+    });
+    expect(s.header().end?.title).toBe(en["board.stage.folderGone.bodyUnreachable"]);
+    expect(s.body().frameNote).toEqual({ lead: LEAD, next: NEXT, where: "/w/paycore" });
+    expect(s.header().end?.action, "no Try again").not.toBe("Try again");
+    expect(s.header().end?.alt?.action, "no Start new session here").not.toBe("Start new session here");
+    expect(s.onStartNew).not.toHaveBeenCalled();
+    expect(s.api.adopt, "started once, for the press").toHaveBeenCalledTimes(1);
+    expect(s.api.launch).not.toHaveBeenCalled();
+    s.view.unmount();
+  });
+
+  it("goes back to the ended pane on Cancel, and Reopen here asks about the folder again", async () => {
+    const s = stageOn(SHOW, { folder: answers(THERE, { ok: false, code: "unreachable" }) });
+    await s.crashed();
+    await reopenDies(s, 1, CANT_READ);
+    s.header().end!.back!.onAction();
+    await flush();
+    expect(s.phase(), "the ended pane, as it was").toEqual({ kind: "ended" });
+    expect(s.header().end).toMatchObject({ action: "Reopen here" });
+    expect(s.header().end?.back, "nothing to cancel now").toBeUndefined();
+    expect(s.api.adopt).toHaveBeenCalledTimes(1);
+    s.header().end!.onAction();
+    await flush();
+    expect(s.phase(), "still disconnected: said before anything starts").toMatchObject({ kind: "folder-gone", code: "folder-unreachable", frame: true });
+    expect(s.api.adopt, "nothing started").toHaveBeenCalledTimes(1);
+    s.view.unmount();
+  });
+
+  it("resumes the same conversation on Check again once the drive is back, and says so while it is not", async () => {
+    const s = stageOn(SHOW, { folder: answers(THERE, { ok: false, code: "unreachable" }, THERE) });
+    await s.crashed();
+    await reopenDies(s, 1, CANT_READ);
+    s.header().end!.alt!.onAction();
+    await flush();
+    expect(s.header().end?.sentence, "still not reachable: said so").toBe(`The folder is still not reachable. ${NEXT}`);
+    expect(s.body().frameNote?.lead).toBe("The folder is still not reachable.");
+    expect(s.api.adopt, "nothing started while it is not").toHaveBeenCalledTimes(1);
+    s.header().end!.alt!.onAction();
+    await flush();
+    expect(s.api.adopt, "the same conversation, once").toHaveBeenCalledTimes(2);
+    expect((s.api.adopt.mock.calls as unknown[][])[1][0], "by its id, in its own folder").toEqual(CODEX_REF);
+    s.live(2);
+    expect(s.phase().kind).toBe("live");
+    expect(s.onStartNew).not.toHaveBeenCalled();
+    expect(s.onStartIn).not.toHaveBeenCalled();
+    s.view.unmount();
+  });
+
+  it("draws Cancel last and plain, in the header and in the phone's end bar, where the keys never land", () => {
+    page(false);
+    const onBack = vi.fn();
+    const end = { sentence: "s", action: "Choose folder…", onAction: vi.fn(), alt: { action: "Check again", onAction: vi.fn() }, back: { action: "Cancel", onAction: onBack } };
+    const head = mount(StageHeader, {
+      identity: "session:a", name: "paycore", provider: "codex", status: { state: "ended", phrase: "paycore not reachable" },
+      keysOwner: "board", chordLabel: "Ctrl+Shift+X", canType: false, expanded: false, takeover: false,
+      onKeys: vi.fn(), onExpand: vi.fn(), onClose: vi.fn(), end,
+    } as StageHeaderProps).tree;
+    const labels = (tree: unknown) => (function walk(n: unknown, out: string[]): string[] {
+      const el = n as Drawn | null;
+      if (!el || typeof el !== "object") return out;
+      if (el.type === "button") out.push(textOf(el).trim());
+      const kids = (el.props as { children?: unknown })?.children;
+      for (const k of Array.isArray(kids) ? kids.flat(Infinity) : [kids]) walk(k, out);
+      return out;
+    })(tree, []).filter(l => ["Choose folder…", "Check again", "Cancel"].includes(l));
+    expect(labels(head), "Cancel after the two ways on").toEqual(["Choose folder…", "Check again", "Cancel"]);
+    const cancel = one(head, el => el.type === "button" && textOf(el).trim() === "Cancel")!;
+    expect(cancel.props.className).toContain("ts-plain");
+    expect(cancel.props["data-stage-land"]).toBeUndefined();
+    (cancel.props.onClick as () => void)();
+    expect(onBack).toHaveBeenCalledTimes(1);
+    const bar = mount(KeysBar, { owner: "board", name: "paycore", chordLabel: "Ctrl+Shift+X", canType: false, asksWaiting: false, firstRun: false, onFirstRunDone: vi.fn(), onTypeHere: vi.fn(), end } as KeysBarProps).tree;
+    expect(labels(bar)).toEqual(["Choose folder…", "Check again", "Cancel"]);
+  });
+
+  it("says its own words on the card, for a conversation and a launch, and when Check again finds it still not reachable", () => {
+    page(false);
+    const draw = (p: StagePhase) => {
+      const card = mount(StateCard, { phase: p, onAdopt: vi.fn(), onNotNow: vi.fn(), onRetry: vi.fn(), onNewSession: vi.fn(), onChooseFolder: vi.fn() } as Omit<StageBodyProps, "hostRef">).tree as Drawn | null;
+      return card && typeof card.type === "function" ? mount(card.type as (q: unknown) => unknown, card.props).tree : card;
+    };
+    const cwd = "/mnt/nas/code/paycore";
+    const phase = { kind: "folder-gone", cwd, code: "folder-unreachable", agent: "claude", sessionId: "s1" } as StagePhase;
+    const card = draw(phase);
+    expect(textOf(card)).toContain("This folder is not reachable right now");
+    expect(textOf(card)).toContain(en["board.stage.folderGone.bodyUnreachable"]);
+    expect(textOf(one(card, el => el.props?.className === "ts-ctx")!), "the folder's own name stays in view").toContain("paycore");
+    expect(one(card, el => el.type === "button" && textOf(el).trim() === "Not now"), "a card's way out").not.toBeNull();
+    expect(textOf(draw({ ...phase, sessionId: undefined } as StagePhase))).toContain("Reconnect its drive or network folder and Check again, or choose another folder to start Claude Code there.");
+    expect(textOf(one(draw({ ...phase, checked: true } as StagePhase), el => el.props?.role === "status")!)).toBe("The folder is still not reachable.");
+    expect(stageAnnouncement("paycore", phase)).toBe(en["board.stage.announceFolderGone"].replace("{name}", "paycore").replace("{folder}", cwd));
+  });
+});
+
+describe("the folder-gone line above a kept frame", () => {
+  const answers = (...said: unknown[]) => async () => (said.length > 1 ? said.shift() : said[0]);
+  const THERE = { ok: true, cwd: "/w/paycore" };
+  /** The section's custom properties: where the frame starts. */
+  const sectionStyle = (s: ReturnType<typeof stageOn>) => (one(s.view.tree, el => el.type === "section")!.props.style ?? {}) as Record<string, string>;
+
+  it("takes from the frame every row the line reaches into, and no more", () => {
+    expect(rowsUnderNote(42, 0, 18), "no line: every row").toBe(42);
+    expect(rowsUnderNote(42, 29, 18), "29px over 18px rows reaches into two").toBe(40);
+    expect(rowsUnderNote(42, 36, 18)).toBe(40);
+    expect(rowsUnderNote(42, 37, 18)).toBe(39);
+    expect(rowsUnderNote(42, 29, 0), "no cell yet: the assumed one").toBe(40);
+    expect(rowsUnderNote(2, 29, 18), "never no terminal at all").toBe(1);
+  });
+
+  for (const [code, said] of [["folder-missing", "missing"], ["folder-denied", "denied"], ["folder-unreachable", "unreachable"]] as const) {
+    it(`starts a ${code} pane's kept frame under its line, fitted to the rows left, and gives them back on Cancel`, async () => {
+      const s = stageOn(SHOW, { folder: answers({ ok: false, code: said }), noteH: 29 });
+      await s.crashed();
+      const full = geometry.rows;
+      const drawn = s.term.cols;
+      expect(s.term.rows, "the frame as it ended").toBe(full);
+      expect(sectionStyle(s)["--ts-note-h"], "no line, nothing moved").toBeUndefined();
+      s.header().end!.onAction();
+      await flush();
+      expect(s.phase()).toMatchObject({ kind: "folder-gone", code, frame: true });
+      expect(s.body().frameNote, "the line is drawn").toBeDefined();
+      expect(sectionStyle(s)["--ts-note-h"], "the frame starts under the line").toBe("29px");
+      expect(s.term.resized.at(-1), "two rows fewer, the columns as drawn").toBe(`${drawn}x${full - 2}`);
+      expect(s.conns, "nothing attached to tell").toHaveLength(1);
+      s.header().end!.back!.onAction();
+      await flush();
+      expect(s.phase()).toEqual({ kind: "ended" });
+      expect(s.body().frameNote).toBeUndefined();
+      expect(sectionStyle(s)["--ts-note-h"], "the frame back at the top").toBeUndefined();
+      expect(s.term.resized.at(-1), "every row back").toBe(`${drawn}x${full}`);
+      s.view.unmount();
+    });
+  }
+
+  it("gives the rows back to a session resumed by Check again, which starts at the pane's full size", async () => {
+    const s = stageOn(SHOW, { folder: answers({ ok: false, code: "unreachable" }, THERE), noteH: 29 });
+    await s.crashed();
+    s.header().end!.onAction();
+    await flush();
+    expect(sectionStyle(s)["--ts-note-h"]).toBe("29px");
+    s.header().end!.alt!.onAction();
+    await flush();
+    expect(s.api.adopt).toHaveBeenCalledTimes(1);
+    expect(s.body().frameNote, "no line once it reopens").toBeUndefined();
+    expect(sectionStyle(s)["--ts-note-h"]).toBeUndefined();
+    s.live(1);
+    expect(s.phase().kind).toBe("live");
+    expect(s.term.rows, "the whole pane again").toBe(geometry.rows);
     s.view.unmount();
   });
 });

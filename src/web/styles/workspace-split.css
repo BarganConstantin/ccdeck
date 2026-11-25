@@ -13,6 +13,52 @@
    but nothing of it is seen, pressed or read. */
 .wsp-pane[data-hidden] { visibility: hidden; }
 
+/* A pane's tabs, in its header in the one name's place, once it holds two:
+   the strip's own tabs (.wsp-tab, below), a header row tall. The tab on show
+   is filled and in --text, as the strip's tab on show is; the others are
+   quiet words in --muted. No ring: a fill is not a boundary that has to reach
+   3:1, a ring is. Wider than the room, the strip scrolls and the chevron
+   after it lists every tab. */
+.ts-tabs {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.ts-tabs::-webkit-scrollbar { display: none; }
+.ts-tabs .ts-tab {
+  flex: 0 1 auto;
+  min-width: 64px;
+  max-width: 200px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--r-ctl);
+}
+.ts-tabs .ts-tab[data-on] {
+  min-width: max-content;
+  max-width: 240px;
+  background: var(--ctl-fill);
+  color: var(--text);
+}
+.ts-tab .ts-glyph { flex: none; }
+/* The state word a tab says where the header would: "waiting 6m". Waiting
+   keeps the rail's colour, the reason to look. */
+.ts-tab-word {
+  flex: none;
+  color: var(--muted);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.ts-tab-word[data-state="waiting"] { color: var(--warn); }
+.ts-tabs-more { flex: none; }
+.ts-tabs-item { display: flex; align-items: center; gap: 6px; }
+.ts-tabs-item .wsp-tab-name { font-weight: 400; }
+.ts-tabs-item[aria-checked="true"] .wsp-tab-name { font-weight: 600; }
+
 /* Side by side, the stage's own left edge is the line between panes. */
 .stage-in[data-split] .ts-stage { border-left: 0; }
 

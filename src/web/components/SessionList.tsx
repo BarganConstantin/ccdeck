@@ -18,12 +18,16 @@
 // Any row can be pinned (the pin beside the eye, or Alt+P on it): it moves to
 // Pinned, a group above Needs you, in the order the pins were put on, and
 // keeps saying what its session wants there (list-pinned.ts, use-list-pinned.ts).
-import { useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode } from "react";
+//
+// Any group but Pinned can be shut by a press on its header, and stays shut
+// across reloads; a session that starts waiting on you opens the group it is
+// drawn in again (list-collapsed.ts).
+import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { isAlarming } from "../ambient-counts";
 import { useT } from "../i18n";
 import { agentCost } from "../usage-models";
 import type { GraphState } from "../reducer";
-import type { BackgroundJob, Provider, SessionRecap, WaitingBlock } from "../types";
+import type { AgentNodeData, BackgroundJob, Provider, SessionRecap, WaitingBlock } from "../types";
 import { sessionNoteShown, type SessionNote } from "../session-note";
 import { drawnState, neverPrompted } from "../node-face";
 import { isAgentVisible } from "../visibility";
@@ -35,15 +39,18 @@ import {
   RAIL_GROUPS, RAIL_PINNED, RAIL_SECTIONS, foldMotion, foldPlan, heldLine, holdOrder, joinMotion, railHeld, railSlots,
   type RailGroup, type RailSection, type Slot,
 } from "../rail-model";
-import { leaveHoldMs, useRailFlip, useRailMembership } from "../rail-motion";
+import { leaveHoldMs, playGroupOpen, useRailFlip, useRailMembership } from "../rail-motion";
 import { prefersReducedMotion } from "../viewport-motion";
-import { compactRowContexts, lastTypedPrompt, runningTool, sessionNames, startedHover, twinClocks, type TwinClock } from "../rail-row-copy";
+import { compactRowContexts, lastTypedPrompt, railGlyph, runningTool, sessionNames, startedHover, twinClocks, type RailGlyphKind, type TwinClock } from "../rail-row-copy";
 import { PauseGlyph } from "./rail-glyphs";
-import { CloseGlyph, FoldBody, GroupHead, HiddenLine, MoreLine, PlusGlyph, RailRow, type FoldMode, type RowAct, type RowPin } from "./RailParts";
+import { CloseGlyph, FoldBody, GroupHead, HiddenLine, MoreLine, PlusGlyph, RailRow, railRowId, type FoldMode, type RowAct, type RowPin } from "./RailParts";
 import HideUndo from "./HideUndo";
 import { canHideRow, focusAfterLeaving } from "../list-hidden";
 import { useListHidden, type HiddenUndo, type ListHiddenOffer } from "../use-list-hidden";
 import { useListPinned } from "../use-list-pinned";
+import { canShut, groupExpanded, loadCollapsed, pressHeader, reopenedBy, saveCollapsed, withShut, type GroupFold } from "../list-collapsed";
+
+const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /** The id the rail's Plus carries, so the new-session popover can hang off it. */
 export const RAIL_NEW_SESSION_ID = "rail-new-session";
@@ -148,6 +155,21 @@ export function rank(r: Row): RailGroup {
   const turnEnded = r.state !== "active" || r.waiting?.kind === "idle";
   if (!turnEnded) return r.neverPrompted ? 4 : 2;
   return r.unseen ? 1 : 3;
+}
+
+/** The mark a session's row wears in this list, from its root alone: the
+ *  row's group (rank) and its glyph (railGlyph), from the fields buildRows
+ *  gives them. A Workspace pane's tab wears the same mark, so a session the
+ *  list calls Done is never another state in its tab. */
+export function rowGlyphOf(a: AgentNodeData): RailGlyphKind {
+  const r = {
+    state: drawnState(a),
+    waiting: a.waiting,
+    job: a.job ?? null,
+    neverPrompted: neverPrompted(a),
+    ...(a.toolErrorCount ? { toolErrorCount: a.toolErrorCount } : null),
+  } as Row;
+  return railGlyph(r, rank(r));
 }
 
 /** The newest call still running on an active agent. The reducer appends, so
@@ -440,14 +462,51 @@ export default function SessionList({ state, now, historyReady = true, selectedI
   for (const [id, g] of ghosts.current) if (g.until <= clock || live.has(id)) ghosts.current.delete(id);
   prev.current = { slots: layout, rows: byId };
 
-  // THE FOLD, in memory for the page's life.
-  const [folds, setFolds] = useState<{ open: ReadonlySet<RailSection>; mode: Partial<Record<RailSection, FoldMode>> }>({ open: new Set(), mode: {} });
+  // THE FOLD, in memory for the page's life. `shutting` holds the groups a
+  // pointer press has just shut, whose rows are drawn closing (FoldBody) until
+  // `until`, as a row that leaves is (leaveHoldMs), and whether their "N more"
+  // line was drawn with them.
+  const [folds, setFolds] = useState<{
+    open: ReadonlySet<RailSection>;
+    mode: Partial<Record<RailSection, FoldMode>>;
+    shutting: ReadonlyMap<RailSection, { more: boolean; until: number }>;
+  }>({ open: new Set(), mode: {}, shutting: new Map() });
   const toggleFold = (g: RailSection, rowsInside: number, byKey: boolean) => setFolds(f => {
     const open = new Set(f.open);
     if (!open.delete(g)) open.add(g);
-    return { open, mode: { ...f.mode, [g]: foldMotion({ rowsInside, byKey, reduced: prefersReducedMotion() }) } };
+    return { ...f, open, mode: { ...f.mode, [g]: foldMotion({ rowsInside, byKey, reduced: prefersReducedMotion() }) } };
   });
   const onToggle = (g: RailSection, rowsInside: number) => (e: MouseEvent) => toggleFold(g, rowsInside, e.detail === 0);
+
+  // SHUT BY A PRESS on the group's header (list-collapsed.ts), kept across
+  // reloads. Every group but Pinned; shut, a group draws its header alone.
+  const [shut, setShut] = useState<ReadonlySet<RailGroup>>(loadCollapsed);
+  const setGroupShut = (g: RailGroup, on: boolean) => setShut(prev => {
+    const next = withShut(prev, g, on);
+    if (next !== prev) saveCollapsed(next);
+    return next;
+  });
+  const isShut = (g: RailSection) => canShut(g) && shut.has(g);
+  /** Groups whose rows a press (or a session that needs you) has just brought
+   *  back: they arrive as joining rows do, before the next paint. */
+  const opening = useRef(new Map<RailGroup, FoldMode>());
+  const pressHead = (g: RailGroup, f: GroupFold, rowsInside: number) => (e: MouseEvent) => {
+    const motion = foldMotion({ rowsInside, byKey: e.detail === 0, reduced: prefersReducedMotion() });
+    const next = pressHeader(f);
+    setGroupShut(g, next.shut);
+    setFolds(prev => {
+      const open = new Set(prev.open);
+      if (next.open) open.add(g); else open.delete(g);
+      const shutting = new Map(prev.shutting);
+      // By key the rows go at once, with nothing left closing.
+      if (next.shut && motion !== "instant") shutting.set(g, { more: f.rest > 0 && f.shown > 0 && !f.open, until: Date.now() + leaveHoldMs(prefersReducedMotion()) });
+      else shutting.delete(g);
+      return { open, mode: { ...prev.mode, [g]: motion }, shutting };
+    });
+    // Opened at its budget: the rows come back under the header. Opened whole,
+    // the fold body plays its own opening.
+    if (!next.shut && !next.open) opening.current.set(g, motion);
+  };
 
   const slotsOf = (g: RailSection) => layout.filter(s => s.group === g);
   const counts = RAIL_GROUPS.map(g => slotsOf(g).length) as [number, number, number, number, number];
@@ -494,11 +553,27 @@ export default function SessionList({ state, now, historyReady = true, selectedI
     if (ownPress.current) { handled.current = landed.nonce; ownPress.current = false; }
     else landing = landed;
   }
-  const folded = new Set<string>();
+  // The rows a group does not draw now, by group: every row of a shut group,
+  // and what waits behind a fold that is not open.
+  const folded = new Map<string, RailSection>();
   for (const g of RAIL_SECTIONS) {
     const entries = entriesOf(g).filter(e => !e.ghost);
-    if (!folds.open.has(g)) for (const e of entries.slice(planOf(g).shown)) folded.add(e.id);
+    if (isShut(g)) for (const e of entries) folded.set(e.id, g);
+    else if (!folds.open.has(g)) for (const e of entries.slice(planOf(g).shown)) folded.set(e.id, g);
   }
+  /** Draws a row its group keeps out of sight, at once: the group opened if
+   *  it is shut, and its fold too if the row waits behind it. */
+  const reveal = (id: string) => {
+    const g = folded.get(id);
+    if (g == null) return;
+    const behind = entriesOf(g).filter(e => !e.ghost).findIndex(e => e.id === id) >= planOf(g).shown;
+    if (canShut(g)) setGroupShut(g, false);
+    setFolds(f => {
+      const shutting = new Map(f.shutting);
+      shutting.delete(g);
+      return { open: behind ? new Set(f.open).add(g) : f.open, mode: { ...f.mode, [g]: "instant" }, shutting };
+    });
+  };
   useEffect(() => {
     if (!landing) return;
     const row = byId.get(landing.id);
@@ -508,10 +583,9 @@ export default function SessionList({ state, now, historyReady = true, selectedI
       handled.current = landing.nonce;
       el.scrollIntoView({ block: "nearest", behavior: "instant" });
     } else if (folded.has(landing.id)) {
-      const g = layout.find(s => s.id === landing.id)!.group;
-      setFolds(f => ({ open: new Set(f.open).add(g), mode: { ...f.mode, [g]: "instant" } }));
+      reveal(landing.id);
     }
-  }, [landing?.nonce, folds]);
+  }, [landing?.nonce, folds, shut]);
 
   // HIDE FROM LIST, and back. Focus leaves a row that goes only if it was in
   // it: to the next row, else the one before, else the list's heading. A press
@@ -567,10 +641,51 @@ export default function SessionList({ state, now, historyReady = true, selectedI
     if (!id) return;
     const button = rowButton(listRows(list.current).find(el => el.dataset.railId === id));
     if (button) { focusRow.current = null; button.focus(); return; }
-    // Behind its group's fold: opened, at once, and the next render focuses it.
-    const slot = layout.find(s => s.id === id);
-    if (slot && folded.has(id)) setFolds(f => ({ open: new Set(f.open).add(slot.group), mode: { ...f.mode, [slot.group]: "instant" } }));
+    // Behind its group's fold, or in a shut group: opened, at once, and the
+    // next render focuses it.
+    if (folded.has(id)) reveal(id);
     else focusRow.current = null;
+  });
+
+  // A SESSION THAT NEEDS YOU, newly, in a shut group opens it again: the rows
+  // drawn now that need you, each in the group it is drawn in, against the
+  // ones that did at the last look (list-collapsed.ts reopenedBy). The first
+  // look once the history is in only takes note.
+  const waitingSlots = historyReady ? layout.filter(s => isAlarming(byId.get(s.id)?.waiting)) : [];
+  const waitingKey = waitingSlots.map(s => `${s.group}:${s.id}`).join("|");
+  const waitedBefore = useRef<ReadonlySet<string> | null>(null);
+  useEffect(() => {
+    if (!historyReady) return;
+    const reopen = reopenedBy(shut, waitingSlots, waitedBefore.current);
+    waitedBefore.current = new Set(waitingSlots.map(s => s.id));
+    if (reopen.length === 0) return;
+    const motion = foldMotion({ rowsInside: 0, byKey: false, reduced: prefersReducedMotion() });
+    for (const g of reopen) {
+      opening.current.set(g, motion);
+      setGroupShut(g, false);
+    }
+    setFolds(f => {
+      const shutting = new Map(f.shutting);
+      for (const g of reopen) shutting.delete(g);
+      return { ...f, mode: { ...f.mode, ...Object.fromEntries(reopen.map(g => [g, motion])) }, shutting };
+    });
+  }, [waitingKey, historyReady]);
+
+  // The rows a group has just brought back arrive as joining rows do: every
+  // item under its header, up to the next group.
+  useBeforePaint(() => {
+    if (opening.current.size === 0) return;
+    const at = list.current;
+    for (const [g, motion] of opening.current) {
+      if (shut.has(g)) continue;
+      const items: HTMLElement[] = [];
+      let el = at?.querySelector<HTMLElement>(`:scope > .sl-group-head[data-group="${g}"]`)?.nextElementSibling as HTMLElement | null | undefined;
+      for (; el && !el.classList.contains("sl-group-head") && !el.classList.contains("sl-hidden-item"); el = el.nextElementSibling as HTMLElement | null) {
+        if ((el.classList.contains("sl-row-item") && !el.classList.contains("leaving")) || el.classList.contains("sl-more-item")) items.push(el);
+      }
+      playGroupOpen(items, motion);
+    }
+    opening.current.clear();
   });
   const hideAct: RowAct = { kind: "hide", run: hideRow };
   const showAct: RowAct = { kind: "show", run: showRow };
@@ -653,14 +768,42 @@ export default function SessionList({ state, now, historyReady = true, selectedI
       else if (n++ < shown) visible.push(e);
       else behind.push(e);
     }
-    // A group that can fold wears its header as the button: the whole group
-    // folded away, or opened and able to fold again.
-    const canFold = restCount > 0 && (shown === 0 || open);
-    nodes.push(
-      <GroupHead key={`head-${g}`} group={g} count={countOf(g)} spaced={drawn}
-        fold={canFold ? { open, motion: mode, onToggle: onToggle(g, behind.length) } : undefined} />,
-    );
+    // Every group but Pinned wears its header as the button (list-collapsed.ts):
+    // open, it shuts the group; shut, or folded away whole by the budget, it
+    // opens it. The count is the group's either way.
+    const shutNow = isShut(g);
+    if (canShut(g)) {
+      const f: GroupFold = { shut: shutNow, shown, rest: restCount, open };
+      const expanded = groupExpanded(f);
+      const drawnRows = shutNow ? [] : [...visible, ...(open ? behind : [])].filter(e => !e.ghost);
+      const after = pressHeader(f);
+      const rowsInside = expanded ? drawnRows.length : after.open ? shown + restCount : shown;
+      nodes.push(
+        <GroupHead key={`head-${g}`} group={g} count={countOf(g)} spaced={drawn}
+          fold={{ open: expanded, motion: mode, controls: drawnRows.map(e => railRowId(e.id)).join(" "), onToggle: pressHead(g, f, rowsInside) }} />,
+      );
+    } else {
+      nodes.push(<GroupHead key={`head-${g}`} group={g} count={countOf(g)} spaced={drawn} />);
+    }
     drawn = true;
+    if (shutNow) {
+      // Shut by a pointer press: the rows it drew fold away, inert, and then
+      // nothing is drawn under the header, for good: rows that come to the
+      // group later never play a closing they were not in. Its fold, if open,
+      // closes as it does.
+      const closing = folds.shutting.get(g);
+      const went = visible.filter(e => !e.ghost);
+      if (closing && closing.until > clock && went.length > 0) {
+        nodes.push(
+          <FoldBody key={`shut-${g}`} open={false} shutting motion={mode}>
+            {went.map(renderRow)}
+            {closing.more && <MoreLine key={`more-${g}`} count={restCount} onToggle={() => {}} />}
+          </FoldBody>,
+        );
+      }
+      if (restCount > 0) nodes.push(<FoldBody key={`fold-${g}`} open={false} motion={mode}>{behind.map(renderRow)}</FoldBody>);
+      continue;
+    }
     for (const e of visible) nodes.push(renderRow(e));
     if (restCount > 0) {
       if (shown > 0 && !open) nodes.push(<MoreLine key={`more-${g}`} count={restCount} onToggle={onToggle(g, behind.length)} />);
