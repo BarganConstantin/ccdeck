@@ -757,7 +757,9 @@ describe("the keys bar", () => {
     // CHANGED ON PURPOSE: the line is V4's Figma (keys bar): ", Esc
     // included" with a comma where it had a dash.
     const out = html(createElement(KeysBar, barProps({ owner: "pane", firstRun: true })));
-    const line = out.match(/<span class="ts-first">([\s\S]*?)<\/span><button/)?.[1];
+    // CHANGED ON PURPOSE: the sentence carries its whole text as a title (the
+    // status bar cuts it with an ellipsis on a narrow window).
+    const line = out.match(/<span class="ts-first"[^>]*>([\s\S]*?)<\/span><button/)?.[1];
     expect(line, "the sentence is its own element, before Got it").toBeTruthy();
     const words = (s: string) => s.replace(/<[^>]+>/g, "");
     // CHANGED ON PURPOSE (first use of the terminal pane): the clause names the
@@ -772,6 +774,23 @@ describe("the keys bar", () => {
     // CHANGED ON PURPOSE: V4's first-run line is one plain sentence, no key chips.
     expect(line).not.toContain("<kbd");
     expect(out.indexOf(">Got it</button>"), "Got it follows the sentence").toBeGreaterThan(out.indexOf("keeps running."));
+  });
+
+  it("titles the first-run line with the whole sentence, which the status bar may cut with an ellipsis", () => {
+    // At 641 px the status bar has room for part of the line on one line; the
+    // rest is cut with "…" (status-bar.css), so the whole sentence is the
+    // title, the Esc clause and the ✕ clause of the place included.
+    const title = (props: Partial<KeysBarProps>) => {
+      const out = html(createElement(KeysBar, barProps({ owner: "pane", firstRun: true, ...props })));
+      const m = out.match(/<span class="ts-first" title="([^"]*)">([\s\S]*?)<\/span><button/);
+      expect(m, "the sentence has a title").toBeTruthy();
+      // The title says exactly what the line says.
+      expect(m![1].replace(/&amp;/g, "&")).toBe(m![2].replace(/<[^>]+>/g, "").replace(/&amp;/g, "&"));
+      return m![1];
+    };
+    expect(title({})).toBe("Typing goes to the session, Esc included — Ctrl+Shift+X gives the keys back. ✕ closes the Command Panel; the session keeps running.");
+    expect(title({ workspace: true })).toBe("Typing goes to the session, Esc included — Ctrl+Shift+X gives the keys back. ✕ empties the pane; the session keeps running.");
+    expect(title({ workspace: true, tabbed: true })).toBe("Typing goes to the session, Esc included — Ctrl+Shift+X gives the keys back. ✕ closes the tab; the session keeps running.");
   });
 
   it("turns into the end bar for a finished session, with Reopen here", () => {

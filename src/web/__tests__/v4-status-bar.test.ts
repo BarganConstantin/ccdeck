@@ -167,6 +167,51 @@ describe("the shell gives it a row, and everything else makes room", () => {
   });
 });
 
+describe("the terminal's first-run line in the bar: one line, Got it inside", () => {
+  // At 641 px the line ("Typing goes to the session, Esc included — … ✕
+  // empties the pane; …") wrapped to three lines of 16 in the 24px bar, cut
+  // top and bottom, and Got it, 28 tall, was cut too and ran 2.5px past the
+  // window's foot. The pane's own keys bar (a phone's) still wraps it whole.
+  const compactBar = Number(/--statusbar-h: (\d+)px/.exec(read("styles/reading.css"))![1]);
+
+  it("keeps the line to one line, cut with an ellipsis where the window is narrow", () => {
+    const line = rule(".statusbar-stage .ts-first");
+    expect(line["white-space"]).toBe("nowrap");
+    expect(line["overflow"]).toBe("hidden");
+    expect(line["text-overflow"]).toBe("ellipsis");
+    // Only in the bar: the pane's own rule still lets a phone's line wrap.
+    expect(read("styles/terminal-stage.css")).toMatch(/\.ts-first \{ flex: 0 1 auto; min-width: 0; white-space: normal; \}/);
+  });
+
+  it("draws Got it inside the Compact bar, with the bar's height as its target", () => {
+    expect(compactBar).toBe(24);
+    const got = rule(".statusbar-stage .ts-first + .btn");
+    expect(got["min-height"]).toBe("0");
+    const h = Number(/^(\d+)px$/.exec(got["height"])![1]);
+    // Inside the bar's 1px rule on top.
+    expect(h).toBeLessThanOrEqual(compactBar - 1);
+    expect(got["line-height"]).toBe("16px");
+    expect(got["position"]).toBe("relative");
+    const target = rule(".statusbar-stage .ts-first + .btn::after");
+    expect(target["content"]).toBe('""');
+    expect(target["inset"]).toBe("-2px 0");
+    expect(h + 2 * 2).toBeGreaterThanOrEqual(24);
+    // Its row takes the bar's height, so the row's clip leaves the target whole.
+    expect(rule(".statusbar-stage .ts-keys:has(> .ts-first)")["align-self"]).toBe("stretch");
+  });
+
+  it("hides the bar's own hints while the line is up, after the rule that shows the view chord", () => {
+    const hide = ".statusbar:has(.statusbar-stage .ts-first) > .statusbar-hint";
+    expect(rule(hide)["display"]).toBe("none");
+    // Same specificity as the view chord's display: flex (0,4,0), so it must come later.
+    const show = css.indexOf(".statusbar:has(.statusbar-stage:not(:empty)) > .statusbar-view");
+    expect(show).toBeGreaterThan(-1);
+    expect(css.indexOf(hide)).toBeGreaterThan(show);
+    // The version is not a hint: it stays.
+    expect(read("components/StatusBar.tsx")).toMatch(/className="statusbar-version"/);
+  });
+});
+
 describe("the three layers, word for word", () => {
   const plain = (v: ReturnType<typeof statusViewFor>) => v.hints.map(h => `${h.caps.map(c => c.text).join(" ")} ${h.word}`);
 
