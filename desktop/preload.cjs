@@ -4,14 +4,14 @@
 //
 // CommonJS because the window is sandboxed, and a sandboxed preload is not an
 // ES module and may require nothing but a short list that includes "electron".
-// Deliberately small: audio calls by opaque id, caption colours, a menu,
-// whether the terminal pane has the keys, and the system's folder dialog,
-// which returns only the folder the person chose in it, plus native paths
-// for File objects explicitly dropped by the user.
+// Deliberately small: audio calls by opaque id, caption colours, a menu, the
+// page's zoom, whether the terminal pane has the keys, and the system's
+// folder dialog, which returns only the folder the person chose in it, plus
+// native paths for File objects explicitly dropped by the user.
 // No path from the page, window handle, generic IPC, or generic read or write
 // primitive. main.mjs checks who is calling and notification-audio-store.mjs
 // checks what they sent, so nothing here is trusted to have done either.
-const { contextBridge, ipcRenderer, webUtils } = require("electron");
+const { contextBridge, ipcRenderer, webFrame, webUtils } = require("electron");
 
 contextBridge.exposeInMainWorld("ccdeckNotificationAudio", {
   list: () => ipcRenderer.invoke("ccdeck:notification-audio:list"),
@@ -45,9 +45,12 @@ contextBridge.exposeInMainWorld("ccdeckFiles", {
   },
 });
 
-// No window handle or generic IPC is exposed to the page.
+// No window handle or generic IPC is exposed to the page. It may also read its
+// own zoom, a number: the traffic lights stand in window points, and the bar
+// keeps their room in its own CSS px (src/web/desktop-chrome.ts).
 if (!process.argv.includes("--ccdeck-native-chrome")) contextBridge.exposeInMainWorld("ccdeckWindow", {
   platform: process.platform,
   colors: value => ipcRenderer.invoke("ccdeck:window:colors", value),
   menu: () => ipcRenderer.invoke("ccdeck:window:menu"),
+  zoom: () => webFrame.getZoomFactor(),
 });

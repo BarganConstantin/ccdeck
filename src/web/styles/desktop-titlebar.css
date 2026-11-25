@@ -22,15 +22,32 @@
    macOS, whose traffic lights are on the left, in the window's corner over the
    right stripe. */
 :root[data-desktop-chrome="true"] .topbar .tb-corner { margin-right: -6px; }
+/* Zoomed out, the bar keeps its 40 points too, so the traffic lights (12 to
+   28 down) never hang below it over the stripes. Zoomed in it is taller than
+   they need and stays 40px, as drawn. A zoomed-out page is always wider than
+   the window's least 720, so the phone's bar (phone-sheet.css) is left alone. */
+@media (min-width: 641px) {
+  :root[data-desktop-chrome="true"][data-desktop-platform="darwin"] {
+    --topbar-h: max(40px, calc(40px / var(--desktop-zoom, 1)));
+  }
+}
 /* The 80 is the OS's: macOS draws its traffic lights there, so it is named
-   for them rather than taken from the spacing ladder. */
+   for them rather than taken from the spacing ladder. They stand in window
+   points, which page zoom (Cmd+- and Cmd+=) leaves alone while it scales CSS
+   px, so the 80 is divided by the zoom the app reports (desktop-chrome.ts):
+   the wordmark stays 80 points in, clear of the green button, at every zoom
+   and every width. */
 :root[data-desktop-chrome="true"][data-desktop-platform="darwin"] .topbar {
-  --traffic-lights-w: 80px;
+  --traffic-lights-w: calc(80px / var(--desktop-zoom, 1));
   padding-left: var(--traffic-lights-w);
   padding-right: 6px;
 }
 /* Native fullscreen hides the traffic lights, so their space is no longer
-   needed. Keep the normal inset while the window controls are visible. */
+   needed. Keep the normal inset while the window controls are visible. The
+   app marks the page while the window is in full screen (desktop/main.mjs). */
+:root[data-desktop-chrome="true"][data-desktop-platform="darwin"][data-desktop-full-screen="true"] .topbar {
+  padding-left: 12px;
+}
 @media (display-mode: fullscreen) {
   :root[data-desktop-chrome="true"][data-desktop-platform="darwin"] .topbar {
     padding-left: 12px;

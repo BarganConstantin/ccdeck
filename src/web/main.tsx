@@ -5,6 +5,7 @@ import { settleStripeWords } from "./stripe-words";
 import { installInputModality } from "./input-modality";
 import { applyDocumentLanguage } from "./i18n";
 import { startLanguageReport } from "./report-language";
+import { installDesktopChrome } from "./desktop-chrome";
 import "reactflow/dist/style.css";
 import "./styles.css";
 
@@ -27,9 +28,6 @@ applyDocumentLanguage();
 startLanguageReport();
 
 const root = createRoot(document.getElementById("root")!);
-if (window.ccdeckWindow) {
-  document.documentElement.dataset.desktopChrome = "true";
-  document.documentElement.dataset.desktopPlatform = window.ccdeckWindow.platform;
-}
+if (window.ccdeckWindow) installDesktopChrome(window.ccdeckWindow);
 installInputModality();
 root.render(<App />);
