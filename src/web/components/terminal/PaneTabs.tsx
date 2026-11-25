@@ -15,8 +15,20 @@
 // so the strip does not attach every tab it passes. Space shows the tab under
 // the keyboard and leaves the keyboard on the strip; Enter or a press shows it
 // and puts the keyboard in its terminal. Delete closes the tab under the
-// keyboard, a middle press the one under the pointer. Closing stops nothing:
-// the session runs on, and stays in the list.
+// keyboard, a middle press or the tab's own × the one under the pointer.
+// Closing stops nothing: the session runs on, and stays in the list.
+//
+// A TAB'S OWN ×, WHERE THE POINTER OR THE KEYBOARD IS. Under the pointer, or
+// with the keyboard on it, a tab draws a × at its end, the tab on show too;
+// at rest no tab draws one, so the strip stays its names. The × lies over the
+// tab's last letters, which fade out under it, so the tab keeps its width and
+// nothing in the strip moves. A fingertip has no hover: under one the tab on
+// show always draws its ×, in room of its own after the name. A press on the
+// × closes the tab as a middle press does (closing the tab on show brings the
+// one beside it on), never shows the tab first, and takes no focus. Tab and ×
+// are two buttons side by side in one slot, never one inside the other, and
+// the × is no stop of the strip's: the strip keeps its one stop, its arrows
+// and its Delete, and the × keeps its name for a screen reader or a voice.
 //
 // ONE TERMINAL A PANE. Every tab shows the pane's one stage, which attaches
 // the chosen tab's session in place (StageShell.tsx): a tab not on show holds
@@ -72,9 +84,10 @@ export interface PaneTabsView {
    *  the strip), or by a press or Enter (the keyboard goes into its
    *  terminal). */
   onSelect(key: string, how: { keys: boolean }): void;
-  /** A tab closed: from the strip by Delete (`keys`), a middle press, or its
-   *  row's × or Delete in the strip's menu (`keys` and `menu`: the menu keeps
-   *  the keyboard, on its next row, and no terminal takes it). */
+  /** A tab closed: from the strip by Delete (`keys`), a middle press or the
+   *  tab's own ×, or its row's × or Delete in the strip's menu (`keys` and
+   *  `menu`: the menu keeps the keyboard, on its next row, and no terminal
+   *  takes it). */
   onClose(key: string, how: { keys: boolean; menu?: boolean }): void;
   /** The strip's menu, open or not, held above the header (TerminalStage.tsx):
    *  the close of the tab on show draws the header afresh for the tab that
@@ -265,45 +278,84 @@ export default function PaneTabs({ view, words, onRename }: {
   return (
     <>
       <div ref={listRef} className="ts-tabs" role="tablist" aria-label={t("board.stage.tabs.label")} onKeyDown={keyDown} onKeyUp={keyUp} onFocus={focusIn} onBlur={focusOut} onWheel={wheel}>
-        {view.items.map(x => {
-          const w = words(x.status);
-          const glyph = x.mark ?? w.glyph;
-          return (
-            <button
-              key={x.key}
-              type="button"
-              role="tab"
-              id={x.id}
-              className="wsp-tab ts-tab"
-              aria-selected={x.on}
-              aria-controls={x.panel}
-              tabIndex={x.key === stop ? 0 : -1}
-              data-on={x.on || undefined}
-              title={w.word ? `${x.name} · ${w.sentence}` : x.name}
-              onClick={() => view.onSelect(x.key, { keys: true })}
-              // A middle press closes the tab, and is never the browser's
-              // scroll-by-dragging that a middle press starts elsewhere.
-              onMouseDown={e => { if (e.button === 1) e.preventDefault(); }}
-              onAuxClick={e => {
-                if (e.button !== 1) return;
-                e.preventDefault();
-                view.onClose(x.key, { keys: false });
-              }}
-              onDoubleClick={x.on ? onRename : undefined}
-            >
-              {glyph && <StageGlyph kind={glyph} />}
-              <span className="wsp-tab-name">{x.name}</span>
-              {w.word && <span className="ts-tab-word" data-state={x.status.state} aria-hidden="true">{w.word}</span>}
-              {w.sentence && <span className="vis-hidden">{` · ${w.sentence}`}</span>}
-            </button>
-          );
-        })}
+        {view.items.map(x => (
+          <StripTab key={x.key} x={x} w={words(x.status)} stop={stop} view={view}
+            closeName={t("board.stage.tabs.close", { name: x.name })} onRename={onRename} />
+        ))}
       </div>
       {(over || menu) && (
         <TabsMenu view={view} words={words} menu={menu} setMenu={setMenu} over={over}
           toStrip={() => { const to = view.items.find(x => x.key === stop); if (to) document.getElementById(to.id)?.focus(); }} />
       )}
     </>
+  );
+}
+
+/** One tab of the strip and its ×: two buttons side by side in a slot, which
+ *  is no item of the tablist's (role="presentation"), so the tabs stay the
+ *  tablist's own. No hooks, so a plain-node test can read its presses. */
+export function StripTab({ x, w, stop, view, closeName, onRename }: {
+  x: PaneTabItem;
+  w: PaneTabWords;
+  /** The strip's one tab stop (stripStop). */
+  stop: string | null;
+  view: Pick<PaneTabsView, "onSelect" | "onClose">;
+  /** "Close <name>": the ×'s name and tooltip. */
+  closeName: string;
+  onRename?: () => void;
+}) {
+  const glyph = x.mark ?? w.glyph;
+  return (
+    <div role="presentation" className="ts-tab-slot" data-on={x.on || undefined}>
+      <button
+        type="button"
+        role="tab"
+        id={x.id}
+        className="wsp-tab ts-tab"
+        aria-selected={x.on}
+        aria-controls={x.panel}
+        tabIndex={x.key === stop ? 0 : -1}
+        data-on={x.on || undefined}
+        title={w.word ? `${x.name} · ${w.sentence}` : x.name}
+        onClick={() => view.onSelect(x.key, { keys: true })}
+        // A middle press closes the tab, and is never the browser's
+        // scroll-by-dragging that a middle press starts elsewhere.
+        onMouseDown={e => { if (e.button === 1) e.preventDefault(); }}
+        onAuxClick={e => {
+          if (e.button !== 1) return;
+          e.preventDefault();
+          view.onClose(x.key, { keys: false });
+        }}
+        onDoubleClick={x.on ? onRename : undefined}
+      >
+        {/* What fades under the × (workspace-split.css); the tab's fill stays. */}
+        <span className="ts-tab-in">
+          {glyph && <StageGlyph kind={glyph} />}
+          <span className="wsp-tab-name">{x.name}</span>
+          {w.word && <span className="ts-tab-word" data-state={x.status.state} aria-hidden="true">{w.word}</span>}
+        </span>
+        {w.sentence && <span className="vis-hidden">{` · ${w.sentence}`}</span>}
+      </button>
+      {/* Its press is a middle press's: the tab closes, and it is neither
+          shown nor handed the keyboard. A press takes no focus, so the
+          keyboard stays where it was and no stop is added to the strip. */}
+      <button
+        type="button"
+        tabIndex={-1}
+        className="glyph-btn ts-tab-x"
+        aria-label={closeName}
+        title={closeName}
+        onMouseDown={e => e.preventDefault()}
+        onClick={() => view.onClose(x.key, { keys: false })}
+        onAuxClick={e => {
+          if (e.button !== 1) return;
+          e.preventDefault();
+          view.onClose(x.key, { keys: false });
+        }}
+      >
+        <CloseGlyph />
+      </button>
+    </div>
   );
 }
 

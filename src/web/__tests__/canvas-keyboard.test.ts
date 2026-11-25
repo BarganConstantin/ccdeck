@@ -484,7 +484,11 @@ describe("nothing else in the deck invents a focus stop", () => {
     // close × beside it (terminal/PaneTabs.tsx). The × is reached with
     // ArrowRight from its row and Delete closes from either, so it is never a
     // Tab stop of its own: one stop per row, as in every other menu.
-    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/DialogResize.tsx", "components/IntegrationConnectionDetails.tsx", "components/IntegrationsSection.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/QuickOpen.tsx", "components/RadioFilter.tsx", "components/SessionList.tsx", "components/SettingsSearch.tsx", "components/SkillInspector.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/chat/ChatTurn.tsx", "components/forge/DetailParts.tsx", "components/forge/RepoPicker.tsx", "components/terminal/PaneTabs.tsx"]);
+    // CHANGED ON PURPOSE: each tab of that strip carries a close × of its own,
+    // drawn under the pointer (PaneTabs.tsx StripTab). Delete on the tab is
+    // its keyboard's way, so the × is never a Tab stop either: the strip keeps
+    // its one stop. Hence PaneTabs.tsx twice.
+    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/DialogResize.tsx", "components/IntegrationConnectionDetails.tsx", "components/IntegrationsSection.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/QuickOpen.tsx", "components/RadioFilter.tsx", "components/SessionList.tsx", "components/SettingsSearch.tsx", "components/SkillInspector.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/chat/ChatTurn.tsx", "components/forge/DetailParts.tsx", "components/forge/RepoPicker.tsx", "components/terminal/PaneTabs.tsx", "components/terminal/PaneTabs.tsx"]);
     expect(code(readFileSync(join(web, "components/forge/RepoPicker.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/forge/DetailParts.tsx"), "utf8"))).toMatch(/<article ref=\{ref\} className="fd"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/JiraIssueDetail.tsx"), "utf8"))).toMatch(/<h2 id="jira-detail-title" tabIndex=\{-1\}/);
@@ -496,6 +500,7 @@ describe("nothing else in the deck invents a focus stop", () => {
     expect(code(readFileSync(join(web, "components/TelemetryCapture.tsx"), "utf8"))).toMatch(/<section className="tr-inspector"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/DialogResize.tsx"), "utf8"))).toMatch(/className="ig-rs-keys"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/SessionList.tsx"), "utf8"))).toMatch(/<h2 ref=\{heading\} tabIndex=\{-1\}>/);
+    expect(code(readFileSync(join(web, "components/terminal/PaneTabs.tsx"), "utf8"))).toMatch(/tabIndex=\{-1\}\n\s+className="glyph-btn ts-tab-x"/);
   });
 
   it("has no role=\"button\" left that a keyboard cannot operate", () => {

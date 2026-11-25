@@ -22,7 +22,10 @@
    EVERY WORD STAYS IN ITS OWN TAB. A tab clips what it holds, so a squeezed
    tab never paints its state word over the next one. The tab on show is as
    wide as its words, up to 240 or the strip's whole width, never wider: the
-   strip's edge never cuts its name, which ends in an ellipsis instead. */
+   strip's edge never cuts its name, which ends in an ellipsis instead.
+   A TAB AND ITS × SHARE A SLOT (PaneTabs.tsx StripTab), and the slot is what
+   the strip sizes: the tab fills it and gives way with it, and the × lies
+   over its end, taking no room of its own. */
 .ts-tabs {
   flex: 0 1 auto;
   min-width: 0;
@@ -34,22 +37,77 @@
   scrollbar-width: none;
 }
 .ts-tabs::-webkit-scrollbar { display: none; }
-.ts-tabs .ts-tab {
+.ts-tabs .ts-tab-slot {
+  position: relative;
   flex: 0 1 auto;
   min-width: 64px;
   max-width: 200px;
+  display: flex;
+  overflow: hidden;
+  border-radius: var(--r-ctl);
+}
+.ts-tabs .ts-tab-slot[data-on] {
+  flex: none;
+  max-width: min(240px, 100%);
+}
+.ts-tabs .ts-tab {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
   height: 28px;
   padding: 0 8px;
   overflow: hidden;
   border-radius: var(--r-ctl);
 }
 .ts-tabs .ts-tab[data-on] {
-  flex: none;
-  max-width: min(240px, 100%);
   background: var(--ctl-fill);
   color: var(--text);
 }
+/* What a tab says (its mark, name and state word), the part that fades out
+   under its ×; the tab's fill stays whole. */
+.ts-tab-in {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .ts-tab .ts-glyph { flex: none; }
+/* A tab's ×: the header's bare glyph button (.glyph-btn), 20px, 4px in from
+   the tab's end; its target is 24 wide and the tab's height (.glyph-btn's
+   ::after). At rest it is not drawn and lets a press through to the tab. */
+.ts-tabs .ts-tab-x {
+  position: absolute;
+  inset-block: 0;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  margin-block: auto;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+/* Drawn while the keyboard is on its tab, and under the pointer (below). The
+   tab's words fade out under it rather than move: 16px clear beneath the ×,
+   the 12px before it a fade. */
+.ts-tab-slot:has(> .ts-tab:focus-visible) > .ts-tab-x { opacity: 1; pointer-events: auto; }
+.ts-tab-slot:has(> .ts-tab:focus-visible) .ts-tab-in {
+  -webkit-mask-image: linear-gradient(to left, transparent 16px, #000 28px);
+  mask-image: linear-gradient(to left, transparent 16px, #000 28px);
+}
+@media (hover: hover) and (pointer: fine) {
+  /* The whole slot is the tab under the pointer: its fill stays while the
+     pointer is on the ×. */
+  .ts-tab-slot:hover > .ts-tab:not([data-on]) { color: var(--text); background: var(--selected); }
+  .ts-tab-slot:hover > .ts-tab-x { opacity: 1; pointer-events: auto; }
+  .ts-tab-slot:hover .ts-tab-in {
+    -webkit-mask-image: linear-gradient(to left, transparent 16px, #000 28px);
+    mask-image: linear-gradient(to left, transparent 16px, #000 28px);
+  }
+  /* On a tab already filled, the × lifts with the control fill, not the
+     panel's line, which would read as a hole in the tab. */
+  .ts-tabs .ts-tab-x:hover { background: var(--ctl-fill); color: var(--text); }
+}
 /* The state word a tab says where the header would: "waiting 6m". Waiting
    keeps the rail's colour, the reason to look. It gives way before the name
    does: it shrinks first, to an ellipsis and then to nothing; the whole
@@ -348,7 +406,8 @@
   .wsp-divider,
   .wsp-tab,
   .wsp-all,
-  .wsp-note { transition: none; }
+  .wsp-note,
+  .ts-tabs .ts-tab-x { transition: none; }
   /* The press stays a state change and stops being a movement. */
   .wsp-tab:active,
   .wsp-all:active { transform: none; }
