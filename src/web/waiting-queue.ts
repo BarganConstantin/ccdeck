@@ -94,3 +94,14 @@ export function queueEntryDetail(waiting: WaitingBlock, tr: TFunction = t): stri
   const guess = blockedToolTooltip(waiting, said, tr);
   return guess ? `${said}\n${guess}` : said;
 }
+
+/** What the alert stack's "+N more" sends: the top bar's count opens its
+ *  queue, the list of everybody waiting, so the stack never grows a list of
+ *  its own. */
+export const OPEN_QUEUE_EVENT = "ccdeck:open-waiting-queue";
+
+/** Opens the waiting queue under the count, where the count is drawn. */
+export function openWaitingQueue(): void {
+  if (typeof window === "undefined") return;
+  try { window.dispatchEvent(new CustomEvent(OPEN_QUEUE_EVENT)); } catch { /* no events here */ }
+}

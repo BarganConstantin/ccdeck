@@ -90,6 +90,11 @@ import { useScreenStatus } from "../../use-screen-status";
 import { noteFeature, useFeatureUse } from "../../feature-use";
 import type { ChatAsk, ChatTurn } from "../chat/chat-model";
 import { usePromptDecision } from "../../use-prompt-decision";
+import { rememberedView, rememberView } from "../../chat-view-memory";
+import { useChatPaneLinks } from "../../use-chat-pane-links";
+import NotifyOffer from "../alerts/NotifyOffer";
+import { intentTarget, useIntentPress } from "../../use-intent-press";
+import { answerIntents, type IntentOutcome } from "../../answer-intent";
 import { DialogPresence } from "../Dialog";
 import type { HostsApi } from "./older-hosts";
 import { useOlderHosts } from "./use-older-hosts";
@@ -100,6 +105,14 @@ import type { PaneTabsView, TabsMenuOpen } from "./PaneTabs";
 
 /** One empty transcript for every render, so the card's words are not rebuilt for nothing. */
 const NO_TURNS: readonly ChatTurn[] = [];
+
+/** What the pane says when an answer chosen on an alert was not sent. */
+const INTENT_NOTICE: Partial<Record<IntentOutcome["kind"], string>> = {
+  changed: "board.chat.alert.notice.changed",
+  locked: "board.chat.alert.notice.locked",
+  timeout: "board.chat.alert.notice.timeout",
+  expired: "board.chat.alert.notice.timeout",
+};
 
 /** How long the keys bar holds a refusal before its hints come back. */
 const NOTICE_MS = 6000;
@@ -503,6 +516,12 @@ export default function TerminalStage(p: TerminalStageProps) {
   const chatReadOnly = isEventOnly(chatProvider);
   const chatDraftKey = `${chatProvider}:${chatSession}`;
   const [view, setView] = useState<"chat" | "term">("term");
+  // Each session opens in the view it was left in (chat-view-memory.ts), taken
+  // up in the render that brings it, so Term never flashes before Chat; one
+  // not remembered keeps the view the pane has.
+  const [viewFor, setViewFor] = useState<string | null>(null);
+  if (viewFor !== chatSession) { setViewFor(chatSession); const kept = rememberedView(chatSession); if (kept) setView(kept); }
+  useEffect(() => { rememberView(chatSession, view); }, [chatSession, view]);
   const chatOn = chatSession !== null && view === "chat";
   // A session's terminal pane shown, and its Chat view: features the usage
   // reports name (feature-use.ts). An empty Workspace pane is neither.
@@ -778,16 +797,10 @@ export default function TerminalStage(p: TerminalStageProps) {
     }
     return result;
   };
-  const chatAsk: ChatAsk | undefined = chatSession === null ? undefined : {
-    blocked: chatCannotSend,
-    onShowTerm: () => showView("term"),
-    send: (questions, picks) => answerAsk(askSteps(questions, picks)),
-    chat: questions => answerAsk(chatSteps(questions)),
-  };
   // Claude Code's permission prompt and plan approval, answered from the
   // Decision card docked under Chat: read off the live screen while the
   // transcript says a call or a plan waits (use-prompt-decision.ts).
-  const promptCard = usePromptDecision({
+  const promptDecision = usePromptDecision({
     on: chatOn && chatProvider === "claude" && screenFlags.decision && chatCannotSend === undefined,
     turns: chatSource.state === "ready" ? chatSource.turns : NO_TURNS,
     session: name,
@@ -797,11 +810,44 @@ export default function TerminalStage(p: TerminalStageProps) {
     onSent: () => { setChatSent(sent => sent + 1); noteFeature("chat-decision"); },
     onShowTerm: () => showView("term"),
   });
+  const chatTurns = chatSource.state === "ready" ? chatSource.turns : NO_TURNS;
+  // An answer chosen on an alert (answer-intent.ts), pressed through the card
+  // that answers the prompt once its words are checked; a prompt that moved is
+  // left to the reader, with a line saying so (use-intent-press.ts).
+  const intentPress = useIntentPress({
+    sessionId: chatOn && chatProvider === "claude" && chatCannotSend === undefined ? chatSession : null,
+    target: intentTarget(promptDecision?.model, chatTurns),
+    readScreen: () => session.readScreen(key),
+    onOutcome: kind => {
+      if (chatSession) answerIntents.report({ sessionId: chatSession, kind, at: Date.now() });
+      const said = INTENT_NOTICE[kind];
+      if (said) setNotice(t(said));
+    },
+  });
+  const promptCard = promptDecision && intentPress && intentPress.for === promptDecision.model.id ? { ...promptDecision, press: intentPress } : promptDecision;
+  const chatAsk: ChatAsk | undefined = chatSession === null ? undefined : {
+    blocked: chatCannotSend,
+    onShowTerm: () => showView("term"),
+    send: (questions, picks) => answerAsk(askSteps(questions, picks)),
+    chat: questions => answerAsk(chatSteps(questions)),
+    ...(intentPress && !promptDecision ? { press: intentPress } : null),
+  };
+  // The pane's Chat | Term switch, as alerts, notifications and the chord
+  // reach it (use-chat-pane-links.ts).
+  useChatPaneLinks({
+    chatSession,
+    chatOn,
+    focused: workspace && (p.split?.primary ?? true),
+    showChat: () => showView("chat"),
+    toggle: () => {
+      if (chatOn) { intoPane(); return; }
+      showView("chat");
+    },
+  });
   // Under Chat's last line: where a message sent from here stands, and what the
   // session is doing, in the header's words (chat-progress.ts) and, while it
   // works, its own screen's ("Pondering…", use-screen-status.ts). The row keeps
   // the turn's clock, so the header's tool time is left out of its words.
-  const chatTurns = chatSource.state === "ready" ? chatSource.turns : NO_TURNS;
   const screenWords = useScreenStatus({
     on: chatOn && status.state === "working" && chatCannotSend === undefined && (chatProvider === "claude" || chatProvider === "codex"),
     subject: key,
@@ -1187,6 +1233,8 @@ export default function TerminalStage(p: TerminalStageProps) {
           session: chatDraftKey, outgoing: chatReturned.outgoing, activity: chatProgress.activity, onShowTerm: () => showView("term"),
         } : undefined}
       />
+      {/* Once, in Chat: alerts when a session needs you (notify-offer.ts). */}
+      {chatOn && <NotifyOffer />}
       <KeysBar
         primary={p.split?.primary ?? true}
         owner={session.keysOwner}

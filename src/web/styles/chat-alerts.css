@@ -1,0 +1,113 @@
+/* ---------------- Alerts: the stack, and the offer in Chat ----------------
+   The cards for sessions that started waiting on you (components/alerts/
+   AlertStack.tsx), in the corner under the top bar, over the Board or the
+   Workspace and clear of the composer; and the one-time offer of system
+   alerts under the conversation (components/alerts/NotifyOffer.tsx). Tokens
+   only. A card is --panel with the --warn edge the Decision card waits in,
+   and answers with the deck's own buttons. Arrives in --dur-base (opacity,
+   6px down, --enter-scale), leaves in --dur-exit; under reduced motion both
+   are fades. */
+
+.ca-stack {
+  position: fixed;
+  top: calc(var(--topbar-h) + var(--pane-head-h) + 12px);
+  /* Inside the right stripe, which stays clickable beside the stack. */
+  right: calc(var(--edge-w) + 12px);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  width: min(320px, calc(100vw - 2 * var(--edge-w) - 24px));
+  /* The column between the cards is not the stack's: the board under it
+     still takes the pointer. */
+  pointer-events: none;
+}
+.ca-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-self: stretch;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ca-card {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--warn);
+  border-radius: var(--r-overlay);
+  box-shadow: var(--shadow-overlay);
+  color: var(--text);
+  pointer-events: auto;
+  animation: ca-arrive var(--dur-base) var(--ease);
+}
+.ca-card[data-leaving] {
+  pointer-events: none;
+  animation: ca-leave var(--dur-exit) var(--ease) forwards;
+}
+@keyframes ca-arrive { from { opacity: 0; transform: translateY(-6px) scale(var(--enter-scale)); } }
+@keyframes ca-leave { to { opacity: 0; transform: scale(var(--exit-scale)); } }
+
+.ca-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ca-head .alert-mark { margin-left: 0; }
+.ca-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: 18px;
+  font-weight: 600;
+}
+.ca-close { flex: none; }
+.ca-what {
+  margin: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  color: var(--text);
+}
+.ca-what[data-mono] { font-family: var(--font-mono); }
+.ca-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+button.btn.ca-answer,
+button.btn.ca-open { --ctl-h: 28px; padding: 0 10px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+button.btn.ca-open { margin-left: auto; }
+button.btn.ca-more { --ctl-h: 24px; padding: 0 8px; font-size: calc(12px + var(--ui-text-increase, 0px)); pointer-events: auto; background: var(--panel); }
+
+/* The offer: one quiet line over the composer, its two buttons at the end. */
+.ca-offer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 4px 12px 4px 16px;
+  background: var(--dock);
+  border-top: 1px solid var(--line-soft);
+  color: var(--text);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 16px;
+  animation: ca-offer-in var(--dur-base) var(--ease);
+}
+.ca-offer-text { flex: 1 1 auto; min-width: 0; }
+button.btn.ca-offer-on { --ctl-h: 24px; padding: 0 8px; font-size: calc(12px + var(--ui-text-increase, 0px)); }
+@keyframes ca-offer-in { from { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ca-card { animation: ca-fade-in var(--dur-base) var(--ease); }
+  .ca-card[data-leaving] { animation: ca-fade-out var(--dur-exit) var(--ease) forwards; }
+  .ca-offer { animation: ca-fade-in var(--dur-base) var(--ease); }
+}
+@keyframes ca-fade-in { from { opacity: 0; } }
+@keyframes ca-fade-out { to { opacity: 0; } }
