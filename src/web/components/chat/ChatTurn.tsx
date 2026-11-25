@@ -259,12 +259,27 @@ export function NoticeLine({ turn }: { turn: Extract<Turn, { kind: "notice" }> }
 type Folded = ToolTurn | TodoTurn | Extract<Turn, { kind: "thinking" }>;
 
 /** The disclosure contains the actual calls; it never implies unseen output.
- *  Failed calls are counted on its head, so they show while it is closed. */
+ *  Failed calls are counted on its head, so they show while it is closed.
+ *
+ *  IT OPENS ITSELF WHILE A CALL RUNS, AND IS YOURS ONCE YOU TOGGLE IT. A
+ *  group you opened or closed stays as you left it, running or not. One that
+ *  opened itself folds again when its calls finish, unless the pointer or the
+ *  focus is in it: a group being read does not snap shut under the reader. */
 export function ToolGroup({ turns }: { turns: Folded[] }) {
   const t = useT();
   const running = turns.some(turn => turn.kind === "tool" && turn.running);
   const failed = turns.filter(turn => turn.kind === "tool" && turn.error !== undefined).length;
-  return <details className="chat-activity" open={running || undefined}>
+  const own = useRef<HTMLDetailsElement>(null);
+  // Your own toggle, once you made one; until then the group follows its calls.
+  const [chosen, setChosen] = useState<boolean | undefined>(undefined);
+  const [held, setHeld] = useState(running);
+  useEffect(() => {
+    if (running) setHeld(true);
+    else if (!own.current?.matches(":hover, :focus-within")) setHeld(false);
+  }, [running]);
+  const open = chosen ?? (running || held);
+  return <details ref={own} className="chat-activity" open={open}
+    onToggle={event => { const now = event.currentTarget.open; if (now !== open) setChosen(now); }}>
     <summary className="chat-activity-head">
       <span className="chat-disclosure"><ChevronRightGlyph /></span>
       <WorkSummary turns={turns} />
