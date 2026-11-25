@@ -557,6 +557,7 @@ const catalog: Catalog = {
   "board.keys.escIncluded": ", inclusiv Esc — {chord} îți dă tastele înapoi",
   "board.keys.firstBoard": "✕ închide Panoul de comenzi; sesiunea continuă să ruleze.",
   "board.keys.firstWorkspace": "✕ golește zona; sesiunea continuă să ruleze.",
+  "board.keys.firstWorkspaceTab": "✕ închide fila; sesiunea continuă să ruleze.",
   "board.keys.gotIt": "Am înțeles",
   "board.keys.reconnecting": "Se reconectează la {name}. {note}",
   "board.keys.typingInto": "Scrii în {name}",

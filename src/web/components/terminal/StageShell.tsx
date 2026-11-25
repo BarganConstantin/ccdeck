@@ -51,6 +51,7 @@ import { prefersReducedMotion } from "../../viewport-motion";
 import { tabStripMove } from "../../tablist-keys";
 import { MAX_PANES, paneIds, paneTabs, paneTarget, sameTab, tabKey, zoneAt, zoneRect, type DropZone, type Rect } from "../../workspace-split";
 import BoardNavigator from "../BoardNavigator";
+import { rowGlyphOf } from "../SessionList";
 import NewSessionPopover from "./NewSessionPopover";
 import SplitDivider from "./SplitDivider";
 import { useCodexLaunch } from "./codex-launch";
@@ -477,6 +478,12 @@ export function StageDock(p: StageDockProps) {
   });
 
   const nameOfSession = (id: string) => stageName(stageShowFor({ kind: "session", id }, agents, p.now), true);
+  /** A tab's mark: its session's row in the Sessions list, when the board
+   *  knows the session (a tab and its row never say two states). */
+  const markOf = (show: StageShow) => {
+    const root = show.kind === "session" ? agents.get(show.session.ref.sessionId) : undefined;
+    return root ? rowGlyphOf(root) : null;
+  };
   /** The drop a drag at (x, y) of the cell would make, or null. */
   const dropAt = (x: number, y: number): DropView | null => {
     const dragged = currentDrag();
@@ -586,14 +593,17 @@ export function StageDock(p: StageDockProps) {
         id: paneTabId(id, x.key),
         name: x.name,
         status: x.show.kind === "session" ? x.show.session.status : { state: x.show.kind === "launch" ? "starting" : "none", phrase: "" },
+        ...(markOf(x.show) ? { mark: markOf(x.show)! } : null),
         on: x.on,
         panel,
       })),
       onSelect: (key, how) => {
         const to = strip.find(x => x.key === key);
         if (!to?.target) return;
+        // Space keeps the keyboard on the strip, on the tab it showed; Enter
+        // and a press put it in the terminal.
+        if (to.on) { if (how.keys) stage.focusPaneId(id, { keys: true }); return; }
         if (!how.keys) tabFocusRef.current = paneTabId(id, key);
-        if (to.on && how.keys) { stage.focusPaneId(id, { keys: true }); return; }
         stage.activateTab(id, to.target, { keys: how.keys });
       },
       onClose: (key, how) => {

@@ -21,7 +21,8 @@
 // real tmux. terminal-socket-tmux.test.ts does the round trip for real.
 import { describe, it, expect, afterAll, beforeAll, vi } from "vitest";
 import { createServer, type Server } from "node:http";
-import { EventEmitter } from "node:events";
+import { EventEmitter, once } from "node:events";
+import net from "node:net";
 // @ts-expect-error — plain .mjs server module, no types
 import * as ts from "../../server/terminal-socket.mjs";
 // @ts-expect-error — plain .mjs server module, no types
@@ -29,7 +30,7 @@ import * as tb from "../../server/terminal-bridge.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { acceptKey } from "../../server/ws-frames.mjs";
 import { TERMINAL_ATTACH_PATH } from "../terminal-protocol";
-import { json, openWs, OPS, type Frame, type WsClient } from "./ws-test-client";
+import { handshakeKey, json, openWs, OPS, type Frame, type WsClient } from "./ws-test-client";
 
 const NOT_FOUND = "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n";
 
@@ -165,6 +166,8 @@ describe("the questions the upgrade asks, in the order it asks them", () => {
 
 interface FakeBridge {
   binding: any;
+  /** The socket's connection, for a test that closes it from this side. */
+  conn: any;
   messages: any[];
   closedWith: unknown[] | null;
   shutdownWith: string | null;
@@ -187,7 +190,7 @@ beforeAll(async () => {
     tickets,
     openBridge: ({ conn, binding }: any) => {
       if (throwOnOpen) throw new Error("no tmux today");
-      const b: FakeBridge = { binding, messages: [], closedWith: null, shutdownWith: null };
+      const b: FakeBridge = { binding, conn, messages: [], closedWith: null, shutdownWith: null };
       bridges.push(b);
       conn.sendText(JSON.stringify({ t: "hello", kind: binding.kind }));
       return {
@@ -397,6 +400,80 @@ describe("the upgrade on a real socket", () => {
     expect(after.status).toBe(101);
     after.sendClose();
     await after.closed;
+  });
+
+  // A Workspace pane's tabs share one terminal: a switch closes its socket
+  // and opens the next at once, with four panes open. A socket on its way out
+  // holds no place, or the switch would be refused.
+  it("gives no place to a socket whose close is sent, so a terminal that switches at the cap is admitted", async () => {
+    const open: WsClient[] = [];
+    for (let i = 0; i < 4; i++) {
+      const c = await dial(attach(tickets.mint({ kind: "A", n: i })));
+      expect(c.status, `socket ${i + 1}`).toBe(101);
+      await c.next();
+      open.push(c);
+    }
+    // This side closes the fourth (a session that ended) and waits for its answer.
+    bridges.at(-1)!.conn.close(1000, "ended");
+    await open[3].until((f: Frame) => f.op === OPS.close);
+    const next = await dial(attach(tickets.mint({ kind: "A", n: 5 })));
+    expect(next.status, "admitted while the old one's close is unanswered").toBe(101);
+    // Four in use again: the cap still holds.
+    await expectRefused(await dial(attach(tickets.mint({ kind: "A", n: 6 }))), 503);
+    open[3].sendClose();
+    for (const c of [...open.slice(0, 3), next]) c.sendClose();
+    for (const c of [...open, next]) await c.closed;
+    await vi.waitFor(() => expect(ts.openTerminalCount()).toBe(0));
+  });
+
+  it("gives no place to an upgrade whose client left while the engine was answering it", async () => {
+    const pending: Array<{ socket: net.Socket; answer(v: unknown): void }> = [];
+    const relayed = createServer((req, res) => { res.end("routed"); });
+    const own = ts.createTicketStore();
+    ts.installTerminalUpgrade(relayed, {
+      enabled: () => true,
+      tickets: own,
+      max: 1,
+      engine: {
+        enabled: true,
+        attach: (handle: string, socket: net.Socket) => handle === "slow"
+          ? new Promise(answer => { pending.push({ socket, answer }); })
+          : Promise.resolve({
+            ok: true,
+            giveUp() {},
+            start: (conn: any) => {
+              conn.sendText(JSON.stringify({ t: "hello" }));
+              return { message() {}, closed() {}, shutdown(reason: string) { conn.close(1001, reason); } };
+            },
+          }),
+      },
+    });
+    await new Promise<void>(r => relayed.listen(0, "127.0.0.1", r));
+    const at = (relayed.address() as { port: number }).port;
+    const origin = `http://127.0.0.1:${at}`;
+    const headers = { Host: `127.0.0.1:${at}`, Origin: origin, "Sec-Fetch-Site": "same-origin" };
+    try {
+      // A panel asks, and switches away before the engine has answered: the
+      // browser drops the handshake it no longer wants.
+      const left = net.connect(at, "127.0.0.1");
+      left.on("error", () => {});
+      await once(left, "connect");
+      left.write(`GET ${attach(own.mint({ handle: "slow", origin }))} HTTP/1.1\r\n${Object.entries({ ...headers, Upgrade: "websocket", Connection: "Upgrade", "Sec-WebSocket-Key": handshakeKey(), "Sec-WebSocket-Version": "13" }).map(([k, v]) => `${k}: ${v}\r\n`).join("")}\r\n`);
+      await vi.waitFor(() => expect(pending).toHaveLength(1));
+      left.end();
+      await vi.waitFor(() => expect(pending[0]!.socket.readableEnded).toBe(true));
+      // The one it switched to is admitted, with one place in all.
+      const c = await openWs({ port: at, path: attach(own.mint({ handle: "fast", origin })), headers });
+      expect(c.status, "the gone client's attach holds no place").toBe(101);
+      await c.next();
+      pending[0]!.answer({ ok: false, status: 503 });
+      c.sendClose();
+      await c.closed;
+      await vi.waitFor(() => expect(ts.openTerminalCount()).toBe(0));
+    } finally {
+      for (const p of pending) p.answer({ ok: false, status: 503 });
+      await new Promise(r => relayed.close(r));
+    }
   });
 
   // The switch in Settings going off: every open terminal told why and

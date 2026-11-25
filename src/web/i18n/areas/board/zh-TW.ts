@@ -537,6 +537,7 @@ const catalog: Catalog = {
   "board.keys.escIncluded": "，包括 Esc——{chord} 可把按鍵還回來",
   "board.keys.firstBoard": "✕ 會關閉指令面板；工作階段會繼續執行。",
   "board.keys.firstWorkspace": "✕ 會清空窗格；工作階段會繼續執行。",
+  "board.keys.firstWorkspaceTab": "✕ 會關閉分頁；工作階段會繼續執行。",
   "board.keys.gotIt": "知道了",
   "board.keys.reconnecting": "正在重新連線到 {name}。{note}",
   "board.keys.typingInto": "正在輸入到 {name}",

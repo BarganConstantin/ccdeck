@@ -1,13 +1,18 @@
 // A Workspace pane's tabs in its header (PaneTabs.tsx): drawn only once the
 // pane holds two sessions, each tab its session's glyph and name and the state
 // word the header would say, the one on show selected and the strip's one tab
-// stop; and what a key on the strip asks.
+// stop until the keyboard moves along it; and what a key on the strip asks.
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import StageHeader, { tabWords, type StageHeaderProps } from "../components/terminal/StageHeader";
-import { stripKey, type PaneTabsView } from "../components/terminal/PaneTabs";
+import { stripKey, stripStop, type PaneTabsView } from "../components/terminal/PaneTabs";
+import { firstRunClause } from "../components/terminal/KeysBar";
 import { en } from "../i18n/en";
+import { buildRows, rank, rowGlyphOf } from "../components/SessionList";
+import { railGlyph } from "../rail-row-copy";
+import { applyEvent, initialState, type GraphState } from "../reducer";
+import type { HookEnvelope, HookPayload } from "../types";
 
 const props = (over: Partial<StageHeaderProps> = {}): StageHeaderProps => ({
   identity: "session:s1", name: "api refactor", provider: "claude", workspace: "pane", split: true,
@@ -76,17 +81,23 @@ describe("a pane's header", () => {
   });
 });
 
-describe("a key on the strip", () => {
+describe("a key on the strip: manual activation, since showing a tab attaches its terminal", () => {
   const items = view().items;
   const key = (k: string, mods: Partial<Record<"ctrlKey" | "metaKey" | "altKey", boolean>> = {}) =>
     ({ key: k, ctrlKey: false, metaKey: false, altKey: false, ...mods });
 
-  it("walks the tabs with the arrows, Home and End, round at both ends", () => {
-    expect(stripKey(key("ArrowRight"), 0, items)).toEqual({ kind: "select", key: "s:s2" });
-    expect(stripKey(key("ArrowRight"), 1, items)).toEqual({ kind: "select", key: "s:s1" });
-    expect(stripKey(key("ArrowLeft"), 0, items)).toEqual({ kind: "select", key: "s:s2" });
-    expect(stripKey(key("Home"), 1, items)).toEqual({ kind: "select", key: "s:s1" });
-    expect(stripKey(key("End"), 0, items)).toEqual({ kind: "select", key: "s:s2" });
+  it("moves the keyboard along the tabs with the arrows, Home and End, round at both ends, and shows none of them", () => {
+    expect(stripKey(key("ArrowRight"), 0, items)).toEqual({ kind: "focus", key: "s:s2" });
+    expect(stripKey(key("ArrowRight"), 1, items)).toEqual({ kind: "focus", key: "s:s1" });
+    expect(stripKey(key("ArrowLeft"), 0, items)).toEqual({ kind: "focus", key: "s:s2" });
+    expect(stripKey(key("Home"), 1, items)).toEqual({ kind: "focus", key: "s:s1" });
+    expect(stripKey(key("End"), 0, items)).toEqual({ kind: "focus", key: "s:s2" });
+  });
+
+  it("shows the tab under the keyboard with Space, which keeps the keyboard on the strip", () => {
+    expect(stripKey(key(" "), 1, items)).toEqual({ kind: "show", key: "s:s2" });
+    expect(stripKey(key(" "), 0, items)).toEqual({ kind: "show", key: "s:s1" });
+    expect(stripKey(key(" ", { ctrlKey: true }), 1, items), "a browser chord").toBeNull();
   });
 
   it("closes the tab under the keyboard with Delete, and only a bare Delete", () => {
@@ -95,10 +106,75 @@ describe("a key on the strip", () => {
     expect(stripKey(key("Delete", { altKey: true }), 1, items)).toBeNull();
   });
 
-  it("leaves Enter (the tab's own press), Tab, Escape and the browser's chords alone", () => {
+  it("leaves Enter (the tab's own press: shown, with the keys in its terminal), Tab, Escape and the browser's chords alone", () => {
     for (const k of [key("Enter"), key("Tab"), key("Escape"), key("ArrowDown"), key("ArrowRight", { ctrlKey: true })]) {
       expect(stripKey(k, 0, items), k.key).toBeNull();
     }
     expect(stripKey(key("ArrowRight"), -1, items), "not a tab of this strip").toBeNull();
+  });
+
+  it("keeps one tab stop: the tab the keyboard moved to, else the tab on show", () => {
+    expect(stripStop(items, null)).toBe("s:s1");
+    expect(stripStop(items, "s:s2"), "aria-selected stays on s1; the stop follows the keyboard").toBe("s:s2");
+    expect(stripStop(items, "s:gone"), "a tab closed meanwhile").toBe("s:s1");
+    expect(stripStop(items.map(x => ({ ...x, on: false })), null), "none on show").toBe("s:s1");
+  });
+});
+
+describe("a tab's mark, the one its session's row wears in the Sessions list", () => {
+  const T0 = 1_700_000_000_000;
+  let seq = 0;
+  const send = (state: GraphState, sid: string, payload: HookPayload) =>
+    applyEvent(state, { seq: ++seq, receivedAt: T0 + seq * 1_000, source: "hook", payload: { session_id: sid, ...payload } } as HookEnvelope);
+  function board(): GraphState {
+    let s = initialState();
+    s = send(s, "blocked", { hook_event_name: "SessionStart", cwd: "/home/dev/blocked" });
+    s = send(s, "blocked", { hook_event_name: "UserPromptSubmit", prompt: "build" });
+    s = send(s, "blocked", { hook_event_name: "PreToolUse", tool_name: "Bash", tool_use_id: "b1", tool_input: { command: "make" } });
+    s = send(s, "blocked", { hook_event_name: "Notification", notification_type: "permission_prompt", message: "Claude needs your permission to use Bash" } as HookPayload);
+    s = send(s, "ended", { hook_event_name: "SessionStart", cwd: "/home/dev/ended" });
+    s = send(s, "ended", { hook_event_name: "UserPromptSubmit", prompt: "fix it" });
+    s = send(s, "ended", { hook_event_name: "Stop" } as HookPayload);
+    s = send(s, "ended", { hook_event_name: "Notification", notification_type: "idle_prompt", message: "Claude is waiting for your input" } as HookPayload);
+    s = send(s, "busy", { hook_event_name: "SessionStart", cwd: "/home/dev/busy" });
+    s = send(s, "busy", { hook_event_name: "UserPromptSubmit", prompt: "test" });
+    s = send(s, "busy", { hook_event_name: "PreToolUse", tool_name: "Bash", tool_use_id: "c1", tool_input: { command: "npm test" } });
+    s = send(s, "fresh", { hook_event_name: "SessionStart", cwd: "/home/dev/fresh" });
+    return s;
+  }
+  const rootOf = (s: GraphState, sid: string) => [...s.agents.values()].find(a => a.kind === "root" && a.sessionId === sid)!;
+
+  it("is Done's tick for a turn that ended, where the header's own glyph is the hollow ring", () => {
+    const s = board();
+    expect(rowGlyphOf(rootOf(s, "ended"))).toBe("done");
+    expect(rowGlyphOf(rootOf(s, "blocked"))).toBe("waiting");
+    expect(rowGlyphOf(rootOf(s, "busy"))).toBe("working");
+    expect(rowGlyphOf(rootOf(s, "fresh"))).toBe("idle");
+  });
+
+  it("is the very mark the list draws for each row", () => {
+    const s = board();
+    const rows = buildRows(s, T0 + 60_000);
+    expect(rows).toHaveLength(4);
+    for (const r of rows) expect([r.sessionId, rowGlyphOf(rootOf(s, r.sessionId))]).toEqual([r.sessionId, railGlyph(r, rank(r))]);
+  });
+
+  it("is drawn in the tab in place of the header's glyph, and the state word stays the header's", () => {
+    const v = view();
+    const out = html(props({ tabs: { ...v, items: [{ ...v.items[0]!, mark: "done" }, v.items[1]!] } }));
+    const tabs = tags(out, "tab");
+    expect(out.split('role="tab"')[1]).toContain('data-glyph="done"');
+    expect(out.split('role="tab"')[2]).toContain('data-glyph="waiting"');
+    expect(tabs).toHaveLength(2);
+  });
+});
+
+describe("the first-run line, true of the ✕ beside it", () => {
+  it("says ✕ closes the tab in a pane with tabs, empties the pane in one without, and closes the Command Panel on the Board", () => {
+    expect(firstRunClause(true, true)).toBe(en["board.keys.firstWorkspaceTab"]);
+    expect(firstRunClause(true, false)).toBe(en["board.keys.firstWorkspace"]);
+    expect(firstRunClause(true)).toBe(en["board.keys.firstWorkspace"]);
+    expect(firstRunClause(false, true)).toBe(en["board.keys.firstBoard"]);
+    for (const k of ["board.keys.firstWorkspaceTab", "board.keys.firstWorkspace", "board.keys.firstBoard"] as const) expect(en[k]).toMatch(/keeps running/);
   });
 });

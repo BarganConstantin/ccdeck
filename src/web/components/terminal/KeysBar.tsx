@@ -120,6 +120,8 @@ export interface KeysBarProps {
    *  and the keys go back to "the deck", as the status bar says, not to a
    *  board that is not in view. */
   workspace?: boolean;
+  /** The Workspace pane holds tabs: its ✕ closes the tab on show. */
+  tabbed?: boolean;
   /** Only the focused split pane contributes to the shared status bar. */
   primary?: boolean;
   /** No pane to type into (nothing open, an error, a session that cannot be
@@ -149,9 +151,11 @@ export interface KeysBarProps {
 
 /** What ✕ does where the first-run line is said, and so what the line says it
  *  does: the Board's closes the Command Panel, a Workspace pane's empties the
- *  pane. Neither ends the session. */
-export function firstRunClause(workspace: boolean): string {
-  return workspace ? tNow("board.keys.firstWorkspace") : tNow("board.keys.firstBoard");
+ *  pane, and a pane's with tabs closes the tab on show. None ends the
+ *  session. */
+export function firstRunClause(workspace: boolean, tabbed = false): string {
+  if (!workspace) return tNow("board.keys.firstBoard");
+  return tabbed ? tNow("board.keys.firstWorkspaceTab") : tNow("board.keys.firstWorkspace");
 }
 
 /** Whether the asks' slot has anything to draw. */
@@ -307,7 +311,7 @@ export default function KeysBar(p: KeysBarProps) {
     // hints are hidden behind it, so the release chord is said here or nowhere.
     left = (
       <div className="ts-keys" data-owner={p.owner} data-split>
-        <span className="ts-first">{t("board.keys.typingGoes")}<span className="ts-first-keys">{t("board.keys.escIncluded", { chord: p.chordLabel })}</span>. {firstRunClause(p.workspace === true)}</span>
+        <span className="ts-first">{t("board.keys.typingGoes")}<span className="ts-first-keys">{t("board.keys.escIncluded", { chord: p.chordLabel })}</span>. {firstRunClause(p.workspace === true, p.tabbed === true)}</span>
         <button type="button" className="btn" onClick={p.onFirstRunDone}>{t("board.keys.gotIt")}</button>
       </div>
     );

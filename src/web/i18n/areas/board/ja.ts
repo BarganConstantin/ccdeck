@@ -537,6 +537,7 @@ const catalog: Catalog = {
   "board.keys.escIncluded": "、Esc も含みます。{chord} でキーを戻せます",
   "board.keys.firstBoard": "✕ でコマンドパネルを閉じます。セッションは動き続けます。",
   "board.keys.firstWorkspace": "✕ でペインを空にします。セッションは動き続けます。",
+  "board.keys.firstWorkspaceTab": "✕ でタブを閉じます。セッションは動き続けます。",
   "board.keys.gotIt": "了解",
   "board.keys.reconnecting": "{name} に再接続しています。{note}",
   "board.keys.typingInto": "{name} に入力中",

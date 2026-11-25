@@ -1076,6 +1076,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         notice={notice}
         firstRun={p.firstRun}
         workspace={workspace}
+        tabbed={workspace && !!p.tabs}
         paneless={p.show.kind === "empty" || paneless(phase) || onItsWay(phase, frame)}
         onFirstRunDone={p.onFirstRunDone}
         chat={chatOn}

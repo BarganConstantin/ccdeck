@@ -216,6 +216,20 @@ const attaching = new Set();
  */
 export function installTerminalUpgrade(server, { enabled = () => false, tickets, openBridge, max = MAX_TERMINALS, engine } = {}) {
   const live = new Set();
+  /**
+   * The sockets that count against `max`: one that is open, and an upgrade
+   * the engine is still answering for a client that is still there. A socket
+   * on its way out is not one: its close sent by either side, or its client
+   * gone while its attach waits. A panel switching what it shows closes its
+   * socket and opens the next at once (a Workspace pane's tabs share one
+   * terminal), and the last frames of the old one must not cost the new one
+   * its place. Each such socket leaves `live` once it is over.
+   */
+  const inUse = () => {
+    let n = 0;
+    for (const entry of live) if (entry.conn ? entry.conn.open : !entry.gone) n += 1;
+    return n;
+  };
   const isOn = () => {
     try { return enabled() === true; } catch { return false; }
   };
@@ -243,7 +257,7 @@ export function installTerminalUpgrade(server, { enabled = () => false, tickets,
   server.prependListener("request", sync);
 
   function admit(req, socket, head) {
-    const verdict = upgradeVerdict(req, { enabled: isOn, live: live.size, max, remoteAddress: socket.remoteAddress });
+    const verdict = upgradeVerdict(req, { enabled: isOn, live: inUse(), max, remoteAddress: socket.remoteAddress });
     if (!verdict.ok) return refuseSocket(socket, verdict.status, verdict.headers);
     if (shuttingDown) return refuseSocket(socket, 503);
     const binding = tickets?.redeem(verdict.ticket) ?? null;
@@ -301,7 +315,12 @@ export function installTerminalUpgrade(server, { enabled = () => false, tickets,
    * the attach up, as the deck refuses any upgrade then.
    */
   function relayAdmit(key, socket, head, handle) {
-    const held = { told: null };
+    const held = { told: null, gone: false };
+    // A client that hangs up, or only closes its half, while the engine is
+    // still answering is not waiting for a terminal any more (inUse).
+    const gone = () => { held.gone = true; };
+    socket.once("end", gone);
+    socket.once("close", gone);
     live.add(held);
     attaching.add(held);
     attachRelay(key, socket, head, handle, held).catch(() => socket.destroy());

@@ -537,6 +537,7 @@ const catalog: Catalog = {
   "board.keys.escIncluded": ", Esc 포함 — {chord}로 키를 되돌립니다",
   "board.keys.firstBoard": "✕는 명령 패널을 닫습니다. 세션은 계속 실행됩니다.",
   "board.keys.firstWorkspace": "✕는 창을 비웁니다. 세션은 계속 실행됩니다.",
+  "board.keys.firstWorkspaceTab": "✕는 탭을 닫습니다. 세션은 계속 실행됩니다.",
   "board.keys.gotIt": "확인",
   "board.keys.reconnecting": "{name}에 다시 연결하는 중입니다. {note}",
   "board.keys.typingInto": "{name}에 입력 중",

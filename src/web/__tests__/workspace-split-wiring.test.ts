@@ -191,7 +191,7 @@ describe("the sheet", () => {
 describe("the words, in every language", () => {
   const KEYS = ["full", "noRoom", "maximize", "restore", "strip", "divider", "showAll", "narrow", "narrowHint", "already", "showHere", "openBeside", "openAbove", "openBelow", "moveSwap", "moveBeside", "moveAbove", "moveBelow"]
     .map(k => `board.stage.split.${k}`)
-    .concat(["board.stage.tabs.label", "board.stage.tabs.all"]);
+    .concat(["board.stage.tabs.label", "board.stage.tabs.all", "board.keys.firstWorkspaceTab"]);
   const langs: Record<string, Record<string, string>> = { ro, de, fr, es, "pt-BR": ptBR, ja, ko, "zh-CN": zhCN, "zh-TW": zhTW };
   const holes = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map(m => m[1]).sort();
 

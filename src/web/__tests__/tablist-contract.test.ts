@@ -64,7 +64,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { tabStripMove } from "../tablist-keys";
+import { tabStripManualMove, tabStripMove } from "../tablist-keys";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 
@@ -276,10 +276,18 @@ describe("a role=\"tab\" in this client comes with the keyboard model it promise
     // keyboard decision written inline in a component is a keyboard decision
     // no plain-node test can read, which is how this one went unwritten for as
     // long as it did.
+    // A strip whose panels are drawn when shown (a Workspace pane's tabs, one
+    // terminal that attaches what it shows) takes the same rule's manual
+    // variant: the arrows move the focus, and Space shows.
     for (const { name, src } of STRIPS) {
-      expect(`${name}: ${src}`).toMatch(/tabStripMove\(/);
+      expect(`${name}: ${src}`).toMatch(/tabStripMove\(|tabStripManualMove\(/);
       expect(`${name}: ${src}`).toMatch(/from "\.\.?\/(\.\.\/)?tablist-keys"/);
     }
+    expect(paneTabs[1]).toMatch(/tabStripManualMove\(/);
+    expect(paneTabs[1], "the pane's strip shows nothing on an arrow").not.toMatch(/tabStripMove\(/);
+    // Its stop follows the keyboard, not aria-selected.
+    expect(paneTabs[1]).toContain("tabIndex={x.key === stop ? 0 : -1}");
+    expect(paneTabs[1]).toContain("aria-selected={x.on}");
   });
 });
 
@@ -349,6 +357,33 @@ describe("tabStripMove decides where an arrow lands", () => {
   it("has nowhere to go in an empty strip and says so rather than dividing by zero", () => {
     expect(tabStripMove(key("ArrowRight"), 0, 0)).toEqual({ kind: "pass" });
     expect(tabStripMove(key("End"), -1, 0)).toEqual({ kind: "pass" });
+  });
+});
+
+describe("tabStripManualMove: the same keys, for tabs that take a moment to show", () => {
+  const key = (k: string, mods: Partial<Record<"ctrlKey" | "metaKey" | "altKey", boolean>> = {}) =>
+    ({ key: k, ctrlKey: false, metaKey: false, altKey: false, ...mods });
+
+  it("moves the focus where tabStripMove would select, and selects nothing", () => {
+    expect(tabStripManualMove(key("ArrowRight"), 0, 3)).toEqual({ kind: "focus", index: 1 });
+    expect(tabStripManualMove(key("ArrowLeft"), 0, 3)).toEqual({ kind: "focus", index: 2 });
+    expect(tabStripManualMove(key("Home"), 2, 3)).toEqual({ kind: "focus", index: 0 });
+    expect(tabStripManualMove(key("End"), 0, 3)).toEqual({ kind: "focus", index: 2 });
+  });
+
+  it("shows the focused tab on Space, and leaves Enter to the tab's own press", () => {
+    expect(tabStripManualMove(key(" "), 1, 3)).toEqual({ kind: "activate", index: 1 });
+    expect(tabStripManualMove(key("Enter"), 1, 3)).toEqual({ kind: "pass" });
+    expect(tabStripManualMove(key(" "), -1, 3), "no tab focused").toEqual({ kind: "pass" });
+  });
+
+  it("stands aside for the browser's chords and the keys the dialog owns, as tabStripMove does", () => {
+    expect(tabStripManualMove(key(" ", { ctrlKey: true }), 0, 2)).toEqual({ kind: "pass" });
+    expect(tabStripManualMove(key("ArrowRight", { metaKey: true }), 0, 2)).toEqual({ kind: "pass" });
+    expect(tabStripManualMove(key("Tab"), 0, 2)).toEqual({ kind: "pass" });
+    expect(tabStripManualMove(key("Escape"), 0, 2)).toEqual({ kind: "pass" });
+    expect(tabStripManualMove(key("ArrowDown"), 0, 2)).toEqual({ kind: "pass" });
+    expect(tabStripManualMove(key("ArrowRight"), 0, 0)).toEqual({ kind: "pass" });
   });
 });
 

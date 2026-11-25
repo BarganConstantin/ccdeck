@@ -537,6 +537,7 @@ const catalog: Catalog = {
   "board.keys.escIncluded": ", Échap compris — {chord} rend les touches",
   "board.keys.firstBoard": "✕ ferme le Command Panel ; la session continue.",
   "board.keys.firstWorkspace": "✕ vide le volet ; la session continue.",
+  "board.keys.firstWorkspaceTab": "✕ ferme l'onglet ; la session continue.",
   "board.keys.gotIt": "Compris",
   "board.keys.reconnecting": "Reconnexion à {name}. {note}",
   "board.keys.typingInto": "Saisie dans {name}",
