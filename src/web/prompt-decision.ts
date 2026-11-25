@@ -85,7 +85,7 @@ export function promptDecision(prompt: ScreenPrompt, turns: readonly ChatTurn[],
 function permissionRow(label: string, command: boolean, t: TFunction): DecisionOptionModel {
   if (rowRole("permission", label) === "locked") return { label, sub: "", locked: true, lockNote: t("board.decision.lock.rules") };
   if (/^Yes$/.test(label)) return { label, sub: t("board.decision.sub.once"), ...(command ? { runs: true } : null) };
-  return { label, sub: t("board.decision.sub.no") };
+  return { label, sub: t("board.decision.sub.no"), cancel: true };
 }
 
 function planRow(label: string, t: TFunction): DecisionOptionModel {

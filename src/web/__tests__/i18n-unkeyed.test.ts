@@ -22,8 +22,8 @@ interface Exception {
 
 const EXCEPTIONS: readonly Exception[] = [
   // CHANGED ON PURPOSE (Chat answers permission prompts and plans): the card's
-  // own words are keyed now; only its key tables are left, and nothing draws them.
-  { file: "src/web/components/decision/decision-keys.ts", why: "Not drawn: no host hands the card's key group to the keyboard sheet or its layer to the status bar yet (screens.ts exports them for that)." },
+  // own words are keyed now. CHANGED AGAIN (the card's keys from the pane): its
+  // key tables are keyed too, and drawn in the keyboard sheet and status bar.
   { file: "src/web/components/terminal/stage-model.ts", text: "That is not a session id.", why: "The engine's own refusal, matched as it arrives to be replaced by the panel's sentence; never shown." },
   { file: "src/web/components/terminal/stage-model.ts", text: "The provider must be claude or codex.", why: "The engine's own refusal, matched as it arrives to be replaced by the panel's sentence; never shown." },
   { file: "src/web/components/guide-art.tsx", text: "Bash(npm test)", why: "A line of Claude Code's own terminal, drawn as it prints it." },

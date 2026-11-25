@@ -206,6 +206,8 @@ export interface ChatOutgoing {
   /** On its way; not taken in time, so it may sit in Term's input; or taken,
    *  and the conversation not read again since. */
   state: "sending" | "unconfirmed" | "taken";
+  /** Sent while the session was at work: it waits for that turn to end. */
+  queued?: boolean;
 }
 
 /** What the session is doing, said under the conversation's last line. */

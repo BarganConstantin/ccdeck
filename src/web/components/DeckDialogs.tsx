@@ -51,6 +51,7 @@ import SettingsModal, { type AccountSwitch } from "./SettingsModal";
 import { offersWorkspace, type TerminalSwitch } from "./TerminalSection";
 import ToolModal from "./ToolModal";
 import { t, useLanguage } from "../i18n";
+import { useScreenKeys } from "../screen-keys";
 // Loaded when they open (#883). Both are opened rarely and each is a large
 // file; imported here, they were in the one bundle every reload and every deck
 // opened from another machine had to fetch before drawing anything. The topbar
@@ -98,6 +99,8 @@ export default function DeckDialogs({
   account?: AccountSwitch;
 }) {
   useLanguage(); // the guide's title below is worded for the language on show
+  // A question card's keys, while one is drawn: the sheet lists them (screen-keys.ts).
+  const screenKeys = useScreenKeys();
   const { openedTool, setOpenedToolKey, usageHistoryOpen, setUsageHistoryOpen, browserWatchOpen,
           setBrowserWatchOpen, contextAgent, setContextFor, summaryFor, setSummaryFor, keyHelpOpen,
           setKeyHelpOpen, feedbackOpen, setFeedbackOpen, feedbackPrefill, setFeedbackPrefill, openFeedback } = dialogs;
@@ -271,6 +274,7 @@ export default function DeckDialogs({
           onFeedback={() => { setKeyHelpOpen(false); openFeedback(); }}
           onSettings={() => { setKeyHelpOpen(false); openSettings("keyboard"); }}
           workspace={offersWorkspace(terminal)}
+          extraGroups={screenKeys ? [screenKeys.group] : undefined}
         />
       )}</DialogPresence>
       {/* How the tour ended is a feature the usage reports name (feature-use.ts):

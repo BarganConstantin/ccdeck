@@ -33,6 +33,8 @@ import ThinkingRow from "./ChatThinking";
 import { Clock, MessageMeta, TurnFooter } from "./ChatTime";
 import type { BlockTime } from "./chat-rich";
 import { clockShort } from "../../elapsed-short";
+import { useSingleKeyShortcuts } from "../../use-single-key-shortcuts";
+import { askDigitPicks, askTakesDigits, usePaneAnswerKeys } from "./answer-keys";
 
 export { diffOp, default as DiffBlock } from "./ChatDiff";
 
@@ -65,7 +67,8 @@ export function OutgoingMessage({ outgoing, provider, onShowTerm }: { outgoing: 
       <p className="chat-you-text">{outgoing.text.replace(/\r\n?/g, "\n")}</p>
       {outgoing.state !== "taken" && (
         <p className="chat-you-state">
-          <span>{late ? t("board.chat.progress.unconfirmed", { agent: providerLabel(provider) }) : t("board.chat.progress.sending")}</span>
+          <span>{late ? t("board.chat.progress.unconfirmed", { agent: providerLabel(provider) })
+            : outgoing.queued ? t("board.chat.compose.queued", { agent: providerLabel(provider) }) : t("board.chat.progress.sending")}</span>
           {late && onShowTerm && <button type="button" className="chat-ask-term" onClick={onShowTerm}>{t("board.chat.showTerm")}</button>}
         </p>
       )}
@@ -421,19 +424,33 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
   // Set aside, nothing was chosen: a pick made before it wears no mark.
   const answered = done && !chatting;
   const canChat = !!live?.chat && !sending && !done && !chatMissing && live.blocked === undefined && offersChat(turn.questions);
+  // The pane's digits (answer-keys.ts): with every question one choice from a
+  // list, a digit answers the next unanswered one, and the last sends.
+  const singleKeys = useSingleKeyShortcuts();
+  const card = useRef<HTMLElement | null>(null);
+  const digits = !locked && singleKeys && askTakesDigits(turn.questions);
+  usePaneAnswerKeys(card, digits, e => {
+    if (e.ctrlKey || e.metaKey || e.altKey || !/^[1-9]$/.test(e.key)) return false;
+    const next = askDigitPicks(turn.questions, picks, Number(e.key) - 1);
+    if (!next) return false;
+    setPicks(next);
+    setResult(null);
+    if (picksComplete(turn.questions, next)) void send(next);
+    return true;
+  });
 
   function update(i: number, pick: AskPick) {
     setPicks(previous => previous.map((old, at) => (at === i ? pick : old)));
     setResult(null);
   }
 
-  async function send() {
-    if (!live || !ready) return;
+  async function send(using: AskPick[] = picks) {
+    if (!live || locked || !picksComplete(turn.questions, using)) return;
     setChatting(false);
     setSending(true);
     setResult(null);
     let outcome: AskSendResult;
-    try { outcome = await live.send(turn.questions, picks); }
+    try { outcome = await live.send(turn.questions, using); }
     catch { outcome = "unavailable"; }
     setSending(false);
     setResult(outcome);
@@ -481,8 +498,10 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
                   <li key={n} className="chat-ask-option chat-ask-choice" data-chosen={on || undefined}>
                     <label className="chat-ask-pick">
                       <input type={question.multi ? "checkbox" : "radio"} name={name} checked={on} disabled={locked}
+                        aria-keyshortcuts={digits && n < 9 ? String(n + 1) : undefined}
                         onChange={() => update(i, choose(question, pick.text === undefined ? pick : { options: [] }, n))} />
                       {text}
+                      {digits && n < 9 && <span className="chat-ask-n chat-ask-key" aria-hidden="true">{n + 1}</span>}
                       {on && answered && <span className="chat-ask-chosen"><DoneGlyph />{t("board.chat.ask.chosen")}</span>}
                     </label>
                   </li>
@@ -536,7 +555,7 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
     && (result !== null || !reachable);
 
   return (
-    <section className="chat-ask" data-state={state} aria-label={t("board.chat.ask.title", { count: turn.questions.length })}>
+    <section ref={card} className="chat-ask" data-state={state} aria-label={t("board.chat.ask.title", { count: turn.questions.length })}>
       <div className="chat-ask-head">
         <span className="chat-ask-title">{t("board.chat.ask.title", { count: turn.questions.length })}</span>
         <span className="chat-ask-state">{t(`board.chat.ask.${state}`)}</span>

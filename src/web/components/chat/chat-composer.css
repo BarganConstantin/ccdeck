@@ -12,7 +12,7 @@
   color: var(--text);
   font: 400 calc(13px + var(--ui-text-increase, 0px))/1.5 var(--font-sans);
 }
-.chat-composer-col { max-width: 776px; min-width: 0; margin-inline: auto; }
+.chat-composer-col { position: relative; max-width: 776px; min-width: 0; margin-inline: auto; }
 .chat-composer-input {
   display: flex;
   align-items: flex-end;
@@ -31,7 +31,7 @@
   min-width: 0;
   width: 100%;
   min-height: 44px;
-  max-height: calc(6lh + 20px);
+  max-height: calc(10lh + 22px);
   padding: 11px 8px;
   overflow-y: auto;
   resize: none;
@@ -42,6 +42,9 @@
   caret-color: var(--accent);
   font: inherit;
   scrollbar-color: var(--ctl-edge) var(--bg-soft);
+  /* One line to ten: the height eases to the next line count (ChatComposer
+     measures with the easing off). */
+  transition: height var(--dur-fast) var(--ease);
 }
 .chat-composer-draft::placeholder { color: var(--text-secondary); opacity: 1; }
 .chat-composer-send, .chat-composer-term { box-sizing: border-box; border-radius: var(--r-ctl); font: inherit; cursor: pointer; }
@@ -58,8 +61,9 @@
   font-weight: 600;
 }
 .chat-composer-send:disabled { opacity: 0.5; cursor: default; }
-/* Stop, while Claude Code works: a quiet button (the plain .btn) of Send's
-   size beside it. Pending, it draws as every disabled button does. */
+/* Stop, while Claude Code works and nothing is typed: Send's place, as a
+   quiet button (the plain .btn) of its size. Pending, it draws as every
+   disabled button does. */
 .chat-composer button.chat-composer-stop {
   box-sizing: border-box;
   align-self: flex-end;
@@ -103,3 +107,83 @@
   .chat-composer button.chat-composer-send, .chat-composer button.chat-composer-stop { min-height: 44px; margin-block: 0; }
   .chat-composer-term { min-height: 44px; }
 }
+@media (prefers-reduced-motion: reduce) {
+  .chat-composer-draft { transition: none; }
+}
+
+/* THE SLASH LIST: over the input, the width of the column, Claude Code's
+   commands and the session's own. One row a command: its name in mono, what
+   it does, and "Opens in Term" for one whose dialog only Term draws. The
+   active row is filled, as a menu's is; the textarea keeps the focus and
+   names the row (aria-activedescendant). */
+.chat-slash {
+  position: absolute;
+  z-index: 2;
+  inset-inline: 0;
+  bottom: calc(100% + 6px);
+  box-sizing: border-box;
+  max-height: 264px;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-panel);
+  background: var(--panel);
+  box-shadow: var(--shadow-overlay);
+  scrollbar-color: var(--ctl-edge) var(--panel);
+}
+/* The stage's compose bar scrolls a tall draft; while the list is open (the
+   draft is then one line) it lets the list rise over the conversation. */
+.ts-bar.ts-bar-compose:has(.chat-slash) { overflow: visible; }
+.chat-slash-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 4px 8px;
+  border-radius: var(--r-ctl);
+  color: var(--text-secondary);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: 1.5;
+  cursor: default;
+}
+.chat-slash-row[data-active] { background: var(--ctl-fill); color: var(--text); }
+.chat-slash-name { flex: none; color: var(--text); font-family: var(--font-mono); }
+.chat-slash-about { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-slash-term { flex: none; display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: calc(11px + var(--ui-text-increase, 0px)); }
+.chat-slash-term svg { width: 12px; height: 12px; }
+@container ts-bar (max-width: 480px) {
+  .chat-slash-term { display: none; }
+}
+@media (pointer: coarse) {
+  .chat-slash-row { min-height: 44px; }
+}
+@media (forced-colors: active) {
+  .chat-slash-row[data-active] { outline: 1px solid Highlight; }
+}
+
+/* A message on its way, at the end of the conversation (chat-progress.ts):
+   your bubble drawn as an outline until the session takes it, so it reads
+   as not yet delivered without losing the text's contrast. */
+.chat-you:is([data-outgoing="sending"], [data-outgoing="unconfirmed"]) .chat-you-text {
+  background: transparent;
+  outline: 1px dashed var(--ctl-edge);
+  outline-offset: -1px;
+}
+
+/* THE KEYS A WAITING QUESTION TAKES (answer-keys.ts). The prompt's No on the
+   Decision card says Esc at its end, in the card's own chip; a question
+   card's options name their digit at theirs, while the digits answer it. */
+.dc-esc {
+  flex: none;
+  box-sizing: border-box;
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: var(--r-ctl);
+  background: var(--ctl-fill);
+  color: var(--text);
+  font: 400 11px/14px var(--font-mono);
+}
+.chat-ask-pick .chat-ask-key { margin-left: auto; }

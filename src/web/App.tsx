@@ -149,6 +149,7 @@ import { setSingleKeyShortcuts } from "./single-key-shortcuts";
 import { setHideFinishedAfter } from "./hide-finished";
 import type { Density, TextSize } from "./reading-preferences";
 import type { Theme } from "./theme";
+import { useScreenKeys } from "./screen-keys";
 
 /** Under this width the Inspector is the detail sheet, not a Workspace column
  *  (workspace.css, "Narrower windows"). */
@@ -265,6 +266,8 @@ function Inner() {
   // here because Workspace, which the stage hook decides, is never on one, and
   // because a sheet on a phone is held for its own, longer, exit.
   const phone = useMediaQuery(PHONE_QUERY);
+  // A question card's keys, while one is drawn: the status bar names them (screen-keys.ts).
+  const screenKeys = useScreenKeys();
   const railExitMs = useMemo(
     () => phone ? (reducedMotion ? sheetFadeMs() : sheetCloseMs()) : tokenMs(reducedMotion ? "--dur-xfade" : "--dur-fast"),
     [reducedMotion, phone]);
@@ -1731,7 +1734,7 @@ function Inner() {
       {/* The foot of the shell: the grid's fourth row, under the canvas, the
           columns and the stripes (not drawn on a phone, where the dock is) —
           components/StatusBar.tsx. */}
-      {!phone && <StatusBar stageOpen={stage.enabled && stageClaimsKeys(stage.shell.phase)} zoomedOut={zoom.lod !== "detail"} viewChord={stage.workspaceOffered ? (inWorkspace ? "board" : "workspace") : null} splitPanes={stage.arrangement?.mode === "split"} waiting={waitingSessions.length > 0} version={version?.running ?? null} onVersion={welcome.openReleaseNotes} setKeyHelpOpen={setKeyHelpOpen} />}
+      {!phone && <StatusBar stageOpen={stage.enabled && stageClaimsKeys(stage.shell.phase)} zoomedOut={zoom.lod !== "detail"} viewChord={stage.workspaceOffered ? (inWorkspace ? "board" : "workspace") : null} splitPanes={stage.arrangement?.mode === "split"} waiting={waitingSessions.length > 0} version={version?.running ?? null} onVersion={welcome.openReleaseNotes} setKeyHelpOpen={setKeyHelpOpen} extra={screenKeys?.status} />}
       </BoardEmptyContext.Provider>
 
       {/* The dialogs, in the order they paint over one another — components/DeckDialogs.tsx. */}

@@ -19,6 +19,8 @@ export interface DecisionOptionModel {
   free?: boolean;
   /** Picking it runs the card's command: "Sent" then says "Running …". */
   runs?: boolean;
+  /** The prompt's No: Esc picks it (decision-keys.ts), as Esc answers it in Term. */
+  cancel?: boolean;
 }
 
 export interface DecisionModel {

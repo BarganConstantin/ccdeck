@@ -9,17 +9,22 @@
 // wires its events to the keyboard and the pointer and runs its effects.
 //
 // FOCUS NEVER MOVES ON ITS OWN. The card does not take focus on arrival. Once
-// focus is inside, 1 to 3 pick, the arrows and Tab move the ring, Enter sends
-// the answer the ring is on, and Esc closes and never answers (decision-keys.ts).
-// A digit pressed with focus anywhere else is not the card's.
+// focus is inside, 1 to 9 pick, the arrows and Tab move the ring, Enter sends
+// the answer the ring is on, and Esc picks the prompt's No, or with none
+// closes and never answers (decision-keys.ts). From the rest of its Chat pane
+// (not a text field, or the reply box while empty) the digits and Esc reach it
+// too, once it has been up for ARM_MS (answer-keys.ts); anywhere else they are
+// not the card's.
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useT, type MessageKey } from "../../i18n";
+import { showScreenKeys } from "../../screen-keys";
 import { useSingleKeyShortcuts } from "../../use-single-key-shortcuts";
+import { usePaneAnswerKeys } from "../chat/answer-keys";
 import {
-  initialState, LOCKED_ANNOUNCE, step,
+  cancelRow, initialState, LOCKED_ANNOUNCE, step,
   type DecisionContext, type DecisionEffect, type DecisionEvent, type DecisionState,
 } from "./decision-machine";
-import { cardKeyEvent, keyTargetOf } from "./decision-keys";
+import { cardKeyEvent, decisionKeyGroup, decisionStatusView, keyTargetOf, paneKeyEvent } from "./decision-keys";
 import type { DecisionHooks, DecisionModel, DecisionOutcomeInput } from "./decision-model";
 import DecisionFooter from "./DecisionFooter";
 import DecisionOption from "./DecisionOption";
@@ -151,16 +156,43 @@ export default function DecisionCard(p: DecisionCardProps) {
     dispatch(event);
   };
 
+  // The pane's keys: a digit or Esc pressed in Chat outside the card picks as
+  // a press on the row does. One answer at a time: a key while the last pick
+  // is checked is held, and one after an outcome settled is not the card's.
+  const dock = useRef<HTMLDivElement | null>(null);
+  const keysLive = state.mode !== "readOnly" && !state.closed;
+  const paneHasKeys = usePaneAnswerKeys(dock, keysLive, e => {
+    const s = stateRef.current;
+    if (s.mode === "readOnly" || s.mode === "free" || s.closed) return false;
+    const event = paneKeyEvent(e, singleKeys, ctxRef.current.model);
+    if (!event) return false;
+    if (s.outcome.kind === "checking") return true;
+    if (s.outcome.kind !== "none" && s.outcome.kind !== "held") return false;
+    dispatch(event);
+    return true;
+  });
+  // The sheet lists the card's keys while it is up; the status bar names them
+  // while the keys are in its pane.
+  const keysOwner = useRef({});
+  useEffect(() => {
+    showScreenKeys(keysOwner.current, keysLive
+      ? { group: decisionKeyGroup(singleKeys), ...(paneHasKeys ? { status: decisionStatusView(singleKeys) } : {}) }
+      : null);
+  }, [keysLive, singleKeys, paneHasKeys]);
+  useEffect(() => { const me = keysOwner.current; return () => showScreenKeys(me, null); }, []);
+
   const o = state.outcome;
   const answered = o.kind === "checking" || o.kind === "sent" ? o.answer : null;
   const answeredIndex = answered && answered.kind !== "many" ? answered.index : -1;
   const titleId = `${id}-title`;
   const multi = state.mode === "multi";
   const tabStop = state.focus ?? 0;
+  const noRow = multi ? -1 : cancelRow(model);
 
   if (state.closed) return null;
   return (
     <div
+      ref={dock}
       className="dc-dock"
       data-size={p.size === "phone" ? "phone" : undefined}
       data-mode={state.mode}
@@ -209,6 +241,7 @@ export default function DecisionCard(p: DecisionCardProps) {
               text={state.text}
               readOnly={state.mode === "readOnly"}
               singleKeys={singleKeys}
+              escKey={noRow === i}
               tabStop={tabStop === i}
               rowRef={el => { rows.current[i] = el; }}
               inputRef={input}

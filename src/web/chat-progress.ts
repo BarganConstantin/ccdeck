@@ -157,7 +157,7 @@ export function chatShown(pending: ChatPending | undefined, facts: ChatFacts, no
   if (pending && !taken) {
     const due = pending.since + CONFIRM_MS;
     const late = !facts.connected || (!pending.behind && now >= due);
-    out.outgoing = { text: pending.text, state: late ? "unconfirmed" : "sending" };
+    out.outgoing = { text: pending.text, state: late ? "unconfirmed" : "sending", ...(pending.behind && !late ? { queued: true } : {}) };
     if (!late && !pending.behind) out.next = due;
   } else if (pending && echoes(facts.turns, pending.text) <= pending.echoes
     && !(pending.takenAt !== undefined && now >= pending.takenAt + TAKEN_GRACE_MS)) {
