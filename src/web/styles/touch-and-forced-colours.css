@@ -97,6 +97,9 @@
   .ts-head button.btn.ts-end-act { min-height: 32px; }
   /* A pane's tabs in its header (PaneTabs.tsx), inside its 36px row. */
   .ts-tabs .ts-tab { min-height: 32px; }
+  /* And a tab's ×, a 32px square (the header's glyphs above) flush with the
+     tab's end, the tab's height. */
+  .ts-tabs .ts-tab-x { right: 0; }
   /* And the × after each row of the strip's menu, beside the row's 40. */
   .ts-tabs-x { min-width: 32px; min-height: 32px; }
   /* The divider is 32px wide: 8px over the navigator and 24px over the
@@ -115,6 +118,16 @@
   .kh-tour,
   .qh-provider,
   .guide-dot { min-height: 32px; }
+}
+
+/* No hover to draw a pane tab's × (PaneTabs.tsx): the tab on show always
+   draws its own, so a fingertip reaches it, in room of its own after the
+   name, so no word lies under it. The other tabs draw theirs only with the
+   keyboard on them, as beside a mouse; the strip's menu closes them too. */
+@media (hover: none), (pointer: coarse) {
+  .ts-tabs .ts-tab-slot[data-on] > .ts-tab { padding-right: 32px; }
+  .ts-tabs .ts-tab-slot[data-on] > .ts-tab-x { opacity: 1; pointer-events: auto; }
+  .ts-tabs .ts-tab-slot[data-on] > .ts-tab > .ts-tab-in { -webkit-mask-image: none; mask-image: none; }
 }
 
 /* ---------------- forced colours (#871) ----------------
@@ -486,6 +499,13 @@
   .rearrange-undo-act { border: 1px solid ButtonText; }
   @media (hover: hover) and (pointer: fine) {
   .rearrange-undo-act:hover { border-color: Highlight; }
+  }
+
+  /* A pane tab's × (PaneTabs.tsx) lifts with a fill under the pointer, and
+     the theme paints that fill Canvas: its glyph turns Highlight there
+     instead, so the × the press will close is still told apart from its tab. */
+  @media (hover: hover) and (pointer: fine) {
+  .ts-tabs .ts-tab-x:hover { color: Highlight; }
   }
 
   .tr-live-dot { forced-color-adjust: none; background: GrayText; }
