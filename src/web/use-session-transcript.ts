@@ -9,7 +9,9 @@
 // or its end changes (`change`); and on a timer while the page is visible,
 // every POLL_MS while the session works and every IDLE_POLL_MS otherwise, for
 // what no event says. Every ask after the first sends the version it holds, and
-// a file that has not moved is answered `unchanged` after one stat.
+// a file that has not moved is answered `unchanged` after one stat, so the
+// quick timer of a turn at work (a line every second or two, as Term shows
+// them) costs the deck one stat a tick while nothing moves.
 //
 // OLDER PAGES ON REQUEST. The route answers the last window of the file; when
 // that did not reach its start, `older` loads the window before, and the next,
@@ -17,18 +19,27 @@
 // pages already loaded stay, and when the live window has slid past where they
 // end, the stretch between is read before the answer is drawn.
 //
+// SINCE YOU LOOKED. When the reader stops looking (Chat hidden for Term or
+// another session, or the page hidden), the conversation as it stood is kept;
+// the first answer read once they look again says what came since: the
+// divider goes before the first new turn, with how many calls ran and what the
+// session is doing now. It stays until they look away again. A conversation
+// that moved on further than the window reaches says nothing.
+//
 // IMPORTS NO SCREEN. It answers with `ChatSource`, a type, and the words that
 // belong to the answer are chosen when drawn (`useT`), so a language change
 // reaches a message already on screen.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChatSource, ChatTurn } from "./components/chat/chat-model";
+import type { ChatSince, ChatSource, ChatTurn } from "./components/chat/chat-model";
 import type { Provider } from "./types";
-import { useT } from "./i18n";
+import { useT, type TFunction } from "./i18n";
 import { isEventOnly } from "../server/provider-ids.mjs";
 import { providerLabel } from "./provider-copy";
+import { alignTurns, turnInterner } from "./chat-turn-align";
 
-/** How often a working session's conversation is asked for again. */
-export const POLL_MS = 5000;
+/** How often a working session's conversation is asked for again while Chat
+ *  shows it and the page is visible: soon enough that a turn reads live. */
+export const POLL_MS = 1500;
 
 /** How often a resting session's is: a local command's output fires no event. */
 export const IDLE_POLL_MS = 15000;
@@ -155,6 +166,28 @@ interface Held {
   front: number;
 }
 
+/** What came since the reader last looked: the first new turn, the one before
+ *  it (the last they saw), and how many calls ran meanwhile. */
+interface Looked { session: string; provider: Provider; first: ChatTurn; seen?: ChatTurn; toolCalls: number }
+
+/** How many conversations' last look a stage keeps (one per session it showed). */
+const LOOKS_KEPT = 8;
+
+/** The divider for `looked` in `turns` (each the object the interner gives),
+ *  or none once the turn it goes before is no longer there. */
+export function sinceIn(looked: Looked, turns: readonly ChatTurn[], working: boolean, t: TFunction): ChatSince | undefined {
+  let at = turns.lastIndexOf(looked.first);
+  if (at < 0 && looked.seen) {
+    const seen = turns.lastIndexOf(looked.seen);
+    if (seen >= 0 && seen + 1 < turns.length) at = seen + 1;
+  }
+  if (at < 0) return undefined;
+  const last = turns[turns.length - 1];
+  const asking = !working && last !== undefined && "running" in last && last.running === true;
+  const label = t(asking ? "board.chat.live.since.asking" : working ? "board.chat.live.since.working" : "board.chat.live.since.done");
+  return { toolCalls: looked.toolCalls, label, at };
+}
+
 const pageOf = (read: Ready): Part => ({ turns: read.turns, complete: read.complete, older: read.older });
 const turnsIn = (parts: readonly Part[]) => parts.reduce((n, part) => n + part.turns.length, 0);
 
@@ -213,6 +246,44 @@ export function useSessionTranscript(input: SessionTranscriptInput, deps: Sessio
   // Only the newest ask may answer: a slower, older one landing last is dropped.
   const latest = useRef(0);
   const visible = useCallback(() => (dep.current.visible ?? documentVisible)(), []);
+  // The turns as one object per thing said, from one read to the next: what
+  // the reader saw can be found again in what is read later.
+  const interner = useRef<((turns: readonly ChatTurn[]) => ChatTurn[]) | null>(null);
+  const intern = useCallback((turns: readonly ChatTurn[]) => (interner.current ??= turnInterner())(turns), []);
+  // The conversation as it stood when the reader looked away, per session.
+  const left = useRef(new Map<string, ChatTurn[]>());
+  const [looked, setLooked] = useState<Looked | null>(null);
+  /** The turns held for `id`, whole: older pages and the live window. */
+  const heldTurns = useCallback((id: string, who: Provider): ChatTurn[] | null => {
+    const now = kept.current;
+    if (!now || now.session !== id || now.provider !== who || now.read.kind !== "ready") return null;
+    return intern(now.pages.length ? [...now.pages.flatMap(part => part.turns), ...now.read.turns] : now.read.turns);
+  }, [intern]);
+  /** The reader looks away from `id`: what they saw is kept. */
+  const lookAway = useCallback((id: string, who: Provider) => {
+    const turns = heldTurns(id, who);
+    if (!turns) return;
+    const marks = left.current;
+    marks.delete(`${who}:${id}`);
+    marks.set(`${who}:${id}`, turns);
+    while (marks.size > LOOKS_KEPT) marks.delete(marks.keys().next().value as string);
+  }, [heldTurns]);
+  /** The reader looks again and an answer is in: what came since, if anything. */
+  const lookBack = useCallback((id: string, who: Provider) => {
+    const mark = `${who}:${id}`;
+    const saw = left.current.get(mark);
+    if (!saw || !visible()) return;
+    left.current.delete(mark);
+    const turns = heldTurns(id, who);
+    // Matched by what they say: the interner above follows the session shown,
+    // and another session may have been read meanwhile.
+    const same = turnInterner();
+    const moved = turns ? alignTurns(same(saw), same(turns)) : null;
+    if (!turns || !moved || moved.arrived === 0) { setLooked(null); return; }
+    const from = turns.length - moved.arrived;
+    const came = turns.slice(from);
+    setLooked({ session: id, provider: who, first: came[0], seen: turns[from - 1], toolCalls: came.filter(turn => turn.kind === "tool").length });
+  }, [heldTurns, visible]);
   // One life per session shown: hiding Chat or moving on drops what is in flight.
   const life = useMemo(() => new AbortController(), [shown, session, provider]);
   useEffect(() => () => life.abort(), [life]);
@@ -239,7 +310,8 @@ export function useSessionTranscript(input: SessionTranscriptInput, deps: Sessio
     const since = was && was.session === id && was.provider === provider && was.read.kind === "ready" ? was.read.version : undefined;
     void (async () => {
       const read = await readTranscript(id, dep.current.fetchFn, signal, provider, since ? { since } : {});
-      if (signal.aborted || mine !== latest.current || read.kind === "unchanged") return;
+      if (signal.aborted || mine !== latest.current) return;
+      if (read.kind === "unchanged") { lookBack(id, provider); return; }
       const now = kept.current;
       const joint = now && now.session === id && now.provider === provider && now.pages.length ? now.joint : undefined;
       let gap: { joint?: string; parts: Part[] | null } | undefined;
@@ -249,14 +321,21 @@ export function useSessionTranscript(input: SessionTranscriptInput, deps: Sessio
         if (signal.aborted || mine !== latest.current) return;
       }
       commit(withRead(kept.current, id, provider, read, gap));
+      if (read.kind !== "failed") lookBack(id, provider);
     })();
-  }, [provider, readGap, commit]);
+  }, [provider, readGap, commit, lookBack]);
 
   // On show, on a new session, on a change of prompts or end, and on Retry.
   useEffect(() => {
     if (!shown || !session) return;
     ask(session, life.signal);
   }, [shown, session, change, again, ask, life]);
+
+  // Chat hidden, or another session shown: the reader looked away from this one.
+  useEffect(() => {
+    if (!shown || !session) return;
+    return () => lookAway(session, provider);
+  }, [shown, session, provider, lookAway]);
 
   // Soon after the session is heard from. One ask per burst: a timer already
   // waiting is not pushed back, so a steady stream of events still asks.
@@ -281,11 +360,15 @@ export function useSessionTranscript(input: SessionTranscriptInput, deps: Sessio
     }, HEARD_MS);
   }, [heard, shown, session, ask, life, visible]);
 
-  // Once more when the page is looked at again: what it was not told while hidden.
+  // Once more when the page is looked at again: what it was not told while
+  // hidden. Hidden, the reader looked away.
   useEffect(() => {
     if (!shown || !session) return;
-    return (dep.current.watchVisible ?? watchDocument)(() => { if (visible()) ask(session, life.signal); });
-  }, [shown, session, ask, life, visible]);
+    return (dep.current.watchVisible ?? watchDocument)(() => {
+      if (visible()) ask(session, life.signal);
+      else lookAway(session, provider);
+    });
+  }, [shown, session, provider, ask, life, visible, lookAway]);
 
   // Again on a timer while the page is looked at, sooner while the session works.
   useEffect(() => {
@@ -347,18 +430,26 @@ export function useSessionTranscript(input: SessionTranscriptInput, deps: Sessio
     });
   }, [fill, commit, life]);
 
+  // The turns held, whole, as one object per thing said: made again only when a read changed them.
+  const whole = useMemo(() => (held?.read.kind === "ready"
+    ? intern(held.pages.length ? [...held.pages.flatMap(part => part.turns), ...held.read.turns] : held.read.turns)
+    : null), [held, intern]);
+
   return useMemo<ChatSource>(() => {
     if (absent) return { state: "absent", message: t("board.chat.noTranscript", { agent: providerLabel(provider) }) };
     if (!held || held.session !== session || held.provider !== provider) return { state: "loading" };
     const read = held.read;
     if (read.kind === "unknown") return { state: "error", message: t(ended ? "board.chat.unavailable" : "board.chat.notYet") };
-    if (read.kind === "failed") return { state: "error", message: t("board.chat.failed"), onRetry };
-    const turns: ChatTurn[] = held.pages.length ? [...held.pages.flatMap(part => part.turns), ...read.turns] : read.turns;
+    if (read.kind === "failed" || !whole) return { state: "error", message: t("board.chat.failed"), onRetry };
     const oldest = held.pages[0] ?? read;
     const head = held.front ? { head: held.front } : {};
-    if (oldest.older && turns.length < MAX_KEPT_TURNS) {
-      return { state: "ready", turns, older: { load: loadOlder, loading: paging === "loading", failed: paging === "failed" }, ...head };
+    const offer = oldest.older && whole.length < MAX_KEPT_TURNS;
+    const turns: ChatTurn[] = offer || oldest.complete ? whole : [{ kind: "record", text: t("board.chat.earlier") }, ...whole];
+    const divider = looked && looked.session === session && looked.provider === provider ? sinceIn(looked, turns, working, t) : undefined;
+    const since = divider ? { since: divider } : {};
+    if (offer) {
+      return { state: "ready", turns, older: { load: loadOlder, loading: paging === "loading", failed: paging === "failed" }, ...head, ...since };
     }
-    return { state: "ready", turns: oldest.complete ? turns : [{ kind: "record", text: t("board.chat.earlier") }, ...turns], ...head };
-  }, [absent, held, session, provider, ended, t, onRetry, loadOlder, paging]);
+    return { state: "ready", turns, ...head, ...since };
+  }, [absent, held, session, provider, ended, t, onRetry, loadOlder, paging, whole, looked, working]);
 }

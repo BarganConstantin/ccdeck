@@ -76,6 +76,10 @@ export interface ChatFacts {
   connected: boolean;
   /** A card in Chat asks what the session waits on. */
   asked: boolean;
+  /** What the agent's own screen says it is doing (use-screen-status.ts). */
+  status?: string;
+  /** When the turn at work began: the board's last prompt. */
+  since?: number;
 }
 
 /** What Chat draws now, and when that changes by itself. */
@@ -166,6 +170,8 @@ export function chatShown(pending: ChatPending | undefined, facts: ChatFacts, no
   if (working) {
     const activity: ChatActivity = { state: "working" };
     if (facts.detail) activity.detail = facts.detail;
+    if (facts.status) activity.status = facts.status;
+    if (facts.since !== undefined) activity.since = facts.since;
     if (!facts.tool && facts.heardAt !== undefined) {
       const silent = now - facts.heardAt;
       if (silent >= QUIET_MS) {

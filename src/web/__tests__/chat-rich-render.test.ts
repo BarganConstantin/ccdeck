@@ -237,6 +237,21 @@ describe("when things were said", () => {
     expect(times.get(answers[1].index)).toEqual({ end: AT + 5_000 });
   });
 
+  it("times an answer cut in two by \"Since you looked\" once, at the end of its second part", () => {
+    const turns: ChatTurn[] = [
+      { kind: "user", text: "go", at: AT - 87_000 }, { kind: "assistant", text: "On it.", at: AT - 80_000 },
+      { kind: "assistant", text: "Done.", at: AT },
+    ];
+    const whole = conversationBlocks(turns);
+    const head = whole[1] as Extract<typeof whole[number], { kind: "assistant" }>;
+    const cut = [whole[0],
+      { ...head, turns: head.turns.slice(0, 1) },
+      { ...head, turns: head.turns.slice(1), index: head.index + 1 }];
+    const times = blockTimes(cut);
+    expect(times.has(head.index)).toBe(false);
+    expect(times.get(head.index + 1)).toEqual({ end: AT, worked: 87_000 });
+  });
+
   it("draws the footer under every answer but the one still being written", () => {
     const turns: ChatTurn[] = [
       { kind: "user", text: "go", at: AT - 60_000 }, { kind: "assistant", text: "First.", at: AT },

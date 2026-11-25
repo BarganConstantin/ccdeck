@@ -8,8 +8,10 @@
 // own button. Only the conversation's last task list is drawn whole (ChatView
 // says which); earlier ones are a line each, folded in with the tool calls.
 //
-// NEW LINES APPEAR WITH NO MOTION. A line is drawn where it belongs and that is
-// all; there is no entrance, no highlight, no scroll animation.
+// MOTION IS chat-motion.css's, AND ONLY THERE. A line that arrives while you
+// watch rises into place; one already there when Chat opens, or loaded older,
+// is simply drawn. A disclosure opens and closes by its height. The working
+// row's mark cycles while the session works. Each has its reduced-motion rule.
 import {
   AgentGlyph, ChevronRightGlyph, DoneGlyph, FileGlyph, ImageGlyph, SearchGlyph, TodoActiveGlyph, TodoPendingGlyph, ToolTerminalGlyph,
 } from "./chat-icons";
@@ -30,6 +32,7 @@ import { failedByExit, ToolFacts, ToolOutputBlock, ToolPreview, WorkSummary } fr
 import ThinkingRow from "./ChatThinking";
 import { Clock, MessageMeta, TurnFooter } from "./ChatTime";
 import type { BlockTime } from "./chat-rich";
+import { clockShort } from "../../elapsed-short";
 
 export { diffOp, default as DiffBlock } from "./ChatDiff";
 
@@ -70,22 +73,43 @@ export function OutgoingMessage({ outgoing, provider, onShowTerm }: { outgoing: 
   );
 }
 
+/** The working mark's frames, as Claude Code's own spinner draws them. One
+ *  column; chat-motion.css steps through it, there and back. */
+export const WORKING_FRAMES = "·✢✳✶✻✽";
+
 /** What the session is doing, under the conversation's last line: at work,
- *  with the header's tool and time, or silent for a while with the way to
- *  Term; or waiting on you where no card in Chat asks it. A still mark, never
- *  a spinner: nothing in Chat moves. */
-export function ActivityLine({ activity, provider, onShowTerm }: { activity: ChatActivity; provider?: Provider; onShowTerm?: () => void }) {
+ *  in the agent's own words when its screen shows them ("Pondering…") or
+ *  "Working…", for how long, and the header's tool; silent for a while, with
+ *  the way to Term; or waiting on you where no card in Chat asks it. The mark
+ *  cycles only while the session works (and stands still under reduced
+ *  motion); waiting and silence wear --warn on a still mark. */
+export function ActivityLine({ activity, onShowTerm }: { activity: ChatActivity; provider?: Provider; onShowTerm?: () => void }) {
   const t = useT();
-  const words = activity.state === "working" ? t("board.chat.progress.working", { agent: providerLabel(provider) }) : t("board.chat.ask.waiting");
+  const working = activity.state === "working";
+  const words = working ? activity.status || t("board.chat.live.working") : t("board.chat.live.waiting");
   const rest = activity.quiet ? t("board.chat.progress.quiet", { time: activity.quiet }) : activity.detail;
   return (
     <div className="chat-progress" data-state={activity.state} data-quiet={activity.quiet ? "" : undefined}>
-      <span className="chat-progress-mark" aria-hidden="true" />
+      <span className="chat-progress-mark" aria-hidden="true">
+        <span className="chat-progress-frames">{[...WORKING_FRAMES].map(frame => <span key={frame}>{frame}</span>)}</span>
+      </span>
       <span className="chat-progress-text">{words}</span>
+      {working && activity.since !== undefined && <TurnClock since={activity.since} />}
       {rest && <span className="chat-progress-detail" title={rest}>{rest}</span>}
       {activity.quiet && onShowTerm && <button type="button" className="chat-ask-term" onClick={onShowTerm}>{t("board.chat.showTerm")}</button>}
     </div>
   );
+}
+
+/** How long the turn has run, "1m 07s", ticking each second: its own state,
+ *  so the tick redraws this figure and nothing else. */
+export function TurnClock({ since }: { since: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return <span className="chat-progress-time">{clockShort(Math.max(0, Math.floor((now - since) / 1000)))}</span>;
 }
 
 /** A slash command you ran, as you typed it ("/model opus"), and what it
@@ -235,12 +259,27 @@ export function NoticeLine({ turn }: { turn: Extract<Turn, { kind: "notice" }> }
 type Folded = ToolTurn | TodoTurn | Extract<Turn, { kind: "thinking" }>;
 
 /** The disclosure contains the actual calls; it never implies unseen output.
- *  Failed calls are counted on its head, so they show while it is closed. */
+ *  Failed calls are counted on its head, so they show while it is closed.
+ *
+ *  IT OPENS ITSELF WHILE A CALL RUNS, AND IS YOURS ONCE YOU TOGGLE IT. A
+ *  group you opened or closed stays as you left it, running or not. One that
+ *  opened itself folds again when its calls finish, unless the pointer or the
+ *  focus is in it: a group being read does not snap shut under the reader. */
 export function ToolGroup({ turns }: { turns: Folded[] }) {
   const t = useT();
   const running = turns.some(turn => turn.kind === "tool" && turn.running);
   const failed = turns.filter(turn => turn.kind === "tool" && turn.error !== undefined).length;
-  return <details className="chat-activity" open={running || undefined}>
+  const own = useRef<HTMLDetailsElement>(null);
+  // Your own toggle, once you made one; until then the group follows its calls.
+  const [chosen, setChosen] = useState<boolean | undefined>(undefined);
+  const [held, setHeld] = useState(running);
+  useEffect(() => {
+    if (running) setHeld(true);
+    else if (!own.current?.matches(":hover, :focus-within")) setHeld(false);
+  }, [running]);
+  const open = chosen ?? (running || held);
+  return <details ref={own} className="chat-activity" open={open}
+    onToggle={event => { const now = event.currentTarget.open; if (now !== open) setChosen(now); }}>
     <summary className="chat-activity-head">
       <span className="chat-disclosure"><ChevronRightGlyph /></span>
       <WorkSummary turns={turns} />

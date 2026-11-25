@@ -141,23 +141,28 @@ export interface BlockTime {
 }
 
 /** The time of each answer in `blocks`, by its index there; an answer with no
- *  time on any of its lines has none. */
+ *  time on any of its lines has none. An answer drawn in two parts (the "Since
+ *  you looked" line cuts it) has its time once, at the end of the second. */
 export function blockTimes(blocks: readonly ConversationBlock[]): Map<number, BlockTime> {
   const times = new Map<number, BlockTime>();
   let asked: number | undefined;
-  for (const block of blocks) {
+  let end: number | undefined;
+  blocks.forEach((block, i) => {
     if (block.kind === "user" || block.kind === "command") {
       asked = block.at;
-      continue;
+      end = undefined;
+      return;
     }
-    if (block.kind !== "assistant") continue;
-    let end: number | undefined;
+    if (block.kind !== "assistant") return;
     for (const turn of block.turns) if (turn.at !== undefined && (end === undefined || turn.at > end)) end = turn.at;
-    if (end === undefined) continue;
-    const time: BlockTime = { end };
-    if (asked !== undefined && end >= asked) time.worked = end - asked;
-    times.set(block.index, time);
+    if (blocks[i + 1]?.kind === "assistant") return;
+    if (end !== undefined) {
+      const time: BlockTime = { end };
+      if (asked !== undefined && end >= asked) time.worked = end - asked;
+      times.set(block.index, time);
+    }
     asked = undefined;
-  }
+    end = undefined;
+  });
   return times;
 }

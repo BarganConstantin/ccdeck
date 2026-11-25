@@ -85,6 +85,7 @@ import { isEventOnly } from "../../../server/provider-ids.mjs";
 import { askSteps, chatSteps, type AskStep } from "../../ask-keys";
 import { stopSteps } from "../../chat-stop";
 import { pendingFor, useChatProgress, waitsInChat, type ChatFacts, type ChatPending } from "../../chat-progress";
+import { useScreenStatus } from "../../use-screen-status";
 import { noteFeature, useFeatureUse } from "../../feature-use";
 import type { ChatAsk, ChatTurn } from "../chat/chat-model";
 import { usePromptDecision } from "../../use-prompt-decision";
@@ -211,6 +212,8 @@ export interface StageSessionInfo {
   promptCount?: number;
   /** When the board last heard from it (its `lastEventAt`): Chat asks soon after this moves. */
   heardAt?: number;
+  /** When its last turn began (its last prompt): Chat's working row counts from it. */
+  turnStartedAt?: number;
   /** What the header's Rename needs (session-rename.ts renameFacts), for a
    *  session the board has; left out, the name is only drawn. */
   rename?: RenameFacts | null;
@@ -794,13 +797,22 @@ export default function TerminalStage(p: TerminalStageProps) {
     onShowTerm: () => showView("term"),
   });
   // Under Chat's last line: where a message sent from here stands, and what the
-  // session is doing, in the header's words (chat-progress.ts).
+  // session is doing, in the header's words (chat-progress.ts) and, while it
+  // works, its own screen's ("Pondering…", use-screen-status.ts). The row keeps
+  // the turn's clock, so the header's tool time is left out of its words.
   const chatTurns = chatSource.state === "ready" ? chatSource.turns : NO_TURNS;
+  const screenWords = useScreenStatus({
+    on: chatOn && status.state === "working" && chatCannotSend === undefined && (chatProvider === "claude" || chatProvider === "codex"),
+    subject: key,
+    readScreen: session.readScreen,
+  });
   const chatFacts: ChatFacts = {
     turns: chatTurns,
     prompts: p.show.kind === "session" ? p.show.session.promptCount ?? 0 : 0,
     state: status.state,
-    detail: metaRest(status) ?? undefined,
+    detail: metaRest({ ...status, seconds: undefined }) ?? undefined,
+    status: screenWords ?? undefined,
+    since: p.show.kind === "session" ? p.show.session.turnStartedAt : undefined,
     tool: !!status.tool,
     heardAt: p.show.kind === "session" ? p.show.session.heardAt : undefined,
     connected: chatCannotSend === undefined,
