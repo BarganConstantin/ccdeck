@@ -1703,6 +1703,42 @@ describe("Workspace: sessions side by side (internal #102)", () => {
     expect(t.now().stage.split.focused).toBe(panes(t)[1]);
   });
 
+  // A card's click on the Board puts its session on the stage before the view
+  // turns to Workspace, and a Board stage is carried into the pane in focus.
+  // Both went into the pane in focus, over the session it showed, though
+  // another pane already had theirs: one session in two panes, one gone.
+  it.each([
+    ["a card's click", (t: ReturnType<typeof inWorkspace>) => t.now().stage.openInPane("s1", { focusPane: true })],
+    ["a Board stage carried in", (t: ReturnType<typeof inWorkspace>) => t.now().stage.switchTo("s1", { focusPane: true })],
+  ])("comes back from the Board to the pane that has the session, by %s", (_, wayIn) => {
+    const t = inWorkspace();
+    t.now().stage.openBeside("s2");
+    const [first, second] = panes(t);
+    expect(t.now().stage.split.focused).toBe(second);
+    t.now().stage.leaveWorkspace();
+    t.view.rerender({ ...t.props, deps: { ...t.deps, view: "board" } });
+    expect(t.now().stage.shell.phase).toBe("closed");
+    wayIn(t);
+    t.view.rerender({ ...t.props, deps: { ...t.deps, view: "workspace" } });
+    expect(shows(t), "no second pane on s1, and s2 still in its own").toEqual(["s1", "s2"]);
+    expect(t.now().stage.split.focused, "the keys go to the pane that had it").toBe(first);
+    expect(t.now().stage.shell.target).toEqual({ kind: "session", id: "s1" });
+    t.now().stage.reveal();
+    t.now().stage.revealed();
+    expect(t.now().stage.requestFor(first!), "the keyboard goes into that pane").not.toBeNull();
+    expect(t.now().stage.requestFor(second!)).toBeNull();
+  });
+
+  it("leaves the panes alone when a session no pane shows comes from the Board: it opens in the pane in focus", () => {
+    const t = inWorkspace();
+    t.now().stage.openBeside("s2");
+    t.now().stage.leaveWorkspace();
+    t.view.rerender({ ...t.props, deps: { ...t.deps, view: "board" } });
+    t.now().stage.openInPane("s3", { focusPane: true });
+    t.view.rerender({ ...t.props, deps: { ...t.deps, view: "workspace" } });
+    expect(shows(t)).toEqual(["s1", "s3"]);
+  });
+
   it("holds four at most: a fifth opens in the pane in focus, and the deck says why", () => {
     const t = inWorkspace();
     for (const id of ["s2", "s3", "s4"]) t.now().stage.openBeside(id);
