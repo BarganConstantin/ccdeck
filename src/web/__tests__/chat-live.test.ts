@@ -105,6 +105,13 @@ describe("a block drawn again only when it changed", () => {
     expect(sameBlockProps({ turns }, { turns: turns.slice(1) })).toBe(false);
   });
 
+  it("compares an answer's time field by field, as it is worked out anew on each read", () => {
+    expect(sameBlockProps({ turns, time: { end: 5, worked: 2 } }, { turns, time: { end: 5, worked: 2 } })).toBe(true);
+    expect(sameBlockProps({ turns, time: { end: 5 } }, { turns, time: { end: 6 } })).toBe(false);
+    expect(sameBlockProps({ turns, time: { end: 5 } }, { turns, time: { end: 5, worked: 2 } })).toBe(false);
+    expect(sameBlockProps({ turns, time: { end: 5 } }, { turns })).toBe(false);
+  });
+
   it("compares a waiting question's way of being answered field by field", () => {
     const ask = { send, at: 1 };
     expect(sameBlockProps({ turns, ask }, { turns, ask: { send, at: 1 } })).toBe(true);

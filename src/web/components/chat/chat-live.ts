@@ -32,6 +32,9 @@ export function sameBlockProps(prev: object, next: object): boolean {
       if (!Array.isArray(a.turns) || !Array.isArray(b.turns) || !sameTurns(a.turns as ChatTurn[], b.turns as ChatTurn[])) return false;
     } else if (key === "ask") {
       if (!sameFields(a.ask as ChatAsk | undefined, b.ask as ChatAsk | undefined)) return false;
+    } else if (key === "time") {
+      // An answer's time is worked out anew whenever a line arrives: the same when its fields are.
+      if (!sameFields(a.time as object | undefined, b.time as object | undefined)) return false;
     } else if (!Object.is(a[key], b[key])) return false;
   }
   return true;
