@@ -167,9 +167,9 @@ describe("the claude the terminal engine is told about", () => {
     expect(engineEnv({ PATH: "/usr/bin" }, true, "/found/claude")).toEqual({ PATH: "/usr/bin", AGENTS_DECK_CLAUDE: "/found/claude", CCDECK_ENGINE_TERMINAL: "1" });
     expect(engineEnv({ PATH: "/usr/bin" }, true, null)).toEqual({ PATH: "/usr/bin", CCDECK_ENGINE_TERMINAL: "1" });
     expect(engineEnv({ PATH: "/usr/bin" }, false)).toEqual({ PATH: "/usr/bin" });
-    // The engine's spawn asks for it each time it starts.
+    // The engine's spawn asks for it each time it starts (engineStart hands it on, places resolved).
     const client = readFileSync(new URL("../../server/pro-engine-client.mjs", import.meta.url), "utf8");
-    expect(client).toMatch(/env: engineEnv\(process\.env, this\.options\.terminal, engineClaudeHint\(\)\)/);
+    expect(client).toMatch(/\.\.\.engineStart\(engineEnv\(process\.env, this\.options\.terminal, engineClaudeHint\(\)\)\)/);
   });
 
   it("is a program on Windows: a WinGet or Scoop claude.exe, never the claude.cmd beside node", () => {
