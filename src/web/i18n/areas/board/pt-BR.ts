@@ -1094,6 +1094,8 @@ const catalog: Catalog = {
   "board.list.pinRow": "Fixar",
   "board.list.unpinRow": "Desafixar",
   "board.list.pinnedSuffix": ", fixada",
+  "board.list.collapseGroup": "Recolher {group}",
+  "board.list.expandGroup": "Expandir {group}",
 };
 
 export default catalog;

@@ -479,6 +479,9 @@
 .session-list .sl-fold-btn:hover { background: var(--ctl-fill); }
 }
 .session-list .sl-fold-btn .sl-group-count { margin-left: auto; }
+/* Pinned is the one header with no fold (list-collapsed.ts): its label stands
+   where the others' stands, past their chevron (6 in, 12, 6 apart). */
+.session-list .sl-group-head:not(:has(> .sl-fold-btn)) { padding-left: 24px; }
 .session-list .sl-chev { flex: none; transition: transform var(--dur-exit) var(--ease); }
 .session-list [aria-expanded="true"] > .sl-chev { transform: rotate(90deg); transition-duration: var(--dur-base); }
 .session-list .sl-fold-btn[data-motion="instant"] > .sl-chev { transition: none; }
@@ -533,6 +536,12 @@
   .session-list .sl-fold[data-open][data-motion="fade"] { grid-template-rows: 1fr; }
 }
 .session-list .sl-fold[data-motion="instant"] { grid-template-rows: 1fr; opacity: 1; transition: none; }
+/* A GROUP SHUT by its header (list-collapsed.ts): the rows it drew fold away
+   the way a fold closes, starting from open. By key there is no body to close:
+   the rows go at once. */
+@starting-style {
+  .session-list .sl-fold[data-shutting] { grid-template-rows: 1fr; opacity: 1; }
+}
 .session-list .sl-fold-in { min-height: 0; overflow: hidden; }
 .session-list .sl-fold-list { margin: 0; padding: 0; list-style: none; }
 
@@ -575,6 +584,9 @@
   .session-list .sl-row[data-one-line] { min-height: 44px; }
   .session-list .sl-row[data-compact][data-one-line] { min-height: 44px; }
   .session-list .sl-more, .session-list .sl-fold-btn { min-height: 44px; }
+  /* A group header that is a button grows to its 44, so the press never
+     reaches over the bottom of the row above it. */
+  .session-list .sl-group-head:has(> .sl-fold-btn) { height: auto; }
   /* Rows at 8 in from each edge: the 374 the phone frame draws in a 390 panel. */
   .session-list .sl-rows { padding-inline: 8px; }
   /* The phone frame names a row at 13/20, as the desktop does since the type

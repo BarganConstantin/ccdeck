@@ -173,6 +173,28 @@ export function useRailFlip(listRef: RefObject<HTMLElement | null>, signature: s
   }, [listRef]);
 }
 
+/** A row arriving: its space opens and it fades in ("animate"), or it only
+ *  fades ("fade", reduced motion). A row's item is a one-row grid, so its
+ *  space opens without anything being measured. */
+function playJoin(el: HTMLElement, how: "animate" | "fade"): void {
+  const easing = motionToken("--ease");
+  if (how === "fade") el.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: tokenMs("--dur-fast"), easing });
+  else el.animate?.([{ gridTemplateRows: "0fr", opacity: 0 }, { gridTemplateRows: "1fr", opacity: 1 }], { duration: tokenMs("--dur-base"), easing });
+}
+
+/** A group's rows coming back when a press on its header opens it: each one
+ *  arrives as a row that joins the list does, so the group opens downwards and
+ *  pushes the groups under it along. `items` are what the group draws under
+ *  its header. By key, at once (rail-model.ts foldMotion). */
+export function playGroupOpen(items: readonly HTMLElement[], how: "animate" | "fade" | "instant"): void {
+  if (how === "instant") return;
+  for (const el of items) {
+    // "N more" is no one-row grid: it fades in under the rows.
+    if (el.classList.contains("sl-row-item")) playJoin(el, how);
+    else playJoin(el, "fade");
+  }
+}
+
 /** A row that is really new opens its space and fades in; one that is really
  *  gone fades, then its space closes after 100ms. Driven from
  *  here, by id, and not by the sheet's @starting-style: moving an element in
@@ -196,9 +218,7 @@ export function useRailMembership(listRef: RefObject<HTMLElement | null>, ids: r
     const easing = motionToken("--ease");
     for (const id of joined) {
       const el = row(id);
-      if (!el) continue;
-      if (how === "fade") el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: tokenMs("--dur-fast"), easing });
-      else el.animate([{ gridTemplateRows: "0fr", opacity: 0 }, { gridTemplateRows: "1fr", opacity: 1 }], { duration: tokenMs("--dur-base"), easing });
+      if (el) playJoin(el, how);
     }
     for (const id of left) {
       const el = row(id);
