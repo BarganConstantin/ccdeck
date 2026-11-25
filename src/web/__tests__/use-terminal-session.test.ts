@@ -23,7 +23,7 @@ import { mount as mountComponent, flush } from "./fake-react";
 import { forgetTerminalTextStep, setTerminalTextStep, terminalTextStep } from "../terminal-text-size";
 import { MAX_MESSAGE_BYTES, connectTerminal, type TerminalConnection } from "../terminal-protocol";
 import { CLEAN_END_MIN_LIVE_MS } from "../components/terminal/stage-model";
-import { launchTerminal, type ApiFailure, type NotAttachable, type SessionRef, type TerminalStatus, type Ticketed, type Launched } from "../terminal-api";
+import { adoptTerminal, launchTerminal, type ApiFailure, type NotAttachable, type SessionRef, type TerminalStatus, type Ticketed, type Launched } from "../terminal-api";
 import { askSteps, chatSteps, SUBMIT_WORDS } from "../ask-keys";
 import type { ChatQuestion } from "../components/chat/chat-model";
 import {
@@ -47,6 +47,7 @@ import {
   STREAM_QUIET_MS,
   TMUX_SETUP_GIVE_UP_MS,
   TMUX_SETUP_POLL_MS,
+  agentFolderFailure,
   createTerminalSession,
   EVENTS_ONLY_MSG,
   eventsOnlyPhase,
@@ -178,8 +179,9 @@ interface Rig {
 
 /** A controller wired to the fakes. `lazyMount` keeps xterm "loading" until
  *  the case resolves it, the way the dynamic import does in a browser.
- *  `windows`: the deck's sessions run in the Windows session host. */
-function rig({ lazyMount = false, windows = false } = {}) {
+ *  `windows`: the deck's sessions run in the Windows session host.
+ *  `onLaunchAgain`: the stage's way to start the launch on show again. */
+function rig({ lazyMount = false, windows = false, onLaunchAgain }: { lazyMount?: boolean; windows?: boolean; onLaunchAgain?: () => void } = {}) {
   const sockets: FakeSocket[] = [];
   let term: FakeTerminal | null = null;
   let events: StageTerminalEvents | null = null;
@@ -219,6 +221,7 @@ function rig({ lazyMount = false, windows = false } = {}) {
     onCell: c => r.cells.push(c),
     onLaunched: l => r.launched.push(l),
     onNotice: n => r.notices.push(n),
+    ...(onLaunchAgain ? { onLaunchAgain } : {}),
   }, { windows });
   return { r, ctl };
 }
@@ -2958,6 +2961,296 @@ describe("a pane whose folder is gone", () => {
     await flush();
     expect(run).toHaveBeenCalledTimes(2);
     expect(r.adopt).not.toHaveBeenCalled();
+    ctl.dispose();
+  });
+});
+
+// A folder that is not reachable right now: a drive or a network folder that
+// is disconnected (a FUSE or sshfs mount whose helper went away, ENOTCONN).
+// It is there, and comes back with its drive, so it is never "not there any
+// more". Found before the press (the deck's question), between that question
+// and the start (the deck's own refusal), or only once the agent ran and said
+// so itself — Claude Code's "Can't read the current directory (ENOTCONN)" —
+// each lands in the same folder-gone phase: the folder named, Check again
+// starting the same conversation once the folder is back, Choose folder… for
+// a new session elsewhere, Cancel back to the ended pane. Never a new session
+// in the same folder, and never a start the reader did not press.
+describe("a pane whose folder is not reachable", () => {
+  const NAS = "/mnt/nas/code/paycore";
+  const ON_NAS: SessionRef = { ...REF, cwd: NAS };
+  type Answer = { ok: true; cwd: string } | { ok: false; code: string };
+  const UNREACHABLE: Answer = { ok: false, code: "unreachable" };
+  const THERE: Answer = { ok: true, cwd: NAS };
+  /** Claude Code's own words when it cannot read its folder, as it ends. */
+  const CANT_READ = "Can't read the current directory (ENOTCONN). Start Claude Code from a different directory.\r\n";
+  const asksFolder = (r: Rig, ...answers: Answer[]) => {
+    const said = [...answers];
+    const checkFolder = vi.fn(async (cwd: string) => (said.length > 1 ? said.shift()! : said[0]) ?? { ok: true, cwd });
+    (r.deps.api as unknown as Record<string, unknown>).checkFolder = checkFolder;
+    return checkFolder;
+  };
+  /** The fake terminal's screen as xterm gives it: what was drawn since its
+   *  last reset, in rows of its width, so a long line wraps as in a pane. */
+  const readable = (r: Rig) => {
+    const t = r.terminal() as FakeTerminal & { screen?: () => string };
+    t.screen = () => {
+      const from = t.log.lastIndexOf("reset");
+      const text = t.log.slice(from + 1).filter(l => l.startsWith("write ")).map(l => JSON.parse(l.slice(6)) as string).join("");
+      const rows: string[] = [];
+      for (const line of text.split(/\r?\n/)) for (let i = 0; i < Math.max(1, line.length); i += t.cols) rows.push(line.slice(i, i + t.cols));
+      return rows.join("\n");
+    };
+    return t;
+  };
+  async function endedPane(ref = ON_NAS, opts: Parameters<typeof rig>[0] = {}) {
+    const { r, ctl } = rig(opts);
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    const s = await attach(r, ctl, ref);
+    readable(r);
+    r.clock.now += 60_000;
+    s.text({ t: "exit", reason: "ended", exitStatus: 1 });
+    expect(r.last().phase).toEqual({ kind: "ended" });
+    return { r, ctl };
+  }
+  /** The agent the deck started draws its last words and ends at once. */
+  const diesSaying = (r: Rig, s: FakeSocket, words: string, cols = 120) => {
+    s.open();
+    s.text({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: false });
+    s.text({ t: "reset", cols, rows: 24 });
+    s.binary(enc(words));
+    s.text({ t: "exit", reason: "ended", exitStatus: 1 });
+  };
+  /** The reopened agent's pane says hello and its seed is drawn: live. */
+  const reveal = (r: Rig, s: FakeSocket) => {
+    s.open();
+    s.text({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: false });
+    s.text({ t: "reset", cols: 120, rows: 40 });
+    s.binary(enc("RESUMED"));
+    r.terminal().parse();
+  };
+  /** The deck's answer to a launch in that folder, read by the page's own terminal-api. */
+  const answeredLaunch = (r: Rig) =>
+    r.launch.mockImplementationOnce(req => launchTerminal(req as Parameters<typeof launchTerminal>[0], {
+      fetchFn: async () => ({ ok: false, status: 409, json: async () => ({ ok: false, code: "folder-unreachable", cwd: NAS }) }) as unknown as Response,
+    }));
+  const goneOnNas = { kind: "folder-gone", cwd: NAS, code: "folder-unreachable", agent: "claude", sessionId: ON_NAS.sessionId, frame: true };
+
+  it("reads the agent's own words for a folder it could not read, wrapped or not, and nothing else", () => {
+    expect(agentFolderFailure(CANT_READ)).toBe("folder-unreachable");
+    // A narrow pane wraps the sentence across rows, mid-word or at a space.
+    expect(agentFolderFailure("Can't read the current direc\ntory (ENOTCONN). Start Claude Code from a\ndifferent directory.")).toBe("folder-unreachable");
+    expect(agentFolderFailure("Can’t read the\ncurrent directory (ESTALE).")).toBe("folder-unreachable");
+    for (const code of ["EIO", "EHOSTDOWN", "ETIMEDOUT"]) expect(agentFolderFailure(`Can't read the current directory (${code}).`), code).toBe("folder-unreachable");
+    expect(agentFolderFailure("Can't read the current directory (ENOENT).")).toBe("folder-missing");
+    expect(agentFolderFailure("Can't read the current directory (EACCES).")).toBe("folder-denied");
+    expect(agentFolderFailure("Can't read the current directory (EWHATEVER)."), "a folder it could not read").toBe("folder-unreachable");
+    // Another program's words about its current directory: the code, or the system's sentence.
+    expect(agentFolderFailure("Error: ENOENT: no such file or directory, uv_cwd")).toBe("folder-missing");
+    expect(agentFolderFailure("Error: failed to read current directory: Transport endpoint is not connected (os error 107)")).toBe("folder-unreachable");
+    expect(agentFolderFailure("cwd: Stale file handle (os error 116)")).toBe("folder-unreachable");
+    // Nothing about its folder: an ending like any other.
+    expect(agentFolderFailure("No conversation found with session ID: 6f1c2d3e")).toBeNull();
+    expect(agentFolderFailure("API Error: Connection error. EHOSTDOWN: host is down")).toBeNull();
+    expect(agentFolderFailure("Error: ENOTCONN: socket is not connected")).toBeNull();
+    // A folder whose name looks like a code, on Claude Code's own cwd line.
+    expect(agentFolderFailure("│ cwd: /home/u/EIO-project │")).toBeNull();
+    expect(agentFolderFailure("")).toBeNull();
+  });
+
+  it("names the folder as not reachable when the deck's question says so, and reopens nothing", async () => {
+    const { r, ctl } = await endedPane();
+    const check = asksFolder(r, UNREACHABLE);
+    ctl.adopt();
+    await flush();
+    expect(check).toHaveBeenCalledWith(NAS);
+    expect(r.last().phase).toEqual(goneOnNas);
+    await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+    expect(r.adopt, "never resumed, here or anywhere else").not.toHaveBeenCalled();
+    expect(r.launch, "never a new session in the same folder").not.toHaveBeenCalled();
+    expect(r.sockets).toHaveLength(1);
+    ctl.dispose();
+  });
+
+  it("names it when the folder went between the question and the start: the deck's adopt refuses it", async () => {
+    const { r, ctl } = await endedPane();
+    asksFolder(r, THERE);
+    r.adopt.mockImplementationOnce(ref => adoptTerminal(ref as SessionRef, {
+      fetchFn: async () => ({ ok: false, status: 409, json: async () => ({ ok: false, code: "folder-unreachable", cwd: NAS }) }) as unknown as Response,
+    }));
+    ctl.adopt();
+    await flush();
+    await flush();
+    expect(r.adopt).toHaveBeenCalledTimes(1);
+    expect(r.last().phase).toEqual(goneOnNas);
+    await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+    expect(r.adopt, "asked once").toHaveBeenCalledTimes(1);
+    expect(r.launch).not.toHaveBeenCalled();
+    ctl.dispose();
+  });
+
+  it("names it when the reopened agent itself says it cannot read its folder, never 'could not resume' with a new session offered", async () => {
+    for (const cols of [120, 40]) {
+      const { r, ctl } = await endedPane();
+      asksFolder(r, THERE);
+      ctl.adopt();
+      await flush();
+      expect(r.last().phase, "reopening, the frame kept").toEqual({ kind: "ended", busy: true });
+      diesSaying(r, r.sockets[1], CANT_READ, cols);
+      r.terminal().parse();
+      expect(r.last().phase, `${cols} columns`).toEqual(goneOnNas);
+      await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+      expect(r.adopt, "started once, for the press").toHaveBeenCalledTimes(1);
+      expect(r.launch, "never a new session by itself").not.toHaveBeenCalled();
+      expect(r.sockets, "nothing asked again").toHaveLength(2);
+      ctl.dispose();
+    }
+  });
+
+  it("ends as before when the reopened agent says nothing about its folder", async () => {
+    const { r, ctl } = await endedPane();
+    asksFolder(r, THERE);
+    ctl.adopt();
+    await flush();
+    diesSaying(r, r.sockets[1], "No conversation found with session ID: 6f1c2d3e\r\n");
+    r.terminal().parse();
+    expect(r.last().phase).toEqual({ kind: "ended", unresumed: true });
+    ctl.dispose();
+  });
+
+  it("resumes the same conversation once the drive is back, and only on Check again", async () => {
+    const { r, ctl } = await endedPane();
+    const check = asksFolder(r, THERE, UNREACHABLE, UNREACHABLE, THERE);
+    ctl.adopt();
+    await flush();
+    diesSaying(r, r.sockets[1], CANT_READ);
+    r.terminal().parse();
+    expect(r.last().phase).toEqual(goneOnNas);
+    // Still disconnected: said so, nothing started — press after press.
+    for (let press = 1; press <= 2; press++) {
+      ctl.retry();
+      expect(r.last().phase, "busy while it asks").toMatchObject({ kind: "folder-gone", busy: true });
+      ctl.retry();
+      await flush();
+      expect(r.last().phase, `press ${press}: still not reachable`).toEqual({ ...goneOnNas, busy: false, checked: true });
+      await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+    }
+    expect(check, "one question a press, and the first before the reopen").toHaveBeenCalledTimes(3);
+    expect(r.adopt, "no process started while it is unreachable").toHaveBeenCalledTimes(1);
+    expect(r.sockets).toHaveLength(2);
+    // Remounted: the same conversation, by its id, in its own folder.
+    ctl.retry();
+    await flush();
+    expect(check).toHaveBeenCalledTimes(4);
+    expect(r.adopt).toHaveBeenCalledTimes(2);
+    expect(r.adopt.mock.calls[1][0], "the same session id and folder").toEqual(ON_NAS);
+    expect(r.launch, "never a new session").not.toHaveBeenCalled();
+    reveal(r, r.sockets[2]);
+    expect(r.last().phase.kind).toBe("live");
+    ctl.dispose();
+  });
+
+  it("starts the agent once a press when the deck's question passes but the agent still cannot read the folder", async () => {
+    const { r, ctl } = await endedPane();
+    asksFolder(r, THERE);
+    ctl.adopt();
+    await flush();
+    diesSaying(r, r.sockets[1], CANT_READ);
+    r.terminal().parse();
+    for (let press = 1; press <= 3; press++) {
+      ctl.retry();
+      await flush();
+      expect(r.adopt, `press ${press}: one start`).toHaveBeenCalledTimes(press + 1);
+      diesSaying(r, r.sockets[press + 1], CANT_READ);
+      r.terminal().parse();
+      expect(r.last().phase, `press ${press}: still not reachable, said so`).toEqual({ ...goneOnNas, checked: true });
+      await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+      expect(r.adopt, `press ${press}: nothing by itself`).toHaveBeenCalledTimes(press + 1);
+    }
+    expect(r.launch).not.toHaveBeenCalled();
+    ctl.dispose();
+  });
+
+  it("goes back to the ended pane on Cancel, asking and starting nothing, and a check still out answers nothing", async () => {
+    const { r, ctl } = await endedPane();
+    let answer!: (a: Answer) => void;
+    const check = asksFolder(r, UNREACHABLE);
+    ctl.adopt();
+    await flush();
+    expect(r.last().phase).toEqual(goneOnNas);
+    check.mockImplementationOnce(() => new Promise<Answer>(res => { answer = res; }));
+    ctl.retry();
+    expect(r.last().phase).toMatchObject({ kind: "folder-gone", busy: true });
+    ctl.cancelFolder();
+    expect(r.last().phase, "the ended pane, as it was").toEqual({ kind: "ended" });
+    answer(THERE);
+    await flush();
+    expect(r.last().phase, "the late answer starts nothing").toEqual({ kind: "ended" });
+    expect(r.adopt).not.toHaveBeenCalled();
+    ctl.cancelFolder();
+    expect(r.last().phase, "nothing to cancel now").toEqual({ kind: "ended" });
+    // Reopen here is a press again, asked about again.
+    ctl.adopt();
+    await flush();
+    expect(check).toHaveBeenCalledTimes(3);
+    expect(r.last().phase).toEqual(goneOnNas);
+    ctl.dispose();
+  });
+
+  it("keeps a card's way out to Not now: Cancel is only for a kept frame", async () => {
+    const { r, ctl } = rig();
+    answeredLaunch(r);
+    ctl.show({ kind: "launch", agent: "claude", cwd: NAS, key: "nas-1" });
+    await flush();
+    await flush();
+    expect(r.last().phase).toEqual({ kind: "folder-gone", cwd: NAS, code: "folder-unreachable", agent: "claude" });
+    ctl.cancelFolder();
+    expect(r.last().phase.kind).toBe("folder-gone");
+    ctl.dispose();
+  });
+
+  it("names it for a launch whose agent ends saying so, starting it again once the folder is back and only on Check again", async () => {
+    const again = vi.fn();
+    const { r, ctl } = rig({ onLaunchAgain: again });
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    const check = asksFolder(r, UNREACHABLE, THERE);
+    ctl.show({ kind: "launch", agent: "claude", cwd: NAS, key: "nas-2" });
+    await flush();
+    readable(r);
+    diesSaying(r, r.sockets[0], CANT_READ);
+    r.terminal().parse();
+    const launchGone = { kind: "folder-gone", cwd: NAS, code: "folder-unreachable", agent: "claude", frame: true };
+    expect(r.last().phase, "no conversation to keep: a launch's").toEqual(launchGone);
+    await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+    expect(r.launch, "launched once, for the press").toHaveBeenCalledTimes(1);
+    ctl.retry();
+    await flush();
+    expect(r.last().phase).toEqual({ ...launchGone, busy: false, checked: true });
+    expect(again).not.toHaveBeenCalled();
+    ctl.retry();
+    await flush();
+    expect(check).toHaveBeenCalledTimes(2);
+    expect(again, "started again, once, under a new key").toHaveBeenCalledTimes(1);
+    expect(r.launch, "never the same key's dead agent again").toHaveBeenCalledTimes(1);
+    expect(r.last().phase, "the ended pane until the stage starts it").toEqual({ kind: "ended", atOpen: true });
+    ctl.dispose();
+  });
+
+  it("goes back to a launch's ended pane on Cancel, its own Start again a press", async () => {
+    const again = vi.fn();
+    const { r, ctl } = rig({ onLaunchAgain: again });
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    ctl.show({ kind: "launch", agent: "codex", cwd: NAS, key: "nas-3" });
+    await flush();
+    readable(r);
+    diesSaying(r, r.sockets[0], "Error: failed to read current directory: Transport endpoint is not connected (os error 107)\r\n");
+    r.terminal().parse();
+    expect(r.last().phase).toEqual({ kind: "folder-gone", cwd: NAS, code: "folder-unreachable", agent: "codex", frame: true });
+    ctl.cancelFolder();
+    expect(r.last().phase).toEqual({ kind: "ended", atOpen: true });
+    expect(again).not.toHaveBeenCalled();
     ctl.dispose();
   });
 });

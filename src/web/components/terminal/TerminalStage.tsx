@@ -346,15 +346,16 @@ export const EMPTY_PANE_NAME_MSG = "board.stage.emptyPane";
  * An ended pane whose folder is gone (folder-gone with its frame) offers
  * neither: the bar names the folder, Choose folder… starts a new session
  * elsewhere (`chooseFolder`, its tooltip saying what becomes of the
- * conversation), and Check again (`checkAgain`) runs the press again only
- * once the folder is back. Without its frame, the card says all that instead.
+ * conversation), Check again (`checkAgain`) runs the press again only once
+ * the folder is back, and Cancel (`cancel`) puts the ended pane back as it
+ * was. Without its frame, the card says all that instead.
  */
 export function endView(
   phase: StagePhase,
   show: StageShow,
   act: {
     reopen(): void; launchAgain?: () => void; attachAgain(): void; startNew?: () => void;
-    chooseFolder?: () => void; chooseId?: string; checkAgain?: () => void;
+    chooseFolder?: () => void; chooseId?: string; checkAgain?: () => void; cancel?: () => void;
   },
 ): EndView | null {
   if (phase.kind === "folder-gone") {
@@ -366,10 +367,11 @@ export function endView(
     const said = { sentence: `${line.lead} ${line.next}`, where: phase.cwd, live: true };
     const check = tNow(phase.busy ? "board.stage.checking" : "board.stage.checkAgain");
     const checkAgain = act.checkAgain ?? act.attachAgain;
-    if (!act.chooseFolder) return { ...said, action: check, busy: phase.busy, onAction: checkAgain };
+    const back = act.cancel ? { back: { action: tNow("common.cancel"), onAction: act.cancel } } : {};
+    if (!act.chooseFolder) return { ...said, action: check, busy: phase.busy, onAction: checkAgain, ...back };
     return {
       ...said, action: tNow(CHOOSE_FOLDER_MSG), title: folderGoneBody(phase), id: act.chooseId, onAction: act.chooseFolder,
-      alt: { action: check, busy: phase.busy, onAction: checkAgain },
+      alt: { action: check, busy: phase.busy, onAction: checkAgain }, ...back,
     };
   }
   if (phase.kind === "ended") {
@@ -498,6 +500,9 @@ export default function TerminalStage(p: TerminalStageProps) {
     onCell: p.onCell,
     onLaunched: p.onLaunched,
     onNotice: setNotice,
+    // Check again on a launch whose agent ended at once for want of its
+    // folder: the launch again, once the folder is back.
+    onLaunchAgain: p.onLaunchAgain,
     deps: p.sessionDeps,
     windows: p.windows,
   });
@@ -887,7 +892,8 @@ export default function TerminalStage(p: TerminalStageProps) {
   const chooseFolderHere = goneAt ? () => chooseFolderFor(goneAt.agent, goneAt.cwd) : undefined;
 
   const end = endView(phase, p.show, {
-    reopen, launchAgain: startAgain, startNew, chooseFolder: chooseFolderHere, chooseId, checkAgain: retry, attachAgain: retry });
+    reopen, launchAgain: startAgain, startNew, chooseFolder: chooseFolderHere, chooseId, checkAgain: retry,
+    cancel: session.cancelFolder, attachAgain: retry });
 
   // A CODEX THAT UPDATED ITSELF comes back by itself. Its own "Update now"
   // installs the new version, asks to be restarted and exits; the session

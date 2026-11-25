@@ -586,6 +586,11 @@ export interface SessionCallbacks {
   onLaunched?(launched: LaunchedSession): void;
   /** Something the reader did that the pane would not take, said once. */
   onNotice?(sentence: string): void;
+  /** The launch on show, started again under a new key: what Check again
+   *  does once the folder is back, for a launch whose agent ended at once
+   *  saying its folder could not be read (agentFolderFailure). Left out, Check
+   *  again puts the ended pane back, whose own Start again stays a press. */
+  onLaunchAgain?(): void;
 }
 
 /** Where the deck's sessions run: tmux, or on Windows the session host,
@@ -628,6 +633,9 @@ export interface TerminalSessionController {
    *  start in; else the folder-gone phase, whose Check again runs it once the
    *  folder is back. One at a time. `who` is what that phase names. */
   startIfFolder(cwd: string, who: FolderWho, run: () => void): void;
+  /** Cancel on the folder-gone phase over a kept frame: that pane again, as
+   *  it was before the press the folder stopped. Nothing is asked or started. */
+  cancelFolder(): void;
   focus(): void;
   /** Keys typed before the pane could take them (type-ahead.ts). */
   type(text: string): void;
@@ -681,7 +689,68 @@ const folderGone = (code: FolderRefusal, cwd: string, who: FolderWho): FolderGon
 const folderProblem = (answer: FolderAnswer): FolderRefusal | null =>
   answer.ok ? null
     : answer.code === "missing" || answer.code === "not-folder" ? "folder-missing"
-      : answer.code === "denied" ? "folder-denied" : null;
+      : answer.code === "denied" ? "folder-denied"
+        : answer.code === "unreachable" ? "folder-unreachable" : null;
+
+/** The system's codes for a folder, as the deck's refusals say them. The
+ *  unreachable ones are the deck's own list (terminal-folder.mjs UNREACHABLE):
+ *  a drive or a network folder that is there, disconnected right now. */
+const ERRNO_REFUSALS: Readonly<Record<string, FolderRefusal>> = {
+  ENOTCONN: "folder-unreachable", EIO: "folder-unreachable", ESTALE: "folder-unreachable",
+  EHOSTDOWN: "folder-unreachable", ETIMEDOUT: "folder-unreachable",
+  ENOENT: "folder-missing", ENOTDIR: "folder-missing",
+  EACCES: "folder-denied", EPERM: "folder-denied",
+};
+/** The same, by the system's sentence for each, where an agent prints that
+ *  in place of the code (Rust's "… (os error 107)"). */
+const STRERROR_REFUSALS: ReadonlyArray<readonly [RegExp, FolderRefusal]> = [
+  [/transport endpoint is not connected/i, "folder-unreachable"],
+  [/stale (?:nfs )?file handle/i, "folder-unreachable"],
+  [/host is down/i, "folder-unreachable"],
+  [/input\/output error/i, "folder-unreachable"],
+  [/no such file or directory/i, "folder-missing"],
+  [/permission denied|operation not permitted/i, "folder-denied"],
+];
+/** Claude Code's words when it cannot read the folder it was started in:
+ *  "Can't read the current directory (ENOTCONN). Start Claude Code from a
+ *  different directory." Spaces optional, so a line the pane wrapped reads
+ *  the same once its rows are put back together. */
+const CANT_READ_CWD = /can['’]?t\s*read\s*the\s*current\s*directory(?:\s*\(\s*(E[A-Z0-9]+)\s*\))?/i;
+/** A line about the agent's own folder, in the words programs use for it
+ *  (Node's own is "uv_cwd"). */
+const CWD_LINE = /\b(?:current|working)\s+directory\b|\bcwd\b|\buv_cwd\b/i;
+/** A system code as programs print one — "ENOTCONN:", "(ENOTCONN)",
+ *  'ENOTCONN' — and not a word inside a folder's name ("EIO-project"). */
+const ERRNO_SAID = /\b(E[A-Z][A-Z0-9]+)\b(?=\s*[:)'",])/g;
+
+/**
+ * Why the folder an agent was started in could not be used, as the agent's
+ * last screen says it, or null when it says nothing of the kind. Read only
+ * from an agent this pane started that ended at once, never from a session
+ * at work. Claude Code's own sentence counts whatever its code (one this list
+ * does not know is a folder it could not read: not reachable); any other line
+ * must name the current or working directory and the system's code or
+ * sentence for it.
+ */
+export function agentFolderFailure(screen: string): FolderRefusal | null {
+  if (!screen) return null;
+  const said = CANT_READ_CWD.exec(screen.replace(/\n/g, ""));
+  if (said) return (said[1] && ERRNO_REFUSALS[said[1].toUpperCase()]) || "folder-unreachable";
+  for (const line of screen.split("\n")) {
+    if (!CWD_LINE.test(line)) continue;
+    for (const [, code] of line.matchAll(ERRNO_SAID)) {
+      const refusal = ERRNO_REFUSALS[code];
+      if (refusal) return refusal;
+    }
+    for (const [words, refusal] of STRERROR_REFUSALS) if (words.test(line)) return refusal;
+  }
+  return null;
+}
+
+/** What this pane did to start the agent a connection shows, when it did: a
+ *  Reopen here (`from`: the phase it was pressed on; `checked`: Check again
+ *  had just found the folder there), or a launch. */
+type Started = { kind: "reopen"; from: StagePhase; checked: boolean } | { kind: "launch" };
 
 /** A failure as the card draws it. A refusal that is a state of this machine
  *  keeps its code, so the card checks again in place. A Claude or a Codex
@@ -837,6 +906,33 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     });
   };
 
+  /** The agent this pane started ended at once saying its folder could not
+   *  be read (agentFolderFailure): the folder-gone phase, over the frame the
+   *  press was made on. Check again starts the same thing again once the
+   *  folder is back — the same conversation by its id, or the launch again —
+   *  and only then: never by itself, so an agent that ends the same way is
+   *  started once a press. A Check again that led here says the folder is
+   *  still not reachable. False when the screen says nothing of the kind or
+   *  there is no folder to name: the ending as before. */
+  const folderSaid = (screen: string, started: Started, unseen: boolean): boolean => {
+    const code = agentFolderFailure(screen);
+    if (!code) return false;
+    if (started.kind === "reopen") {
+      const ref = refOf();
+      const agent = startable(ref?.provider);
+      if (!ref || !agent || !ref.cwd) return false;
+      const phase = folderGone(code, ref.cwd, { agent, sessionId: ref.sessionId });
+      goneAt(started.checked ? { ...phase, checked: true } : phase, started.from, () => reopen(true));
+      return true;
+    }
+    if (subject.kind !== "launch") return false;
+    // A launch has no conversation to keep: its ended pane is what Cancel
+    // goes back to, and Check again starts it again under a new key.
+    const ended: StagePhase = unseen ? { kind: "ended", atOpen: true } : { kind: "ended" };
+    goneAt(folderGone(code, subject.cwd, { agent: subject.agent }), ended, () => callbacks.onLaunchAgain?.());
+    return true;
+  };
+
   const withTerminal = (fn: (t: StageTerminal) => void) => {
     if (term) fn(term);
     else held.push(fn);
@@ -880,12 +976,14 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     streamTimer = setTimeout(() => { streamTimer = null; emit({ streaming: false }); }, STREAM_QUIET_MS);
   };
 
-  /** `reopened`: the ticket is a Reopen here's (adopt). Its agent ending
-   *  before it was live CLEAN_END_MIN_LIVE_MS is the resume failing — a
-   *  conversation the agent could not find or load — not the session
-   *  ending, and the pane says so (`unresumed`) rather than offering the
-   *  same Reopen here again. */
-  const connect = (ticket: string, my: number, reopened = false) => {
+  /** `started`: the ticket is for an agent this pane just started — a Reopen
+   *  here's (adopt) or a launch's. A reopened agent ending before it was live
+   *  CLEAN_END_MIN_LIVE_MS is the resume failing — a conversation the agent
+   *  could not find or load — not the session ending, and the pane says so
+   *  (`unresumed`) rather than offering the same Reopen here again. Either
+   *  one ending that soon may have said its folder could not be read
+   *  (folderSaid): the folder-gone phase then. */
+  const connect = (ticket: string, my: number, started?: Started) => {
     sizeOwner = "dock";
     readOnly = false;
     if (snap.paneSize) emit({ paneSize: null });
@@ -909,6 +1007,9 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     // When this connection first drew the pane live: an ending that comes
     // too soon after it is not the agent's own (endedCleanly).
     let liveAt: number | null = null;
+    // Whether this connection drew a frame of its own (a reset and its seed):
+    // only then is the screen this agent's, and not the frame it replaced.
+    let seeded = false;
     const parsedBytes = (n: number, now = false) => {
       if (my !== gen || !open) return;
       parsed += n;
@@ -929,6 +1030,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       },
       onReset: ({ cols, rows, seed }) => {
         if (my !== gen) return;
+        seeded = true;
         surfaces.reset();
         const displayed = displayBytes(seed);
         withTerminal(t => {
@@ -1004,28 +1106,46 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         else if (reason === "ended") {
           const unseen = atOpen || snap.phase.kind !== "live";
           const liveFor = deps.now() - (liveAt ?? deps.now());
-          if (reopened && (unseen || liveFor < CLEAN_END_MIN_LIVE_MS)) { setPhase({ kind: "ended", unresumed: true }); return; }
-          const ended: StagePhase = unseen ? { kind: "ended", atOpen: true }
-            : endedCleanly({ exitStatus, exitSignal }, liveFor) ? { kind: "ended", clean: true }
-              : { kind: "ended" };
-          // A Codex that exits 0 may be one that just updated itself: its own
-          // "Update now" installs the new version and asks to be restarted.
-          // The deck tells it from /exit by the codex on disk (codex-update.mjs),
-          // and the stage starts the new one in its place (`updated`). While it
-          // asks, the pane is plainly ended, never clean, so the stage does not
-          // close it first. A crash, a kill or an ending it never watched is
-          // not asked about; an answer that comes after the stage moved on, or
-          // none at all, leaves the ending as it would have been.
-          const ask = deps.api.codexUpdated;
-          if (codex && ask && !unseen && exitSignal === undefined && (exitStatus === undefined || exitStatus === 0)) {
-            const asking: StagePhase = { kind: "ended" };
-            setPhase(asking);
-            const settle = (updated: boolean) => {
-              if (my !== gen || disposed || snap.phase !== asking) return;
-              setPhase(updated ? { kind: "ended", updated: true } : ended);
-            };
-            ask(liveFor).then(settle, () => settle(false));
-          } else setPhase(ended);
+          const atOnce = unseen || liveFor < CLEAN_END_MIN_LIVE_MS;
+          const endAsBefore = () => {
+            if (started?.kind === "reopen" && atOnce) { setPhase({ kind: "ended", unresumed: true }); return; }
+            const ended: StagePhase = unseen ? { kind: "ended", atOpen: true }
+              : endedCleanly({ exitStatus, exitSignal }, liveFor) ? { kind: "ended", clean: true }
+                : { kind: "ended" };
+            // A Codex that exits 0 may be one that just updated itself: its own
+            // "Update now" installs the new version and asks to be restarted.
+            // The deck tells it from /exit by the codex on disk (codex-update.mjs),
+            // and the stage starts the new one in its place (`updated`). While it
+            // asks, the pane is plainly ended, never clean, so the stage does not
+            // close it first. A crash, a kill or an ending it never watched is
+            // not asked about; an answer that comes after the stage moved on, or
+            // none at all, leaves the ending as it would have been.
+            const ask = deps.api.codexUpdated;
+            if (codex && ask && !unseen && exitSignal === undefined && (exitStatus === undefined || exitStatus === 0)) {
+              const asking: StagePhase = { kind: "ended" };
+              setPhase(asking);
+              const settle = (updated: boolean) => {
+                if (my !== gen || disposed || snap.phase !== asking) return;
+                setPhase(updated ? { kind: "ended", updated: true } : ended);
+              };
+              ask(liveFor).then(settle, () => settle(false));
+            } else setPhase(ended);
+          };
+          // AN AGENT THIS PANE STARTED THAT ENDED AT ONCE may have said why:
+          // its folder could not be read — a drive or a network folder
+          // disconnected after the deck looked (Claude Code: "Can't read the
+          // current directory (ENOTCONN)"). Its last screen is read once every
+          // byte before the ending is drawn, and such an ending is the
+          // folder-gone phase, never "could not resume" with a new session
+          // offered in the same folder. A terminal that cannot be read ends
+          // as before.
+          const shown = term;
+          if (started && atOnce && seeded && shown?.screen) {
+            shown.write("", () => {
+              if (my !== gen || disposed) return;
+              if (!folderSaid(shown.screen?.() ?? "", started, unseen)) endAsBefore();
+            });
+          } else endAsBefore();
         }
         else if (reason === "detached") setPhase({ kind: "detached" });
         else setPhase({ kind: "error", message: message || tr(STOPPED_MSG) });
@@ -1229,7 +1349,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     launched = true;
     if (answer.sessionId) launchedRef = { sessionId: answer.sessionId, provider: agent, cwd };
     callbacks.onLaunched?.({ agent, cwd, sessionId: answer.sessionId, name: answer.name });
-    connect(answer.ticket, my);
+    connect(answer.ticket, my, { kind: "launch" });
   };
 
   /** Start over for the current subject: a fresh generation, nothing of the
@@ -1383,7 +1503,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     const who: FolderWho | null = agent ? { agent, sessionId: ref.sessionId } : null;
     const adopt = () => void deps.api.adopt(ref, {}, { ...want }, paneColours()).then(answer => {
       if (my !== gen) return;
-      if (answer.ok) { connect(answer.ticket, my, true); return; }
+      if (answer.ok) { connect(answer.ticket, my, { kind: "reopen", from: phase, checked }); return; }
       // Still held, after a press here: the card says where (`held`).
       if (answer.error === STILL_RUNNING && phase.kind === "not-attachable") {
         runningElsewhere({ ...phase, stillRunning: true, busy: false, ...heldBy(ref.provider) }, my);
@@ -1515,6 +1635,18 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       dropConnection();
       setPhase({ ...phase, busy: true });
       askAgain(my);
+    },
+
+    cancelFolder() {
+      if (disposed) return;
+      const from = goneFrom;
+      // Only over a kept frame: a card's way out is Not now, which closes it.
+      if (snap.phase.kind !== "folder-gone" || !from || !showsFrame(from)) return;
+      goneThen = null;
+      goneFrom = null;
+      // A Check again still asking answers nothing now.
+      gen += 1;
+      setPhase(from);
     },
 
     startIfFolder(cwd, who, run) {
@@ -1670,6 +1802,8 @@ export interface UseTerminalSessionOptions {
   onCell?: (cell: Cell) => void;
   onLaunched?: (launched: LaunchedSession) => void;
   onNotice?: (sentence: string) => void;
+  /** The launch on show, started again (SessionCallbacks.onLaunchAgain). */
+  onLaunchAgain?: () => void;
   /** The deck's sessions run in the Windows session host. Read once, as the
    *  stage's terminal is made: the deck said it before the stage could open. */
   windows?: boolean;
@@ -1684,6 +1818,7 @@ export interface TerminalSessionView extends SessionSnapshot {
   adopt(): void;
   retry(): void;
   startIfFolder(cwd: string, who: FolderWho, run: () => void): void;
+  cancelFolder(): void;
   focus(): void;
   type(text: string): void;
   sendPrompt(text: string, expectedSubject: string): PromptSendResult;
@@ -1714,6 +1849,7 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
       onCell: cell => latest.current.onCell?.(cell),
       onLaunched: launched => latest.current.onLaunched?.(launched),
       onNotice: sentence => latest.current.onNotice?.(sentence),
+      onLaunchAgain: () => latest.current.onLaunchAgain?.(),
     }, { windows: o.windows === true });
     controller.current = ctl;
     ctl.resize(o.cols, o.rows, !!o.holdResize);
@@ -1742,6 +1878,7 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
   const adopt = useCallback(() => controller.current?.adopt(), []);
   const retry = useCallback(() => controller.current?.retry(), []);
   const startIfFolder = useCallback((cwd: string, who: FolderWho, run: () => void) => controller.current?.startIfFolder(cwd, who, run), []);
+  const cancelFolder = useCallback(() => controller.current?.cancelFolder(), []);
   const focus = useCallback(() => controller.current?.focus(), []);
   const type = useCallback((text: string) => controller.current?.type(text), []);
   const sendPrompt = useCallback((text: string, expectedSubject: string): PromptSendResult => {
@@ -1764,5 +1901,5 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
   const holdsFocus = useCallback(() => controller.current?.holdsFocus() === true, []);
   const release = useCallback(() => controller.current?.release(), []);
 
-  return { ...snapshot, hostRef, adopt, retry, startIfFolder, focus, type, sendPrompt, sendAsk, readScreen, press, holdsFocus, release };
+  return { ...snapshot, hostRef, adopt, retry, startIfFolder, cancelFolder, focus, type, sendPrompt, sendAsk, readScreen, press, holdsFocus, release };
 }
