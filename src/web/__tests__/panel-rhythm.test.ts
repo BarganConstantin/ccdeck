@@ -419,7 +419,11 @@ describe("the height of a button", () => {
   // into the pane's one-row header (StageHeader `end`), where it stands beside
   // the header's own 24px controls and 24px context chip, at their height, so
   // the measured header row (36 at Compact) keeps its height.
-  const KNOWN_SECOND_HEIGHTS = new Set([".btn.nm-open", ".desktop-menu.btn", ".tr-body .btn", ".ts-keys .btn", ".ts-hosts .btn", "button.btn.ts-end-act"]);
+  // CHANGED ON PURPOSE: when the keys bar's first-run line sits in the window's
+  // status bar, its Got it is drawn 20 tall so the whole button fits inside
+  // the bar; its target stays the bar's height through its ::after, as the
+  // version's does (status-bar.css).
+  const KNOWN_SECOND_HEIGHTS = new Set([".btn.nm-open", ".desktop-menu.btn", ".tr-body .btn", ".ts-keys .btn", ".ts-hosts .btn", "button.btn.ts-end-act", ".statusbar-stage .ts-first + .btn"]);
 
   it("cannot be overridden into a second height by a rule further down", () => {
     // The height has to be unreachable, not merely stated. Any rule that sizes

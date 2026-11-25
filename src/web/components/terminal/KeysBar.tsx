@@ -313,9 +313,14 @@ export default function KeysBar(p: KeysBarProps) {
     // The clause names the way out with the warning: while the line is up it
     // stands in for "Typing into …" and its chord, and the status bar's own
     // hints are hidden behind it, so the release chord is said here or nowhere.
+    // In the window's status bar (641 and wider) the line is one line, cut
+    // with an ellipsis where the window is narrow (status-bar.css): its title
+    // is the whole sentence, as the hosts line's is.
+    const keys = t("board.keys.escIncluded", { chord: p.chordLabel });
+    const clause = firstRunClause(p.workspace === true, p.tabbed === true);
     left = (
       <div className="ts-keys" data-owner={p.owner} data-split>
-        <span className="ts-first">{t("board.keys.typingGoes")}<span className="ts-first-keys">{t("board.keys.escIncluded", { chord: p.chordLabel })}</span>. {firstRunClause(p.workspace === true, p.tabbed === true)}</span>
+        <span className="ts-first" title={`${t("board.keys.typingGoes")}${keys}. ${clause}`}>{t("board.keys.typingGoes")}<span className="ts-first-keys">{keys}</span>. {clause}</span>
         <button type="button" className="btn" onClick={p.onFirstRunDone}>{t("board.keys.gotIt")}</button>
       </div>
     );
