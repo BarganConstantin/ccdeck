@@ -98,7 +98,9 @@ describe("the desktop app's title bar: the menu 8 in, the wordmark 44, the traff
   });
   it("starts 80 in on macOS, after the traffic lights", () => {
     expect(decl(`${chrome}[data-desktop-platform="darwin"] .topbar`, "padding-left")).toBe("var(--traffic-lights-w)");
-    expect(decl(`${chrome}[data-desktop-platform="darwin"] .topbar`, "--traffic-lights-w")).toBe("80px");
+    // CHANGED ON PURPOSE: 80 window points at every page zoom, not 80 CSS px
+    // (desktop-traffic-lights.test.ts).
+    expect(decl(`${chrome}[data-desktop-platform="darwin"] .topbar`, "--traffic-lights-w")).toBe("calc(80px / var(--desktop-zoom, 1))");
   });
 });
 

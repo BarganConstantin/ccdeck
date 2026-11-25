@@ -696,6 +696,20 @@ function openWindow(steal = true, customChrome = true) {
     if (where === "external") shell.openExternal(url);
   });
   const created = win;
+  // macOS hides the traffic lights in full screen, and the bar gives their
+  // room back (desktop-titlebar.css). The page cannot tell full screen from a
+  // window that only fills the screen, so the app marks the page with which,
+  // and again after each load, for a page that reloads while in full screen.
+  if (customChrome && process.platform === "darwin") {
+    const sayFullScreen = () => {
+      if (created.isDestroyed()) return;
+      const on = created.isFullScreen() === true;
+      created.webContents.executeJavaScript(`document.documentElement.dataset.desktopFullScreen = "${on}"`).catch(() => {});
+    };
+    created.on("enter-full-screen", sayFullScreen);
+    created.on("leave-full-screen", sayFullScreen);
+    contents.on("did-finish-load", sayFullScreen);
+  }
   let shown = false;
   win.once("ready-to-show", async () => {
     // The app can attach to an older npm deck. Keep its native frame when that
