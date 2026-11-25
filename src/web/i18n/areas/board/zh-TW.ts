@@ -1098,6 +1098,8 @@ const catalog: Catalog = {
   "board.list.pinRow": "釘選",
   "board.list.unpinRow": "取消釘選",
   "board.list.pinnedSuffix": "，已釘選",
+  "board.list.collapseGroup": "收合{group}",
+  "board.list.expandGroup": "展開{group}",
 };
 
 export default catalog;

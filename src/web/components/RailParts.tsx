@@ -281,7 +281,7 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
   const inHidden = act?.kind === "show";
   if (renaming.on && rename) {
     return (
-      <li className="sl-row-item" data-rail-id={r.sessionId}>
+      <li className="sl-row-item" id={railRowId(r.sessionId)} data-rail-id={r.sessionId}>
         <div className="sl-row-in">
           <div className={`sl-row sl-row-edit${selected ? " selected" : ""}`}>
             <RailGlyph kind={railGlyph(r, group)} />
@@ -292,7 +292,7 @@ export function RailRow({ row: r, group, now, selected, removed, leaving, landNo
     );
   }
   return (
-    <li className={`sl-row-item${leaving ? " leaving" : ""}`} data-rail-id={inHidden ? undefined : r.sessionId}
+    <li className={`sl-row-item${leaving ? " leaving" : ""}`} id={inHidden ? undefined : railRowId(r.sessionId)} data-rail-id={inHidden ? undefined : r.sessionId}
       data-hidden-id={inHidden ? r.sessionId : undefined}
       ref={el => { if (el) el.inert = leaving; }}>
       {/* F2, ⇧↵, Delete and the pin key on the row, caught here as they
@@ -443,23 +443,38 @@ function RowWords({ removed, failed, line }: { removed: boolean; failed: string 
   );
 }
 
-/** A group's label and how many rows it holds. A group that can fold is a
- *  button: closed it points right, open it has turned. */
+/** The id a list row's item carries, so its group's header can name the rows
+ *  it opens and shuts (aria-controls). */
+export const railRowId = (sessionId: string) => `sl-row-${sessionId}`;
+
+/** A group's label and how many rows it holds. A group that can fold or be
+ *  shut (every group but Pinned, list-collapsed.ts) is a button: shut it
+ *  points right, open it has turned. Its name is what it shows, the label and
+ *  the count; aria-expanded says which way it stands, and the tooltip says
+ *  what a press does. */
 export function GroupHead({ group, count, spaced, fold }: {
   /** Pinned, or one of the five groups. */
   group: RailSection;
   count: number;
   /** Not the first thing in the list: 8px of space above. */
   spaced: boolean;
-  fold?: { open: boolean; motion: FoldMode; onToggle: (e: MouseEvent<HTMLButtonElement>) => void };
+  fold?: {
+    open: boolean;
+    motion: FoldMode;
+    /** The ids of the rows it draws, named only while they are drawn. */
+    controls?: string;
+    onToggle: (e: MouseEvent<HTMLButtonElement>) => void;
+  };
 }) {
   const t = useT();
   const label = t(railSectionLabelMsg(group));
   return (
-    <li className={`sl-group-head${spaced ? " spaced" : ""}`}>
+    <li className={`sl-group-head${spaced ? " spaced" : ""}`} data-group={group}>
       {fold
         ? (
-          <button type="button" className="sl-fold-btn" aria-expanded={fold.open} data-motion={fold.motion} onClick={fold.onToggle}>
+          <button type="button" className="sl-fold-btn" aria-expanded={fold.open} aria-controls={fold.open ? fold.controls || undefined : undefined}
+            title={t(fold.open ? "board.list.collapseGroup" : "board.list.expandGroup", { group: label })}
+            data-motion={fold.motion} onClick={fold.onToggle}>
             <ChevronGlyph />
             <span className="sl-group-label">{label}</span>
             <span className="sl-group-count">{count}</span>
@@ -511,8 +526,16 @@ export function HiddenLine({ count, open, controls, onToggle }: {
 /** What a group keeps behind its fold. The space opens as the content fades in
  *  (grid rows 0fr to 1fr, so nothing is measured), and folds the same way a
  *  little quicker; it stays drawn for as long as the fold takes to close. */
-export function FoldBody({ open, motion, children }: { open: boolean; motion: FoldMode; children: ReactNode }) {
-  const [mounted, setMounted] = useState(open);
+export function FoldBody({ open, motion, shutting = false, children }: {
+  open: boolean;
+  motion: FoldMode;
+  /** The rows of a group its header has just shut, drawn shut from the start
+   *  and starting from open (the sheet's @starting-style), inert, for as long
+   *  as the fold takes to close. */
+  shutting?: boolean;
+  children: ReactNode;
+}) {
+  const [mounted, setMounted] = useState(open || shutting);
   if (open && !mounted) setMounted(true);
   useEffect(() => {
     if (open || !mounted) return;
@@ -522,7 +545,8 @@ export function FoldBody({ open, motion, children }: { open: boolean; motion: Fo
   }, [open, mounted, motion]);
   if (!mounted) return null;
   return (
-    <li className="sl-fold" data-open={open ? "" : undefined} data-motion={motion}>
+    <li className="sl-fold" data-open={open ? "" : undefined} data-shutting={shutting && !open ? "" : undefined} data-motion={motion}
+      ref={shutting ? el => { if (el) el.inert = !open; } : undefined}>
       <div className="sl-fold-in"><ul className="sl-fold-list">{children}</ul></div>
     </li>
   );

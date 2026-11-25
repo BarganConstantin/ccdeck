@@ -1133,6 +1133,8 @@ const catalog: Catalog = {
   "board.list.pinRow": "Fixează",
   "board.list.unpinRow": "Anulează fixarea",
   "board.list.pinnedSuffix": ", fixată",
+  "board.list.collapseGroup": "Restrânge {group}",
+  "board.list.expandGroup": "Extinde {group}",
 };
 
 export default catalog;

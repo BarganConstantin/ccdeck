@@ -1098,6 +1098,8 @@ const catalog: Catalog = {
   "board.list.pinRow": "Épingler",
   "board.list.unpinRow": "Désépingler",
   "board.list.pinnedSuffix": ", épinglée",
+  "board.list.collapseGroup": "Replier {group}",
+  "board.list.expandGroup": "Déplier {group}",
 };
 
 export default catalog;

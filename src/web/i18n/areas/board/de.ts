@@ -1098,6 +1098,8 @@ const catalog: Catalog = {
   "board.list.pinRow": "Anheften",
   "board.list.unpinRow": "Loslösen",
   "board.list.pinnedSuffix": ", angeheftet",
+  "board.list.collapseGroup": "{group} einklappen",
+  "board.list.expandGroup": "{group} ausklappen",
 };
 
 export default catalog;
