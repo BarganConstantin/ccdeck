@@ -32,7 +32,8 @@ import { copyText } from "../../copy-text";
 import { CAUGHT_KEYS_ATTR } from "../../shortcuts";
 import type { TmuxProgress } from "../../terminal-api";
 import {
-  CHOOSE_FOLDER_MSG, LAUNCHED_UNREACHABLE_MSG, MISSING_MSGS, PROVENANCE_UNKNOWN_MSG, REOPEN_FAILED_MSG, REOPENING_MSG, START_NEW_MSG,
+  AFTER_EXIT_HOW_MSG, AFTER_EXIT_MSG, AFTER_EXIT_WAITING_MSG,
+  CHOOSE_FOLDER_MSG, LAUNCHED_UNREACHABLE_MSG, MISSING_MSGS, PROVENANCE_UNKNOWN_MSG, REOPEN_FAILED_MSG, REOPENING_MSG, RESUME_BY_HAND_MSG, START_NEW_MSG,
   agentName, elsewhereLine, errorWords, folderGoneBody, folderGoneTitle, folderShown, folderStillGone, frameRun, launchedUnreachable, provenanceUnknown,
   type FolderGonePhase, type FrameRun, type StagePhase, type StageState,
 } from "./stage-model";
@@ -82,6 +83,10 @@ export const HANDOFF_REASON_MSG: Readonly<Record<HandoffReason, string>> = {
 };
 /** The way by hand, after every move that did not happen. */
 export const HANDOFF_MANUAL_MSG = "board.stage.handoff.manual";
+/** The same, where Resume here after exit is offered beside it. */
+export const HANDOFF_MANUAL_AFTER_EXIT_MSG = "board.stage.handoff.manualAfterExit";
+/** The card's line while Resume here after exit is on offer: what it does. */
+export const AFTER_EXIT_OFFER_MSG = "board.stage.afterExit.offer";
 export const HANDOFF_LOOK_AGAIN_MSG = "board.stage.handoff.lookAgain";
 /** Where pressing Move again cannot help: this Ghostty cannot do it, or the
  *  move already went and only its arrival is missing. */
@@ -110,7 +115,17 @@ export interface StageBodyProps {
   /** "Move session here", for Claude in a Ghostty window (TerminalStage):
    *  whether the move is under way, why the last one did not happen, and
    *  Look again after one that was sent and has not arrived yet. */
-  handoff?: { moving: boolean; reason?: HandoffReason; toggle(): void; lookAgain?(): void };
+  handoff?: { moving: boolean; reason?: HandoffReason; toggle(e?: { detail?: number }): void; lookAgain?(): void };
+  /** "Resume here after exit", for Claude in a terminal outside the deck
+   *  where no move is on offer, or a move did not happen (TerminalStage):
+   *  `arm` keeps the card up and waits for that session to end, then reopens
+   *  it here; the phase's `awaitingExit` says it is armed, and `cancel` is the
+   *  card's Cancel then. */
+  afterExit?: { arm(): void; cancel(e?: { detail?: number }): void };
+  /** The command that continues this conversation in a terminal by hand
+   *  (stage-model resumeCommand): shown with its Copy when the deck refused
+   *  a Reopen here of a Claude session. */
+  resumeCommand?: string;
   /** "Not now": leave the stage, the session untouched. */
   onNotNow(): void;
   onRetry(): void;
@@ -350,27 +365,40 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
       const elsewhere = phase.stillRunning && !ours && !unsure;
       const handoff = adoptable ? p.handoff : undefined;
       const offer = adoptable && !phase.stillRunning && !handoff?.moving;
+      // Resume here after exit: offered where no move is, or beside one that
+      // did not happen. Armed, the card waits for that exact session to end
+      // and says so, with Cancel as its one button: no move, no Not now, and
+      // the destination stays open until the conversation is here.
+      const afterExit = adoptable && elsewhere && !handoff?.moving ? p.afterExit : undefined;
+      const armed = afterExit !== undefined && phase.awaitingExit === true;
       // A move that did not happen: why, in one sentence, and the way by hand.
-      const stopped = handoff && !handoff.moving ? handoff.reason : undefined;
+      const stopped = handoff && !handoff.moving && !armed ? handoff.reason : undefined;
       // Sent and not arrived: look again, never send again.
       const lookAgain = stopped === "continuation-timeout" ? handoff?.lookAgain : undefined;
-      const moveAgain = handoff && (handoff.moving || (elsewhere && !(stopped && HANDOFF_NO_RETRY.has(stopped))));
+      const moveAgain = !armed && handoff && (handoff.moving || (elsewhere && !(stopped && HANDOFF_NO_RETRY.has(stopped))));
       // Held after this pane's own Reopen here: the way on that does not wait
       // is a new session in the same folder, only ever on its own press.
-      const fresh = phase.held && phase.stillRunning && !handoff ? p.onStartNew : undefined;
+      const fresh = phase.held && phase.stillRunning && !handoff && !afterExit ? p.onStartNew : undefined;
       return (
         <div className="ts-card">
           {p.context?.prompt && <div className="ts-ctx"><span className="ts-prompt">❯ </span>{p.context.prompt}</div>}
-          {handoff?.moving
-            ? <p className="ts-text" role="status">{t(handoff.reason === "already-sent" ? HANDOFF_REASON_MSG["already-sent"] : "board.stage.handoff.waiting")}</p>
+          {/* The working glyph beside the words while something is under way:
+              the move, or the wait for Claude to exit. One element in every
+              state, so the reader hears each change as the status's. */}
+          {armed
+            ? <p className="ts-text ts-wait" role="status"><StageGlyph kind="working" /><span>{t(AFTER_EXIT_WAITING_MSG)}</span></p>
+            : handoff?.moving
+            ? <p className="ts-text ts-wait" role="status"><StageGlyph kind="working" /><span>{t(handoff.reason === "already-sent" ? HANDOFF_REASON_MSG["already-sent"] : "board.stage.handoff.waiting")}</span></p>
             : stopped
-            ? <p className="ts-text" role="status">{t("board.stage.twoSentences", { first: t(HANDOFF_REASON_MSG[stopped]), second: t(HANDOFF_MANUAL_MSG) })}</p>
+            ? <p className="ts-text" role="status">{t("board.stage.twoSentences", { first: t(HANDOFF_REASON_MSG[stopped]), second: t(afterExit ? HANDOFF_MANUAL_AFTER_EXIT_MSG : HANDOFF_MANUAL_MSG) })}</p>
             // With the move offered, the line says so instead of "quit it there
             // and Reopen here", which would sit above a button that does it for
-            // you. The header still says whether it is working or waiting.
+            // you; with Resume here after exit offered, the same. The header
+            // still says whether it is working or waiting.
             : elsewhere
-            ? <p className="ts-text" role="status">{t(handoff ? "board.stage.handoff.offer" : elsewhereLine(p.boardState, phase.held))}</p>
+            ? <p className="ts-text" role="status">{t(handoff ? "board.stage.handoff.offer" : afterExit ? AFTER_EXIT_OFFER_MSG : elsewhereLine(p.boardState, phase.held))}</p>
             : <p className="ts-text">{ours ? t(LAUNCHED_UNREACHABLE_MSG) : unsure ? t(PROVENANCE_UNKNOWN_MSG) : target.label}</p>}
+          {armed && <p className="ts-text">{t(AFTER_EXIT_HOW_MSG)}</p>}
           <div className="ts-acts">
             {moveAgain && (
               <button type="button" className="btn primary" data-stage-land onClick={handoff.toggle}>
@@ -387,8 +415,19 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
                 {t(HANDOFF_LOOK_AGAIN_MSG)}
               </button>
             )}
+            {/* One button for both: the press that arms it leaves the focus on
+                Cancel, where a keyboard reader expects it. Starting a wait is
+                no step to land on by accident, so the keys land on Not now. */}
+            {afterExit && (
+              <button
+                type="button" className={armed || moveAgain ? "btn" : "btn primary"} data-stage-land={armed || undefined}
+                data-after-exit={armed ? "cancel" : "arm"} onClick={armed ? afterExit.cancel : () => afterExit.arm()}
+              >
+                {t(armed ? "common.cancel" : AFTER_EXIT_MSG)}
+              </button>
+            )}
             {fresh && <button type="button" className="btn" title={p.startNewTip} onClick={fresh}>{t(START_NEW_MSG)}</button>}
-            <button type="button" className="btn" data-stage-land={offer ? undefined : true} onClick={p.onNotNow}>{t("common.notNow")}</button>
+            {!armed && <button type="button" className="btn" data-stage-land={offer ? undefined : true} onClick={p.onNotNow}>{t("common.notNow")}</button>}
           </div>
         </div>
       );
@@ -449,6 +488,10 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
           <div className="ts-card" data-reopen>
             <div className="ts-title">{t(REOPEN_FAILED_MSG)}</div>
             <p className="ts-text">{errorWords(phase.message)}</p>
+            {/* A Claude conversation can always be continued by hand: the
+                command, with its Copy, under the deck's sentence. */}
+            {p.resumeCommand && <p className="ts-note">{t(RESUME_BY_HAND_MSG)}</p>}
+            {p.resumeCommand && <InstallPlate line={p.resumeCommand} />}
             <div className="ts-acts">
               <button type="button" className="btn" aria-busy={phase.busy || undefined} data-stage-land onClick={p.onRetry}>
                 {t(phase.busy ? REOPENING_MSG : "board.stage.tryAgain")}

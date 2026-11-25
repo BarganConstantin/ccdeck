@@ -34,6 +34,7 @@ import {
   CTRL_V,
   ECHO_WINDOW_MS,
   ELSEWHERE_POLL_MS,
+  EXIT_WATCH_POLL_MS,
   ENGINE_NO_RETURN_MSG,
   ENGINE_NO_RETURN_WINDOWS_MSG,
   NO_RETURN_MSG,
@@ -705,6 +706,207 @@ describe("checking an external terminal", () => {
     expect(r.last().phase).toMatchObject({ kind: "not-attachable", target: { kind: "gone" }, stillRunning: false });
     expect(r.last().phase, "freed, the plain card again").not.toHaveProperty("held");
     expect(r.adopt).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Resume here after exit: armed on the card of a Claude session running in a
+// terminal outside the deck, the stage looks closely at that exact session
+// and, once nothing holds it any more, reopens it here by itself — the adopt
+// Reopen here would have made, never a new conversation. Cancel puts the card
+// back as it was. Only the session on show is ever asked about or adopted.
+describe("resume here after exit", () => {
+  const external = { kind: "C" as const, label: "running elsewhere", adoptable: true };
+  const gone = { kind: "gone" as const, label: "ended", adoptable: true };
+  const elsewhere = { kind: "not-attachable", target: external, stillRunning: true, busy: false } as const;
+
+  async function runningElsewhere(opts: Parameters<typeof rig>[0] = {}, ref = REF) {
+    const made = rig(opts);
+    made.r.open.mockResolvedValue({ ok: false, target: external });
+    made.ctl.show({ kind: "session", ref });
+    await flush();
+    expect(made.r.last().phase).toEqual(elsewhere);
+    return made;
+  }
+
+  it("arms only on the card of a Claude session still running elsewhere, and only once", async () => {
+    const { r, ctl } = await runningElsewhere();
+    const opens = r.open.mock.calls.length;
+    ctl.resumeAfterExit();
+    expect(r.last().phase).toEqual({ ...elsewhere, awaitingExit: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(r.open, "a first look at once: it may have been quit since the last one").toHaveBeenCalledTimes(opens + 1);
+    const snaps = r.snaps.length;
+    ctl.resumeAfterExit();
+    ctl.resumeAfterExit();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(r.snaps.length, "a second press changes nothing").toBe(snaps);
+    expect(r.open, "and asks nothing more").toHaveBeenCalledTimes(opens + 1);
+
+    // Not for Codex, whose idle session outside the deck holds nothing the
+    // deck can see; not on Windows; not on a card for a session that ended.
+    const codex = await runningElsewhere({}, { ...REF, provider: "codex" });
+    codex.ctl.resumeAfterExit();
+    expect(codex.r.last().phase).toEqual(elsewhere);
+    const win = await runningElsewhere({ windows: true });
+    win.ctl.resumeAfterExit();
+    expect(win.r.last().phase).toEqual(elsewhere);
+    const ended = rig();
+    ended.r.open.mockResolvedValue({ ok: false, target: gone });
+    ended.ctl.show({ kind: "session", ref: REF });
+    await flush();
+    ended.ctl.resumeAfterExit();
+    expect(ended.r.last().phase).not.toHaveProperty("awaitingExit");
+    expect(ended.r.adopt).not.toHaveBeenCalled();
+  });
+
+  it("keeps waiting while the session is busy there, looking closely even with the page hidden", async () => {
+    const { r, ctl } = await runningElsewhere();
+    ctl.resumeAfterExit();
+    await vi.advanceTimersByTimeAsync(0);
+    const opens = r.open.mock.calls.length;
+    const g = globalThis as { document?: unknown };
+    const had = "document" in g;
+    const before = g.document;
+    g.document = { visibilityState: "hidden" };
+    try {
+      await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS * 4);
+    } finally {
+      if (had) g.document = before; else delete g.document;
+    }
+    expect(r.open.mock.calls.length - opens, "one look per short interval, the page hidden or not").toBe(4);
+    expect(r.open.mock.calls.every(c => c[0] === REF), "only the session on show is asked about").toBe(true);
+    expect(r.adopt, "a session still running is never reopened beside itself").not.toHaveBeenCalled();
+    expect(r.last().phase).toEqual({ ...elsewhere, awaitingExit: true });
+  });
+
+  it("reopens the same conversation here by itself once the session stopped there", async () => {
+    const { r, ctl } = await runningElsewhere();
+    ctl.resumeAfterExit();
+    await vi.advanceTimersByTimeAsync(0);
+    r.open.mockResolvedValue({ ok: false, target: gone });
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS);
+    expect(r.adopt, "no press").toHaveBeenCalledTimes(1);
+    expect(r.adopt.mock.calls[0][0], "the same session, by its id, in its own folder").toEqual(REF);
+    expect(r.launch, "never a new conversation").not.toHaveBeenCalled();
+    expect(r.sockets.map(x => x.url).at(-1)).toMatch(/ticket=adopted$/);
+    // Once its pane is up the wait is over: nothing more is looked at.
+    const opens = r.open.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS * 3);
+    expect(r.open).toHaveBeenCalledTimes(opens);
+    expect(r.adopt).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks about the folder first, as Reopen here does, and names a folder that went away", async () => {
+    const { r, ctl } = await runningElsewhere();
+    const checkFolder = vi.fn(async () => ({ ok: false, code: "missing" }) as const);
+    (r.deps.api as { checkFolder?: unknown }).checkFolder = checkFolder;
+    ctl.resumeAfterExit();
+    await vi.advanceTimersByTimeAsync(0);
+    r.open.mockResolvedValue({ ok: false, target: gone });
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS);
+    expect(checkFolder).toHaveBeenCalledWith(REF.cwd);
+    expect(r.adopt, "never resumed anywhere else").not.toHaveBeenCalled();
+    expect(r.last().phase).toMatchObject({ kind: "folder-gone", cwd: REF.cwd });
+  });
+
+  it("adopts past an ended deck pane of its own instead of showing that pane's last frame", async () => {
+    const { r, ctl } = await runningElsewhere();
+    ctl.resumeAfterExit();
+    await vi.advanceTimersByTimeAsync(0);
+    const sockets = r.sockets.length;
+    r.open.mockResolvedValue({ ok: true, ticket: "dead-frame", target: gone });
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS);
+    expect(r.adopt).toHaveBeenCalledTimes(1);
+    expect(r.sockets.slice(sockets).map(x => x.url), "the dead frame's ticket is never used").not.toContainEqual(expect.stringMatching(/dead-frame/));
+  });
+
+  it("shows the pane another tab already reopened it in, and starts nothing", async () => {
+    const { r, ctl } = await runningElsewhere();
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    ctl.resumeAfterExit();
+    await vi.advanceTimersByTimeAsync(0);
+    r.open.mockResolvedValue(ticketed("other-tab"));
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS);
+    expect(r.adopt).not.toHaveBeenCalled();
+    const s = r.sockets.at(-1)!;
+    expect(s.url).toMatch(/ticket=other-tab$/);
+    s.open();
+    s.text({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: false });
+    s.text({ t: "reset", cols: 120, rows: 40 });
+    s.binary(enc("RESUMED"));
+    r.terminal().parse();
+    expect(r.last().phase).toEqual({ kind: "live", sizeOwner: "dock", readOnly: false });
+    // The wait ended with the card: a later card for this session is plain.
+    const opens = r.open.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS * 3);
+    expect(r.open).toHaveBeenCalledTimes(opens);
+  });
+
+  it("keeps waiting when the deck says something took the session first", async () => {
+    const { r, ctl } = await runningElsewhere();
+    ctl.resumeAfterExit();
+    await vi.advanceTimersByTimeAsync(0);
+    r.open.mockResolvedValueOnce({ ok: false, target: gone });
+    r.adopt.mockResolvedValueOnce(failure(409, "still-running"));
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS);
+    expect(r.adopt).toHaveBeenCalledTimes(1);
+    expect(r.last().phase).toMatchObject({ kind: "not-attachable", stillRunning: true, busy: false, awaitingExit: true });
+    // Free again: reopened then.
+    r.open.mockResolvedValue({ ok: false, target: gone });
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS);
+    expect(r.adopt).toHaveBeenCalledTimes(2);
+    expect(r.sockets.at(-1)?.url).toMatch(/ticket=adopted$/);
+  });
+
+  it("ends the wait on a refused reopen, whose card offers Try again", async () => {
+    const { r, ctl } = await runningElsewhere();
+    ctl.resumeAfterExit();
+    await vi.advanceTimersByTimeAsync(0);
+    r.open.mockResolvedValue({ ok: false, target: gone });
+    r.adopt.mockResolvedValueOnce(failure(500, "The deck could not start Claude Code here."));
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS);
+    expect(r.last().phase).toEqual({ kind: "error", message: "The deck could not start Claude Code here.", reopen: true });
+    const opens = r.open.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS * 3);
+    expect(r.open, "no more looks once it has said why").toHaveBeenCalledTimes(opens);
+    expect(r.adopt).toHaveBeenCalledTimes(1);
+    ctl.retry();
+    await flush();
+    expect(r.adopt, "Try again reopens the same session").toHaveBeenCalledTimes(2);
+    expect(r.adopt.mock.calls[1][0]).toEqual(REF);
+  });
+
+  it("Cancel stops waiting and leaves the card and the session as they were", async () => {
+    const { r, ctl } = await runningElsewhere();
+    ctl.resumeAfterExit();
+    await vi.advanceTimersByTimeAsync(0);
+    ctl.stopWaitingForExit();
+    expect(r.last().phase, "the card as before arming").toEqual(elsewhere);
+    const opens = r.open.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS);
+    expect(r.open, "back to the quiet look").toHaveBeenCalledTimes(opens);
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS - EXIT_WATCH_POLL_MS);
+    expect(r.open).toHaveBeenCalledTimes(opens + 1);
+    r.open.mockResolvedValue({ ok: false, target: gone });
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS);
+    expect(r.last().phase, "stopped there: Reopen here, on its press").toEqual({ kind: "not-attachable", target: gone, stillRunning: false, busy: false });
+    expect(r.adopt).not.toHaveBeenCalled();
+    ctl.stopWaitingForExit();
+    expect(r.adopt).not.toHaveBeenCalled();
+  });
+
+  it("ends the wait when the stage shows another session", async () => {
+    const { r, ctl } = await runningElsewhere();
+    ctl.resumeAfterExit();
+    await vi.advanceTimersByTimeAsync(0);
+    ctl.show({ kind: "session", ref: OTHER });
+    await flush();
+    expect(r.last().phase).toEqual(elsewhere);
+    r.open.mockResolvedValue({ ok: false, target: gone });
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS * 2);
+    expect(r.adopt, "the other session is never reopened by the first one's wait").not.toHaveBeenCalled();
+    expect(r.open.mock.calls.at(-1)?.[0]).toEqual(OTHER);
   });
 });
 
