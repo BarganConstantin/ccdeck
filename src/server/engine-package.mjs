@@ -71,6 +71,7 @@ export const ENGINE_PACKAGE_NAMES = Object.freeze({
   "darwin-x64": "@ccdeck/engine-darwin-x64",
   "darwin-arm64": "@ccdeck/engine-darwin-arm64",
   "win32-x64": "@ccdeck/engine-win32-x64",
+  "win32-arm64": "@ccdeck/engine-win32-arm64",
 });
 
 /** Whether the Command Panel is offered on Windows: the engine ships there, so
