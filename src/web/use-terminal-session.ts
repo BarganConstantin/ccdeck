@@ -56,6 +56,7 @@ import {
   type ApiFailure,
   type SessionRef,
   type TerminalProvider,
+  type TerminalTarget,
   type TmuxProgress,
   type TmuxStatus,
 } from "./terminal-api";
@@ -126,6 +127,11 @@ export const TMUX_SETUP_GIVE_UP_MS = 180_000;
  *  that quitting it there turns the card into Reopen here before the reader
  *  reaches for a button, and an open is one loopback read. */
 export const ELSEWHERE_POLL_MS = 4_000;
+/** The same look while Resume here after exit is armed: the reader has said
+ *  they are about to exit Claude there, so the conversation follows within a
+ *  second or two of it, and the look goes on with the page hidden, since the
+ *  reader is in that other terminal. Still one loopback read each. */
+export const EXIT_WATCH_POLL_MS = 1_500;
 
 // ---------------------------------------------------------------------------
 // What the stage is asked to show.
@@ -639,6 +645,14 @@ export interface TerminalSessionController {
   focus(): void;
   /** Keys typed before the pane could take them (type-ahead.ts). */
   type(text: string): void;
+  /** Resume here after exit: for a Claude session running in a terminal
+   *  outside the deck, keep this card up (`awaitingExit`), look at that exact
+   *  session closely, and reopen it here by itself once nothing holds it any
+   *  more. Only from that card, and only once: a second call does nothing. */
+  resumeAfterExit(): void;
+  /** Cancel on that card: stop waiting, and leave the session and the card
+   *  as they were before. Nothing is asked or started. */
+  stopWaitingForExit(): void;
   /** Paste and submit only to the caller's subjectKey, without moving focus. */
   sendPrompt(text: string, expectedSubject: string): PromptSendResult;
   /** Answer Claude Code's question prompt, a step at a time: each step's keys
@@ -885,9 +899,13 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   let goneFrom: StagePhase | null = null;
   /** The generation a startIfFolder is asking the deck in: one at a time. */
   let askingAt: number | null = null;
+  /** Resume here after exit is armed for the subject on show: it lasts while
+   *  the stage shows that session's card, and ends with anything else. */
+  let exitWatch = false;
 
   const emit = (next: Partial<SessionSnapshot>) => {
     if (disposed) return;
+    if (next.phase) next = { ...next, phase: exitWatched(next.phase) };
     snap = { ...snap, ...next, subject: subjectKey(subject) };
     callbacks.onChange(snap);
   };
@@ -1299,7 +1317,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     watchElsewhere(my);
   };
 
-  const watchElsewhere = (my: number) => {
+  const watchElsewhere = (my: number, delay = exitWatch ? EXIT_WATCH_POLL_MS : ELSEWHERE_POLL_MS) => {
     clearTimer(retryTimer);
     retryTimer = setTimeout(() => {
       retryTimer = null;
@@ -1307,7 +1325,9 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       const now = snap.phase;
       if (now.kind !== "not-attachable" || !now.stillRunning) return;
       const ref = refOf();
-      const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+      // Armed, it looks with the page hidden too: the reader is in the other
+      // terminal, exiting Claude, and the conversation is to be here after.
+      const hidden = !exitWatch && typeof document !== "undefined" && document.visibilityState === "hidden";
       if (!ref || hidden || now.busy) { watchElsewhere(my); return; }
       void deps.api.open(ref, {}, { ...want }, paneColours()).then(answer => {
         if (my !== gen || disposed) return;
@@ -1315,9 +1335,32 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         if (still.kind !== "not-attachable" || !still.stillRunning || still.busy) return;
         // Still running there, or the deck blinked: the card stays as it is.
         if (isFailure(answer) || (!answer.ok && answer.target.kind === "C")) { watchElsewhere(my); return; }
+        // Armed, and nothing holds the conversation any more: reopened here,
+        // as Reopen here would. An ended deck pane of its own is no stop on
+        // the way (the adopt clears it). Held anywhere the deck can show — a
+        // pane another tab reopened it in — it is shown there instead.
+        if (exitWatch && answer.target.kind === "gone" && answer.target.adoptable === true) { resumeHere(answer.target); return; }
         void landOpen(answer, my, false);
       });
-    }, ELSEWHERE_POLL_MS);
+    }, delay);
+  };
+
+  /** Arming and its end, on every phase the stage shows (emit): the card
+   *  says it waits while armed, and anything but the card ends the wait. */
+  const exitWatched = (phase: StagePhase): StagePhase => {
+    if (phase.kind !== "not-attachable") { exitWatch = false; return phase; }
+    if (exitWatch) return phase.awaitingExit ? phase : { ...phase, awaitingExit: true };
+    if (!phase.awaitingExit) return phase;
+    const { awaitingExit: _was, ...rest } = phase;
+    return rest;
+  };
+
+  /** The armed session has stopped where it ran: this card's Reopen here,
+   *  pressed for the reader. Its folder is asked about first and the adopt
+   *  is the deck's, which refuses while anything still holds the session. */
+  const resumeHere = (target: TerminalTarget) => {
+    setPhase({ kind: "not-attachable", target, stillRunning: false, busy: false });
+    reopen();
   };
 
   const landOpen = async (answer: Awaited<ReturnType<SessionDeps["api"]["open"]>>, my: number, reconnecting: boolean, held?: SessionRef["provider"]) => {
@@ -1406,6 +1449,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     dropConnection();
     goneThen = null;
     goneFrom = null;
+    exitWatch = false;
     if (subject.kind === "empty") { setPhase({ kind: "empty" }); return; }
     if (toLaunch() && subject.kind === "launch") {
       setPhase({ kind: "starting", agent: subject.agent, cwd: subject.cwd });
@@ -1669,6 +1713,29 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
 
     adopt() { reopen(); },
 
+    resumeAfterExit() {
+      const phase = snap.phase;
+      const ref = refOf();
+      // Claude only: an idle Codex outside the deck holds nothing the deck can
+      // see, so "nothing holds it" would not mean it stopped. Never on
+      // Windows, whose sessions the deck cannot watch this way.
+      if (disposed || exitWatch || windows || ref?.provider !== "claude") return;
+      if (phase.kind !== "not-attachable" || !phase.stillRunning || phase.busy || phase.target.adoptable !== true) return;
+      exitWatch = true;
+      setPhase(phase);
+      // A first look at once: it may have been quit since the last one.
+      watchElsewhere(gen, 0);
+    },
+
+    stopWaitingForExit() {
+      if (disposed || !exitWatch) return;
+      exitWatch = false;
+      const phase = snap.phase;
+      if (phase.kind !== "not-attachable") return;
+      setPhase(phase);
+      if (phase.stillRunning && !phase.busy) watchElsewhere(gen);
+    },
+
     retry() {
       if (disposed) return;
       const phase = snap.phase;
@@ -1882,6 +1949,8 @@ export interface TerminalSessionView extends SessionSnapshot {
   cancelFolder(): void;
   focus(): void;
   type(text: string): void;
+  resumeAfterExit(): void;
+  stopWaitingForExit(): void;
   sendPrompt(text: string, expectedSubject: string): PromptSendResult;
   sendAsk(steps: readonly AskStep[], expectedSubject: string): Promise<AskSendResult>;
   readScreen(expectedSubject: string): string | null;
@@ -1942,6 +2011,8 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
   const cancelFolder = useCallback(() => controller.current?.cancelFolder(), []);
   const focus = useCallback(() => controller.current?.focus(), []);
   const type = useCallback((text: string) => controller.current?.type(text), []);
+  const resumeAfterExit = useCallback(() => controller.current?.resumeAfterExit(), []);
+  const stopWaitingForExit = useCallback(() => controller.current?.stopWaitingForExit(), []);
   const sendPrompt = useCallback((text: string, expectedSubject: string): PromptSendResult => {
     const ctl = controller.current;
     // A new subject can render before the effect has switched the controller.
@@ -1962,5 +2033,5 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
   const holdsFocus = useCallback(() => controller.current?.holdsFocus() === true, []);
   const release = useCallback(() => controller.current?.release(), []);
 
-  return { ...snapshot, hostRef, adopt, retry, startIfFolder, cancelFolder, focus, type, sendPrompt, sendAsk, readScreen, press, holdsFocus, release };
+  return { ...snapshot, hostRef, adopt, retry, startIfFolder, cancelFolder, focus, type, resumeAfterExit, stopWaitingForExit, sendPrompt, sendAsk, readScreen, press, holdsFocus, release };
 }

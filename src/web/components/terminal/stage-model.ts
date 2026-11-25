@@ -43,6 +43,9 @@ import type { Provider } from "../../types";
  *    pane's own Reopen here led here — the deck said the conversation is
  *    still open, and it could not be shown where it is — named by its agent,
  *    whose card then says so and offers a new session in its place.
+ *    `awaitingExit`: Resume here after exit is armed for a Claude session
+ *    running outside the deck. The stage keeps looking at that exact session
+ *    and reopens it here, by itself, once nothing holds it any more.
  *  - tmux-installing: no usable tmux, and the deck is fetching its own
  *    (src/server/tmux-download.mjs); the stage asks again until it lands.
  *    `progress` is how far it has got, once the deck has said.
@@ -88,7 +91,7 @@ export type StagePhase =
   | { kind: "attaching"; reconnect: boolean }
   | { kind: "starting"; agent: TerminalProvider; cwd: string }
   | { kind: "live"; sizeOwner: SizeOwner; readOnly: boolean }
-  | { kind: "not-attachable"; target: TerminalTarget; stillRunning: boolean; busy: boolean; held?: TerminalProvider }
+  | { kind: "not-attachable"; target: TerminalTarget; stillRunning: boolean; busy: boolean; held?: TerminalProvider; awaitingExit?: boolean }
   | { kind: "tmux-installing"; progress?: TmuxProgress }
   | { kind: "tmux-missing"; reason: string; install?: string; download?: string; busy: boolean }
   | { kind: "ended"; atOpen?: boolean; clean?: boolean; updated?: boolean; busy?: boolean; unresumed?: boolean }
@@ -333,6 +336,27 @@ export const START_NEW_MSG = "board.stage.startNewHere";
 export const START_NEW_TIP_MSG = "board.stage.startNewTip";
 /** The card's first line when the deck refused a Reopen here. */
 export const REOPEN_FAILED_MSG = "board.stage.reopenFailed";
+/** What leads the command that resumes a Claude conversation by hand, shown
+ *  with its Copy under a refused Reopen here. */
+export const RESUME_BY_HAND_MSG = "board.stage.resumeByHand";
+
+/** Resume here after exit, for a Claude session running outside the deck:
+ *  the button; the card's status line while it waits for that exact session
+ *  to end; and the one line that says what to do meanwhile. */
+export const AFTER_EXIT_MSG = "board.stage.afterExit.arm";
+export const AFTER_EXIT_WAITING_MSG = "board.stage.afterExit.waiting";
+export const AFTER_EXIT_HOW_MSG = "board.stage.afterExit.how";
+
+/**
+ * The command that continues a Claude conversation in a terminal of the
+ * reader's own: its folder, then `claude --resume` with its id. The folder is
+ * quoted for a POSIX shell (and fish) unless it is plain; the id is a UUID the
+ * deck checked before it ever named the session.
+ */
+export function resumeCommand(cwd: string, sessionId: string): string {
+  const folder = /^[\w@%+=:,./-]+$/.test(cwd) ? cwd : `'${cwd.replace(/'/g, "'\\''")}'`;
+  return `cd ${folder} && claude --resume ${sessionId}`;
+}
 
 /** The folder-gone card and end bar (StagePhase `folder-gone`): its title, by
  *  why; what it says for a conversation and for a launch ({name}: the agent);

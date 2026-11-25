@@ -54,6 +54,7 @@ import {
   REOPENING_MSG,
   START_NEW_MSG,
   START_NEW_TIP_MSG,
+  resumeCommand,
   spineLive,
   stageAnnouncement,
   type FrameState,
@@ -110,6 +111,19 @@ export function settlesFocus(phase: StagePhase): boolean {
   return phase.kind !== "attaching" && phase.kind !== "starting" && phase.kind !== "tmux-installing"
     && !((phase.kind === "tmux-missing" || phase.kind === "error" || phase.kind === "not-attachable" || phase.kind === "ended" || phase.kind === "folder-gone") && phase.busy)
     && !(phase.kind === "live" && !phase.readOnly);
+}
+
+/** How long after Move session here or Resume here after exit is pressed a
+ *  press on the Cancel that took that button's place still belongs to the
+ *  first press: the second click of a double-click, a held Enter repeating. */
+export const REPEAT_PRESS_MS = 600;
+
+/** Whether a press on a Cancel that has just replaced the button pressed
+ *  before it is that first press again (REPEAT_PRESS_MS, or a click counted
+ *  as the second of a double-click), and so cancels nothing: pressing the
+ *  button twice starts it once. */
+export function repeatedPress(e: { detail?: number } | undefined, sincePressMs: number): boolean {
+  return (e?.detail ?? 0) > 1 || sincePressMs < REPEAT_PRESS_MS;
 }
 
 /**
@@ -556,6 +570,10 @@ export default function TerminalStage(p: TerminalStageProps) {
   // only when it says yes, so nobody gets a button that fails. A later no
   // takes back an earlier yes.
   const [movableFor, setMovableFor] = useState<string | null>(null);
+  // The source the check has answered for, either way. Until then neither
+  // Move session here nor Resume here after exit is offered, so one never
+  // stands in for the other for a moment.
+  const [checkedFor, setCheckedFor] = useState<string | null>(null);
   useEffect(() => {
     if (!couldMove || !claudeSource) return;
     const controller = new AbortController();
@@ -578,6 +596,7 @@ export default function TerminalStage(p: TerminalStageProps) {
           setHandoffIssue(was => was?.source === claudeSource ? was : { source: claudeSource, reason: "ghostty-unsupported" });
         }
       } catch { /* No answer: the button stays as it was. */ }
+      finally { if (!controller.signal.aborted) setCheckedFor(claudeSource); }
     })();
     return () => controller.abort();
   }, [couldMove, claudeSource, handoffCwd]);
@@ -592,8 +611,12 @@ export default function TerminalStage(p: TerminalStageProps) {
     handoffSent.current = null;
     return () => handoffRequest.current?.abort();
   }, [claudeSource]);
-  const toggleHandoff = async () => {
+  // When Move session here was pressed: the Cancel that takes its place does
+  // not answer the rest of that press (repeatedPress).
+  const movedAt = useRef(0);
+  const toggleHandoff = async (e?: { detail?: number }) => {
     if (moving) {
+      if (repeatedPress(e, Date.now() - movedAt.current)) return;
       handoffRequest.current?.abort();
       setHandoffFrom(null);
       setHandoffIssue(null);
@@ -603,6 +626,7 @@ export default function TerminalStage(p: TerminalStageProps) {
     const controller = new AbortController();
     handoffRequest.current = controller;
     setHandoffIssue(null);
+    movedAt.current = Date.now();
     setHandoffFrom(claudeSource);
     let said: unknown;
     try {
@@ -624,6 +648,23 @@ export default function TerminalStage(p: TerminalStageProps) {
     setHandoffFrom(null);
     if (reason === "ghostty-unsupported") setMovableFor(null);
   };
+  // RESUME HERE AFTER EXIT. Where the move is not on offer — a Ghostty too
+  // old to find Claude's window, another terminal, a machine that is not a
+  // Mac — or a move did not happen, the card offers to wait for this exact
+  // session to end where it runs and reopen it here then, by itself
+  // (use-terminal-session's resumeAfterExit). Not while a move that went is
+  // awaited: that one arrives as a background session of its own.
+  const resumeSource = claudeSource && handoffCwd && phase.kind === "not-attachable" && phase.stillRunning && phase.target.adoptable === true
+    ? claudeSource : null;
+  const awaitingExit = phase.kind === "not-attachable" && phase.awaitingExit === true;
+  const moveAwaited = handoffStopped === "already-sent" || handoffStopped === "continuation-timeout";
+  const resumeShown = resumeSource !== null && !moving && (awaitingExit
+    || (!moveAwaited && (checkedFor === resumeSource || !couldMove) && (movableFor !== resumeSource || handoffStopped !== undefined)));
+  const armedAt = useRef(0);
+  const afterExit = resumeShown ? {
+    arm: () => { armedAt.current = Date.now(); session.resumeAfterExit(); },
+    cancel: (e?: { detail?: number }) => { if (!repeatedPress(e, Date.now() - armedAt.current)) session.stopWaitingForExit(); },
+  } : undefined;
   // After a move that was sent and has not arrived: wait for it again, and
   // never ask Ghostty a second time.
   const lookAgain = () => {
@@ -856,6 +897,21 @@ export default function TerminalStage(p: TerminalStageProps) {
   // changes, so the rows are fitted to the height it was drawn at.
   useDrawnHeight(rootRef, ".ts-bar", p.onBarH, ".ts-keyrow");
   useDrawnHeight(rootRef, ".ts-head", p.onHeadH);
+  // The conversation came here by itself once Claude exited where it ran
+  // (Resume here after exit): the keys go into the pane as soon as it takes
+  // them, as after a Reopen here. Not where the reader has since taken the
+  // focus — another pane, a field — which keeps it.
+  const resumedHere = useRef(false);
+  useEffect(() => {
+    if (phase.kind === "not-attachable") { resumedHere.current = phase.awaitingExit === true; return; }
+    if (phase.kind === "attaching") return;
+    const resumed = resumedHere.current;
+    resumedHere.current = false;
+    if (!resumed || phase.kind !== "live" || phase.readOnly) return;
+    const active = document.activeElement;
+    if (!active || active === document.body || rootRef.current?.contains(active)) p.onWantKeys?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
   // The session hook's snapshot is the shown subject's only once it has said
   // so: in the render that moves the stage, it is still the last one's, and
   // a request met on that pane, or answered by its card, would be spent on a
@@ -1093,6 +1149,8 @@ export default function TerminalStage(p: TerminalStageProps) {
         boardState={board?.state ?? null}
         onAdopt={reopen}
         handoff={handoffShown ? { moving, reason: handoffStopped, toggle: toggleHandoff, lookAgain } : undefined}
+        afterExit={afterExit}
+        resumeCommand={claudeSource && handoffCwd ? resumeCommand(handoffCwd, claudeSource) : undefined}
         onNotNow={p.onClose}
         onRetry={retry}
         onStartNew={startNew}
