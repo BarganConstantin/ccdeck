@@ -96,3 +96,32 @@ export function tabStripMove(
       return { kind: "pass" };
   }
 }
+
+/** What a keystroke on a strip with MANUAL activation is for. */
+export type TabStripManualMove =
+  /** Not the strip's key (tabStripMove's pass). */
+  | { kind: "pass" }
+  /** Move the focus, and the strip's one tab stop with it, to the tab at
+   *  this index; the tab on show stays on show. */
+  | { kind: "focus"; index: number }
+  /** Show the tab at this index, the one the focus is on. */
+  | { kind: "activate"; index: number };
+
+/**
+ * The same arrows, Home and End as tabStripMove, for a strip whose panels are
+ * NOT already drawn: a Workspace pane's tabs share one terminal, and showing
+ * one attaches it, which takes a moment and a connection. Walking the strip
+ * would attach every tab on the way, so the keys move the focus only, and
+ * Space shows the tab the focus is on (the APG's manual activation, for tabs
+ * with latency). Enter is the tab's own press, a button's, and is left to it.
+ *
+ * `focused` is the tab the focus is on, not the one on show.
+ */
+export function tabStripManualMove(
+  e: TabStripKey, focused: number, count: number, orientation: TabStripOrientation = "horizontal",
+): TabStripManualMove {
+  const move = tabStripMove(e, focused, count, orientation);
+  if (move.kind === "select") return { kind: "focus", index: move.index };
+  if (e.key === " " && !isBrowserChord(e) && focused >= 0 && focused < count) return { kind: "activate", index: focused };
+  return { kind: "pass" };
+}

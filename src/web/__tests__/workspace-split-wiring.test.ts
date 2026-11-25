@@ -2,6 +2,7 @@
 // and the stage's (use-stage.test.ts "side by side"): ⇧↵ on a row, the page's
 // own drag, where the list and the panes are wired, the sheet, and the words
 // in every language.
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { openBesideOnShiftEnter } from "../components/RailParts";
 import { beginDrag, currentDrag, endDrag, isOurDrag, PANE_DRAG, SESSION_DRAG } from "../split-drag";
@@ -107,21 +108,25 @@ describe("where the list and the panes are wired", () => {
 
   it("drops a pane where it is, a session already open on its pane, and a new one beside", () => {
     expect(shell).toContain('if (dragged.kind === "pane") stage.movePaneTo(dragged.id, view.pane, view.zone);');
-    expect(shell).toContain("else if (view.already) stage.focusPaneId(view.pane, { keys: true });");
+    // CHANGED ON PURPOSE (pane tabs): already in a pane, in any tab, that tab
+    // comes back (dropHere finds it, never a second one).
+    expect(shell).toContain("else if (view.already) stage.dropHere(view.pane, dragged.id);");
+    expect(shell).toContain('const has = panes.find(x2 => x2.tabs.some(tab => tab.target?.kind === "session" && tab.target.id === dragged.id));');
     expect(shell).toContain('else if (view.zone === "here") stage.dropHere(view.pane, dragged.id);');
     expect(shell).toContain("else stage.openBeside(dragged.id, { at: view.pane, zone: view.zone });");
     // Only on the Workspace's cell, never the Board's stage.
     expect(shell).toContain("onDropCapture={fill ? onDrop : undefined}");
   });
 
-  it("closes a pane alone when panes stand side by side", () => {
-    expect(shell).toContain("const close = multi ? () => stage.closePane(id)");
+  it("closes a tab alone, then the last tab's pane alone when panes stand side by side", () => {
+    expect(shell).toMatch(/const close = !fill \? stage\.close\s*: held \? \(\) => stage\.closeTab\(id, held\)\s*: multi \? \(\) => stage\.closePane\(id\) : p\.onBoard \?\? stage\.close;/);
   });
 
   it("shows, not only speaks, why a fifth session took the pane in focus", () => {
     expect(shell).toContain('<p className="wsp-note" role="status" aria-atomic="true" data-on={stage.splitNote ? true : undefined}>');
     const hook = withoutComments(sourceOf("use-stage.ts"));
-    expect(hook).toContain('setSplitNote(n => ({ text: t("board.stage.split.full"), n: (n?.n ?? 0) + 1 }));');
+    expect(hook).toContain('const why = added ? "board.stage.split.noRoom" : "board.stage.split.full";');
+    expect(hook).toContain("setSplitNote(n => ({ text: t(why), n: (n?.n ?? 0) + 1 }));");
     expect(hook).toContain("const id = setTimeout(() => setSplitNote(null), SPLIT_NOTE_MS);");
     expect(sheetText()).toContain(".wsp-note[data-on] { opacity: 1; }");
   });
@@ -130,6 +135,34 @@ describe("where the list and the panes are wired", () => {
     expect(shell).toContain('{arrangement.why === "narrow" && (');
     expect(shell).toContain('<span className="wsp-why" title={t("board.stage.split.narrowHint")}>');
     expect(shell).toContain('{t("board.stage.split.narrow")}');
+  });
+});
+
+describe("a pane's tabs", () => {
+  const shell = withoutComments(sourceOf("components/terminal/StageShell.tsx"));
+  const stage = withoutComments(sourceOf("components/terminal/TerminalStage.tsx"));
+
+  it("draws one stage a pane, switched in place, so a tab not on show holds no terminal socket", () => {
+    // The deck keeps four terminal sockets at most (terminal-socket.mjs): one a pane.
+    expect(readFileSync(new URL("../../server/terminal-socket.mjs", import.meta.url), "utf8")).toContain("export const MAX_TERMINALS = 4;");
+    expect(shell).toMatch(/\{pane\.tabs\.map\(tab => <LaunchWatch key=\{tab\.key\} target=\{tab\.target\} agents=\{agents\} onFound=\{onFound\} \/>\)\}\s*\{stageFor\(pane\)\}\s*<\/SplitPane>/);
+    // A Codex launch in a tab not on show is still found as its own.
+    expect(shell).toMatch(/useCodexLaunch\(p\.target, p\.agents, p\.onFound\);\s*return null;/);
+    expect(stage).not.toMatch(/\bp\.behind\b/);
+  });
+
+  it("names each tab and the pane's stage, the panel they all show, after each other (tablist-contract.test.ts)", () => {
+    expect(shell).toContain("id: paneTabId(id, x.key),");
+    expect(shell).toContain("const panel = own ? WORKSPACE_PANE_ID : panePanelId(id);");
+    expect(shell).toContain("panelId={tabsView ? panel : undefined}");
+    expect(shell).toContain("tabbedBy={tabsView ? paneTabId(id, tab.key) : undefined}");
+    expect(stage).toContain('role={p.tabbedBy ? "tabpanel" : "region"}');
+    expect(stage).toContain("aria-labelledby={p.tabbedBy}");
+  });
+
+  it("answers a focus request in the pane it was asked for, as one stage always did", () => {
+    expect(shell).toContain('focusRequest={multi ? stage.requestFor(id) : shell.phase === "waiting" ? null : shell.focusRequest}');
+    expect(shell).toContain("onAnnounce={stage.announce}");
   });
 });
 
@@ -156,8 +189,9 @@ describe("the sheet", () => {
 });
 
 describe("the words, in every language", () => {
-  const KEYS = ["full", "maximize", "restore", "strip", "divider", "showAll", "narrow", "narrowHint", "already", "showHere", "openBeside", "openAbove", "openBelow", "moveSwap", "moveBeside", "moveAbove", "moveBelow"]
-    .map(k => `board.stage.split.${k}`);
+  const KEYS = ["full", "noRoom", "maximize", "restore", "strip", "divider", "showAll", "narrow", "narrowHint", "already", "showHere", "openBeside", "openAbove", "openBelow", "moveSwap", "moveBeside", "moveAbove", "moveBelow"]
+    .map(k => `board.stage.split.${k}`)
+    .concat(["board.stage.tabs.label", "board.stage.tabs.all", "board.keys.firstWorkspaceTab"]);
   const langs: Record<string, Record<string, string>> = { ro, de, fr, es, "pt-BR": ptBR, ja, ko, "zh-CN": zhCN, "zh-TW": zhTW };
   const holes = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map(m => m[1]).sort();
 

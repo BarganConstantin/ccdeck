@@ -4,9 +4,10 @@
 import { describe, expect, it } from "vitest";
 import type { StageTarget } from "../stage-shell";
 import {
-  MAX_PANES, SPLIT_KEY, fits, focusSplit, insertPane, layoutSplit, loadSplit, minExtent, movePane, paneCount, paneIds,
-  paneTarget, paneWith, parseSplit, promoteLaunch, pruneSplit, ratioAt, readingOrder, removePane, saveSplit,
-  serializeSplit, setRatio, singleSplit, withFocusedTarget, zoneAt, zoneRect, type SplitState,
+  MAX_PANES, MAX_TABS, SPLIT_KEY, closeTab, emptyPaneTabs, fits, focusSplit, heldLaunches, insertPane, layoutSplit,
+  loadSplit, minExtent, movePane, paneCount, paneIds, paneSessions, paneTabs, paneTarget, paneWith, parseSplit,
+  promoteLaunch, pruneSplit, ratioAt, readingOrder, removePane, replaceTab, sameTab, saveSplit, serializeSplit,
+  sessionPaneLinks, setRatio, singleSplit, tabKey, tabWith, withFocusedTarget, zoneAt, zoneRect, type SplitState,
 } from "../workspace-split";
 
 const S = (id: string): StageTarget => ({ kind: "session", id });
@@ -224,7 +225,8 @@ describe("the keys move between panes", () => {
 describe("kept per browser", () => {
   it("round-trips the arrangement with its sessions, never a launch", () => {
     let s = grid();
-    s = { ...s, targets: { ...s.targets, p3: { kind: "launch", agent: "codex", cwd: "/w", key: "k" } } };
+    const launching = { kind: "launch", agent: "codex", cwd: "/w", key: "k" } as const;
+    s = { ...s, targets: { ...s.targets, p3: launching }, tabs: { ...s.tabs, p3: [launching] } };
     const raw = serializeSplit(s, S("s1"))!;
     const back = parseSplit(raw)!;
     expect(paneIds(back.root)).toEqual(paneIds(s.root));
@@ -252,5 +254,196 @@ describe("kept per browser", () => {
     saveSplit(two(), S("s1"), (k, v) => store.set(k, v), k => store.delete(k));
     expect([...store.keys()]).toEqual([SPLIT_KEY]);
     expect(paneIds(loadSplit(k => store.get(k) ?? null)!.root)).toEqual(["p0", "p1"]);
+  });
+});
+
+describe("a pane holds tabs", () => {
+  const L = (key: string): StageTarget => ({ kind: "launch", agent: "claude", cwd: "/w", key });
+  /** Two columns, a third session opened in the left one (the pane in focus). */
+  function third(): SplitState {
+    return withFocusedTarget(two(), S("s3"));
+  }
+
+  it("opens a session as a new tab of the pane in focus: the columns and their sessions stay", () => {
+    const s = third();
+    expect(paneIds(s.root)).toEqual(["p0", "p1"]);
+    expect(paneTabs(s, "p0", S("s3"))).toEqual([S("s1"), S("s3")]);
+    expect(paneTabs(s, "p1", S("s3"))).toEqual([S("s2")]);
+    expect(paneSessions(s, S("s3"))).toEqual(["s1", "s3", "s2"]);
+    // The shell's target is a tab before it is written back.
+    expect(paneTabs(two(), "p0", S("s3"))).toEqual([S("s1"), S("s3")]);
+  });
+
+  it("finds a session in any tab of any pane, so it is never opened twice", () => {
+    const s = third();
+    expect(tabWith(s, "s1", S("s3"))).toEqual({ pane: "p0", target: S("s1") });
+    expect(tabWith(s, "s2", S("s3"))).toEqual({ pane: "p1", target: S("s2") });
+    expect(tabWith(s, "s9", S("s3"))).toBeNull();
+    expect(paneWith(s, "s1", S("s3"), "p0"), "except the pane asked about").toBeNull();
+    // The original comes back as the tab it is, in its place.
+    const back = withFocusedTarget(s, S("s1"));
+    expect(paneTabs(back, "p0", S("s1"))).toEqual([S("s1"), S("s3")]);
+    expect(back.targets.p0).toEqual(S("s1"));
+  });
+
+  it("keeps a launch's tab, and its key, once the launch is a session", () => {
+    let s = withFocusedTarget(two(), L("k1"));
+    expect(paneTabs(s, "p0", L("k1"))).toEqual([S("s1"), L("k1")]);
+    const promoted: StageTarget = { kind: "session", id: "s5", launch: "k1" };
+    s = withFocusedTarget(s, promoted);
+    expect(paneTabs(s, "p0", promoted)).toEqual([S("s1"), promoted]);
+    expect(tabKey(L("k1"))).toBe(tabKey(promoted));
+    expect(tabKey(S("s1"))).toBe("s:s1");
+    expect(sameTab(L("k1"), promoted)).toBe(true);
+    expect(sameTab(S("s5"), promoted)).toBe(true);
+    expect(sameTab(S("s1"), S("s2"))).toBe(false);
+    expect(sameTab({ kind: "empty" }, { kind: "empty" })).toBe(false);
+    // A session's tab never goes back to the launch it came from.
+    expect(paneTabs(s, "p0", L("k1"))).toEqual([S("s1"), promoted]);
+  });
+
+  it("names the launches a pane holds in a tab, not the one the shell shows", () => {
+    let s = withFocusedTarget(two(), L("k1"));
+    s = withFocusedTarget(s, S("s1"));
+    expect(heldLaunches(s, S("s1"))).toEqual(["k1"]);
+    expect(heldLaunches(s, L("k1"))).toEqual([]);
+    s = promoteLaunch(s, "k1", "s9");
+    expect(s.tabs.p0).toEqual([S("s1"), { kind: "session", id: "s9", launch: "k1" }]);
+    expect(heldLaunches(s, S("s1"))).toEqual([]);
+  });
+
+  it(`keeps ${MAX_TABS} tabs at most: the oldest one not on show leaves the strip`, () => {
+    let s = withFocusedTarget(singleSplit(), S("t0"));
+    for (let i = 1; i <= MAX_TABS; i++) s = withFocusedTarget(s, S(`t${i}`));
+    expect(s.tabs.p0).toHaveLength(MAX_TABS);
+    expect(s.tabs.p0![0]).toEqual(S("t1"));
+    expect(s.tabs.p0![MAX_TABS - 1]).toEqual(S(`t${MAX_TABS}`));
+    // Shown again, the oldest keeps its place; once another comes on, it goes.
+    s = withFocusedTarget(s, S("t1"));
+    expect(s.tabs.p0![0]).toEqual(S("t1"));
+    s = withFocusedTarget(s, S("t99"));
+    expect(s.tabs.p0).toHaveLength(MAX_TABS);
+    expect(s.tabs.p0![0]).toEqual(S("t2"));
+    expect(s.tabs.p0![MAX_TABS - 1]).toEqual(S("t99"));
+  });
+
+  it("closes a tab alone: its neighbour on the right comes on, else the one before", () => {
+    let s = withFocusedTarget(third(), S("s4"));
+    s = withFocusedTarget(s, S("s3"));
+    // p0: s1 s3 s4, s3 on show.
+    const mid = closeTab(s, "p0", S("s3"), S("s3"))!;
+    expect(mid.shown).toBe(true);
+    expect(mid.shows).toEqual(S("s4"));
+    expect(mid.state.tabs.p0).toEqual([S("s1"), S("s4")]);
+    expect(mid.state.targets.p0).toEqual(S("s4"));
+    const last = closeTab(withFocusedTarget(s, S("s4")), "p0", S("s4"), S("s4"))!;
+    expect(last.shows).toEqual(S("s3"));
+    // A tab behind: the one on show stays.
+    const behind = closeTab(s, "p0", S("s1"), S("s3"))!;
+    expect(behind.shown).toBe(false);
+    expect(behind.shows).toEqual(S("s3"));
+    expect(behind.state.tabs.p0).toEqual([S("s3"), S("s4")]);
+    expect(paneIds(behind.state.root), "the panes stay").toEqual(["p0", "p1"]);
+    // A pane beside: its own tabs, the keys where they were.
+    const beside = closeTab(withFocusedTarget(focusSplit(s, "p1", S("s3")), S("s7")), "p1", S("s2"), S("s7"))!;
+    expect(beside.shows).toEqual(S("s7"));
+    expect(beside.state.focused).toBe("p1");
+  });
+
+  it("leaves the pane's last tab to the pane's own close", () => {
+    expect(closeTab(two(), "p1", S("s2"), S("s1"))).toBeNull();
+    expect(closeTab(two(), "p9", S("s2"), S("s1"))).toBeNull();
+    const emptied = emptyPaneTabs(third(), "p0");
+    expect(emptied.tabs.p0).toEqual([]);
+    expect(emptied.targets.p0).toEqual({ kind: "empty" });
+    expect(paneTabs(emptied, "p0", { kind: "empty" })).toEqual([]);
+    expect(emptyPaneTabs(emptied, "p9")).toBe(emptied);
+  });
+
+  it("puts Start again and a continuation in their tab's place", () => {
+    let s = withFocusedTarget(third(), L("k1"));
+    s = withFocusedTarget(s, S("s1"));
+    // p0: s1 s3 k1.
+    const again = replaceTab(s, "p0", L("k1"), L("k2"));
+    expect(again.tabs.p0).toEqual([S("s1"), S("s3"), L("k2")]);
+    expect(again.targets.p0).toEqual(L("k2"));
+    // A continuation already held in another tab of the pane takes this one's place.
+    const moved = replaceTab(s, "p0", S("s1"), S("s3"));
+    expect(moved.tabs.p0).toEqual([S("s3"), L("k1")]);
+    expect(replaceTab(s, "p1", S("s1"), S("s8")), "a pane without the tab").toBe(s);
+  });
+
+  it("badges every tab's session with its pane, active only the one on show in the pane in focus", () => {
+    // In workspace-session-links.test.ts at large; here the 2-column example.
+    expect(Object.fromEntries(sessionPaneLinks(third(), S("s3")))).toEqual({
+      s1: { number: 1, active: false },
+      s3: { number: 1, active: true },
+      s2: { number: 2, active: false },
+    });
+  });
+
+  it("keeps the tabs through a reload, never a launch", () => {
+    let s = withFocusedTarget(third(), L("k1"));
+    s = withFocusedTarget(s, S("s3"));
+    const back = parseSplit(serializeSplit(s, S("s3")))!;
+    expect(paneIds(back.root)).toEqual(["p0", "p1"]);
+    expect(back.tabs).toEqual({ p0: [S("s1"), S("s3")], p1: [S("s2")] });
+    expect(back.targets).toEqual({ p0: S("s3"), p1: S("s2") });
+  });
+
+  it("keeps one pane once it holds two tabs, and forgets it with one", () => {
+    const one = withFocusedTarget(withFocusedTarget(singleSplit(), S("s1")), S("s2"));
+    const back = parseSplit(serializeSplit(one, S("s2")))!;
+    expect(paneIds(back.root)).toEqual(["p0"]);
+    expect(back.tabs.p0).toEqual([S("s1"), S("s2")]);
+    expect(back.targets.p0).toEqual(S("s2"));
+    const closed = closeTab(one, "p0", S("s1"), S("s2"))!;
+    expect(serializeSplit(closed.state, S("s2"))).toBeNull();
+  });
+
+  it("loads an arrangement kept before tabs as one tab a pane", () => {
+    const old = JSON.stringify({
+      v: 1,
+      root: { kind: "split", dir: "row", ratio: 0.5, a: { kind: "leaf", id: "p0" }, b: { kind: "leaf", id: "p1" } },
+      panes: { p0: "s1", p1: null },
+      focused: "p1",
+      next: 2,
+    });
+    const s = parseSplit(old)!;
+    expect(s.targets).toEqual({ p0: S("s1"), p1: { kind: "empty" } });
+    expect(s.tabs).toEqual({ p0: [S("s1")], p1: [] });
+    expect(s.focused).toBe("p1");
+    // One pane kept before tabs: one tab, which is not kept at all.
+    expect(parseSplit(JSON.stringify({ v: 1, root: { kind: "leaf", id: "p0" }, panes: { p0: "s1" }, focused: "p0", next: 1 }))).toBeNull();
+  });
+
+  it("reads kept tabs with care: a session in one pane at most, the one on show among them", () => {
+    const raw = JSON.stringify({
+      v: 1,
+      root: { kind: "split", dir: "row", ratio: 0.5, a: { kind: "leaf", id: "p0" }, b: { kind: "leaf", id: "p1" } },
+      panes: { p0: "s1", p1: null },
+      tabs: { p0: ["s2", "s2", 7, "", "s1"], p1: ["s2", "s3"] },
+      focused: "p0",
+      next: 2,
+    });
+    const s = parseSplit(raw)!;
+    expect(s.tabs.p0).toEqual([S("s2"), S("s1")]);
+    expect(s.tabs.p1, "s2 is p0's").toEqual([S("s3")]);
+    expect(s.targets.p1, "a pane that showed a launch shows its newest tab").toEqual(S("s3"));
+    const many = JSON.stringify({ v: 1, root: { kind: "leaf", id: "p0" }, panes: { p0: "a0" },
+      tabs: { p0: Array.from({ length: MAX_TABS + 3 }, (_, i) => `a${i}`) }, focused: "p0", next: 1 });
+    const capped = parseSplit(many)!;
+    expect(capped.tabs.p0).toHaveLength(MAX_TABS);
+    expect(capped.tabs.p0).toContainEqual(S("a0"));
+  });
+
+  it("lets go of the tabs whose session is gone: the neighbour comes on, a pane left with none closes", () => {
+    let s = withFocusedTarget(third(), S("s4"));
+    s = withFocusedTarget(s, S("s3"));
+    // p0: s1 s3 s4, s3 on show; p1: s2.
+    const pruned = pruneSplit(s, id => id !== "s3" && id !== "s2");
+    expect(paneIds(pruned.root)).toEqual(["p0"]);
+    expect(pruned.tabs.p0).toEqual([S("s1"), S("s4")]);
+    expect(pruned.targets.p0).toEqual(S("s4"));
   });
 });

@@ -18,7 +18,7 @@ import {
   type StageDeps,
 } from "../use-stage";
 import { TYPE_AHEAD_MS } from "../type-ahead";
-import { paneIds, paneTarget } from "../workspace-split";
+import { SPLIT_KEY, paneIds, paneTabs, paneTarget } from "../workspace-split";
 import { en } from "../i18n/en";
 import { settingsFailure, setSettingsFailure } from "../settings-failure";
 import { mount } from "./fake-react";
@@ -1803,6 +1803,198 @@ describe("Workspace: sessions side by side (internal #102)", () => {
   });
 });
 
+
+describe("Workspace: a pane holds tabs", () => {
+  const six = ["s1", "s2", "s3", "s4", "s5", "s6"].map(id => root(id));
+  type T = ReturnType<typeof setup>;
+  function inWorkspace(): T {
+    const t = setup({ view: "workspace", agents: six, selected: "s1" });
+    t.turnOn();
+    t.now().stage.switchTo("s1", { focusPane: true });
+    return t;
+  }
+  const S = (id: string) => ({ kind: "session" as const, id });
+  const panes = (t: T) => paneIds(t.now().stage.split.root);
+  const live = (t: T) => (t.now().stage.shell.phase !== "closed" ? t.now().stage.shell.target : null);
+  /** What each pane shows, in pane order. */
+  const shows = (t: T) => panes(t).map(id => {
+    const target = paneTarget(t.now().stage.split, id, live(t));
+    return target.kind === "session" ? target.id : target.kind;
+  });
+  /** Each pane's tabs, in pane order. */
+  const tabs = (t: T) => panes(t).map(id => paneTabs(t.now().stage.split, id, live(t)).map(x => (x.kind === "session" ? x.id : x.kind)));
+  /** Two columns: s1 on the left, s2 on the right with the keys. */
+  function twoColumns(): T {
+    const t = inWorkspace();
+    t.now().stage.openBeside("s2");
+    expect(shows(t)).toEqual(["s1", "s2"]);
+    return t;
+  }
+
+  it("opens a third session as a tab of the column in focus: two columns stay, and the original comes back as it was", () => {
+    const t = twoColumns();
+    const [, right] = panes(t);
+    t.now().stage.openInPane("s3", { focusPane: true });
+    expect(panes(t), "still two columns").toHaveLength(2);
+    expect(tabs(t)).toEqual([["s1"], ["s2", "s3"]]);
+    expect(shows(t)).toEqual(["s1", "s3"]);
+    expect(t.now().stage.split.focused).toBe(right);
+    // The original again: the same tab, no third one, no new pane.
+    t.now().stage.openInPane("s2", { focusPane: true });
+    expect(tabs(t)).toEqual([["s1"], ["s2", "s3"]]);
+    expect(shows(t)).toEqual(["s1", "s2"]);
+    expect(t.now().stage.shell.target).toEqual(S("s2"));
+  });
+
+  it("does the same for a session opened on the Board, back in Workspace", () => {
+    const t = twoColumns();
+    t.now().stage.leaveWorkspace();
+    t.view.rerender({ ...t.props, deps: { ...t.deps, view: "board" } });
+    t.now().stage.openInPane("s3", { focusPane: true });
+    t.view.rerender({ ...t.props, deps: { ...t.deps, view: "workspace" } });
+    expect(panes(t)).toHaveLength(2);
+    expect(tabs(t)).toEqual([["s1"], ["s2", "s3"]]);
+    expect(shows(t)).toEqual(["s1", "s3"]);
+  });
+
+  it("brings back a session from a tab behind, in another pane, with the keys, and moves no tab", () => {
+    const t = twoColumns();
+    const [left, right] = panes(t);
+    t.now().stage.openInPane("s3", { focusPane: true });
+    t.now().stage.switchTo("s1", { focusPane: true });
+    expect(t.now().stage.split.focused).toBe(left);
+    // s2 is a tab behind s3 in the right pane.
+    t.now().stage.switchTo("s2", { focusPane: true });
+    expect(t.now().stage.split.focused).toBe(right);
+    expect(tabs(t)).toEqual([["s1"], ["s2", "s3"]]);
+    expect(shows(t)).toEqual(["s1", "s2"]);
+    t.now().stage.reveal();
+    t.now().stage.revealed();
+    const asked = t.now().stage.requestFor(right!);
+    expect(asked, "the keyboard goes into that tab's terminal").not.toBeNull();
+    expect(t.now().stage.requestFor(left!)).toBeNull();
+    // A click on a row asks for no keys: the pane's one stage switches in
+    // place and is handed the request it already answered, not a new one.
+    t.now().stage.openInPane("s3");
+    expect(shows(t)).toEqual(["s1", "s3"]);
+    expect(t.now().stage.requestFor(right!)).toBe(asked);
+    t.now().stage.openInPane("s2");
+    expect(t.now().stage.requestFor(right!)).toBe(asked);
+    // ⇧↵ (beside) on a session already in a tab does the same: no new pane.
+    t.now().stage.openBeside("s3");
+    expect(panes(t)).toHaveLength(2);
+    expect(shows(t)).toEqual(["s1", "s3"]);
+  });
+
+  it("switches tabs from the strip: with the keys on a press, on the strip by the arrows", () => {
+    const t = twoColumns();
+    const [left, right] = panes(t);
+    t.now().stage.openInPane("s3", { focusPane: true });
+    t.now().stage.activateTab(right!, S("s2"), { keys: false });
+    expect(shows(t)).toEqual(["s1", "s2"]);
+    expect(tabs(t)).toEqual([["s1"], ["s2", "s3"]]);
+    // A tab of a pane without the keys: that pane takes them.
+    t.now().stage.activateTab(left!, S("s1"), { keys: true });
+    expect(t.now().stage.split.focused).toBe(left);
+    expect(shows(t)).toEqual(["s1", "s2"]);
+    // A tab the pane does not hold is no switch.
+    t.now().stage.activateTab(left!, S("s3"), { keys: true });
+    expect(shows(t)).toEqual(["s1", "s2"]);
+  });
+
+  it("closes a tab alone: the neighbour comes on, the session runs on, the last tab closes its pane", () => {
+    const t = twoColumns();
+    const [left, right] = panes(t);
+    t.now().stage.openInPane("s3", { focusPane: true });
+    t.now().stage.openInPane("s4", { focusPane: true });
+    t.now().stage.activateTab(right!, S("s3"), { keys: true });
+    expect(tabs(t)).toEqual([["s1"], ["s2", "s3", "s4"]]);
+    // The tab on show: its right-hand neighbour comes on, with the keys.
+    t.now().stage.closeTab(right!, S("s3"));
+    expect(tabs(t)).toEqual([["s1"], ["s2", "s4"]]);
+    expect(shows(t)).toEqual(["s1", "s4"]);
+    expect(t.now().stage.split.focused).toBe(right);
+    // A tab behind: the one on show stays.
+    t.now().stage.closeTab(right!, S("s2"));
+    expect(tabs(t)).toEqual([["s1"], ["s4"]]);
+    expect(shows(t)).toEqual(["s1", "s4"]);
+    // Nothing was ended: the board still has every session.
+    for (const id of ["s2", "s3"]) expect(t.agents.has(id)).toBe(true);
+    // The last tab of a pane beside another: its pane closes, the keys go beside.
+    t.now().stage.closeTab(right!, S("s4"));
+    expect(panes(t)).toEqual([left]);
+    expect(t.now().stage.shell.target).toEqual(S("s1"));
+    // The last tab of the one pane: the pane empties, as it always did.
+    t.now().stage.closeTab(left!, S("s1"));
+    expect(panes(t)).toHaveLength(1);
+    expect(t.now().stage.shell.target).toEqual({ kind: "empty" });
+    expect(tabs(t)).toEqual([[]]);
+  });
+
+  it("at four panes, beside opens as a tab of the pane it was asked beside, and says why", () => {
+    const t = inWorkspace();
+    for (const id of ["s2", "s3", "s4"]) t.now().stage.openBeside(id);
+    const focused = t.now().stage.split.focused;
+    const before = tabs(t);
+    t.now().stage.openBeside("s5");
+    expect(panes(t)).toHaveLength(4);
+    expect(t.now().stage.split.focused).toBe(focused);
+    const at = panes(t).indexOf(focused);
+    expect(tabs(t)[at]).toEqual([...before[at]!, "s5"]);
+    expect(t.now().stage.splitNote).toBe(en["board.stage.split.full"]);
+    // A drop on another pane's edge: a tab of that pane, which takes the keys.
+    const other = panes(t).find(id => id !== focused)!;
+    t.now().stage.openBeside("s6", { at: other, zone: "right" });
+    expect(t.now().stage.split.focused).toBe(other);
+    expect(tabs(t)[panes(t).indexOf(other)]).toContain("s6");
+    expect(panes(t)).toHaveLength(4);
+  });
+
+  it("with no room for another pane, opens a tab in the pane in focus, and says so", () => {
+    const t = setup({ view: "workspace", agents: six, selected: "s1" });
+    const min = t.now().stage.paneMin;
+    // A cell that holds one pane, and not two side by side nor one above the
+    // other; measured as the pane opens.
+    page.canvas.clientWidth = page.canvas.box.w = 2 * min.w;
+    page.canvas.clientHeight = page.canvas.box.h = 2 * min.h;
+    t.turnOn();
+    t.now().stage.switchTo("s1", { focusPane: true });
+    expect(t.now().stage.roomBeside(t.now().stage.split.focused, "right")).toBe(false);
+    t.now().stage.openBeside("s2");
+    expect(panes(t)).toHaveLength(1);
+    expect(tabs(t)).toEqual([["s1", "s2"]]);
+    expect(shows(t)).toEqual(["s2"]);
+    expect(t.now().stage.splitNote).toBe(en["board.stage.split.noRoom"]);
+  });
+
+  it("keeps the tabs through a reload, the pane in focus on what it showed", () => {
+    const first = twoColumns();
+    first.now().stage.openInPane("s3", { focusPane: true });
+    expect(JSON.parse(local.get(SPLIT_KEY)!).tabs).toEqual({ p0: ["s1"], [panes(first)[1]!]: ["s2", "s3"] });
+    first.view.unmount();
+    // The page again: the stage puts back the session it showed.
+    session.set(STAGE_RESTORE_KEY, JSON.stringify({ id: "s3", at: Date.now() }));
+    const t = setup({ view: "workspace", agents: six, selected: null });
+    t.turnOn();
+    expect(panes(t)).toHaveLength(2);
+    expect(tabs(t)).toEqual([["s1"], ["s2", "s3"]]);
+    expect(shows(t)).toEqual(["s1", "s3"]);
+  });
+
+  it("keeps one pane's tabs through a reload too, and nothing once it is one tab again", () => {
+    const first = inWorkspace();
+    first.now().stage.openInPane("s2", { focusPane: true });
+    expect(JSON.parse(local.get(SPLIT_KEY)!).tabs).toEqual({ p0: ["s1", "s2"] });
+    first.view.unmount();
+    session.set(STAGE_RESTORE_KEY, JSON.stringify({ id: "s2", at: Date.now() }));
+    const t = setup({ view: "workspace", agents: six, selected: null });
+    t.turnOn();
+    expect(tabs(t)).toEqual([["s1", "s2"]]);
+    expect(shows(t)).toEqual(["s2"]);
+    t.now().stage.closeTab(panes(t)[0]!, S("s1"));
+    expect(local.has(SPLIT_KEY)).toBe(false);
+  });
+});
 
 describe("subagents open their main conversation's terminal", () => {
   const family = () => [

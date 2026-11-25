@@ -27,7 +27,7 @@ import { isAlarming } from "../ambient-counts";
 import { useT } from "../i18n";
 import { agentCost } from "../usage-models";
 import type { GraphState } from "../reducer";
-import type { BackgroundJob, Provider, SessionRecap, WaitingBlock } from "../types";
+import type { AgentNodeData, BackgroundJob, Provider, SessionRecap, WaitingBlock } from "../types";
 import { sessionNoteShown, type SessionNote } from "../session-note";
 import { drawnState, neverPrompted } from "../node-face";
 import { isAgentVisible } from "../visibility";
@@ -41,7 +41,7 @@ import {
 } from "../rail-model";
 import { leaveHoldMs, playGroupOpen, useRailFlip, useRailMembership } from "../rail-motion";
 import { prefersReducedMotion } from "../viewport-motion";
-import { compactRowContexts, lastTypedPrompt, runningTool, sessionNames, startedHover, twinClocks, type TwinClock } from "../rail-row-copy";
+import { compactRowContexts, lastTypedPrompt, railGlyph, runningTool, sessionNames, startedHover, twinClocks, type RailGlyphKind, type TwinClock } from "../rail-row-copy";
 import { PauseGlyph } from "./rail-glyphs";
 import { CloseGlyph, FoldBody, GroupHead, HiddenLine, MoreLine, PlusGlyph, RailRow, railRowId, type FoldMode, type RowAct, type RowPin } from "./RailParts";
 import HideUndo from "./HideUndo";
@@ -155,6 +155,21 @@ export function rank(r: Row): RailGroup {
   const turnEnded = r.state !== "active" || r.waiting?.kind === "idle";
   if (!turnEnded) return r.neverPrompted ? 4 : 2;
   return r.unseen ? 1 : 3;
+}
+
+/** The mark a session's row wears in this list, from its root alone: the
+ *  row's group (rank) and its glyph (railGlyph), from the fields buildRows
+ *  gives them. A Workspace pane's tab wears the same mark, so a session the
+ *  list calls Done is never another state in its tab. */
+export function rowGlyphOf(a: AgentNodeData): RailGlyphKind {
+  const r = {
+    state: drawnState(a),
+    waiting: a.waiting,
+    job: a.job ?? null,
+    neverPrompted: neverPrompted(a),
+    ...(a.toolErrorCount ? { toolErrorCount: a.toolErrorCount } : null),
+  } as Row;
+  return railGlyph(r, rank(r));
 }
 
 /** The newest call still running on an active agent. The reducer appends, so
