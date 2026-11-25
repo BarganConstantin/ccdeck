@@ -1094,6 +1094,8 @@ const catalog: Catalog = {
   "board.list.pinRow": "置顶",
   "board.list.unpinRow": "取消置顶",
   "board.list.pinnedSuffix": "，已置顶",
+  "board.list.collapseGroup": "折叠{group}",
+  "board.list.expandGroup": "展开{group}",
 };
 
 export default catalog;

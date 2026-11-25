@@ -1094,6 +1094,8 @@ const catalog: Catalog = {
   "board.list.pinRow": "고정",
   "board.list.unpinRow": "고정 해제",
   "board.list.pinnedSuffix": ", 고정됨",
+  "board.list.collapseGroup": "{group} 접기",
+  "board.list.expandGroup": "{group} 펼치기",
 };
 
 export default catalog;

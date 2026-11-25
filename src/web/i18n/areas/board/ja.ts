@@ -1094,6 +1094,8 @@ const catalog: Catalog = {
   "board.list.pinRow": "ピン留めする",
   "board.list.unpinRow": "ピン留めを外す",
   "board.list.pinnedSuffix": "、ピン留め中",
+  "board.list.collapseGroup": "{group}を折りたたむ",
+  "board.list.expandGroup": "{group}を展開",
 };
 
 export default catalog;
