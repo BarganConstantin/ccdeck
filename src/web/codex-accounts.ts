@@ -26,6 +26,13 @@ export interface CodexProfile {
   available?: boolean;
   /** An account this deck made, which is the only kind it removes. */
   managed?: boolean;
+  /** The home Codex uses by itself (CODEX_HOME, else ~/.codex): Codex's own
+   *  sign-in folder, which the deck never removes. */
+  codexOwnHome?: boolean;
+  /** That row is signed out and nothing uses it, so it may be hidden. */
+  hideable?: boolean;
+  /** Hidden from the list until Codex signs in there or it is shown again. */
+  hidden?: boolean;
   /** The name somebody gave it. */
   managedLabel?: string;
   /** Who it is signed in as, or null. */

@@ -134,6 +134,16 @@ const catalog: Catalog = {
   "codex.menu.save": "Guardar",
   "codex.menu.saveTitle": "Un nombre corto que se muestra en lugar del correo",
 
+  // Codex's own home: why it has no Remove, and its Hide / Show
+  "codex.menu.hide": "Ocultar",
+  "codex.menu.hideTitle": "Oculta esta fila mientras siga sin iniciar sesión. Vuelve sola cuando Codex inicie sesión aquí.",
+  "codex.menu.show": "Mostrar {name}",
+  "codex.menu.showTitle": "Devuelve la cuenta oculta a la lista",
+  "codex.menu.notRemovable": "No se puede eliminar: es la propia carpeta de inicio de sesión de Codex, y {product} nunca la borra.",
+  "codex.panel.hidden": "{name} está oculta. El menú ⋯ de cualquier cuenta la vuelve a mostrar.",
+  "codex.panel.hideFailed": "No se pudo ocultar la cuenta. Recarga e inténtalo de nuevo.",
+  "codex.panel.showFailed": "No se pudo mostrar la cuenta. Recarga e inténtalo de nuevo.",
+
   "codex.add.reason.missing": "Codex no está instalado en este equipo, o ccdeck no lo encuentra.",
   "codex.add.reason.expired": "El código caducó antes de usarse.",
   "codex.add.reason.noCode": "Codex no proporcionó un código de inicio de sesión.",

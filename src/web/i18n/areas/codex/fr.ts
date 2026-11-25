@@ -138,6 +138,16 @@ const catalog: Catalog = {
   "codex.menu.save": "Enregistrer",
   "codex.menu.saveTitle": "Un nom court à afficher à la place de l'e-mail",
 
+  // Codex's own home: why it has no Remove, and its Hide / Show
+  "codex.menu.hide": "Masquer",
+  "codex.menu.hideTitle": "Masque cette ligne tant qu'elle reste déconnectée. Elle revient d'elle-même dès que Codex se connecte ici.",
+  "codex.menu.show": "Afficher {name}",
+  "codex.menu.showTitle": "Remettre le compte masqué dans la liste",
+  "codex.menu.notRemovable": "Impossible à retirer : c'est le dossier de connexion propre à Codex, et {product} ne le supprime jamais.",
+  "codex.panel.hidden": "{name} est masqué. Le menu ⋯ de n'importe quel compte l'affiche à nouveau.",
+  "codex.panel.hideFailed": "Impossible de masquer le compte. Rechargez et réessayez.",
+  "codex.panel.showFailed": "Impossible d'afficher le compte. Rechargez et réessayez.",
+
   // The Add / Sign in dialog (AddCodexAccountDialog)
   "codex.add.reason.missing": "Codex n'est pas installé sur cette machine, ou ccdeck ne le trouve pas.",
   "codex.add.reason.expired": "Le code a expiré avant d'être utilisé.",
