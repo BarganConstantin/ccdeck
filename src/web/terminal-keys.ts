@@ -160,19 +160,23 @@ export const RELEASE_CHORD_SPOKEN_MSG = "board.keys.releaseChordSpoken";
 
 // ── 1. the pane ─────────────────────────────────────────────────────────────
 
-/** The attribute that marks the pane: every element under it hands every key
- *  to the session. On the element that holds the terminal, not on the stage's
- *  header or keys bar — those are where focus goes when the keys go back to the
- *  board, and from there j, k and n must work. */
 export type PaneDirection = "left" | "right" | "up" | "down";
 
 export const PANE_ARROWS: ReadonlyMap<string, PaneDirection> = new Map([
   ["ArrowLeft", "left"], ["ArrowRight", "right"], ["ArrowUp", "up"], ["ArrowDown", "down"],
 ]);
 
+/** The split-pane chord as the status bar writes a chord, in one cap. */
 export function paneFocusChordLabel(apple = isApplePlatform(platformName()), desktop = inDesktopApp()): string {
   if (!apple) return "Ctrl+Shift+↑↓←→";
   return desktop ? "⌘⌥ ↑↓←→" : "⌥⇧ ↑↓←→";
+}
+
+/** The same chord as the shortcut sheet writes one, a chip to a key
+ *  (KeyboardHelp.tsx, capChips): `cap` elsewhere, `macCap` on a Mac. */
+export const PANE_FOCUS_CAP = "Ctrl + Shift + ↑↓←→";
+export function paneFocusMacCap(desktop = inDesktopApp()): string {
+  return desktop ? "⌘ ⌥ ↑↓←→" : "⌥ ⇧ ↑↓←→";
 }
 
 export function paneFocusDirection(e: ChordKey, apple = isApplePlatform(platformName()), desktop = inDesktopApp()): PaneDirection | null {
@@ -182,6 +186,10 @@ export function paneFocusDirection(e: ChordKey, apple = isApplePlatform(platform
   return matches ? PANE_ARROWS.get(e.key) ?? null : null;
 }
 
+/** The attribute that marks the pane: every element under it hands every key
+ *  to the session. On the element that holds the terminal, not on the stage's
+ *  header or keys bar — those are where focus goes when the keys go back to the
+ *  board, and from there j, k and n must work. */
 export const TERMINAL_PANEL_SELECTOR = "[data-terminal-panel]";
 
 /** The attribute on the pane that carries the name the stage's header shows,

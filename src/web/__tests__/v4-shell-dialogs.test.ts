@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { sheetText } from "./sheet-source";
 import { clearCopy } from "../clear-confirm";
 import { KEY_HELP, WORKSPACE_KEY_ROW, keyHelpFor } from "../key-help";
-import { paneFocusChordLabel } from "../terminal-keys";
+import { PANE_FOCUS_CAP, paneFocusMacCap } from "../terminal-keys";
 import { capChips, splitColumns } from "../components/KeyboardHelp";
 import board from "../i18n/areas/board/en";
 import shell from "../i18n/areas/shell/en";
@@ -100,7 +100,7 @@ describe("Keyboard shortcuts", () => {
     // CHANGED ON PURPOSE (first use of Workspace): F2, Workspace's five rows
     // after its chord and the Terminal group's five are new. Then the chord
     // that moves between split panes, and the two Shift taps in a terminal.
-    for (const cap of ["F2", "1 – 4", "Ctrl + Shift + X", "Ctrl + =", "Ctrl + -", "Ctrl + 0", paneFocusChordLabel(), "Shift ×2"]) expect(caps, cap).toContain(cap);
+    for (const cap of ["F2", "1 – 4", "Ctrl + Shift + X", "Ctrl + =", "Ctrl + -", "Ctrl + 0", PANE_FOCUS_CAP, "Shift ×2"]) expect(caps, cap).toContain(cap);
     expect(caps).toHaveLength(49);
     expect(caps).not.toContain("Space");
   });
@@ -125,6 +125,10 @@ describe("Keyboard shortcuts", () => {
     expect(capChips("Ctrl + Shift + X")).toEqual(["Ctrl", "Shift", "X"]);
     expect(capChips("⌃ ⇧ X")).toEqual(["⌃", "⇧", "X"]);
     expect(capChips("1 – 4")).toEqual(["1 – 4"]);
+    // The split-pane chord too, on every platform, arrows as one chip.
+    expect(capChips(PANE_FOCUS_CAP)).toEqual(["Ctrl", "Shift", "↑↓←→"]);
+    expect(capChips(paneFocusMacCap(false))).toEqual(["⌥", "⇧", "↑↓←→"]);
+    expect(capChips(paneFocusMacCap(true))).toEqual(["⌘", "⌥", "↑↓←→"]);
     expect(capChips("double-click")).toEqual(["double-click"]);
     expect(sheet).toContain("apple && row.macCap ? row.macCap : row.cap");
   });

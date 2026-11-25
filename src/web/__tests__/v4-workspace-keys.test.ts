@@ -7,7 +7,7 @@ import { resetLanguageForTest, setLanguage } from "../i18n";
 import { sourceOf } from "./client-source";
 import { withoutComments } from "./tsx-scan";
 import {
-  VIEW_CHORD, isViewChord, paneFocusChordLabel, paneFocusDirection, stageKeyIntent, stepSession, terminalKeyHandler, terminalKeyInput, terminalKeyOutcome,
+  PANE_FOCUS_CAP, VIEW_CHORD, isViewChord, paneFocusDirection, stageKeyIntent, stepSession, terminalKeyHandler, terminalKeyInput, terminalKeyOutcome,
   type TerminalKey,
 } from "../terminal-keys";
 import { adjacentPane } from "../workspace-split";
@@ -178,7 +178,7 @@ describe("what names the chord", () => {
     const workspace = groups.find(g => g.id === "workspace")!;
     expect(workspace.title).toBe("Workspace");
     expect(workspace.rows[0]).toBe(WORKSPACE_KEY_ROW);
-    expect(workspace.rows.map(r => r.cap)).toEqual(["Ctrl + `", paneFocusChordLabel(), "click", "Enter", "Shift + Enter", "drag", "1 – 4"]);
+    expect(workspace.rows.map(r => r.cap)).toEqual(["Ctrl + `", PANE_FOCUS_CAP, "click", "Enter", "Shift + Enter", "drag", "1 – 4"]);
     expect(workspace.rows.map(r => r.action)).toEqual([
       "switch between the Board and the Workspace — also with the keys in the terminal",
       "switch pane",
@@ -212,7 +212,7 @@ describe("what names the chord", () => {
   // stay, and the Terminal group stays whole.
   it("keeps Workspace's named keys and every Terminal key with the single keys off, and drops 1 to 4", () => {
     const groups = keyHelpFor(false, () => true, true);
-    expect(groups.find(g => g.id === "workspace")!.rows.map(r => r.cap)).toEqual(["Ctrl + `", paneFocusChordLabel(), "click", "Enter", "Shift + Enter", "drag"]);
+    expect(groups.find(g => g.id === "workspace")!.rows.map(r => r.cap)).toEqual(["Ctrl + `", PANE_FOCUS_CAP, "click", "Enter", "Shift + Enter", "drag"]);
     expect(groups.find(g => g.id === "terminal")!.rows.map(r => r.cap)).toEqual(["Shift ×2", "Esc", "Ctrl + Shift + X", "Ctrl + =", "Ctrl + -", "Ctrl + 0"]);
   });
 
