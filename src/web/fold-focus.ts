@@ -2,12 +2,18 @@
 // pane, never the page. Its terminal, or else its first control, or else the
 // session's row in the rail.
 //
+// In a split (workspace-split.ts) that is the pane that had the keys (StageShell marks it
+// data-focused), not the first in the tree; one pane carries no mark, and the
+// walk goes on to the first terminal as before.
+//
 // A terminal under a state card is in the tree but takes no focus, so being
 // found is not enough: each one is focused and checked, and the first that
 // keeps the focus ends the walk.
 
 /** The places to try, in order. */
 export const FOLD_FOCUS_SELECTORS = [
+  ".stage-dock .wsp-pane[data-focused] .xterm-helper-textarea",
+  ".stage-dock .wsp-pane[data-focused] button:not(:disabled)",
   ".stage-dock .xterm-helper-textarea",
   ".stage-dock button:not(:disabled)",
   ".sl-row[aria-current=\"true\"]",
