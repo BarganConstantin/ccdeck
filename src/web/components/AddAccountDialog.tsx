@@ -43,7 +43,7 @@ import { selfPressAccepted, selfPressProps } from "../panel-press";
 import { type ImportResult, importRowKey, importSummary, outcomeWord, replaceImportRow } from "../share-bundle";
 import { useFeatureUse } from "../feature-use";
 import { useT } from "../i18n";
-import { richParts } from "../accounts-rich";
+import { richParts, tNodes } from "../accounts-rich";
 
 /** Server-side login progress, polled while the dialog is open. */
 type LoginState = {
@@ -622,7 +622,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                 {celebrates({ added: done.added, reducedMotion: reduced }) && <Confetti anchor={markRef} />}
                 <h4>{doneTitle(done, t)}</h4>
                 <p className="aa-note">
-                  {richParts(t(done.added ? (restoreNote ? "accounts.add.addedRestored" : "accounts.add.addedKept") : "accounts.add.alreadyHere", { email: done.email }))}
+                  {tNodes(t, done.added ? (restoreNote ? "accounts.add.addedRestored" : "accounts.add.addedKept") : "accounts.add.alreadyHere", { email: done.email })}
                 </p>
                 {restoreNote ? <p className="aa-note aa-warn" role="status">{restoreNote}</p> : null}
                 <button type="button" ref={doneRef} className="btn primary" onClick={close}>{t("accounts.done")}</button>
@@ -674,7 +674,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
                   </>
                 ) : live === "approve" && login ? (
                   <>
-                    <p className="aa-note">{richParts(email ? t("accounts.add.approveEmail", { email }) : t("accounts.add.approve"))}</p>
+                    <p className="aa-note">{email ? tNodes(t, "accounts.add.approveEmail", { email }) : richParts(t("accounts.add.approve"))}</p>
                     {/* The page the CLI printed, in THIS browser — which is
                         the only way to reach it from a deck opened on another
                         machine, where the tab the CLI opened is on that
@@ -758,7 +758,7 @@ export default function AddAccountDialog({ onClose, onChanged, email = null, onS
               // on someone who wanted the other tab.
               <div className="aa-step aa-primer">
                 {cancelNote ? <p className="aa-note aa-warn" role="status">{cancelNote}</p> : null}
-                <h4>{email ? richParts(t("accounts.add.againAs", { email })) : t("accounts.add.toAnthropic")}</h4>
+                <h4>{email ? tNodes(t, "accounts.add.againAs", { email }) : t("accounts.add.toAnthropic")}</h4>
                 {/* V4's words: what happens, in one line, and under it the
                     longer account — the code that is pasted back only if the
                     page hands one over — as text, not as a tooltip. The

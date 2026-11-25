@@ -20,6 +20,7 @@ import AutoSwitchPolicy from "./AutoSwitchPolicy";
 import AddAccountDialog from "./AddAccountDialog";
 import AccountMenuPopover from "./AccountMenuPopover";
 import OtherAccounts from "./OtherAccounts";
+import UnlistedLoginNotice from "./UnlistedLoginNotice";
 import ShareAccountsDialog from "./ShareAccountsDialog";
 import { DialogPresence } from "./Dialog";
 import { isAutoArmed, pastThreshold, peersOf, reachable } from "../account-fold";
@@ -47,7 +48,6 @@ import { reloadText } from "../accounts-reload";
 import { useT } from "../i18n";
 import SheetHandle from "./SheetHandle";
 import { translate } from "../i18n/translate";
-import { tNodes } from "../accounts-rich";
 import { useRosterFocus } from "../use-roster-focus";
 import { usePanelClock } from "../use-panel-clock";
 import { type Account, type AccountsData } from "../claude-accounts";
@@ -635,20 +635,10 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
                 </div>
               )}
 
-              {/* SIGNED IN AS AN ACCOUNT THAT IS NOT HERE. Claude Code's live
-                  login is one claude-swap does not hold, so no row is the live
-                  one (claude-login.mjs) — said once, with the add that ends it,
-                  rather than leaving the list to look as if nobody were in. */}
+              {/* SIGNED IN AS AN ACCOUNT THAT IS NOT HERE — see
+                  UnlistedLoginNotice for why, and for why the address is text. */}
               {!activeAcct && data.unlistedLogin && (
-                <div className="ap-notice">
-                  <span className="ap-notice-text">
-                    {tNodes(t, "accounts.panel.unlisted", { email: <strong>{data.unlistedLogin}</strong> })}
-                  </span>
-                  <button type="button" className="ap-notice-fix" onClick={() => setAddOpen(true)}
-                    title={t("accounts.panel.addTip")}>
-                    {t("accounts.panel.addAccount")}
-                  </button>
-                </div>
+                <UnlistedLoginNotice email={data.unlistedLogin} onAdd={() => setAddOpen(true)} />
               )}
 
               {/* A LIST, because it is one. The roster was a run of sibling divs, so
