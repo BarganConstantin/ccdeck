@@ -1,4 +1,34 @@
 {
+  "4.3.15": [
+    {
+      "title": "🧩 Workspace tabs keep their text inside the tab",
+      "body": "In a narrow split pane, a tab's state, such as \"ended 2m ago\", could paint over the next tab, and the edge of the tab row could cut the name of the tab on show to a letter or two. Now every word stays inside its own tab: the state shortens and then hides before the name does, the tab on show ends in \"…\", and the full name and state stay in its tooltip. In a narrow pane header with tabs, the context figure gives the tabs its room; the Inspector's Context tab still shows it. Tabs that do not fit stay in the tab list, as before."
+    },
+    {
+      "title": "🗂️ Close any Workspace tab straight from the pane's tab list",
+      "body": "Each row in a pane's tab list now has its own ×, so you can close a tab without showing it first, inactive tabs included. Closing works as it does from the tab itself: the session keeps running, and the tab beside it comes on. The list stays open for the next one. With the keyboard, Right moves from a row to its × and Delete closes the row's tab."
+    },
+    {
+      "title": "⏳ Resume a Claude session here once you exit it in another terminal",
+      "body": "When a Claude session is still open in another terminal and ccdeck cannot move it over by itself, its card now offers Resume here after exit. Choose it, exit Claude in the other terminal, and the same conversation continues here on its own a moment later, never a new one. The card says it is waiting and offers Cancel. If the resume fails, you get Try again and the command to resume it yourself."
+    },
+    {
+      "title": "📁 Codex starts again after the folder ccdeck was started from is deleted",
+      "body": "If the folder you started ccdeck from was later deleted, every new Codex pane could end at once with \"getcwd: cannot access parent directories\" and \"No such file or directory\", and Start Codex again only failed again. Codex now starts in the folder you chose. If an agent still cannot open its folder, the pane says so and offers Choose folder… and Check again; it never starts again by itself."
+    },
+    {
+      "title": "🙈 Default Codex says why it cannot be removed, and can be hidden",
+      "body": "The menu of the Default Codex account now says why it has no Remove: it is Codex's own sign-in folder, and ccdeck never deletes it. While it is signed out and nothing uses it, you can hide it from the list. Any other Codex account's menu shows it again, and it comes back by itself as soon as Codex signs in there. Your Codex settings and sign-ins are not touched."
+    },
+    {
+      "title": "🔀 Accounts near their weekly limit move below the ones with room left",
+      "body": "In Other accounts, an account that has used 90% or more of its weekly window now sits below the accounts with real room left, instead of near the top. It still reads \"high\", not \"Weekly limit\", and you can still switch to it. Once its week resets, it moves back up. The active account, Auto-switch and the column sorting in the Capacity report are unchanged."
+    },
+    {
+      "title": "🩹 The terminal hint in the status bar stays on one line",
+      "body": "In a narrow window, the one-time hint at the bottom of the window about the terminal's keys could wrap onto a second line that the status bar cut in half, with its Got it button only partly visible. Now the hint stays on one line and ends in \"…\" when there is no room, its full sentence is in its tooltip, and Got it is always fully visible and easy to press."
+    }
+  ],
   "4.3.14": [
     {
       "title": "🔍 Tap Shift twice to open Quick Open from anywhere",
@@ -494,6 +524,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.3.15": "Workspace tabs you can close from their list, Resume here after exit, and Codex starting after a deleted folder",
     "4.3.14": "Tap Shift twice to open Quick Open from anywhere in ccdeck",
     "4.3.13": "Tabs in Workspace panes, foldable session groups, a clear notice for disconnected folders, and Mac title bar fixes",
     "4.3.12": "New keys for lists and panes, Quick Open from a terminal, the Inspector stays closed, fixes for ccdeck tui and the app",
