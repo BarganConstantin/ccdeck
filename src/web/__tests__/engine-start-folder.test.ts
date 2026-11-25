@@ -10,6 +10,7 @@
 // variable it reads given as an absolute path, as the deck resolves it.
 // Windows is left as it was. Pure: platform, home and the deck's folder are
 // given, nothing is started.
+import { homedir } from "node:os";
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain server module
 import { engineStart } from "../../server/pro-engine-client.mjs";
@@ -60,8 +61,9 @@ describe("the folder the terminal engine is started in", () => {
   });
 
   it("reads the real home folder and the deck's real folder by default", () => {
+    // The host running the test may be Windows: its real home is C:\Users\…,
+    // so the check is "the real home, or / where it is not a folder".
     const start = engineStart({}, { platform: "linux" });
-    expect(typeof start.cwd).toBe("string");
-    expect(start.cwd.startsWith("/")).toBe(true);
+    expect([homedir(), "/"]).toContain(start.cwd);
   });
 });
