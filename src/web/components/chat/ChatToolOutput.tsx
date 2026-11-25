@@ -41,7 +41,7 @@ export function ToolOutputBlock({ output }: { output: ChatOutput }) {
   const t = useT();
   const left = linesLeft(output);
   return <>
-    {output.text && <pre className="chat-tool-output" aria-label={t("board.chat.rich.output")}><code>{output.text}</code></pre>}
+    {output.text && <pre className="chat-tool-output" role="group" aria-label={t("board.chat.rich.output")}><code>{output.text}</code></pre>}
     {output.cut && <p className="chat-tool-output-cut">{left > 0 ? t("board.chat.rich.outputCut", { count: left }) : t("board.chat.rich.outputTrimmed")}</p>}
   </>;
 }

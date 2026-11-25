@@ -47,7 +47,7 @@
 .chat-markdown em { font-style: italic; }
 .chat-markdown del { color: var(--text-secondary); }
 .chat-markdown hr { height: 1px; margin: 16px 0; border: 0; background: var(--line); }
-.chat-markdown a:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: 2px; border-radius: var(--r-tag); }
+.chat-markdown a:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: 0; }
 .chat-said-cut { margin: 8px 0 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; }
 
 /* An edit's change: "+N" in --ok and "−M" in --err on the row; the card
@@ -94,12 +94,13 @@
    beside its name the same way; its end, with how long it worked, always. */
 .chat-you { position: relative; }
 .chat-meta { position: absolute; top: 100%; right: 0; display: flex; align-items: center; gap: 2px; min-height: 24px; color: var(--muted); font: 400 calc(11px + var(--ui-text-increase, 0px))/16px var(--font-sans); font-variant-numeric: tabular-nums; opacity: 0; }
-.chat-you:is(:hover, :focus-within) .chat-meta { opacity: 1; }
+.chat-you:focus-within .chat-meta { opacity: 1; }
 .chat-response-time { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; opacity: 0; }
-.chat-response:is(:hover, :focus-within) .chat-response-time { opacity: 1; }
+.chat-response:focus-within .chat-response-time { opacity: 1; }
 .chat-turn-foot { margin: 12px 0 0 28px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-variant-numeric: tabular-nums; }
 
 @media (hover: hover) and (pointer: fine) {
+  .chat-you:hover .chat-meta, .chat-response:hover .chat-response-time { opacity: 1; }
   .chat-code-copy:hover, .chat-meta-copy:hover { background: var(--ctl-fill); color: var(--text); }
   .chat-tool.chat-thinking[data-empty]:hover { background: transparent; }
 }
