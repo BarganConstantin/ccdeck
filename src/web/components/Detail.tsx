@@ -485,8 +485,8 @@ export function DetailActions({ agent, onExportSession, onRemove, singleKeys }: 
           {onRemove && (
             <button type="button" role="menuitem" className="ap-menu-item"
               title={agent.kind === "root"
-                ? t("board.detail.removeRoot", { list: withKey(t("board.detail.listLower"), "L", singleKeys) })
-                : t("board.detail.removeSub", { list: withKey(t("board.detail.listUpper"), "L", singleKeys) })}
+                ? t("board.detail.removeRoot", { list: withKey(t("board.detail.listLower"), "S", singleKeys) })
+                : t("board.detail.removeSub", { list: withKey(t("board.detail.listUpper"), "S", singleKeys) })}
               onClick={() => choose(onRemove)}
             >{t("board.detail.remove")}</button>
           )}

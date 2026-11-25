@@ -7,9 +7,10 @@ import { resetLanguageForTest, setLanguage } from "../i18n";
 import { sourceOf } from "./client-source";
 import { withoutComments } from "./tsx-scan";
 import {
-  VIEW_CHORD, isViewChord, stageKeyIntent, stepSession, terminalKeyHandler, terminalKeyInput, terminalKeyOutcome,
+  PANE_FOCUS_CAP, VIEW_CHORD, isViewChord, paneFocusDirection, stageKeyIntent, stepSession, terminalKeyHandler, terminalKeyInput, terminalKeyOutcome,
   type TerminalKey,
 } from "../terminal-keys";
+import { adjacentPane } from "../workspace-split";
 import { holdKey, startTypeAhead } from "../type-ahead";
 import { documentedKeys, keyHelpFor, KEY_HELP, WORKSPACE_KEY_ROW } from "../key-help";
 import { isReleaseChord } from "../terminal-keys";
@@ -177,9 +178,10 @@ describe("what names the chord", () => {
     const workspace = groups.find(g => g.id === "workspace")!;
     expect(workspace.title).toBe("Workspace");
     expect(workspace.rows[0]).toBe(WORKSPACE_KEY_ROW);
-    expect(workspace.rows.map(r => r.cap)).toEqual(["Ctrl + `", "click", "Enter", "Shift + Enter", "drag", "1 – 4"]);
+    expect(workspace.rows.map(r => r.cap)).toEqual(["Ctrl + `", PANE_FOCUS_CAP, "click", "Enter", "Shift + Enter", "drag", "1 – 4"]);
     expect(workspace.rows.map(r => r.action)).toEqual([
       "switch between the Board and the Workspace — also with the keys in the terminal",
+      "switch pane",
       "a session in the list: show it in the pane",
       "a session in the list: show it and type into it",
       "a session in the list: open it in a pane beside — four at most",
@@ -189,6 +191,7 @@ describe("what names the chord", () => {
     const terminal = groups.find(g => g.id === "terminal")!;
     expect(terminal.title).toBe("Terminal");
     expect(terminal.rows.map(r => [r.cap, r.macCap, r.action])).toEqual([
+      ["Shift ×2", undefined, expect.stringContaining("Double-tap Shift")],
       ["Esc", undefined, "goes to the session while you type in a pane"],
       ["Ctrl + Shift + X", "⌃ ⇧ X", "the keys back to the deck"],
       ["Ctrl + =", "⌘ =", "larger terminal text"],
@@ -209,8 +212,8 @@ describe("what names the chord", () => {
   // stay, and the Terminal group stays whole.
   it("keeps Workspace's named keys and every Terminal key with the single keys off, and drops 1 to 4", () => {
     const groups = keyHelpFor(false, () => true, true);
-    expect(groups.find(g => g.id === "workspace")!.rows.map(r => r.cap)).toEqual(["Ctrl + `", "click", "Enter", "Shift + Enter", "drag"]);
-    expect(groups.find(g => g.id === "terminal")!.rows.map(r => r.cap)).toEqual(["Esc", "Ctrl + Shift + X", "Ctrl + =", "Ctrl + -", "Ctrl + 0"]);
+    expect(groups.find(g => g.id === "workspace")!.rows.map(r => r.cap)).toEqual(["Ctrl + `", PANE_FOCUS_CAP, "click", "Enter", "Shift + Enter", "drag"]);
+    expect(groups.find(g => g.id === "terminal")!.rows.map(r => r.cap)).toEqual(["Shift ×2", "Esc", "Ctrl + Shift + X", "Ctrl + =", "Ctrl + -", "Ctrl + 0"]);
   });
 
   it("says the canvas's click opens the Command Panel only where it is on", () => {
@@ -257,5 +260,33 @@ describe("what names the chord", () => {
         if (code === "ja") expect(canvas.title, "the title is the translated one").not.toBe("Canvas");
       });
     }
+  });
+});
+
+
+describe("directional split focus", () => {
+  it("uses platform-specific modifiers, including a browser-safe Mac binding", () => {
+    const down = key({ key: "ArrowDown", ctrlKey: false });
+    expect(paneFocusDirection({ ...down, metaKey: true, altKey: true }, true, true)).toBe("down");
+    expect(paneFocusDirection({ ...down, metaKey: true, altKey: true }, true, false)).toBeNull();
+    expect(paneFocusDirection({ ...down, altKey: true, shiftKey: true }, true, false)).toBe("down");
+    expect(paneFocusDirection({ ...down, ctrlKey: true, shiftKey: true }, false, false)).toBe("down");
+    expect(paneFocusDirection({ ...down, ctrlKey: true, shiftKey: true }, false, true)).toBe("down");
+    expect(paneFocusDirection(down, false, false)).toBeNull();
+  });
+
+  it("follows each edge in a split and stops at outer edges", () => {
+    const panes = new Map([
+      ["a", { x: 0, y: 0, w: 200, h: 150 }],
+      ["b", { x: 201, y: 0, w: 200, h: 150 }],
+      ["c", { x: 0, y: 151, w: 200, h: 150 }],
+      ["d", { x: 201, y: 151, w: 200, h: 150 }],
+    ]);
+    expect(adjacentPane(panes, "a", "right")).toBe("b");
+    expect(adjacentPane(panes, "b", "left")).toBe("a");
+    expect(adjacentPane(panes, "a", "down")).toBe("c");
+    expect(adjacentPane(panes, "d", "up")).toBe("b");
+    expect(adjacentPane(panes, "a", "up")).toBeNull();
+    expect(adjacentPane(panes, "d", "right")).toBeNull();
   });
 });

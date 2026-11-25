@@ -34,9 +34,9 @@ describe("a held shortcut acts once", () => {
     expect(deck.theme.set).toHaveBeenCalledTimes(1);
   });
 
-  it("opens a panel once for a held L, D or U", () => {
+  it("opens a panel once for a held S, D or U", () => {
     const deck = mountDeckKeys();
-    hold(deck, "l");
+    hold(deck, "s");
     hold(deck, "d");
     hold(deck, "u");
     expect(deck.props.toggleSessionList).toHaveBeenCalledTimes(1);

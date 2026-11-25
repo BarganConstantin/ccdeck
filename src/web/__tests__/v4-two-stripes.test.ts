@@ -120,7 +120,7 @@ describe("each stripe's order and runs", () => {
   it("keeps every key it had, each on the stripe it moved to", () => {
     const r = make({ claude: true, codex: true });
     const keys = Object.fromEntries([...r.leftStripe.flat(), ...r.leftFoot, ...r.rightStripe.flat()].map(i => [i.id, i.key?.cap]));
-    expect(keys).toMatchObject({ "session-list": "L", accounts: "A", usage: "U", machine: "S", history: "H", "browser-watch": "B", inspector: "D" });
+    expect(keys).toMatchObject({ "session-list": "S", accounts: "A", usage: "U", machine: "M", history: "H", "browser-watch": "B", inspector: "D" });
   });
 });
 

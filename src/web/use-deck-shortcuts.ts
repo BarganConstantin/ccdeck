@@ -38,7 +38,7 @@ import type { LodMode } from "./semantic-zoom";
 import { isSettingsChord, type SettingsSection } from "./settings";
 import { characterKeyMuted, singleKeyShortcutsOn } from "./single-key-shortcuts";
 import { CAUGHT_KEYS_ATTR, canvasModalOpen, closesKeySheet, isBrowserChord, isTypingTarget, keepsThemeKey, ownsKeystroke, type FocusTarget, shortcutBlocked } from "./shortcuts";
-import { inTerminalPanel, isReleaseChord, isViewChord, STAGE_FLIP_REST_MS, stageKeyIntent, stepSession, type StageKeyIntent } from "./terminal-keys";
+import { inTerminalPanel, isReleaseChord, isViewChord, paneFocusDirection, PANE_ARROWS, STAGE_FLIP_REST_MS, stageKeyIntent, stepSession, type PaneDirection, type StageKeyIntent } from "./terminal-keys";
 import { nextTheme, type Theme } from "./theme";
 
 type Read<T> = { readonly current: T };
@@ -79,6 +79,7 @@ export interface StageShortcuts {
    *  that pane, left to right then top to bottom. False when there is no such
    *  pane, and the digit goes on as before. */
   focusPaneAt?: (n: number) => boolean;
+  focusPaneDirection?: (direction: PaneDirection) => boolean;
 }
 
 /** Board or Workspace, as the chord that switches them reaches it. Null, or
@@ -581,7 +582,7 @@ export function useDeckShortcuts({
       // is not and never was one, because the session list is an <aside> beside
       // the canvas rather than a modal, so it registers no dismisser with
       // modalStack (see modal-dismiss.ts). The shortcuts sheet below still
-      // lists L, which is where the feature is discoverable from now.
+      // lists S, which is where the feature is discoverable from now.
       //
       // What removing the button cost the accessibility tree: aria-expanded on
       // that ☰ was the only place the panel's open/closed state was reported,
@@ -591,7 +592,7 @@ export function useDeckShortcuts({
       // itself is still announced when it is open: it is a named complementary
       // landmark ("Sessions") that the rotor lists, and its close button is the
       // first control in it.
-      if (e.key === "l" || e.key === "L") toggleSessionList();
+      if (e.key === "s" || e.key === "S") toggleSessionList();
       // The detail panel's keyboard toggle, and no longer its only route. The
       // reopen tab that sat on the canvas edge stays gone, by the owner's
       // decision; what changed (#814, the owner's call on 2026-09-14) is that a
@@ -649,32 +650,17 @@ export function useDeckShortcuts({
         // not name P in its deck layer either.
         if (!stageRef?.current?.open) peekSelected();
       }
-      // The last topbar control to get a key, and the only one that reads
-      // Shift. Every other letter here treats "C" and "c" alike — a Caps-locked
-      // keyboard sends the upper case for the same press — and this one does
-      // too for the toggle; what Shift adds is the keyboard's version of the
-      // shift-click that puts the user's own parked hooks back, which was a
-      // recovery with no key, no control and no home outside a tooltip. Same
-      // control, same modifier, same outcome: activateSound is the one door
-      // both devices come through, so the two can never drift apart.
-      // Guarded by the state the switch waits for: before the stored flag has
-      // been read back there is nothing to invert. Not by Claude Code any
-      // more: the switch is in Settings › Sounds on every machine, and a Codex
-      // turn plays the finish tone too, so a Codex-only deck has a sound to
-      // silence and now a key to silence it with.
+      // M is This machine, B Browser Watch and V Settings at Sounds. Shift+M
+      // is the sound switch, from anywhere, once the stored flag has been read
+      // back (before that there is nothing to invert). Shift is read off the
+      // event, not the letter's case, as N does: Caps Lock sends "M" too.
       if (e.key === "m" || e.key === "M") {
-        if (soundOnRef.current !== null) activateSoundRef.current(e.shiftKey);
+        if (e.shiftKey) {
+          if (soundOnRef.current !== null) activateSoundRef.current(e.shiftKey);
+        } else {
+          setMachinePanelOpen(o => !o);
+        }
       }
-      // #826: the three topbar panels that were pointer-only. S for this
-      // machine (the system's readings), B for Browser Watch, and V, which
-      // opened the speaker's quick popover until the speaker left the topbar
-      // (2026-10-07). V opens Settings at Sounds now — the switch, each
-      // tone's volume and sound, the custom sounds — through the gear's own
-      // door, and held to every gate above: not while typing, not behind a
-      // dialog, once per press. Not to Claude Code any more, for M's reason:
-      // the section is in Settings on every machine, and a Codex turn plays
-      // the finish tone too.
-      if (e.key === "s" || e.key === "S") setMachinePanelOpen(o => !o);
       if (e.key === "b" || e.key === "B") setBrowserWatchOpen(o => !o);
       if (e.key === "v" || e.key === "V") openSettings("sounds");
       // Jira's panel (#2178), once a Jira connection exists. J would have been
@@ -688,8 +674,91 @@ export function useDeckShortcuts({
       // test, so the sheet cannot fall behind the keys again.
       if (e.key === "?") setKeyHelpOpen(o => !o);
     };
+    // Two clean Shift taps open the palette, with a short window for a direct action.
+    const SHIFT_TAP_MS = 350;
+    const QUICK_ACTION_MS = 230;
+    let shiftDownAt: number | null = null;
+    let previousShiftAt: number | null = null;
+    let quickAction: ReturnType<typeof setTimeout> | null = null;
+    const clearQuickAction = () => {
+      if (quickAction !== null) clearTimeout(quickAction);
+      quickAction = null;
+    };
+    const resetShift = () => {
+      shiftDownAt = null;
+      previousShiftAt = null;
+      clearQuickAction();
+    };
+    const terminalActive = (target: EventTarget | null) =>
+      inTerminalPanel(target as HTMLElement | null)
+      && !canvasModalOpen({ appModal: modalOpenRef.current, dialogDepth: modalStack.dialogDepth() });
+    const onShiftUp = (e: KeyboardEvent) => {
+      if (e.key !== "Shift") return;
+      const downAt = shiftDownAt;
+      shiftDownAt = null;
+      const now = Date.now();
+      if (downAt === null || now - downAt > SHIFT_TAP_MS || !terminalActive(e.target)) {
+        previousShiftAt = null;
+        return;
+      }
+      if (previousShiftAt === null || downAt - previousShiftAt > SHIFT_TAP_MS) {
+        previousShiftAt = now;
+        return;
+      }
+      previousShiftAt = null;
+      const opener = e.target;
+      quickAction = setTimeout(() => {
+        quickAction = null;
+        if (document.activeElement === opener && terminalActive(opener)) openQuickOpen();
+      }, QUICK_ACTION_MS);
+    };
+    // Capture before xterm can send an app command to the PTY.
+    const onTerminalKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing || e.keyCode === 229 || !terminalActive(e.target)) {
+        resetShift();
+        return;
+      }
+      const unmodified = !e.ctrlKey && !e.metaKey && !e.altKey;
+      if (e.key === "Shift" && unmodified) {
+        if (!e.repeat && quickAction === null) shiftDownAt = Date.now();
+        return;
+      }
+      shiftDownAt = null;
+      previousShiftAt = null;
+
+      const stage = stageRef?.current;
+      let handled = false;
+      if (quickAction !== null) {
+        clearQuickAction();
+        if (unmodified && !e.shiftKey && !e.repeat) {
+          const direction = PANE_ARROWS.get(e.key);
+          switch (e.key.toLowerCase()) {
+            case "s": toggleSessionList(); handled = true; break;
+            case "m": setMachinePanelOpen(open => !open); handled = true; break;
+            case "escape": handled = true; break;
+            default: if (direction) handled = stage?.focusPaneDirection?.(direction) === true;
+          }
+        }
+      }
+      if (!handled && stage?.open) {
+        const direction = paneFocusDirection(e);
+        if (direction) handled = stage.focusPaneDirection?.(direction) === true;
+      }
+      if (!handled) return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    window.addEventListener("keydown", onTerminalKey, true);
+    window.addEventListener("keyup", onShiftUp, true);
+    window.addEventListener("focusout", resetShift);
+    window.addEventListener("blur", resetShift);
     window.addEventListener("keydown", onKey);
     return () => {
+      resetShift();
+      window.removeEventListener("keydown", onTerminalKey, true);
+      window.removeEventListener("keyup", onShiftUp, true);
+      window.removeEventListener("focusout", resetShift);
+      window.removeEventListener("blur", resetShift);
       window.removeEventListener("keydown", onKey);
       dropFlip();
     };

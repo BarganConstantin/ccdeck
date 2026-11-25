@@ -171,7 +171,7 @@ const catalog: Catalog = {
   // Sound switch
   "radio.sound.name": "Tocar sons",
   "radio.sound.note": "Um tom quando um turno termina e quando o Claude pede algo.",
-  "radio.sound.keyTitle": "Pressione M em qualquer lugar para silenciar ou ativar o som",
+  "radio.sound.keyTitle": "Pressione Shift+M em qualquer lugar para silenciar ou ativar o som",
   // Tone names
   "radio.tone.two": "Duas notas",
   "radio.tone.descent": "Descida",

@@ -34,9 +34,10 @@ function reached(deck: ReturnType<typeof mountDeckKeys>): string[] {
 // ── the keys ────────────────────────────────────────────────────────────────
 
 describe("with Single-key shortcuts off, no character key does anything", () => {
-  it("leaves L, U, M, R, ? and V doing nothing", () => {
+  it("leaves S, U, M, R, ? and V doing nothing", () => {
     const deck = mountDeckKeys({ singleKeys: false });
-    for (const key of ["l", "L", "u", "U", "m", "M", "r", "R", "?", "v", "V"]) deck.press(key);
+    for (const key of ["s", "S", "u", "U", "m", "M", "r", "R", "?", "v", "V"]) deck.press(key);
+    deck.press("M", { shiftKey: true });
     expect(reached(deck)).toEqual([]);
     expect(deck.keyHelp.value).toBe(false);
     expect(deck.usage.value).toBe(false);
@@ -121,16 +122,18 @@ describe("with Single-key shortcuts off, the keys that are not characters keep w
 });
 
 describe("with Single-key shortcuts on, every key works as before", () => {
-  it("answers L, U, M, R, ? and V", () => {
+  it("answers S, U, M, Shift + M, R, ? and V", () => {
     const deck = mountDeckKeys();
-    deck.press("l");
+    deck.press("s");
     deck.press("u");
     deck.press("m");
+    deck.press("M", { shiftKey: true });
     deck.press("r");
     deck.press("v");
     deck.press("?");
     expect(deck.props.toggleSessionList).toHaveBeenCalledTimes(1);
     expect(deck.usage.value).toBe(true);
+    expect(deck.props.setMachinePanelOpen).toHaveBeenCalledTimes(1);
     expect(deck.props.activateSoundRef.current).toHaveBeenCalledTimes(1);
     expect(deck.props.handleRelayout).toHaveBeenCalledTimes(1);
     expect(deck.props.openSettings).toHaveBeenCalledWith("sounds");

@@ -190,7 +190,7 @@ export function railItems({
   // IDREF that resolves to nothing is a dangling pointer, and closed is
   // exactly when there is nothing to point at.
   const sessionList: RailItem = {
-    id: "session-list", label: t("board.rail.sessionList"), short: t("board.rail.sessionList.short"), key: { cap: "L", aria: "L", single: true },
+    id: "session-list", label: t("board.rail.sessionList"), short: t("board.rail.sessionList.short"), key: { cap: "S", aria: "S", single: true },
     ariaLabel: t("board.rail.sessionList"), glyph: <SessionListGlyph />, kind: "panel",
     open: sessionListOpen, controls: "session-list", onPress: toggleSessionList, buttonRef: toggles.sessionList,
   };
@@ -240,7 +240,7 @@ export function railItems({
     open: usagePanelOpen, controls: "usage-panel", onPress: () => setUsagePanelOpen(o => !o), buttonRef: toggles.usage,
   };
   const machine: RailItem = {
-    id: "machine", label: t("board.rail.machine"), short: t("board.rail.machine"), key: { cap: "S", aria: "S", single: true },
+    id: "machine", label: t("board.rail.machine"), short: t("board.rail.machine"), key: { cap: "M", aria: "M", single: true },
     ariaLabel: t("board.rail.machine"), hint: t("board.rail.machine.hint"), stripeWord: t("board.rail.machine.hint"), glyph: <MachineGlyph />, kind: "panel",
     open: machinePanelOpen, controls: "system-panel", onPress: () => setMachinePanelOpen(o => !o), buttonRef: toggles.machine,
   };

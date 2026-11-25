@@ -1,5 +1,5 @@
 // What "Remove node" has taken off the board, and the way back. A removed card
-// is hidden, not deleted: the session list (L) brings it back, and so does the
+// is hidden, not deleted: the session list (S) brings it back, and so does the
 // session starting to wait or work again (App.tsx's call-back effect).
 //
 // Moved out of App.tsx unchanged. The rules — what a removal hides, what brings
@@ -33,7 +33,7 @@ export function useRemovals({ stateRef, pinnedRef, positionsRef, returningRef, c
   // has no error boundary, so #root came up empty.
   const [removedNodes, setRemovedNodes] = useState<Set<string>>(() => readRemovedNodes(localStore()));
   /** The last card taken off the board, for the sentence a screen reader
-   *  hears. Nothing is drawn for it: the session list (L) is the way back. */
+   *  hears. Nothing is drawn for it: the session list (S) is the way back. */
   const [lastRemoval, setLastRemoval] = useState<{ id: string; label: string } | null>(null);
 
   // Everything "Remove node" has taken off the board: the removed agents, what

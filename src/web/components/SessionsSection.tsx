@@ -20,7 +20,7 @@ import { useT } from "../i18n";
 
 export const HIDE_FINISHED_LABEL = "Hide finished sessions after";
 export const HIDE_FINISHED_NOTE =
-  "A finished session leaves the canvas after this long. It stays in the session list (L), and comes back when it starts working again or needs you.";
+  "A finished session leaves the canvas after this long. It stays in the session list (S), and comes back when it starts working again or needs you.";
 
 export default function SessionsSection({ children }: { children?: ReactNode }) {
   const t = useT();

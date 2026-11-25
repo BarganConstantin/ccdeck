@@ -2,7 +2,7 @@
 //
 // "take the selected card off the board — Undo brings it back". The banner that
 // carried Undo was dropped when the removal stopped drawing anything; what is
-// left is a line for screen readers, and the way back is the session list (L),
+// left is a line for screen readers, and the way back is the session list (S),
 // which is what the detail panel's own Remove button says. A sheet that names a
 // control nobody can find sends the reader looking for it after the card is
 // already gone.
@@ -14,7 +14,7 @@ const rows = KEY_HELP.flatMap(g => g.rows);
 describe("what the sheet says Delete's way back is", () => {
   it("names the session list, the way back there is", () => {
     const row = rows.find(r => r.binds?.includes("Delete"));
-    expect(row?.action).toBe("take the selected card off the board — the session list (L) brings it back");
+    expect(row?.action).toBe("take the selected card off the board — the session list (S) brings it back");
   });
 
   it("promises an Undo only where there is one: Re-arrange's, on its chord", () => {

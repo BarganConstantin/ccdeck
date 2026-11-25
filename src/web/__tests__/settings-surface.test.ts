@@ -349,8 +349,8 @@ describe("Settings › Sounds holds everything the topbar's sound popover did", 
   it("draws the switch, with M named beside it, and a volume for each tone under the tone's name", () => {
     expect(html.match(/role="switch"/g)).toHaveLength(1);
     expect(html).toMatch(/role="switch" aria-checked="true"/);
-    expect(html).toMatch(/<kbd class="settings-key"[^>]*>M<\/kbd>/);
-    expect(html).toContain('aria-keyshortcuts="M"');
+    expect(html).toMatch(/<kbd class="settings-key"[^>]*>Shift\+M<\/kbd>/);
+    expect(html).toContain('aria-keyshortcuts="Shift+M"');
     expect(html.match(/type="range"/g)).toHaveLength(2);
     expect(html).toMatch(/id="sm-level-done"/);
     expect(html).toMatch(/id="sm-level-needs-input"/);

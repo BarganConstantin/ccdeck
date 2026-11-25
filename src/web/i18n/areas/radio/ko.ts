@@ -171,7 +171,7 @@ const catalog: Catalog = {
   // Sound switch
   "radio.sound.name": "소리 재생",
   "radio.sound.note": "턴이 끝날 때와 Claude가 무언가를 요청할 때 소리가 납니다.",
-  "radio.sound.keyTitle": "어디서든 M을 눌러 음소거 또는 해제",
+  "radio.sound.keyTitle": "어디서든 Shift+M을 눌러 음소거 또는 해제",
   // Tone names
   "radio.tone.two": "두 음",
   "radio.tone.descent": "하강",

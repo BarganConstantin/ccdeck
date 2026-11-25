@@ -22,7 +22,7 @@ import { useLearnedKeys } from "../key-learning";
 import { platformName } from "../platform";
 import { withKey } from "../single-key-shortcuts";
 import { statusViewFor, unlearnedView, type StatusHint } from "../status-hints";
-import { PANE_NAME_ATTR, paneNameOf, TERMINAL_PANEL_SELECTOR } from "../terminal-keys";
+import { PANE_NAME_ATTR, paneFocusChordLabel, paneNameOf, TERMINAL_PANEL_SELECTOR } from "../terminal-keys";
 import { useSingleKeyShortcuts } from "../use-single-key-shortcuts";
 import { Kbd } from "./Kbd";
 import { useT } from "../i18n";
@@ -75,8 +75,9 @@ function useFocusPlace(stageOpen: boolean): FocusPlace {
 /** Memoised: App re-renders on its clock several times a second, and the bar's
  *  only inputs are its props, focus, the single-key switch, whether the board
  *  is empty and the keys the reader has learned. */
-export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null, waiting = true, extra, version = null, onVersion, setKeyHelpOpen }: {
+export default memo(function StatusBar({ stageOpen, zoomedOut, splitPanes = false, viewChord = null, waiting = true, extra, version = null, onVersion, setKeyHelpOpen }: {
   stageOpen: boolean;
+  splitPanes?: boolean;
   zoomedOut: boolean;
   version?: string | null;
   onVersion?: () => void;
@@ -131,6 +132,14 @@ export default memo(function StatusBar({ stageOpen, zoomedOut, viewChord = null,
           </button>
         )}
       </div>
+      {pane != null && <span className="statusbar-hint" title={t("board.keys.shiftCommandsTip")}>
+        <Kbd>Shift ×2</Kbd>
+        {t("board.keys.shiftCommands")}
+      </span>}
+      {splitPanes && pane != null && <span className="statusbar-hint">
+        <Kbd>{paneFocusChordLabel()}</Kbd>
+        {t("board.keys.focusPane")}
+      </span>}
       {switchHint && <span className="statusbar-hint statusbar-view">
         <span className="statusbar-caps">{switchHint.caps.map(c => <Kbd key={c.text} label={c.spoken}>{c.text}</Kbd>)}</span>
         {switchHint.word}

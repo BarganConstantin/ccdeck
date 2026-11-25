@@ -158,7 +158,7 @@ const catalog: Catalog = {
   "radio.fm.unavailable.builtin": "Dieser Sender sendet gerade nicht live. Wähle einen anderen oder später erneut diesen, um es noch einmal zu versuchen.",
   "radio.sound.name": "Töne abspielen",
   "radio.sound.note": "Ein Ton, wenn ein Durchgang endet und wenn Claude etwas von dir braucht.",
-  "radio.sound.keyTitle": "Drücke überall M, um stummzuschalten oder den Ton einzuschalten",
+  "radio.sound.keyTitle": "Drücke überall Shift+M, um stummzuschalten oder den Ton einzuschalten",
   "radio.tone.two": "Zwei Töne",
   "radio.tone.descent": "Abwärts",
   "radio.tone.ascent": "Aufwärts",
