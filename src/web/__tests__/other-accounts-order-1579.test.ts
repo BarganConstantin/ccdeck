@@ -17,10 +17,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { Account } from "../claude-accounts";
 import { laneKey } from "../lane-open";
 import {
-  allOpen, availability, byAvailability, holdOrder, isOpen, NONE_OPEN, rowKey, toggleAll,
+  allOpen, availability, byAvailability, holdOrder, isOpen, NEAR_WEEK_PCT, NONE_OPEN, rowKey, toggleAll,
   toggleOne, trimOpenness, type Openness,
 } from "../other-accounts-order";
 import AccountRow from "../components/AccountRow";
+import { quotaLevel } from "../components/QuotaBar";
+import { usageReport } from "../accounts-usage-report";
 import { loadOpenness, saveOpenness } from "../accounts-prefs";
 import OtherAccounts from "../components/OtherAccounts";
 import { sourceOf } from "./client-source";
@@ -47,19 +49,23 @@ const OPEN = { reachable: true, rateLimited: false };
 const all = () => OPEN;
 
 describe("where an account stands (internal #94)", () => {
-  it("is usable with every window read, running and under 100%", () => {
+  // CHANGED ON PURPOSE (near the weekly limit): a week at 90% or more is a
+  // group of its own, under the usable and the not read yet, so every number
+  // past "usable" moved down by one and 99/99 is no longer usable.
+  it("is usable with every window read, running and under 100%, the week under 90%", () => {
     expect(availability(acct(1, 0, 0), OPEN, NOW)).toBe(0);
-    expect(availability(acct(1, 99, 99), OPEN, NOW)).toBe(0);
+    expect(availability(acct(1, 99, 89), OPEN, NOW)).toBe(0);
+    expect(availability(acct(1, 99, 99), OPEN, NOW)).toBe(2);
   });
 
   it("puts a spent week below a full 5-hour window, whatever that 5-hour window says", () => {
-    expect(availability(acct(1, 0, 100), OPEN, NOW)).toBe(3);
-    expect(availability(acct(1, 100, 100), OPEN, NOW)).toBe(3);
-    expect(availability(acct(1, 100, 40), OPEN, NOW)).toBe(2);
+    expect(availability(acct(1, 0, 100), OPEN, NOW)).toBe(4);
+    expect(availability(acct(1, 100, 100), OPEN, NOW)).toBe(4);
+    expect(availability(acct(1, 100, 40), OPEN, NOW)).toBe(3);
   });
 
   it("waits on a rate limit, as on a full window", () => {
-    expect(availability(acct(1, 10, 10), { reachable: true, rateLimited: true }, NOW)).toBe(2);
+    expect(availability(acct(1, 10, 10), { reachable: true, rateLimited: true }, NOW)).toBe(3);
   });
 
   it("calls an account with no reading, or a window that reset since it was read, not read yet", () => {
@@ -72,8 +78,8 @@ describe("where an account stands (internal #94)", () => {
   });
 
   it("puts what no switch reaches at the bottom, ahead of every reading", () => {
-    expect(availability(acct(1, 0, 0), { reachable: false, rateLimited: false }, NOW)).toBe(4);
-    expect(availability(acct(1, 0, 100), { reachable: false, rateLimited: true }, NOW)).toBe(4);
+    expect(availability(acct(1, 0, 0), { reachable: false, rateLimited: false }, NOW)).toBe(5);
+    expect(availability(acct(1, 0, 100), { reachable: false, rateLimited: true }, NOW)).toBe(5);
   });
 
   it("leaves a model's own window out: a full Opus stops that model, not the account", () => {
@@ -100,9 +106,11 @@ describe("the order", () => {
   });
 
   it("keeps slot order inside a group, so a poll that changes a number moves nothing", () => {
-    // All five are usable but 16, whose 5-hour window is full.
+    // All five are usable but 10, near its weekly limit at 91%, and 16, whose
+    // 5-hour window is full. CHANGED ON PURPOSE (near the weekly limit): 10
+    // no longer stands among the usable, so reversed it stays under them.
     expect(nums(byAvailability(LIST, all, NOW))).toEqual([5, 8, 9, 10, 16]);
-    expect(nums(byAvailability([...LIST].reverse(), all, NOW))).toEqual([10, 9, 8, 5, 16]);
+    expect(nums(byAvailability([...LIST].reverse(), all, NOW))).toEqual([9, 8, 5, 10, 16]);
     expect(nums(byAvailability([acct(12, 40, 0), acct(3, 90, 0), acct(7, 1, 0)], all, NOW))).toEqual([12, 3, 7]);
   });
 
@@ -116,6 +124,112 @@ describe("the order", () => {
   it("takes reach and rate limits from the caller, the row's own rules", () => {
     const can = (a: Account) => ({ reachable: a.num !== 9, rateLimited: a.num === 5 });
     expect(nums(byAvailability(LIST, can, NOW))).toEqual([8, 10, 5, 16, 9]);
+  });
+});
+
+describe("an account near its weekly limit", () => {
+  // Windows with a reset still ahead, as the server sends them for a reading
+  // that is current.
+  const at = (num: number, p5: number, p7: number, resets: { five?: number; week?: number } = {}, over: Partial<Account> = {}): Account => ({
+    ...acct(num, p5, p7, [], over),
+    lanes: [lane("five_hour", "5h", p5, resets.five ?? NOW + 3600), lane("seven_day", "7d", p7, resets.week ?? NOW + 3 * 86_400)],
+  });
+
+  it("goes below a usable account, as reported: 99% and 93% of the week above one at 20%", () => {
+    const roster = [at(1, 10, 99), at(2, 5, 93), at(3, 15, 20)];
+    expect(nums(byAvailability(roster, all, NOW))).toEqual([3, 1, 2]);
+  });
+
+  it("starts at 90% of the week, the level the weekly bar turns red at", () => {
+    expect(NEAR_WEEK_PCT).toBe(90);
+    // One number with the meters: the row a poll moves down is the one whose
+    // bar already wears the error ink, and the one just under it does not.
+    expect(quotaLevel(NEAR_WEEK_PCT)).toBe("err");
+    expect(quotaLevel(NEAR_WEEK_PCT - 1)).not.toBe("err");
+    expect(availability(at(1, 0, 89), OPEN, NOW)).toBe(0);
+    expect(availability(at(1, 0, 90), OPEN, NOW)).toBe(2);
+    expect(availability(at(1, 0, 93), OPEN, NOW)).toBe(2);
+    expect(availability(at(1, 0, 99), OPEN, NOW)).toBe(2);
+    expect(availability(at(1, 0, 100), OPEN, NOW)).toBe(4);
+  });
+
+  it("orders 93%, 99% and 100% of the week: usable, then near, then waiting, then spent", () => {
+    const roster = [at(1, 0, 100), at(2, 10, 99), at(3, 100, 20), at(4, 5, 93), at(5, 15, 20)];
+    expect(nums(byAvailability(roster, all, NOW))).toEqual([5, 2, 4, 3, 1]);
+  });
+
+  it("keeps slot order among near accounts, so a week going from 93% to 95% moves nothing", () => {
+    expect(nums(byAvailability([at(4, 0, 93), at(2, 0, 99), at(7, 0, 91)], all, NOW))).toEqual([4, 2, 7]);
+    expect(nums(byAvailability([at(4, 0, 95), at(2, 0, 99), at(7, 0, 91)], all, NOW))).toEqual([4, 2, 7]);
+  });
+
+  it("does not count the 5-hour window: 97% of it with 20% of the week is still usable", () => {
+    expect(availability(at(1, 97, 20), OPEN, NOW)).toBe(0);
+    expect(nums(byAvailability([at(1, 5, 93), at(2, 97, 20)], all, NOW))).toEqual([2, 1]);
+  });
+
+  it("puts a week at 20% with the 5-hour window spent after the usable ones and the near ones", () => {
+    const roster = [at(1, 100, 20), at(2, 10, 99), at(3, 10, 30)];
+    expect(nums(byAvailability(roster, all, NOW))).toEqual([3, 2, 1]);
+    // Near the week and out of 5 hours, or rate limited: waiting wins.
+    expect(availability(at(1, 100, 95), OPEN, NOW)).toBe(3);
+    expect(availability(at(1, 10, 95), { reachable: true, rateLimited: true }, NOW)).toBe(3);
+  });
+
+  it("stays near while the 5-hour window has reset since it was read: a running week only grows", () => {
+    const fiveBack = at(1, 40, 95, { five: NOW - 60 });
+    expect(availability(fiveBack, OPEN, NOW)).toBe(2);
+    // And a usable week with the same reset is not read yet, above it.
+    expect(nums(byAvailability([fiveBack, at(2, 40, 20, { five: NOW - 60 })], all, NOW))).toEqual([2, 1]);
+  });
+
+  it("moves back up once the week resets: not read yet at once, and on top with the fresh reading", () => {
+    const usable = at(3, 15, 20);
+    const near = at(4, 5, 93);
+    const before = [at(2, 10, 99), usable, near];
+    expect(nums(byAvailability(before, all, NOW))).toEqual([3, 2, 4]);
+    // The reset time passed: its 99% belongs to a week that is over.
+    const passed = [at(2, 10, 99, { week: NOW - 60 }), usable, near];
+    expect(availability(passed[0], OPEN, NOW)).toBe(1);
+    expect(nums(byAvailability(passed, all, NOW))).toEqual([3, 2, 4]);
+    expect(nums(byAvailability([near, ...passed.slice(0, 2)], all, NOW))).toEqual([3, 2, 4]);
+    // The reading after the reset confirms the room: usable, in slot order.
+    const read = [at(2, 0, 2, { week: NOW + 7 * 86_400 }), usable, near];
+    expect(nums(byAvailability(read, all, NOW))).toEqual([2, 3, 4]);
+  });
+
+  it("orders a stale reading by its numbers, as before: the age is the row's to say", () => {
+    const old = { stale: true, fetchedAt: (NOW - 42 * 60) * 1000 };
+    expect(availability(at(1, 20, 30, {}, old), OPEN, NOW)).toBe(0);
+    expect(availability(at(1, 20, 93, {}, old), OPEN, NOW)).toBe(2);
+    expect(availability({ ...acct(1, null, null), stale: true }, OPEN, NOW)).toBe(1);
+  });
+
+  it("leaves a signed-out or held-out account at the bottom, whatever its week says", () => {
+    const shut = { reachable: false, rateLimited: false };
+    expect(availability(at(1, 0, 20), shut, NOW)).toBe(5);
+    expect(availability(at(1, 0, 93), shut, NOW)).toBe(5);
+    const reach = (a: Account) => ({ reachable: a.num !== 1 && !a.disabled, rateLimited: false });
+    const roster = [at(1, 0, 5), at(2, 0, 93), at(3, 0, 100), at(4, 0, 10, {}, { disabled: true }), at(5, 0, 20)];
+    expect(nums(byAvailability(roster, reach, NOW))).toEqual([5, 2, 3, 1, 4]);
+  });
+
+  it("never calls 93% or 99% of the week a weekly limit, on the row or in the capacity report", () => {
+    const shut = (a: Account) => renderToStaticMarkup(createElement(AccountRow, {
+      a, nowSec: NOW, opened: false, onToggleLanes: () => {}, busy: null, pressProps: () => ({}),
+      onSwitch: () => {}, menuOpen: false, onOpenMenu: () => {}, onCloseMenu: () => {}, refusal: null,
+      onDismissRefusal: () => {}, switchedHere: false, swapped: null, displaced: undefined,
+      issueExpanded: false, onOpenIssue: () => {},
+    } as never));
+    for (const p7 of [93, 99]) {
+      const html = shut(at(2, 10, p7, {}, { fetchedAt: (NOW - 60) * 1000 }));
+      expect(html).toContain(`${p7}%`);
+      expect(html).not.toContain("Weekly limit");
+      expect(html).not.toMatch(/used up|exhausted/i);
+    }
+    expect(shut(at(2, 10, 100, {}, { fetchedAt: (NOW - 60) * 1000 }))).toContain("Weekly limit");
+    const report = usageReport([at(2, 10, 93), at(3, 10, 99), at(4, 10, 100), at(5, 100, 100)], NOW).rows.map(r => r.status);
+    expect(report).toEqual(["ready", "ready", "limited", "exhausted"]);
   });
 });
 

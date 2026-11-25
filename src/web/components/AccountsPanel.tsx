@@ -297,9 +297,10 @@ export default function AccountsPanel({ onClose, leaving, onReport, onRoster, la
   const roster = data?.accounts ?? [];
   const others = activeAcct ? roster.filter(a => !a.active) : [];
   // USABLE ACCOUNTS FIRST (internal #94): the ones a switch can use now, then
-  // the ones not read yet, then the ones waiting on a window or a rate limit,
-  // then the week spent, then the ones no switch reaches — slot order inside
-  // each group, and held where it was while a reader is in the list.
+  // the ones not read yet, then the ones near their weekly limit, then the
+  // ones waiting on a window or a rate limit, then the week spent, then the
+  // ones no switch reaches — slot order inside each group, and held where it
+  // was while a reader is in the list.
   const rest = holdOrder(byAvailability(others, a => ({
     reachable: reachable(a, nowSec),
     rateLimited: accountIssue(a, nowSec)?.kind === "rate",
