@@ -1,4 +1,26 @@
 {
+  "4.3.11": [
+    {
+      "title": "🔢 ccdeck tui names its version in the title bar",
+      "body": "The screen you open with ccdeck tui now shows the release beside its name, for example ccdeck 4.3.11. It is the running deck's version, so after an update it changes without reopening the screen. On a very narrow terminal the tabs stay and the version goes."
+    },
+    {
+      "title": "⬆️ Take an update from ccdeck tui",
+      "body": "When a newer release is out, ccdeck tui says so in its title bar and footer. Press u to install it and restart the deck; the screen then reopens itself on the new version, on the same tab, and says what it updated to. Where this install cannot update itself, it says why and which command to use instead."
+    },
+    {
+      "title": "📌 Pin a session to the top of the Sessions list",
+      "body": "Pin and Unpin sit at the edge of each session row, also on Alt+P. A pinned session stays in a Pinned group at the top and is not cleared when more than six sessions finish. An unpinned session gets two minutes before it counts like any other. On a phone the pin shows on the session you have open."
+    },
+    {
+      "title": "💬 Chat about this on Chat's question card",
+      "body": "When Claude Code asks you a question, Chat's question card now has a Chat about this link, like the last row of Claude Code's own prompt. It sets the questions aside so you can talk them over first, without switching to Term. If Term does not offer that row for the question, nothing is sent and the card says so."
+    },
+    {
+      "title": "🔑 Share an account from ccdeck tui",
+      "body": "In ccdeck tui, press e to share the selected account, or E to pick several. A Codex share opens its warning first, and Enter makes it. The share shows on screen and c copies it. On the other computer, press + in ccdeck tui, then Tab to Paste a share, paste it and press Enter. Accounts already there are left as they are. A share pasted anywhere else is set aside, not typed as keys, and ccdeck tui says where it goes. A Claude share expires ten minutes after it is made."
+    }
+  ],
   "4.3.10": [
     {
       "title": "🧾 Subagent costs count requests that ran side by side",
@@ -414,6 +436,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.3.11": "ccdeck tui shows its version, takes updates and shares accounts; sessions can be pinned; Chat can set a question aside",
     "4.3.10": "Subagent costs count requests that ran side by side, and Throttling shows on Linux machines with no temperature sensor",
     "4.3.9": "Copy the TUI sign-in link over SSH, and Send feedback is named in the top bar",
     "4.3.8": "Install Codex from the session pane, and each Graph card says which model it runs",
