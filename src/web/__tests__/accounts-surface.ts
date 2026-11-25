@@ -44,6 +44,7 @@ export const ACCOUNTS_FILES = [
   "use-roster-focus.ts",
   "account-refocus.ts",
   "use-panel-clock.ts",
+  "components/UnlistedLoginNotice.tsx",
 ] as const;
 
 let joined: string | null = null;
