@@ -177,7 +177,7 @@ export { sendInternalError };
 // The accounts surface's routes — see account-routes.mjs. The boot wires the
 // stale-copy repair and starts auto-switch through the same module.
 import { handleStopContinue, handleStopContinueRead } from "./stop-continue.mjs";
-import { cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccountProjects, handleClaudeAccountAdmin, handleClaudeAccountSwitch, handleClaudeAccounts, handleCodexProfiles, handleCodexAccountShare, handleCodexProfileQuota, handleCodexProfileProjects, handleCodexProfileLaunch, handleCodexProfileMutation, handleCodexProfileLogin, handleCodexProfileLoginFlow, handleCodexTerminalCommand, handleCodexAuto, handleCodexAutoAction, handleCswapAuto, handleCswapAutoAction, wireAccountOrigins, wireStaleCopyRepair } from "./account-routes.mjs";
+import { cswapAutoModule, getProjectRollup, handleAccountLoginState, handleAccountProjects, handleClaudeAccountAdmin, handleClaudeAccountSwitch, handleClaudeAccounts, handleCodexProfiles, handleCodexAccountShare, handleCodexProfileQuota, handleCodexProfileProjects, handleCodexProfileLaunch, handleCodexProfileMutation, handleCodexProfileHide, handleCodexProfileLogin, handleCodexProfileLoginFlow, handleCodexTerminalCommand, handleCodexAuto, handleCodexAutoAction, handleCswapAuto, handleCswapAutoAction, wireAccountOrigins, wireStaleCopyRepair } from "./account-routes.mjs";
 // Browser Watch's three routes — see browser-watch-routes.mjs.
 import { handleBrowserWatch, handleBrowserWatchDismiss, handleBrowserWatchSettings } from "./browser-watch-routes.mjs";
 // The music routes, every one behind AGENTS_DECK_NO_MUSIC — see music-routes.mjs.
@@ -511,6 +511,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/codex-profile-add") return guard(handleCodexProfileMutation(req, res, "add"), res);
     if (req.method === "POST" && url.pathname === "/api/codex-profile-remove") return guard(handleCodexProfileMutation(req, res, "remove"), res);
     if (req.method === "POST" && url.pathname === "/api/codex-profile-rename") return guard(handleCodexProfileMutation(req, res, "rename"), res);
+    if (req.method === "POST" && url.pathname === "/api/codex-profile-hide") return guard(handleCodexProfileHide(req, res), res);
     if (req.method === "POST" && url.pathname === "/api/codex-profile-replace-login") return guard(handleCodexProfileMutation(req, res, "replace"), res);
     if (req.method === "POST" && url.pathname === "/api/codex-profile-login-start") return guard(handleCodexProfileLoginFlow(req, res, "start"), res);
     if (req.method === "POST" && url.pathname === "/api/codex-profile-login-cancel") return guard(handleCodexProfileLoginFlow(req, res, "cancel"), res);

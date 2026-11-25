@@ -1,4 +1,10 @@
 {
+  "4.3.14": [
+    {
+      "title": "🔍 Tap Shift twice to open Quick Open from anywhere",
+      "body": "Two quick taps on Shift, on their own, now open Quick Open wherever you are: on the board, in the session list, in a side panel, in a text field, in Chat and in a terminal. Before, the taps worked only while a terminal had the keys, and Ctrl+K or ⌘K was the way in everywhere else. Typing capitals, holding Shift, Shift-clicking and slow taps do not open it, and nothing opens over a dialog. The keyboard shortcuts sheet lists the new way in beside Ctrl+K."
+    }
+  ],
   "4.3.13": [
     {
       "title": "🗂️ Keep several sessions open as tabs in a Workspace pane",
@@ -488,6 +494,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.3.14": "Tap Shift twice to open Quick Open from anywhere in ccdeck",
     "4.3.13": "Tabs in Workspace panes, foldable session groups, a clear notice for disconnected folders, and Mac title bar fixes",
     "4.3.12": "New keys for lists and panes, Quick Open from a terminal, the Inspector stays closed, fixes for ccdeck tui and the app",
     "4.3.11": "ccdeck tui shows its version, takes updates and shares accounts; sessions can be pinned; Chat can set a question aside",

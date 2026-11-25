@@ -141,6 +141,16 @@ const catalog: Catalog = {
   "codex.menu.save": "Salvează",
   "codex.menu.saveTitle": "Un nume scurt afișat în locul e-mailului",
 
+  // Codex's own home: why it has no Remove, and its Hide / Show
+  "codex.menu.hide": "Ascunde",
+  "codex.menu.hideTitle": "Ascunde acest rând cât timp rămâne neautentificat. Revine singur când Codex se autentifică aici.",
+  "codex.menu.show": "Afișează {name}",
+  "codex.menu.showTitle": "Readuce în listă contul ascuns",
+  "codex.menu.notRemovable": "Nu poate fi eliminat: este folderul propriu de autentificare al Codex, iar {product} nu îl șterge niciodată.",
+  "codex.panel.hidden": "{name} este ascuns. Meniul ⋯ al oricărui cont îl afișează din nou.",
+  "codex.panel.hideFailed": "Contul nu a putut fi ascuns. Reîncarcă și încearcă din nou.",
+  "codex.panel.showFailed": "Contul nu a putut fi afișat. Reîncarcă și încearcă din nou.",
+
   // The Add / Sign in dialog (AddCodexAccountDialog)
   "codex.add.reason.missing": "Codex nu este instalat pe acest computer sau ccdeck nu îl găsește.",
   "codex.add.reason.expired": "Codul a expirat înainte să fie folosit.",

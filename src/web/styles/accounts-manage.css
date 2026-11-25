@@ -171,6 +171,23 @@
    equivalent is a hairline, inset so it reads as a pause in the list rather
    than an edge of the surface. */
 .ap-menu-sep { height: 1px; margin: 4px 0; background: var(--line-soft); }
+/* Why a row has no Remove (Codex's own sign-in folder), where Remove stands on
+   the others. An item the arrows reach and a screen reader names unavailable
+   (aria-disabled), drawn as the popover's note (.ap-pop-note) rather than as a
+   dimmed verb: a sentence to read, so it answers no pointer. Its focus keeps
+   the --selected fill, so the keyboard still shows where it is. */
+.ap-menu-item.ap-menu-note {
+  min-height: 0;
+  padding: 4px 8px 6px;
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 1.4;
+  color: var(--text-dim);
+  cursor: default;
+}
+@media (hover: hover) and (pointer: fine) {
+.ap-menu-item.ap-menu-note:hover:not(:focus-visible) { background: none; }
+}
+.ap-menu-item.ap-menu-note:active { background: none; }
 /* The only item that carries the error colour, and at rest it carries it in
    the word alone. Pointed at, it takes the same 12% --err wash `.btn.danger`
    takes under the pointer. */
