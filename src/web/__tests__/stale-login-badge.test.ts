@@ -262,7 +262,15 @@ describe("what the panel is allowed to offer", () => {
     // what ends that. It claims no login is broken, and it cannot be about an
     // account the user is signed in as: it renders only when no row is active,
     // which is exactly when the live login is in no row.
-    expect(panel).toMatch(/\{!activeAcct && data\.unlistedLogin && \(\s*<div className="ap-notice">[\s\S]*?<button type="button" className="ap-notice-fix" onClick=\{\(\) => setAddOpen\(true\)\}/);
+    //
+    // CHANGED ON PURPOSE: the notice moved to UnlistedLoginNotice.tsx, so its
+    // sentence can be drawn and read on its own (unlisted-login-notice.test.tsx).
+    // The panel still renders it only under that condition and hands it the
+    // plain add, and its one button is that add and nothing else.
+    expect(panel).toMatch(/\{!activeAcct && data\.unlistedLogin && \(\s*<UnlistedLoginNotice email=\{data\.unlistedLogin\} onAdd=\{\(\) => setAddOpen\(true\)\} \/>/);
+    const notice = src("../components/UnlistedLoginNotice.tsx");
+    expect(notice).toMatch(/<button type="button" className="ap-notice-fix" onClick=\{onAdd\}/);
+    expect((notice.match(/onClick=/g) ?? []).length, "the unlisted-login notice presses something other than the add").toBe(1);
     const openers = (accountsSurface().match(/setAddOpen\(true\)/g) ?? []).length;
     // CHANGED ON PURPOSE (V4's Figma): the "No accounts" state's Add account
     // button is the header's + by another door. CHANGED ON PURPOSE again (user

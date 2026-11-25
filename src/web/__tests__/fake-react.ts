@@ -108,6 +108,10 @@ export const react = {
   // lazy chunk, an error boundary, a Suspense round it — none of which this
   // React draws, since it renders no child component.
   lazy(_load: () => Promise<unknown>) { return function Lazy() { return null; }; },
+  // A keyed fragment (accounts-rich.tsx's tNodes): the JSX runtime's own
+  // symbol, so the element is the one the real runtime would build, and
+  // all() and textOf() walk its children like any other element's.
+  Fragment: Symbol.for("react.fragment"),
   Component: class Component<P = unknown, S = unknown> {
     props: P;
     state = {} as S;
