@@ -712,6 +712,7 @@ const catalog: Catalog = {
   "board.stage.split.noRoom": "Não há espaço para outro painel aqui: abriu como aba neste painel",
   "board.stage.tabs.label": "Sessões abertas neste painel",
   "board.stage.tabs.all": "Todas as abas deste painel ({count})",
+  "board.stage.tabs.close": "Fechar {name}",
   "board.stage.split.maximize": "Preencher o Workspace com este painel",
   "board.stage.split.restore": "Mostrar os painéis lado a lado de novo",
   "board.stage.split.paneNumber": "Painel {number}",
