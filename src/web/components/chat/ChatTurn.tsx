@@ -14,7 +14,7 @@ import {
   AgentGlyph, ChevronRightGlyph, DoneGlyph, FileGlyph, ImageGlyph, SearchGlyph, TodoActiveGlyph, TodoPendingGlyph, ToolTerminalGlyph,
 } from "./chat-icons";
 import { t as tNow, useT, type TFunction } from "../../i18n";
-import type { ChatActivity, ChatAsk, ChatDiff, ChatOutgoing, ChatQuestion, ChatSince, ChatTodo, ChatTurn as Turn } from "./chat-model";
+import type { ChatActivity, ChatAsk, ChatOutgoing, ChatQuestion, ChatSince, ChatTodo, ChatTurn as Turn } from "./chat-model";
 import type { Provider } from "../../types";
 import ProviderAvatar from "../ProviderAvatar";
 import { providerLabel } from "../../provider-copy";
@@ -25,17 +25,25 @@ import type { AskSendResult } from "../../use-terminal-session";
 import { copyText } from "../../copy-text";
 import { CopyGlyph } from "../terminal/stage-icons";
 import { CODEX_TOOL_LABEL } from "../../tool-taxonomy";
+import DiffBlock, { DiffCounts } from "./ChatDiff";
+import { failedByExit, ToolFacts, ToolOutputBlock, ToolPreview, WorkSummary } from "./ChatToolOutput";
+import ThinkingRow from "./ChatThinking";
+import { Clock, MessageMeta, TurnFooter } from "./ChatTime";
+import type { BlockTime } from "./chat-rich";
+
+export { diffOp, default as DiffBlock } from "./ChatDiff";
 
 /** What you typed, and a chip that counts the images you sent with it: under
  *  the words, or alone when you sent only images. The images themselves are
  *  never in the transcript Chat reads. */
-export function YourMessage({ text, images }: { text: string; images?: number }) {
+export function YourMessage({ text, images, at }: { text: string; images?: number; at?: number }) {
   const t = useT();
   return (
     <div className="chat-you">
       <span className="chat-author">{t("board.chat.you")}</span>
       {text && <p className="chat-you-text">{text.replace(/\r\n?/g, "\n")}</p>}
       {images ? <span className="chat-you-images"><span className="chat-you-images-mark"><ImageGlyph /></span>{t("board.chat.images", { count: images })}</span> : null}
+      <MessageMeta at={at} text={text} />
     </div>
   );
 }
@@ -94,30 +102,15 @@ export function YourCommand({ turn }: { turn: Extract<Turn, { kind: "command" }>
   );
 }
 
-export function AssistantText({ text }: { text: string }) {
-  return <div className="chat-said"><ChatMarkdown text={text} /></div>;
+export function AssistantText({ text, cut }: { text: string; cut?: boolean }) {
+  const t = useT();
+  return <div className="chat-said"><ChatMarkdown text={text} />{cut && <p className="chat-said-cut">{t("board.chat.rich.saidCut")}</p>}</div>;
 }
 
 const MARKS = { file: FileGlyph, search: SearchGlyph, terminal: ToolTerminalGlyph } as const;
 
 type ToolTurn = Extract<Turn, { kind: "tool" }>;
 type TodoTurn = Extract<Turn, { kind: "todo" }>;
-
-/** Which way a diff line goes: added, removed, kept, or the gap between two hunks. */
-export function diffOp(line: string): "add" | "del" | "ctx" | "gap" {
-  if (line === "…") return "gap";
-  return line.startsWith("+") ? "add" : line.startsWith("-") ? "del" : "ctx";
-}
-
-/** An edit's change: one line per diff line, scrolled inside its own block. */
-export function DiffBlock({ diff }: { diff: ChatDiff }) {
-  const t = useT();
-  return <>
-    <pre className="chat-diff"><code>{diff.lines.map((line, i) =>
-      <span key={i} className="chat-diff-line" data-op={diffOp(line)}>{line}</span>)}</code></pre>
-    {diff.cut && <p className="chat-diff-cut">{t("board.chat.diff.cut")}</p>}
-  </>;
-}
 
 /** The word a tool row shows. Codex's raw names ("exec_command",
  *  "apply_patch") read as the board shows them ("Shell", "Edit"); the raw name
@@ -132,31 +125,35 @@ export function ToolRow({ turn }: { turn: ToolTurn }) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const Mark = MARKS[turn.mark ?? (turn.name === "Bash" ? "terminal" : turn.name === "Explore" ? "search" : "file")];
-  const failed = turn.error !== undefined;
+  const failed = turn.error !== undefined && !failedByExit(turn);
   const label = toolLabel(turn.name);
   const content = <>
     <span className="chat-tool-mark"><Mark /></span>
     <span className="chat-tool-name" title={label === turn.name ? undefined : turn.name}>{label}</span>
     <span className="chat-tool-arg" title={turn.arg}>{turn.arg}</span>
-    {turn.note && <span className="chat-tool-note">{turn.note}</span>}
+    {turn.note && <span className="chat-tool-note">{turn.diff ? <DiffCounts note={turn.note} /> : turn.note}</span>}
+    <ToolFacts turn={turn} />
     {failed && <span className="chat-tool-failed">{t("board.chat.tool.failed")}</span>}
     {turn.declined && <span className="chat-tool-declined">{t("board.chat.tool.declined")}</span>}
   </>;
-  // An error to read or a change to see: the row is a button that opens them,
-  // with the whole argument above, as the plain row's disclosure shows it.
-  if (turn.error || turn.diff?.lines.length) {
+  // An error to read, a change to see or an output: the row is a button that
+  // opens them, with the whole argument above, as the plain row's disclosure
+  // shows it. A command's closed row previews its output in one line.
+  if (turn.error || turn.diff?.lines.length || turn.output) {
     return (
       <div className="chat-tool-call">
         <button type="button" className="chat-tool chat-tool-toggle" data-running={turn.running || undefined}
           aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(was => !was)}>
           <span className="chat-disclosure"><ChevronRightGlyph /></span>
           {content}
+          {!open && <ToolPreview turn={turn} />}
         </button>
         {open && (
           <div className="chat-tool-detail" id={id}>
             {turn.arg && <pre className="chat-tool-input"><code>{turn.arg}</code></pre>}
             {turn.error && <pre className="chat-tool-error"><code>{turn.error}</code></pre>}
-            {turn.diff && turn.diff.lines.length > 0 && <DiffBlock diff={turn.diff} />}
+            {turn.diff && turn.diff.lines.length > 0 && <DiffBlock diff={turn.diff} path={turn.arg} />}
+            {turn.output && <ToolOutputBlock output={turn.output} />}
           </div>
         )}
       </div>
@@ -234,8 +231,8 @@ export function NoticeLine({ turn }: { turn: Extract<Turn, { kind: "notice" }> }
   return <p className="chat-notice" data-what={turn.what}>{text}</p>;
 }
 
-/** What folds into a run of tool calls: a call, or an earlier task list. */
-type Folded = ToolTurn | TodoTurn;
+/** What folds into a run of tool calls: a call, an earlier task list, or a thought between calls. */
+type Folded = ToolTurn | TodoTurn | Extract<Turn, { kind: "thinking" }>;
 
 /** The disclosure contains the actual calls; it never implies unseen output.
  *  Failed calls are counted on its head, so they show while it is closed. */
@@ -246,12 +243,13 @@ export function ToolGroup({ turns }: { turns: Folded[] }) {
   return <details className="chat-activity" open={running || undefined}>
     <summary className="chat-activity-head">
       <span className="chat-disclosure"><ChevronRightGlyph /></span>
-      <span>{t("board.chat.tools", { count: turns.length })}</span>
+      <WorkSummary turns={turns} />
       {failed > 0 && <span className="chat-activity-failed">{t("board.chat.toolsFailed", { count: failed })}</span>}
       {running && <span className="chat-activity-running">{t("board.chat.running")}</span>}
     </summary>
     <div className="chat-activity-calls">{turns.map((turn, i) => turn.kind === "tool"
       ? <ToolRow key={i} turn={turn} />
+      : turn.kind === "thinking" ? <ThinkingRow key={i} turn={turn} />
       : <TodoLine key={i} turn={turn} />)}</div>
   </details>;
 }
@@ -261,7 +259,7 @@ export type LiveAsk = ChatAsk & { at: number };
 
 /** Identify each response once. `todoAt` is which of the block's turns is the
  *  conversation's last task list, drawn whole; none when it is elsewhere. */
-export function AssistantBlock({ turns, provider = "claude", ask, todoAt }: { turns: Turn[]; provider?: Provider; ask?: LiveAsk; todoAt?: number }) {
+export function AssistantBlock({ turns, provider = "claude", ask, todoAt, time }: { turns: Turn[]; provider?: Provider; ask?: LiveAsk; todoAt?: number; time?: BlockTime }) {
   // Never drawn for opencode or Copilot today (Chat reads no transcript of
   // theirs), and named by provider-copy.ts so it never says Claude Code if it is.
   const author = providerLabel(provider);
@@ -274,13 +272,15 @@ export function AssistantBlock({ turns, provider = "claude", ask, todoAt }: { tu
   // line by line: a disclosure of task lines alone would hide them.
   const parts: { index: number; turns: Turn[]; folded: boolean }[] = [];
   turns.forEach((turn, index) => {
-    const folded = turn.kind === "tool" || (turn.kind === "todo" && index !== todoAt);
+    const folded = turn.kind === "tool" || turn.kind === "thinking" || (turn.kind === "todo" && index !== todoAt);
     const last = parts.at(-1);
     if (folded && last?.folded) last.turns.push(turn);
     else parts.push({ index, turns: [turn], folded });
   });
+  const started = turns.find(turn => turn.at !== undefined)?.at;
   return <section className="chat-response" aria-label={author}>
     <div className="chat-response-author"><ProviderAvatar provider={provider} /><span>{author}</span>
+      {started !== undefined && <Clock at={started} className="chat-response-time" />}
       {answer && <button type="button" className="glyph-btn chat-copy" title={t(copied ? "board.stage.copied" : "board.stage.copy")}
         aria-label={t(copied ? "board.stage.copied" : "board.stage.copy")}
         onClick={() => { void copyText(answer).then(ok => setCopied(ok)); }}><CopyGlyph /></button>}
@@ -290,6 +290,7 @@ export function AssistantBlock({ turns, provider = "claude", ask, todoAt }: { tu
       return part.turns.map((turn, i) => <TurnRow key={part.index + i} turn={turn}
         ask={ask?.at === part.index + i ? ask : undefined} latest={todoAt === part.index + i} />);
     })}</div>
+    {time && <TurnFooter time={time} />}
   </section>;
 }
 
@@ -563,9 +564,10 @@ export function SinceDivider({ since }: { since: ChatSince }) {
 /** One turn. `latest` says a task list is the conversation's last, drawn whole. */
 export function TurnRow({ turn, ask, latest }: { turn: Turn; ask?: ChatAsk; latest?: boolean }) {
   switch (turn.kind) {
-    case "user": return <YourMessage text={turn.text} images={turn.images} />;
+    case "user": return <YourMessage text={turn.text} images={turn.images} at={turn.at} />;
     case "command": return <YourCommand turn={turn} />;
-    case "assistant": return <AssistantText text={turn.text} />;
+    case "assistant": return <AssistantText text={turn.text} cut={turn.cut} />;
+    case "thinking": return <ThinkingRow turn={turn} />;
     case "tool": return <ToolRow turn={turn} />;
     case "todo": return latest ? <TodoList turn={turn} /> : <TodoLine turn={turn} />;
     case "agent": return <AgentLine turn={turn} />;

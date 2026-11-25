@@ -31,6 +31,7 @@ const EXCEPTIONS: readonly Exception[] = [
   // V4's tour draws two chips on the Inspector's agent, where the 3.x tour
   // drew four on its nodes.
   ...["Read", "Bash"].map(text =>({ file: "src/web/components/guide-art.tsx", text, why: "A Claude Code tool name, which Claude Code prints in English." })),
+  { file: "src/web/components/chat/chat-highlight.ts", text: "True False None", why: "Python's own literal words, which Chat's highlighter looks for in code; never shown as words." },
 ];
 
 /** The string as the scan prints it: spaces folded, trimmed, cut at 90. An

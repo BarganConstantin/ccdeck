@@ -27,7 +27,7 @@ const KEPT: Record<string, string> = {
 /** Every stylesheet, as [path relative to src/web, text with comments blanked]. */
 const SHEETS: [string, string][] = [
   ...sheetParts(),
-  ...["components/chat/chat.css", "components/decision/decision.css"]
+  ...["components/chat/chat.css", "components/chat/chat-rich.css", "components/decision/decision.css"]
     .map(p => [p, readFileSync(`${WEB}${p}`, "utf8")] as [string, string]),
 ].map(([path, text]) => [path, text.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, " "))]);
 

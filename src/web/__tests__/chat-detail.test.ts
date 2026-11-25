@@ -75,7 +75,9 @@ describe("the task list", () => {
   it("folds each earlier list into the tool calls as one muted line", () => {
     const markup = html(turns);
     const [group] = groups(markup);
-    expect(words(group)).toContain("4 tool calls");
+    // CHANGED ON PURPOSE: the head sums the calls up by kind ("4 tool calls"
+    // counted the two folded lists as calls); the lists stay lines of their own.
+    expect(words(group)).toContain("Read 1 file · edited 1 file");
     expect(words(group)).toContain("Tasks updated · 0 of 3 done");
     expect(words(group)).toContain("Tasks updated · 1 of 3 done");
     expect(group.match(/class="chat-tool chat-todo-line"/g)).toHaveLength(2);
@@ -134,7 +136,8 @@ describe("a failed call", () => {
   it("is counted on the head of its group, so it shows while the group is closed", () => {
     const one = renderToStaticMarkup(createElement(ToolGroup, { turns: [{ kind: "tool", name: "Read", arg: "a.ts" }, FAILED, EDIT] }));
     expect(one).toMatch(/^<details class="chat-activity">/);
-    expect(words(one)).toContain("3 tool calls 1 failed");
+    // CHANGED ON PURPOSE: summed up by kind, the failure still counted beside it.
+    expect(words(one)).toContain("Ran 1 command · read 1 file · edited 1 file 1 failed");
     expect(one).toContain('<span class="chat-activity-failed">1 failed</span>');
     const none = renderToStaticMarkup(createElement(ToolGroup, { turns: [EDIT] }));
     expect(none).not.toContain("chat-activity-failed");
@@ -145,16 +148,20 @@ describe("an edit's change", () => {
   it("counts its lines in the row's note and stays closed", () => {
     const markup = renderToStaticMarkup(createElement(ToolRow, { turn: EDIT }));
     expect(markup).toContain('aria-expanded="false"');
-    expect(markup).toContain('<span class="chat-tool-note">+2 −1</span>');
+    // CHANGED ON PURPOSE: the counts wear the change's tints, + in --ok and − in --err.
+    expect(markup).toContain('<span class="chat-tool-note"><span class="chat-diff-plus">+2</span> <span class="chat-diff-minus">−1</span></span>');
     expect(markup).toContain('<span class="chat-tool-arg" title="src/limit.ts">src/limit.ts</span>');
-    expect(markup).not.toContain("chat-diff");
+    expect(markup).not.toContain('class="chat-diff"');
     expect(markup).not.toContain("chat-tool-failed");
   });
 
   it("draws one line per diff line, each marked added, removed, kept or the gap between hunks", () => {
     const markup = renderToStaticMarkup(createElement(DiffBlock, { diff: { lines: [" keep", "-old", "+new", "…", " far"] } }));
     expect(markup).toMatch(/^<pre class="chat-diff"><code>/);
-    expect([...markup.matchAll(/data-op="(\w+)">([^<]*)</g)].map(m => [m[1], m[2]])).toEqual([
+    // CHANGED ON PURPOSE: each line holds its sign and its text as spans of their
+    // own (the gutter's number joins them when the hunks' starts are known).
+    expect([...markup.matchAll(/<span class="chat-diff-line" data-op="(\w+)">(.*?)<\/span><\/span>/g)]
+      .map(m => [m[1], m[2].replace(/<[^>]+>/g, "")])).toEqual([
       ["ctx", " keep"], ["del", "-old"], ["add", "+new"], ["gap", "…"], ["ctx", " far"],
     ]);
     expect(markup).not.toContain("chat-diff-cut");

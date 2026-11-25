@@ -15,7 +15,7 @@ import { THEMES, color, contrast, over, palette } from "./integrations-palette";
 import { sheetText } from "./sheet-source";
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
-const SCREEN_SHEETS = ["components/chat/chat.css", "components/decision/decision.css"] as const;
+const SCREEN_SHEETS = ["components/chat/chat.css", "components/chat/chat-rich.css", "components/decision/decision.css"] as const;
 
 describe("the screens' sheets", () => {
   for (const path of SCREEN_SHEETS) {

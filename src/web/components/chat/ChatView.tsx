@@ -30,6 +30,7 @@ import { stoppedInChat } from "../../chat-progress";
 import DecisionCard, { type DecisionCardProps } from "../decision/DecisionCard";
 import type { ChatActivity, ChatAsk, ChatOutgoing, ChatSource, ChatTurn } from "./chat-model";
 import { conversationBlocks } from "./chat-model";
+import { blockTimes } from "./chat-rich";
 import { ActivityLine, AssistantBlock, OutgoingMessage, RecordLine, SinceDivider, YourCommand, YourMessage } from "./ChatTurn";
 import "./chat.css";
 
@@ -170,6 +171,10 @@ export default function ChatView({ source, provider, decision, ask, session, out
     pressed.current = false;
   }, [head]);
   const mine = outgoing ? <OutgoingMessage outgoing={outgoing} provider={provider} onShowTerm={onShowTerm} /> : null;
+  // Each answer ends on how long it took, once it is over: the last one only
+  // while the session is not at work on it or waiting on you.
+  const blocks = source.state === "ready" ? conversationBlocks(source.turns) : [];
+  const times = blockTimes(blocks);
   const doing = activity ? <ActivityLine activity={activity} provider={provider} onShowTerm={onShowTerm} /> : null;
   return (
     <div className="chat" data-docked={decision ? "" : undefined}>
@@ -212,11 +217,12 @@ export default function ChatView({ source, provider, decision, ask, session, out
               {source.turns.length === 0 && <p className="chat-empty">{t("board.chat.empty")}</p>}
               {/* Keyed from where the turns were before any went in at the top,
                   so a turn keeps its row (and what is open in it) when older ones arrive. */}
-              {conversationBlocks(source.turns).map(block => block.kind === "assistant"
+              {blocks.map((block, n) => block.kind === "assistant"
                 ? <AssistantBlock key={block.index - head} turns={block.turns} provider={provider}
                   ask={ask && live >= block.index && live < block.index + block.turns.length ? { ...ask, at: live - block.index } : undefined}
-                  todoAt={inBlock(todo, block.index, block.turns.length)} />
-                : block.kind === "user" ? <YourMessage key={block.index - head} text={block.text} images={block.images} />
+                  todoAt={inBlock(todo, block.index, block.turns.length)}
+                  time={n < blocks.length - 1 || !activity ? times.get(block.index) : undefined} />
+                : block.kind === "user" ? <YourMessage key={block.index - head} text={block.text} images={block.images} at={block.at} />
                 : block.kind === "command" ? <YourCommand key={block.index - head} turn={block} />
                 : <RecordLine key={block.index - head} text={block.text} />)}
             </>
