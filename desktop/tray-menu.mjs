@@ -75,9 +75,11 @@ export function statusWorthAsking(snapshot) {
  *   (a package manager's install, #1755)
  * @param {Array<{ label: string, href: string }>} [s.incidents]  what the
  *   providers' status pages report, incidents only — the page's own incidentsOf
+ * @param {{ serving: string, to: string } | null} [s.drift]  the deck serves
+ *   older code than its install holds (deck-drift.mjs trayDrift)
  * @param {object} on  what each row does when it is clicked
  */
-export function trayMenuItems({ now, snapshot, deck, starting, restarting, startFailed = null, notifyOn, openAtLogin, appVersion, update, updateAsksPassword = false, incidents = [] }, on) {
+export function trayMenuItems({ now, snapshot, deck, starting, restarting, startFailed = null, notifyOn, openAtLogin, appVersion, update, updateAsksPassword = false, incidents = [], drift = null }, on) {
   const items = [{ label: statusLine({ restarting, starting, deck, snapshot, startFailed }), enabled: false }];
   for (const b of snapshot.blocked.slice(0, 6)) {
     const what = b.kind === "asked" ? "asking" : "needs permission";
@@ -112,14 +114,38 @@ export function trayMenuItems({ now, snapshot, deck, starting, restarting, start
       click: item => on.setOpenAtLogin(item.checked),
     },
     { type: "separator" },
-    { label: `ccdeck v${appVersion}${deck?.version && deck.version !== appVersion ? ` · deck v${deck.version}` : ""}`, enabled: false },
+    { label: versionLine({ appVersion, deck, drift }), enabled: false },
     updateItem(update, on, updateAsksPassword),
     // #1163: the deck restarted from the tray, the way the page's version
     // dialog does it, rather than Quit and a trip to the Start menu.
-    { label: "Restart ccdeck", enabled: !!deck && !starting && !restarting, click: () => on.restartDeck() },
+    { label: restartLabel({ update, drift, updateAsksPassword }), enabled: !!deck && !starting && !restarting, click: () => on.restartDeck() },
     { label: "Quit ccdeck", click: () => on.quit() },
   );
   return items;
+}
+
+/**
+ * The version row: the app's, then the deck's when it is not the same — and
+ * when the deck serves older code than its install holds, both of the deck's,
+ * because "deck v4.3.7" beside an app that says nothing more reads as a deck
+ * nobody can do anything about. The version it serves is what /api/version
+ * said it runs; the record's version is the same number, read at its boot.
+ */
+export function versionLine({ appVersion, deck, drift = null }) {
+  const serving = drift?.serving || deck?.version || "";
+  if (drift?.to) return `ccdeck v${appVersion} · deck v${serving}, v${drift.to} installed`;
+  return `ccdeck v${appVersion}${serving && serving !== appVersion ? ` · deck v${serving}` : ""}`;
+}
+
+/**
+ * The Restart row's words: what pressing it brings, when that is a newer deck.
+ * Not while the app has a verified update ready that installs without a
+ * password, which the same press takes instead (main.mjs restartDeck) and the
+ * row above already offers.
+ */
+export function restartLabel({ update, drift = null, updateAsksPassword = false }) {
+  const takesAppUpdate = update?.status === "ready" && !updateAsksPassword;
+  return drift?.to && !takesAppUpdate ? `Restart ccdeck to run v${drift.to}` : "Restart ccdeck";
 }
 
 /** The update line of the menu, which says where the update is rather than
