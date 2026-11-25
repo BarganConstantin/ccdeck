@@ -79,6 +79,7 @@ import Divider from "./Divider";
 import HostsDialog from "./HostsDialog";
 import { t as tNow, useT } from "../../i18n";
 import { ChatComposerSlot, useScreenFlags } from "../../use-screens";
+import { useChatReturned } from "../../use-chat-returned";
 import { fontSizeFor, stepTerminalText, useTerminalTextStep } from "../../terminal-text-size";
 import { chatSessionFor, useSessionTranscript } from "../../use-session-transcript";
 import { isEventOnly } from "../../../server/provider-ids.mjs";
@@ -824,6 +825,9 @@ export default function TerminalStage(p: TerminalStageProps) {
     delete rest[chatDraftKey];
     return rest;
   }));
+  // A message the session did not take goes back into an empty box (use-chat-returned.ts).
+  const chatReturned = useChatReturned(chatDraftKey, chatProgress.outgoing, chatDrafts[chatDraftKey] ?? "",
+    text => setChatDrafts(drafts => ({ ...drafts, [chatDraftKey]: text })));
 
   // RENAMING (internal #101): held here rather than in the header, which is
   // drawn by calling it; the facts are the session on stage, so a switch to
@@ -1053,6 +1057,10 @@ export default function TerminalStage(p: TerminalStageProps) {
     onChange={value => setChatDrafts(drafts => ({ ...drafts, [chatDraftKey]: value }))}
     unavailable={chatUnavailable}
     onShowTerm={() => showView("term")}
+    session={chatDraftKey}
+    turns={chatTurns}
+    notTaken={chatReturned.text}
+    provider={chatProvider}
     onSend={text => {
       if (chatUnavailable) return "unavailable";
       const result = session.sendPrompt(text, key);
@@ -1176,7 +1184,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         onOpenWaiting={openWaiting(p.waiting, p.onOpenWaiting)}
         screens={chatSession !== null ? {
           view, source: chatSource, provider: chatProvider, ask: chatAsk, decision: promptCard,
-          session: chatDraftKey, outgoing: chatProgress.outgoing, activity: chatProgress.activity, onShowTerm: () => showView("term"),
+          session: chatDraftKey, outgoing: chatReturned.outgoing, activity: chatProgress.activity, onShowTerm: () => showView("term"),
         } : undefined}
       />
       <KeysBar

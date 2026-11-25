@@ -65,7 +65,8 @@ export function OutgoingMessage({ outgoing, provider, onShowTerm }: { outgoing: 
       <p className="chat-you-text">{outgoing.text.replace(/\r\n?/g, "\n")}</p>
       {outgoing.state !== "taken" && (
         <p className="chat-you-state">
-          <span>{late ? t("board.chat.progress.unconfirmed", { agent: providerLabel(provider) }) : t("board.chat.progress.sending")}</span>
+          <span>{late ? t("board.chat.progress.unconfirmed", { agent: providerLabel(provider) })
+            : outgoing.queued ? t("board.chat.compose.queued", { agent: providerLabel(provider) }) : t("board.chat.progress.sending")}</span>
           {late && onShowTerm && <button type="button" className="chat-ask-term" onClick={onShowTerm}>{t("board.chat.showTerm")}</button>}
         </p>
       )}
