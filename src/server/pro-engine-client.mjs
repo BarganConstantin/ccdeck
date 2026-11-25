@@ -2,6 +2,9 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import { statSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { isAbsolute, posix } from 'node:path';
 import { engineClaudeHint } from './claude-dir.mjs';
 import { ENGINE_PROTOCOL, ENGINE_MAX_FRAME, verifyEngineInstallation } from './pro-engine-install.mjs';
 
@@ -41,6 +44,46 @@ export function engineEnv(env, terminal, claude = null) {
   if (typeof claude === 'string' && claude && !String(out.AGENTS_DECK_CLAUDE ?? '').trim()) out.AGENTS_DECK_CLAUDE = claude;
   if (terminal === true) out[TERMINAL_OPT_IN] = '1';
   return out;
+}
+/** The variables that name a place the engine reads, or the tmux it runs
+ *  reads: the deck's data folder, Claude's and Codex's homes, the XDG data
+ *  home and tmux's socket folder. */
+const ENGINE_PLACES = ['CCDECK_HOME', 'CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'XDG_DATA_HOME', 'TMUX_TMPDIR'];
+const isFolderSync = path => { try { return isAbsolute(path) && statSync(path).isDirectory(); } catch { return false; } };
+/**
+ * How the engine is started on macOS and Linux: the folder it runs in (`cwd`)
+ * and its environment (`env`, engineEnv's). On Windows, `env` alone.
+ *
+ * NEVER IN THE DECK'S OWN FOLDER. The engine starts the deck's tmux server,
+ * and the server stays in the folder it was started in for as long as any
+ * deck session lives, through deck restarts and app updates. tmux 3.7 and
+ * later — ccdeck's own build is 3.8, the only tmux a Mac has — start a new
+ * pane in the folder asked for only while the server can still read its own:
+ * once that folder is deleted, every new pane starts inside it, whatever was
+ * asked, and its agent ends at once ("getcwd: cannot access parent
+ * directories", Codex's "No such file or directory (os error 2)"). The deck
+ * runs wherever it was started — a project or worktree that may be removed,
+ * or the app's own bundle, which an update replaces — so the engine runs in
+ * the home folder instead, where tmux itself falls back to, or in "/" where
+ * there is none.
+ *
+ * THE SAME PLACES. A place variable set to a relative path is resolved
+ * against the deck's folder, by the deck and by the engine alike; it is
+ * handed on resolved, so the engine still reads what the deck reads.
+ *
+ * Windows is left as it was: there a folder a running program is in cannot be
+ * removed, and every session is started in its own folder by name.
+ */
+export function engineStart(env, { platform = process.platform, home = homedir(), deckFolder = () => process.cwd(), isFolder = isFolderSync } = {}) {
+  if (platform === 'win32') return { env };
+  const out = { ...env };
+  let from = null;
+  try { from = deckFolder(); } catch { /* gone, and never read before: left as given */ }
+  for (const key of ENGINE_PLACES) {
+    const value = typeof out[key] === 'string' ? out[key].trim() : '';
+    if (value && from && !posix.isAbsolute(value)) out[key] = posix.resolve(from, value);
+  }
+  return { cwd: isFolder(home) ? home : '/', env: out };
 }
 function awaitStartup(starting, signal, timeoutMs) {
   return new Promise((resolve, reject) => {
@@ -99,7 +142,7 @@ export class ProEngineClient extends EventEmitter {
   async #launch() {
     const installation = await awaitStartup(this.#verify(this.options), undefined, 5000);
     if (this.#closed) throw fail('closed');
-    const child = spawn(installation.executable, [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, shell: false, env: engineEnv(process.env, this.options.terminal, engineClaudeHint()) });
+    const child = spawn(installation.executable, [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, shell: false, ...engineStart(engineEnv(process.env, this.options.terminal, engineClaudeHint())) });
     this.#child = child; this.#installation = installation; this.#nonce = randomBytes(32).toString('hex');
     const generation = ++this.#generation;
     // Stream ids start again at 1 for every engine instance.

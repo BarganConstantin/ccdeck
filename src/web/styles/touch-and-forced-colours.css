@@ -97,6 +97,8 @@
   .ts-head button.btn.ts-end-act { min-height: 32px; }
   /* A pane's tabs in its header (PaneTabs.tsx), inside its 36px row. */
   .ts-tabs .ts-tab { min-height: 32px; }
+  /* And the × after each row of the strip's menu, beside the row's 40. */
+  .ts-tabs-x { min-width: 32px; min-height: 32px; }
   /* The divider is 32px wide: 8px over the navigator and 24px over the
      stage's inset before its first column, so it covers no cell. Its line
      and grip stay on the stage's edge. */
