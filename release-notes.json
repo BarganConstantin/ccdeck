@@ -1,4 +1,34 @@
 {
+  "4.3.12": [
+    {
+      "title": "⌨️ New keys for the session list, This machine and sound",
+      "body": "Three single-key shortcuts moved. S now opens the session list (it was L), M opens This machine (it was S), and Shift+M turns sound on or off (it was M). The shortcut sheet and the status bar show the new keys."
+    },
+    {
+      "title": "⚡ Open Quick Open from inside a terminal",
+      "body": "Tap Shift twice, quickly, while a terminal has the keys, and Quick Open opens without typing anything into the terminal. Right after the second tap, S opens the session list, M opens This machine and an arrow moves to the next pane; Esc cancels. Ordinary Shift typing still reaches the terminal, and Ctrl+K still opens Quick Open everywhere else."
+    },
+    {
+      "title": "🔀 Move between Workspace panes from the keyboard",
+      "body": "With terminals side by side in Workspace, Ctrl+Shift and an arrow move the keys to the next pane while a terminal has them. On a Mac it is Option+Shift and an arrow in the browser, and Command+Option and an arrow in the desktop app. With a single pane, the keys go to the terminal as before."
+    },
+    {
+      "title": "🗂️ The Inspector stays closed when you go back to a terminal",
+      "body": "If you closed the Inspector in Workspace, went to Board and then opened a session whose terminal was still open, the Inspector came back and took space from your panes. It now stays as you left it, and the session's own pane gets the keys instead of a second copy of it. Only a new pane opens the Inspector."
+    },
+    {
+      "title": "🎯 Closing the Inspector gives the keys back to your pane",
+      "body": "With terminals side by side in Workspace, closing the Inspector sent the keys to the first pane, whichever one you were in. They now go back to the pane you were working in."
+    },
+    {
+      "title": "🔌 ccdeck tui finds the deck again after standing still",
+      "body": "When ccdeck tui sat still for a while, for example over a stalled SSH link, it could come back saying accounts are added through the deck, as if no deck were running. It now reaches the running deck again, and the next key works."
+    },
+    {
+      "title": "🔄 The desktop app moves an older deck to its new version",
+      "body": "After an update, the desktop app could keep showing a deck that still ran the previous version, with the new one already installed. When the deck's automatic updates are on, the app now restarts that deck on its new version once the window is in the background and no agent has worked for a minute. Otherwise the tray menu shows both versions and offers to restart onto the new one."
+    }
+  ],
   "4.3.11": [
     {
       "title": "🔢 ccdeck tui names its version in the title bar",
@@ -436,6 +466,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.3.12": "New keys for lists and panes, Quick Open from a terminal, the Inspector stays closed, fixes for ccdeck tui and the app",
     "4.3.11": "ccdeck tui shows its version, takes updates and shares accounts; sessions can be pinned; Chat can set a question aside",
     "4.3.10": "Subagent costs count requests that ran side by side, and Throttling shows on Linux machines with no temperature sensor",
     "4.3.9": "Copy the TUI sign-in link over SSH, and Send feedback is named in the top bar",
