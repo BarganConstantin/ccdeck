@@ -272,8 +272,8 @@ export async function handleTerminalOpen(req, res, options) {
 
 /** POST /api/terminal/adopt `{ sessionId, provider, cwd }`: reopen an ended
  *  session in a deck pane. 409 `still-running` while its process lives; 409
- *  `folder-missing` or `folder-denied`, with the folder, when it cannot be
- *  reopened in its own folder (posted). */
+ *  `folder-missing`, `folder-denied` or `folder-unreachable`, with the
+ *  folder, when it cannot be reopened in its own folder (posted). */
 export async function handleTerminalAdopt(req, res, options) {
   return posted(req, res, options, "adopt");
 }
@@ -341,8 +341,8 @@ export async function handleTerminalBackground(req, res, options) {
 
 /** POST /api/terminal/launch `{ agent, cwd, key? }` → `{ ok: true, sessionId,
  *  name, ticket }`. The key makes asking again safe: one agent per key. 409
- *  `folder-missing` or `folder-denied`, with the folder, when the folder is
- *  not one to start in (posted). */
+ *  `folder-missing`, `folder-denied` or `folder-unreachable`, with the
+ *  folder, when the folder is not one to start in (posted). */
 export async function handleTerminalLaunch(req, res, options) {
   return posted(req, res, options, "launch");
 }
@@ -461,8 +461,9 @@ async function posted(req, res, options, method) {
  * Why a launch or an adopt cannot start in the folder it names, or null to
  * ask the engine as before. A folder that went away (a removed worktree, a
  * project moved or renamed), or that is not a folder, is `folder-missing`;
- * one this user may not open, `folder-denied`; both with the folder as it was
- * asked, so the page can name it. Answered before the deck notes the start
+ * one this user may not open, `folder-denied`; one on a drive or a network
+ * folder that is disconnected right now, `folder-unreachable`; each with the
+ * folder as it was asked, so the page can name it. Answered before the deck notes the start
  * and before the engine is asked, so nothing is started anywhere else in its
  * place — tmux would otherwise open the pane in the home folder, and the
  * agent would work in another project than the one the reader chose. A path
@@ -475,7 +476,25 @@ async function folderGone(d, question) {
   if (said?.ok !== false) return null;
   if (said.code === "missing" || said.code === "not-folder") return { ok: false, code: "folder-missing", cwd };
   if (said.code === "denied") return { ok: false, code: "folder-denied", cwd };
+  if (said.code === "unreachable") return { ok: false, code: "folder-unreachable", cwd };
   return null;
+}
+
+/** The JS backend's word for a folder that is not one (terminal-sessions.mjs
+ *  checkCwd), which an engine may answer too. */
+const BAD_FOLDER = "bad-cwd";
+
+/**
+ * Whether the engine refused a launch or an adopt in words that may be about
+ * its folder: a refusal with no code of the deck's, or the backend's own
+ * folder word. Never one that says the session runs on (`still-running`),
+ * nor any refusal the page draws by its code.
+ */
+function refusedMaybeForFolder(said) {
+  const body = said?.body;
+  if (!(said?.status >= 400) || !body || typeof body !== "object" || body.ok !== false) return false;
+  if (body.error === "still-running" || body.code === "still-running") return false;
+  return body.code === undefined || body.code === BAD_FOLDER;
 }
 
 /** The routes that only ask: answered after the switch-off, they changed nothing. */
@@ -566,6 +585,15 @@ async function answer(d, req, res, method, question) {
   // And once more, now that the engine has answered: a question asked while on can be answered after the
   // switch-off, since the engine is stopped only once it has answered (command-panel-engine.mjs).
   if (!d.enabled()) return answeredAfterOff(res, method, said);
+  // The folder may have gone between the deck's question (posted) and the engine's own look at it: a drive
+  // or a network folder disconnected in between. An engine that refused in words of its own is checked
+  // against the folder once more, and a folder that is not one to start in is said as the deck says it,
+  // named — never "not there any more" for a share that is only unreachable. Nothing was started.
+  if (LAUNCHES.has(method) && refusedMaybeForFolder(said)) {
+    const gone = await folderGone(d, question);
+    if (!d.enabled()) return answeredAfterOff(res, method, said);
+    if (gone) return send(res, 409, gone);
+  }
   if (method === "status" && fixable(said)) {
     said = await withOwnTmux(d, said);
     // It may have asked the engine again on the way: the switch once more.

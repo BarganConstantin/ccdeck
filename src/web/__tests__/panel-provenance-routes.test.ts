@@ -30,6 +30,8 @@ mkdirSync(PROJECT);
 const mod = await import("../../server/index.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { createTicketStore } = await import("../../server/terminal-socket.mjs");
+// @ts-expect-error — plain .mjs server module, no types
+const { checkFolder: realCheckFolder } = await import("../../server/terminal-folder.mjs");
 
 const LAUNCHED = "4a1b2c3d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
 const ELSEWHERE = "5b2c3d4e-6f70-4b8c-9d0e-1f2a3b4c5d6e";
@@ -49,14 +51,25 @@ const engine = {
   },
 };
 
+/** The deck's own answers about a folder, in turn, once a case sets them;
+ *  the real question otherwise. */
+let folderAsked: string[] = [];
+let folderAnswers: unknown[] = [];
+const checkFolder = (cwd: string) => {
+  folderAsked.push(cwd);
+  return folderAnswers.length ? Promise.resolve(folderAnswers.shift()) : realCheckFolder(cwd);
+};
+
 let server: Server;
 let port = 0;
 beforeAll(async () => {
-  server = await mod.startServer({ port: 0, persist: false, claude: false, codex: false, terminal: { enabled: () => true, engine, tickets: createTicketStore() } });
+  server = await mod.startServer({ port: 0, persist: false, claude: false, codex: false, terminal: { enabled: () => true, engine, tickets: createTicketStore(), checkFolder } });
   port = (server.address() as { port: number }).port;
 }, 30_000);
 beforeEach(() => {
   asked = [];
+  folderAsked = [];
+  folderAnswers = [];
   answers = { target: { status: 200, body: { ok: true, target: C_TARGET } } };
 });
 afterAll(async () => {
@@ -130,6 +143,52 @@ describe("the deck's record through its routes (F6-R)", () => {
     expect([adopt.status, adopt.json]).toEqual([409, { ok: false, code: "folder-missing", cwd }]);
     expect(asked, "the engine was never asked").toEqual([]);
     expect((await target(REFUSED)).json.target.provenance).toBe("unknown");
+  });
+
+  // A drive or a network folder disconnected between the deck's question and
+  // the engine's own look at the folder: the engine refused in words of its
+  // own, and the deck, asked once more, names the folder as not reachable —
+  // never "not there any more", and nothing was started anywhere.
+  it("says folder-unreachable when the folder went between the deck's question and the engine's, for an adopt and a launch", async () => {
+    const cwd = join(DIR, "nas-paycore");
+    const UNREACHABLE = { ok: false, code: "unreachable" };
+    for (const refusal of [
+      { status: 500, body: { ok: false, error: "tmux could not start the session." } },
+      { status: 400, body: { ok: false, error: "That project folder does not exist.", code: "bad-cwd" } },
+    ]) {
+      asked = [];
+      folderAsked = [];
+      folderAnswers = [{ ok: true, cwd }, UNREACHABLE];
+      answers.adopt = refusal;
+      const adopt = await ask("POST", "/api/terminal/adopt", { sessionId: REFUSED, provider: "claude", cwd });
+      expect([adopt.status, adopt.json], refusal.body.error).toEqual([409, { ok: false, code: "folder-unreachable", cwd }]);
+      expect(asked.map(a => a.method), "the engine asked once, never again").toEqual(["adopt"]);
+      expect(folderAsked, "before the engine, and once after its refusal").toEqual([cwd, cwd]);
+    }
+    folderAnswers = [{ ok: true, cwd }, UNREACHABLE];
+    answers.launch = { status: 500, body: { ok: false, error: "tmux could not start the session." } };
+    const launch = await ask("POST", "/api/terminal/launch", { agent: "claude", cwd, key: "k-route-nas" });
+    expect([launch.status, launch.json]).toEqual([409, { ok: false, code: "folder-unreachable", cwd }]);
+    expect((await target(REFUSED)).json.target.provenance).toBe("unknown");
+  });
+
+  it("keeps the engine's own refusal when the folder is still there, and asks nothing more for one the page draws by its code", async () => {
+    answers.adopt = { status: 500, body: { ok: false, error: "tmux could not start the session." } };
+    const plain = await ask("POST", "/api/terminal/adopt", { sessionId: REFUSED, provider: "claude", cwd: PROJECT });
+    expect([plain.status, plain.json]).toEqual([500, { ok: false, error: "tmux could not start the session." }]);
+    expect(folderAsked, "asked again, and there").toEqual([PROJECT, PROJECT]);
+    for (const body of [
+      { ok: false, error: "It is still running.", code: "still-running" },
+      { ok: false, error: "still-running" },
+      { ok: false, error: "Claude Code is not installed.", code: "agent-missing" },
+    ]) {
+      folderAsked = [];
+      folderAnswers = [{ ok: true, cwd: PROJECT }, { ok: false, code: "unreachable" }];
+      answers.adopt = { status: 409, body };
+      const said = await ask("POST", "/api/terminal/adopt", { sessionId: REFUSED, provider: "claude", cwd: PROJECT });
+      expect([said.status, said.json], body.error).toEqual([409, body]);
+      expect(folderAsked, `${body.error}: only the deck's first question`).toEqual([PROJECT]);
+    }
   });
 
   it("refuses the record from POST /api/event, the door without the deck's token", async () => {

@@ -386,6 +386,13 @@ export default function StageHeader(p: StageHeaderProps) {
             {p.end.alt.action}
           </button>
         )}
+        {/* Cancel on a folder that was gone: the ended pane back, as it was.
+            Plain, after the two ways on. */}
+        {p.end?.back && (
+          <button type="button" className="btn ts-end-act ts-plain" onClick={p.end.back.onAction}>
+            {p.end.back.action}
+          </button>
+        )}
       </div>
       {used && (
         <span className="ts-ctxchip" role="img" aria-label={ctxName} title={ctxName}>

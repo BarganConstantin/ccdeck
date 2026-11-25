@@ -95,6 +95,9 @@ export interface EndView {
    *  when Reopen here could not resume the session, or Check again on a
    *  folder that was gone (TerminalStage endView). */
   alt?: { action: string; title?: string; busy?: boolean; onAction(): void };
+  /** The way back, last and plain: Cancel on a folder that was gone, which
+   *  puts the ended pane back as it was (TerminalStage endView). */
+  back?: { action: string; onAction(): void };
 }
 
 export interface KeysBarProps {
@@ -273,6 +276,7 @@ export default function KeysBar(p: KeysBarProps) {
         <span className="ts-end" title={p.end.where} role={p.end.live ? "status" : undefined}>{p.end.sentence}</span>
         <button type="button" id={p.end.id} className="btn" title={p.end.title} aria-busy={p.end.busy || undefined} data-stage-land onClick={p.end.onAction}>{p.end.action}</button>
         {p.end.alt && <button type="button" className="btn" title={p.end.alt.title} aria-busy={p.end.alt.busy || undefined} onClick={p.end.alt.onAction}>{p.end.alt.action}</button>}
+        {p.end.back && <button type="button" className="btn ts-plain" onClick={p.end.back.onAction}>{p.end.back.action}</button>}
       </div>
     );
   } else if (p.notice) {

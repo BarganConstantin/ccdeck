@@ -175,6 +175,7 @@ export const FOLDER_PROBLEM_MSG: Record<Exclude<FolderProblem, "unavailable">, s
   missing: "board.newSession.problemMissing",
   denied: "board.newSession.problemDenied",
   "not-folder": "board.newSession.problemNotFolder",
+  unreachable: "board.newSession.problemUnreachable",
   offline: "board.newSession.problemOffline",
 };
 

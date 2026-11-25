@@ -124,7 +124,7 @@ export interface StageBodyProps {
    *  which New session hangs off where there is no folder dialog. */
   onChooseFolder?(): void;
   chooseFolderId?: string;
-  /** The folder-gone line over an ended pane's kept frame, where the end
+  /** The folder-gone line above an ended pane's kept frame, where the end
    *  bar's buttons are in the header and its sentence would be only a
    *  tooltip (TerminalStage): what is gone, by name, with the full path
    *  (`where`) on hover, and what Choose folder… does. */
@@ -663,9 +663,10 @@ export default function StageBody(p: StageBodyProps) {
         ? (wait.draw ? <StateCard {...card} held={false} timed={wait.leaving ? "out" : "in"} /> : null)
         : <StateCard {...card} held={state === "held"} />}
       {lingering && <StateCard {...card} phase={{ kind: "attaching", reconnect: false }} held={false} timed={wait.leaving ? "out" : "in"} />}
-      {/* One line across the top of the kept frame, cut with an ellipsis
-          in a narrow pane; it changes when a Check again finds the folder
-          still gone, so it is a polite live region. */}
+      {/* One line above the kept frame, which starts under it
+          (TerminalStage), cut with an ellipsis in a narrow pane; it changes
+          when a Check again finds the folder still gone, so it is a polite
+          live region. */}
       {frameNote && !inChat && (
         <p className="ts-frame-note" role="status" title={frameNote.where}>
           <span className="ts-frame-note-lead">{frameNote.lead}</span> {frameNote.next}

@@ -293,11 +293,13 @@ button.btn.ts-end-act {
 .ts-stage[data-fill] .ts-body { background: var(--sunken); }
 .ts-stage:not([data-fill]) .ts-body:not([data-frame]) { background: var(--bg); }
 /* Hidden, never removed: the one terminal lives in here for the stage's whole
-   life. Leaving takes 70ms; arriving fades in once the seed is drawn. */
+   life. Leaving takes 70ms; arriving fades in once the seed is drawn. Under
+   the folder-gone line (.ts-frame-note) the kept frame starts below it, by
+   the line's drawn height (--ts-note-h, TerminalStage), never under it. */
 .ts-host {
   position: absolute;
   left: 24px;
-  top: var(--ts-term-top, 14px);
+  top: calc(var(--ts-term-top, 14px) + var(--ts-note-h, 0px));
   visibility: hidden;
   opacity: 0;
   transition: opacity 70ms linear, visibility 0s linear 70ms;
@@ -364,10 +366,12 @@ button.btn.ts-end-act {
 /* So does a live pane that keeps the size of someone's own terminal (case B),
    where the window has no room left to make for it (TerminalStage). */
 .ts-stage[data-pane-size] .ts-body { overflow-x: auto; overflow-y: hidden; }
-/* A folder-gone pane's one line across the top of its kept frame (StageBody
-   frameNote): what is gone and what Choose folder… does, beside the header's
-   buttons. One line, cut with an ellipsis in a narrow pane, its text where
-   the terminal's starts, on the frame's own ground with a hairline under it. */
+/* A folder-gone pane's one line above its kept frame (StageBody frameNote):
+   what is gone and what Choose folder… does, beside the header's buttons.
+   One line, cut with an ellipsis in a narrow pane, its text where the
+   terminal's starts, on the frame's own ground with a hairline under it. The
+   frame is moved down by its height and loses the rows that takes, so the
+   line covers none of it (.ts-host, TerminalStage rowsUnderNote). */
 .ts-frame-note {
   position: absolute;
   top: 0;

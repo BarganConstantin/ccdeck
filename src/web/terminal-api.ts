@@ -235,9 +235,10 @@ export const PANEL_SAID_REFUSALS = ["agent-missing", "exists", "full", "stopping
 export const HOSTS_REFUSALS = ["consent-outdated", "host-gone", "end-failed"] as const;
 /** The deck's refusals of a launch or an adopt whose folder is not one to
  *  start in (HTTP 409, terminal-routes.mjs): gone — deleted, moved, renamed, a
- *  removed worktree — or not this account's to open. The failure carries the
- *  folder (`cwd`), so the stage can name it; never asked again by itself. */
-export const FOLDER_REFUSALS = ["folder-missing", "folder-denied"] as const;
+ *  removed worktree — not this account's to open, or not reachable right now
+ *  (a disconnected drive or network folder). The failure carries the folder
+ *  (`cwd`), so the stage can name it; never asked again by itself. */
+export const FOLDER_REFUSALS = ["folder-missing", "folder-denied", "folder-unreachable"] as const;
 export type FolderRefusal = typeof FOLDER_REFUSALS[number];
 export type PanelUnavailable = typeof PANEL_UNAVAILABLE[number];
 export type PanelRefusal = PanelUnavailable | typeof PANEL_RECOVERING[number] | typeof PANEL_SAID_REFUSALS[number] | typeof HOSTS_REFUSALS[number] | FolderRefusal;
@@ -329,6 +330,7 @@ const REFUSED_MSG = "board.api.refused";
 const UNREADABLE_MSG = "board.api.unreadable";
 const FOLDER_MISSING_MSG = "board.stage.folderGone.title";
 const FOLDER_DENIED_MSG = "board.stage.folderGone.denied";
+const FOLDER_UNREACHABLE_MSG = "board.stage.folderGone.unreachable";
 
 const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
@@ -367,7 +369,7 @@ function failureFrom(status: number, body: unknown): ApiFailure {
   // who reads the failure as a sentence.
   if (folderRefusal(code)) {
     const cwd = isObject(body) && typeof body.cwd === "string" && body.cwd ? body.cwd : null;
-    const error = said || t(code === "folder-denied" ? FOLDER_DENIED_MSG : FOLDER_MISSING_MSG);
+    const error = said || t(code === "folder-denied" ? FOLDER_DENIED_MSG : code === "folder-unreachable" ? FOLDER_UNREACHABLE_MSG : FOLDER_MISSING_MSG);
     return { ok: false, status, error, code, ...(cwd ? { cwd } : {}) };
   }
   if (said) return { ok: false, status, error: hint ? `${said} ${hint}` : said, ...(code ? { code } : {}) };
@@ -517,13 +519,14 @@ export function adoptTerminal(ref: SessionRef, options: ApiOptions = {}, size?: 
   });
 }
 
-/** Why a folder is not one to start an agent in: the deck's own four
- *  (terminal-folder.mjs), `offline` when the deck could not be reached, and
- *  `unavailable` when it gave no answer this page reads (a deck without the
- *  question, a refusal at the gates). */
-export type FolderProblem = "relative" | "missing" | "denied" | "not-folder" | "offline" | "unavailable";
+/** Why a folder is not one to start an agent in: the deck's own five
+ *  (terminal-folder.mjs; `unreachable` for a disconnected drive or network
+ *  folder), `offline` when the deck could not be reached, and `unavailable`
+ *  when it gave no answer this page reads (a deck without the question, a
+ *  refusal at the gates). */
+export type FolderProblem = "relative" | "missing" | "denied" | "not-folder" | "unreachable" | "offline" | "unavailable";
 export type FolderAnswer = { ok: true; cwd: string } | { ok: false; code: FolderProblem };
-const FOLDER_PROBLEMS: ReadonlySet<string> = new Set(["relative", "missing", "denied", "not-folder"]);
+const FOLDER_PROBLEMS: ReadonlySet<string> = new Set(["relative", "missing", "denied", "not-folder", "unreachable"]);
 
 /** Ask the deck whether an agent can start in `cwd` — the New session
  *  picker's question before it starts one, so a folder that is gone is said
