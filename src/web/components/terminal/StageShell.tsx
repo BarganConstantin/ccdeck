@@ -613,7 +613,9 @@ export function StageDock(p: StageDockProps) {
         const rest = strip.filter(x => x.key !== key);
         // From the strip by keys, the keyboard stays on the strip: on the
         // neighbour, or in the pane once one tab is left and the strip goes.
-        if (how.keys && rest.length > 1) tabFocusRef.current = paneTabId(id, rest[Math.min(at, rest.length - 1)]!.key);
+        // From the strip's menu it stays in the menu, on its next row
+        // (PaneTabs.tsx), until the strip goes.
+        if (how.keys && !how.menu && rest.length > 1) tabFocusRef.current = paneTabId(id, rest[Math.min(at, rest.length - 1)]!.key);
         stage.closeTab(id, gone.target, { keys: !how.keys || rest.length < 2 });
         if (how.keys && rest.length < 2 && !gone.on) stage.focusPaneId(id, { keys: true });
       },

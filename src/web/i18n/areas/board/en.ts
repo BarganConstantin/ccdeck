@@ -712,6 +712,7 @@ const catalog: Catalog = {
   "board.stage.split.noRoom": "No room for another pane here: it opened as a tab in this pane",
   "board.stage.tabs.label": "Sessions open in this pane",
   "board.stage.tabs.all": "All tabs in this pane ({count})",
+  "board.stage.tabs.close": "Close {name}",
   "board.stage.split.maximize": "Fill the Workspace with this pane",
   "board.stage.split.restore": "Show the panes side by side again",
   "board.stage.split.paneNumber": "Pane {number}",

@@ -712,6 +712,7 @@ const catalog: Catalog = {
   "board.stage.split.noRoom": "No hay sitio para otro panel aquí: se abrió como pestaña en este panel",
   "board.stage.tabs.label": "Sesiones abiertas en este panel",
   "board.stage.tabs.all": "Todas las pestañas de este panel ({count})",
+  "board.stage.tabs.close": "Cerrar {name}",
   "board.stage.split.maximize": "Llenar el Workspace con este panel",
   "board.stage.split.restore": "Volver a mostrar los paneles lado a lado",
   "board.stage.split.paneNumber": "Panel {number}",

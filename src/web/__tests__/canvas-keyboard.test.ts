@@ -480,7 +480,11 @@ describe("nothing else in the deck invents a focus stop", () => {
     // line when Send answer or Chat about this is pressed, because the control
     // pressed is disabled or gone a moment later and focus would fall to the
     // page; the line then announces what happened. It is never a Tab stop.
-    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/DialogResize.tsx", "components/IntegrationConnectionDetails.tsx", "components/IntegrationsSection.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/QuickOpen.tsx", "components/RadioFilter.tsx", "components/SessionList.tsx", "components/SettingsSearch.tsx", "components/SkillInspector.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/chat/ChatTurn.tsx", "components/forge/DetailParts.tsx", "components/forge/RepoPicker.tsx"]);
+    // CHANGED ON PURPOSE: each row of a Workspace pane's tab menu carries a
+    // close × beside it (terminal/PaneTabs.tsx). The × is reached with
+    // ArrowRight from its row and Delete closes from either, so it is never a
+    // Tab stop of its own: one stop per row, as in every other menu.
+    expect(negatives).toEqual(["components/CanvasMain.tsx", "components/DialogResize.tsx", "components/IntegrationConnectionDetails.tsx", "components/IntegrationsSection.tsx", "components/JiraBacklog.tsx", "components/JiraIssueDetail.tsx", "components/QuickOpen.tsx", "components/RadioFilter.tsx", "components/SessionList.tsx", "components/SettingsSearch.tsx", "components/SkillInspector.tsx", "components/TelemetryCapture.tsx", "components/ToolAuditInspector.tsx", "components/chat/ChatTurn.tsx", "components/forge/DetailParts.tsx", "components/forge/RepoPicker.tsx", "components/terminal/PaneTabs.tsx"]);
     expect(code(readFileSync(join(web, "components/forge/RepoPicker.tsx"), "utf8"))).toMatch(/role="option"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/forge/DetailParts.tsx"), "utf8"))).toMatch(/<article ref=\{ref\} className="fd"[^>]*tabIndex=\{-1\}/);
     expect(code(readFileSync(join(web, "components/JiraIssueDetail.tsx"), "utf8"))).toMatch(/<h2 id="jira-detail-title" tabIndex=\{-1\}/);

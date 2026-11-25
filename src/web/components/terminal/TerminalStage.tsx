@@ -93,7 +93,7 @@ import { useOlderHosts } from "./use-older-hosts";
 import type { WaitingCard } from "./stage-board";
 import type { RenameFacts } from "../../session-rename";
 import { useRenaming } from "../SessionNameField";
-import type { PaneTabsView } from "./PaneTabs";
+import type { PaneTabsView, TabsMenuOpen } from "./PaneTabs";
 
 /** One empty transcript for every render, so the card's words are not rebuilt for nothing. */
 const NO_TURNS: readonly ChatTurn[] = [];
@@ -461,6 +461,13 @@ function useDrawnHeight(rootRef: RefObject<HTMLElement>, selector: string, onHei
 export default function TerminalStage(p: TerminalStageProps) {
   const t = useT();
   const [held, setHeld] = useState(false);
+  // The pane's tab menu, held here above the header: the close of the tab on
+  // show from it gives the header the identity of the tab that comes on, which
+  // draws the strip afresh, and the menu stays open through that (PaneTabs.tsx).
+  // A pane whose strip goes takes its menu with it.
+  const [tabMenu, setTabMenu] = useState<TabsMenuOpen | null>(null);
+  const tabbed = p.tabs != null;
+  useEffect(() => { if (!tabbed) setTabMenu(null); }, [tabbed]);
   /** What the pane refused, said in the keys bar for a few seconds. */
   const [notice, setNotice] = useState<string | null>(null);
   const subject = subjectOf(p.show);
@@ -1074,7 +1081,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         end={endAt.header}
         // The strip: the tab on show says the header's own state, which knows
         // the pane is reconnecting or not attached; the others, the board's.
-        tabs={p.tabs ? { ...p.tabs, items: p.tabs.items.map(x => (x.on ? { ...x, status } : x)) } : undefined}
+        tabs={p.tabs ? { ...p.tabs, items: p.tabs.items.map(x => (x.on ? { ...x, status } : x)), menu: { open: tabMenu, set: setTabMenu } } : undefined}
       />
       <StageBody
         hostRef={session.hostRef}

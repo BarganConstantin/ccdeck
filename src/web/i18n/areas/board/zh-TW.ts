@@ -712,6 +712,7 @@ const catalog: Catalog = {
   "board.stage.split.noRoom": "這裡沒有空間再放一個窗格：已作為分頁在此窗格中開啟",
   "board.stage.tabs.label": "此窗格中開啟的工作階段",
   "board.stage.tabs.all": "此窗格中的所有分頁（{count}）",
+  "board.stage.tabs.close": "關閉「{name}」",
   "board.stage.split.maximize": "讓此窗格填滿 Workspace",
   "board.stage.split.restore": "重新並排顯示窗格",
   "board.stage.split.paneNumber": "窗格 {number}",

@@ -732,6 +732,7 @@ const catalog: Catalog = {
   "board.stage.split.noRoom": "Nu mai e loc pentru încă o zonă aici: s-a deschis ca filă în această zonă",
   "board.stage.tabs.label": "Sesiunile deschise în această zonă",
   "board.stage.tabs.all": "Toate filele din această zonă ({count})",
+  "board.stage.tabs.close": "Închide {name}",
   "board.stage.split.maximize": "Umple Workspace cu această zonă",
   "board.stage.split.restore": "Arată din nou zonele una lângă alta",
   "board.stage.split.paneNumber": "Panoul {number}",
