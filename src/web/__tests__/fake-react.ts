@@ -127,7 +127,31 @@ export const react = {
   useContext<T>(context: { _default: T }) { return context._default; },
   // A component that takes a ref: called plainly, with no ref to hand over.
   forwardRef<P>(render: (props: P, ref: null) => unknown) { return (props: P) => render(props, null); },
+  // A memoised component is the component itself here (this React draws no
+  // child, so an element's type stays the one a test names); what it would be
+  // compared with is kept for `memoCompare`.
+  memo<T extends object>(type: T, compare?: (prev: object, next: object) => boolean) {
+    compares.set(type, compare ?? sameProps);
+    return type;
+  },
 };
+
+const compares = new WeakMap<object, (prev: object, next: object) => boolean>();
+
+/** React's own test for a memo with no compare of its own: every prop the same. */
+function sameProps(prev: object, next: object): boolean {
+  const a = prev as Record<string, unknown>;
+  const b = next as Record<string, unknown>;
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every(k => Object.hasOwn(b, k) && Object.is(a[k], b[k]));
+}
+
+/** How React would compare a memoised component's props from one render to the
+ *  next (a bail when it says true), or null for a component that is not memoised. */
+export function memoCompare(type: unknown): ((prev: object, next: object) => boolean) | null {
+  if (!type || (typeof type !== "object" && typeof type !== "function")) return null;
+  return compares.get(type) ?? null;
+}
 
 /** One element the component drew. */
 export interface Drawn {

@@ -88,11 +88,14 @@ describe("what the session is doing", () => {
     ({ tree: mount(ActivityLine, { activity, provider, onShowTerm }).tree, onShowTerm });
   const part = (tree: unknown, name: string) => textOf(one(tree, el => el.props.className === name));
 
-  it("at work: the agent by name, then the header's tool and time", () => {
-    const { tree } = draw({ state: "working", detail: "Bash · npm test · 38s" });
+  // CHANGED ON PURPOSE (Chat live): the row says "Working…" (or the agent's own
+  // screen words) rather than "Claude Code is working…" — the reply above it
+  // already names the agent — and the header's tool comes after the turn's clock.
+  it("at work: Working… and the header's tool, under a mark hidden from a screen reader", () => {
+    const { tree } = draw({ state: "working", detail: "Bash · npm test" });
     expect((tree as Drawn).props["data-state"]).toBe("working");
-    expect(part(tree, "chat-progress-text")).toBe("Claude Code is working…");
-    expect(part(tree, "chat-progress-detail")).toBe("Bash · npm test · 38s");
+    expect(part(tree, "chat-progress-text")).toBe("Working…");
+    expect(part(tree, "chat-progress-detail")).toBe("Bash · npm test");
     expect(one(tree, el => el.props.className === "chat-progress-mark")!.props["aria-hidden"]).toBe("true");
     expect(button(tree)).toEqual([]);
   });
@@ -100,16 +103,19 @@ describe("what the session is doing", () => {
   it("silent for long: says for how long instead, and offers Term", () => {
     const { tree, onShowTerm } = draw({ state: "working", detail: "thinking", quiet: "4m" }, "codex");
     expect((tree as Drawn).props["data-quiet"]).toBe("");
-    expect(part(tree, "chat-progress-text")).toBe("Codex is working…");
+    expect(part(tree, "chat-progress-text")).toBe("Working…");
     expect(part(tree, "chat-progress-detail")).toBe("no update for 4m");
     (button(tree)[0].props.onClick as () => void)();
     expect(onShowTerm).toHaveBeenCalledOnce();
   });
 
-  it("waiting on you: the words the question card uses", () => {
+  // CHANGED ON PURPOSE (Chat live): "Waiting for you", the row's own words.
+  it("waiting on you: says so, with nothing after it", () => {
     const { tree } = draw({ state: "waiting" });
-    expect(part(tree, "chat-progress-text")).toBe(t("board.chat.ask.waiting"));
+    expect(part(tree, "chat-progress-text")).toBe(t("board.chat.live.waiting"));
+    expect(part(tree, "chat-progress-text")).toBe("Waiting for you");
     expect(one(tree, el => el.props.className === "chat-progress-detail")).toBeNull();
+    expect(one(tree, el => el.props.className === "chat-progress-time")).toBeNull();
   });
 });
 

@@ -60,10 +60,14 @@ describe("the conversation", () => {
     expect(markup).toContain('role="separator" aria-label="Since you looked · 4 tool calls · now asking"');
   });
 
+  // CHANGED ON PURPOSE (Chat live): the slack is 48 px and the distance is held
+  // in `bottom` (a jump on its smooth way down is not the reader leaving).
   it("sticks to the bottom unless the reader scrolled up (the view scrolls itself, with a slack)", () => {
     const src = readFileSync(fileURLToPath(new URL("../components/chat/ChatView.tsx", import.meta.url)), "utf8");
-    expect(src).toMatch(/stuck\.current = el\.scrollHeight - el\.scrollTop - el\.clientHeight <= BOTTOM_SLACK;/);
+    expect(src).toMatch(/const bottom = el\.scrollHeight - el\.scrollTop - el\.clientHeight <= BOTTOM_SLACK;/);
+    expect(src).toMatch(/stuck\.current = bottom;/);
     expect(src).toMatch(/if \(el && stuck\.current\) el\.scrollTop = el\.scrollHeight;/);
+    expect(src).toMatch(/export const BOTTOM_SLACK = 48;/);
   });
 });
 
@@ -93,10 +97,15 @@ describe("the sheet", () => {
     expect(rule(".chat-tool-name")).toContain("font-weight: 500;");
   });
 
-  it("moves nothing: no transition, no animation, no keyframes", () => {
-    // The one rule that names them turns the hidden terminal's own off.
+  // CHANGED ON PURPOSE (Chat live): Chat moves now (a line arriving, a
+  // disclosure, the way back, the working mark), and all of it is
+  // chat-motion.css's. This sheet still moves nothing; the one rule that names
+  // motion turns the hidden terminal's own off.
+  it("moves nothing itself: Chat's motion is chat-motion.css's", () => {
     const own = css.slice(0, css.indexOf(".ts-body > .chat"));
     expect(own).not.toMatch(/transition|animation|@keyframes/);
+    const view = readFileSync(fileURLToPath(new URL("../components/chat/ChatView.tsx", import.meta.url)), "utf8");
+    expect(view).toContain('import "./chat-motion.css";');
   });
 
   it("puts the chat in the pane and hides, never removes, the terminal's host", () => {
