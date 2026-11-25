@@ -7,6 +7,11 @@
 // (`flex: none`), so "ended 2m ago" painted over the next tab's word, and the
 // tab on show (`min-width: max-content`) was wider than the strip, whose edge
 // cut its name to a letter or two.
+//
+// CHANGED ON PURPOSE: a tab and the × it draws under the pointer share a slot
+// (PaneTabs.tsx StripTab), and the slot is what the strip sizes now, with the
+// floor, the cap and the clip the tab had; the tab fills its slot and gives
+// way with it, so every sum below is the same.
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { readFileSync } from "node:fs";
@@ -51,8 +56,10 @@ function shrinkLine(room: number, items: { basis: number; shrink: number; min: n
   return size;
 }
 
-const tab = rule(".ts-tabs .ts-tab");
-const on = rule(".ts-tabs .ts-tab[data-on]");
+const tab = rule(".ts-tabs .ts-tab-slot");
+const on = rule(".ts-tabs .ts-tab-slot[data-on]");
+const button = rule(".ts-tabs .ts-tab");
+const says = rule(".ts-tab-in");
 const word = rule(".ts-tab-word");
 const name = rule(".wsp-tab-name");
 const px = (v: string | undefined) => Number(/^(\d+)px$/.exec(v ?? "")?.[1]);
@@ -61,6 +68,19 @@ describe("a tab's words stay inside the tab", () => {
   it("clips what a tab holds, so a squeezed tab paints nothing over its neighbour", () => {
     expect(decl(tab, "overflow")).toBe("hidden");
     expect(decl(tab, "min-width")).toBe("64px");
+  });
+
+  it("has the tab fill its slot and give way with it, clipping what it holds too", () => {
+    expect(decl(button, "flex")).toBe("1 1 auto");
+    expect(decl(button, "min-width")).toBe("0");
+    // .wsp-tab's own 220 cap would hold the tab on show under its slot's 240.
+    expect(decl(button, "max-width")).toBe("none");
+    expect(decl(button, "overflow")).toBe("hidden");
+    expect(decl(button, "padding")).toBe("0 8px");
+    // And what it says fills the tab in turn, its words 6px apart as before.
+    expect(decl(says, "flex")).toBe("1 1 auto");
+    expect(decl(says, "min-width")).toBe("0");
+    expect(decl(says, "gap")).toBe("6px");
   });
 
   it("lets the state word shrink to an ellipsis and to nothing, as the name can", () => {
@@ -75,7 +95,7 @@ describe("a tab's words stay inside the tab", () => {
   });
 
   // The tab's own room: its 8px padding either side, the 14px glyph, and the
-  // 6px gaps before the name and before the word (.wsp-tab).
+  // 6px gaps before the name and before the word (.ts-tab-in).
   const fixed = 2 * 8 + 14 + 2 * 6;
   const fit = (tabW: number, nameW: number, wordW: number) => {
     const [n, w] = shrinkLine(tabW - fixed, [
