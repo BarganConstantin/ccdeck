@@ -132,6 +132,21 @@ export function isViewChord(e: ChordKey): boolean {
 /** The view chord as the keyboard labels it. Control on a Mac too. */
 export const VIEW_CHORD_LABEL = "Ctrl+`";
 
+/** THE CHAT | TERM CHORD: Control, Shift and the backtick, the view chord's
+ *  sibling. Ctrl + ` is Board or Workspace; with Shift it is the focused
+ *  pane's Chat or Term. Free everywhere the view chord is: xterm.js sends no
+ *  byte for it, Claude Code and Codex bind nothing on it, no browser reserves
+ *  it, and Cmd + ` (the OS's window switch) is not it. Matched by the key's
+ *  position, since Shift and a layout change the character it types. */
+export function isChatViewChord(e: ChordKey): boolean {
+  if (!e.ctrlKey || !e.shiftKey || e.altKey || e.metaKey) return false;
+  return e.code === VIEW_CHORD.code || e.key === "~" || e.key === "`";
+}
+
+/** The Chat | Term chord as the shortcut sheet writes it, a chip to a key. */
+export const CHAT_VIEW_CAP = "Ctrl + Shift + `";
+export const CHAT_VIEW_MAC_CAP = "⌃ ⇧ `";
+
 /** The release chord, spelled out once. Everything below reads it from here,
  *  so a change of chord is a change to this object and its label. */
 export const RELEASE_CHORD = Object.freeze({ key: "x", code: "KeyX", ctrlKey: true, shiftKey: true, altKey: false, metaKey: false });
@@ -334,6 +349,7 @@ export function terminalKeyOutcome(e: TerminalKey, apple = isApplePlatform(platf
   // kept from the session, and acted on by the window listener
   // (use-deck-shortcuts.ts), the way the release chord is.
   if (isViewChord(e)) return "view";
+  if (isChatViewChord(e)) return "view";
   // Ctrl (⌘ on a Mac) with =, - or 0 zooms the pane's text, as a native
   // terminal's does, rather than the browser's whole page. Shift with minus
   // is Ctrl+_, the undo the session reads, and stays the session's.
