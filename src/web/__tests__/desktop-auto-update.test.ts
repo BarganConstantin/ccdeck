@@ -146,7 +146,9 @@ describe("the quiet the rule measures", () => {
 
 describe("the app's wiring", () => {
   it("measures the quiet and the agents on the same tick that draws the tray", () => {
-    expect(main).toMatch(/setInterval\(\(\) => \{ model\?\.tick\(\); scheduleRedraw\(\); lookAgainWhileReady\(\); updateWhenQuiet\(\); \}, 10_000\);/);
+    // The deck's own restart into a newer install reads the same quiet, after
+    // it on the same tick (deck-drift.mjs).
+    expect(main).toMatch(/setInterval\(\(\) => \{ model\?\.tick\(\); scheduleRedraw\(\); lookAgainWhileReady\(\); updateWhenQuiet\(\); restartOlderDeckWhenQuiet\(\); \}, 10_000\);/);
     const fn = main.match(/function updateWhenQuiet\(\) \{[\s\S]*?\n\}/)?.[0] ?? "";
     expect(fn).toMatch(/windowFocused: !!win && !win\.isDestroyed\(\) && win\.isFocused\(\)/);
     // The agents, from the snapshot the tray icon is drawn from: a waiting
