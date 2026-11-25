@@ -391,11 +391,16 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     }
     // SPLIT (#102): a session already in another pane is never opened twice
     // (no second pane, no second attach): the keys go to the pane that has it,
-    // which goes on showing it as it was.
-    if (workspaceRef.current && target.kind === "session") {
+    // which goes on showing it as it was. Asked on the Board too: a card's
+    // click opens its session here before the view turns to Workspace, and a
+    // Board stage is carried into Workspace's pane in focus. Asked only in
+    // Workspace, both put the session in the pane in focus, over what it
+    // showed, while another pane still had it. Off Workspace the stage is not
+    // a pane: what it shows is never written into one.
+    if (target.kind === "session" && paneCount(splitRef.current) > 1) {
       const s = splitRef.current;
-      const shown = shellRef.current.phase !== "closed" ? shellRef.current.target : null;
-      const other = paneCount(s) > 1 ? paneWith(s, target.id, shown, s.focused) : null;
+      const shown = workspaceRef.current && shellRef.current.phase !== "closed" ? shellRef.current.target : null;
+      const other = paneWith(s, target.id, shown, s.focused);
       if (other) {
         setSplit(focusSplit(s, other, shown));
         target = paneTarget(s, other, null);
