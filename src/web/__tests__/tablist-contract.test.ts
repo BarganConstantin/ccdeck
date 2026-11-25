@@ -123,15 +123,24 @@ const SOURCES: Array<[string, string]> = FILES.map(p =>
 // Verify their complete contract together, including the actual import.
 const radio = SOURCES.find(([name]) => name === "components/RadioPanel.tsx")!;
 const toolbar = SOURCES.find(([name]) => name === "components/RadioDiscoveryToolbar.tsx")!;
+// A Workspace pane's strip is drawn in the header of the pane's one stage, and
+// each of its tabs names that stage: the strip in PaneTabs.tsx, the stage, the
+// panel, in TerminalStage.tsx. StageShell.tsx hands both their ids (paneTabId,
+// panePanelId; pinned in workspace-split-wiring.test.ts).
+const paneTabs = SOURCES.find(([name]) => name === "components/terminal/PaneTabs.tsx")!;
+const paneStage = SOURCES.find(([name]) => name === "components/terminal/TerminalStage.tsx")!;
 const BUNDLE: Array<[string, string]> = SOURCES
   .filter(([name]) => name !== toolbar[0])
-  .map(([name, src]) => [name, name === radio[0] ? `${src}\n${toolbar[1]}` : src]);
+  .map(([name, src]) => [name, name === radio[0] ? `${src}\n${toolbar[1]}` : name === paneTabs[0] ? `${src}\n${paneStage[1]}` : src]);
 
 /** `role="tab"` and not `role="tablist"` or `role="tabpanel"` — the closing
  *  quote is what separates the three. */
 const IS_TAB = /\brole="tab"/;
 const IS_TABLIST = /\brole="tablist"/;
 const IS_TABPANEL = /\brole="tabpanel"/;
+/** The one panel whose role is chosen as it draws: a pane's stage is a tab's
+ *  panel only once its pane holds two tabs, and a region otherwise. */
+const IS_PANE_STAGE = /\brole=\{p\.tabbedBy \? "tabpanel" : "region"\}/;
 
 /** Every file that announces a tab widget, and every tag in it that is a tab.
  *  Dropping the role everywhere is the other honest end — the range strip did
@@ -186,8 +195,10 @@ describe("a role=\"tab\" in this client comes with the keyboard model it promise
     // "selected" had no route to the thing that had been selected.
     for (const { name, src, tabs } of STRIPS) {
       for (const tab of tabs) expect(`${name} ${tab}`).toMatch(/aria-controls=/);
-      expect(`${name}: ${src}`).toMatch(IS_TABPANEL);
-      const panels = openingTags(src).filter(t => IS_TABPANEL.test(t));
+      const paneStrip = name === paneTabs[0];
+      const isPanel = (t: string) => IS_TABPANEL.test(t) || (paneStrip && IS_PANE_STAGE.test(t));
+      expect(`${name}: ${src}`).toMatch(paneStrip ? IS_PANE_STAGE : IS_TABPANEL);
+      const panels = openingTags(src).filter(isPanel);
       const pairs = panels.map(panel => {
         expect(`${name} ${panel}`).toMatch(/aria-labelledby=/);
         return {
@@ -205,14 +216,20 @@ describe("a role=\"tab\" in this client comes with the keyboard model it promise
         const radioPair = name.endsWith("RadioPanel.tsx")
           && /aria-labelledby=\{`radio-tab-\$\{collection\}`\}/.test(src)
           && tabs.some(tab => /id=\{`radio-tab-\$\{tab.value\}`\}/.test(tab));
-        expect(namesTab || radioPair, `${name}: panel label must name a tab`).toBe(true);
+        // The pane's stage is named by the tab StageShell says it is (tabbedBy).
+        const panePair = paneStrip && labelledBy === "{p.tabbedBy}" && tabs.some(tab => /\bid=\{x\.id\}/.test(tab));
+        expect(namesTab || radioPair || panePair, `${name}: panel label must name a tab`).toBe(true);
       }
       for (const tab of tabs) {
         const controls = /aria-controls=(\{[^}]*\}|"[^"]*")/.exec(tab)?.[1];
         // Radar's two tabs were mapped from a list and excused here by a pattern
         // that still named the File panel after it went; they are written out
         // now, so they are held to the same literal pairing as every other tab.
-        expect(pairs.some(pair => pair.id === controls), `${name}: each tab must point to a real panel`).toBe(true);
+        // A pane's tab points at its pane's stage (`panel`), which is the
+        // stage's own id (panelId, or the Workspace pane's).
+        const paneControls = paneStrip && controls === "{x.panel}"
+          && pairs.some(pair => pair.id === "{workspace && (p.split?.primary ?? true) ? WORKSPACE_PANE_ID : p.panelId}");
+        expect(pairs.some(pair => pair.id === controls) || paneControls, `${name}: each tab must point to a real panel`).toBe(true);
       }
     }
   });

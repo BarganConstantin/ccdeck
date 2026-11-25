@@ -22,6 +22,14 @@
 // its scroll: nothing reattaches. A session is in one pane at most; a second
 // ask for it moves the keys to the pane that has it (paneWith).
 //
+// A PANE HOLDS TABS. Every session or launch a pane was asked to show stays
+// open in it as a tab, in the order they came (a new one at the end); the
+// pane shows one of them, its entry in `targets`. Asking again for a session
+// that is open anywhere brings that exact tab back, and a pane never holds a
+// session another pane holds. Switching tabs stops nothing: the terminals stay
+// attached behind the one on show (StageShell.tsx). Past MAX_TABS the oldest
+// tab not on show leaves the strip; its session runs on.
+//
 // NEVER UNDER 40 × 8. A pane narrower than 40 columns or shorter than 8 rows
 // is not a terminal anyone can read. Dividers stop there; a window too small
 // for the whole arrangement shows the pane with the keys alone, with a strip
@@ -32,6 +40,9 @@ import { readStored, removeStored, writeStored } from "./storage";
 
 /** The most panes the Workspace holds: a 2×2 grid. */
 export const MAX_PANES = 4;
+/** The most tabs a pane keeps: a ninth sends the oldest tab not on show out
+ *  of the strip (never its session, which runs on). */
+export const MAX_TABS = 8;
 /** The columns and rows a pane is never made smaller than. */
 export const MIN_PANE_COLS = 40;
 export const MIN_PANE_ROWS = 8;
@@ -63,6 +74,10 @@ export interface SplitState {
   max: string | null;
   /** The number the next new pane's id is made from. */
   next: number;
+  /** Each pane's tabs, in the strip's order: the sessions and launches it
+   *  holds open, the one it shows among them. Missing or empty: the pane
+   *  holds only what it shows (paneTabs). */
+  tabs: Readonly<Record<string, readonly StageTarget[]>>;
 }
 
 export interface Rect { x: number; y: number; w: number; h: number }
@@ -72,7 +87,7 @@ const EMPTY: StageTarget = { kind: "empty" };
 
 /** One pane, showing nothing yet: the Workspace as it was before #102. */
 export function singleSplit(id = "p0"): SplitState {
-  return { root: { kind: "leaf", id }, targets: { [id]: EMPTY }, focused: id, max: null, next: Number(id.slice(1)) + 1 || 1 };
+  return { root: { kind: "leaf", id }, targets: { [id]: EMPTY }, focused: id, max: null, next: Number(id.slice(1)) + 1 || 1, tabs: { [id]: [] } };
 }
 
 /** The panes' ids, a's before b's. */
@@ -90,35 +105,135 @@ export function paneTarget(s: SplitState, id: string, focusedTarget: StageTarget
   return s.targets[id] ?? EMPTY;
 }
 
+// ── tabs ─────────────────────────────────────────────────────────────────────
+/** A target a tab can hold: a session or a launch, never the empty pane. */
+export function isTab(t: StageTarget | null | undefined): t is Exclude<StageTarget, { kind: "empty" }> {
+  return t?.kind === "session" || t?.kind === "launch";
+}
+
+/** The launch a target came from, if any. */
+function launchOf(t: StageTarget): string | undefined {
+  return t.kind === "launch" ? t.key : t.kind === "session" ? t.launch : undefined;
+}
+
+/** Whether two targets are the same tab: the same session, or the same launch
+ *  before and after it became a session. */
+export function sameTab(a: StageTarget | null | undefined, b: StageTarget | null | undefined): boolean {
+  if (!isTab(a) || !isTab(b)) return false;
+  if (a.kind === "session" && b.kind === "session" && a.id === b.id) return true;
+  const la = launchOf(a);
+  return la !== undefined && la === launchOf(b);
+}
+
+/** A tab's lasting name, the same before and after its launch became a
+ *  session: what keys its terminal, so the terminal is never mounted again. */
+export function tabKey(t: StageTarget): string {
+  const launch = launchOf(t);
+  return launch !== undefined ? `l:${launch}` : t.kind === "session" ? `s:${t.id}` : "empty";
+}
+
+/** `tabs` with `target` among them: the tab it already is, kept (a launch's
+ *  tab becomes its session, a session's tab never goes back to a launch), or
+ *  a new tab at the end. */
+function mergeTab(tabs: readonly StageTarget[], target: StageTarget): readonly StageTarget[] {
+  if (!isTab(target)) return tabs;
+  const i = tabs.findIndex(t => sameTab(t, target));
+  if (i < 0) return [...tabs, target];
+  const was = tabs[i]!;
+  const keep = was.kind === "session" && (target.kind === "launch" || (target.id === was.id && !target.launch));
+  if (keep || sameShown(was, target)) return tabs;
+  return tabs.map((t, j) => (j === i ? target : t));
+}
+
+/** No more than MAX_TABS: the oldest tabs that are not `shown` leave first. */
+function capTabs(tabs: readonly StageTarget[], shown: StageTarget | null | undefined): readonly StageTarget[] {
+  if (tabs.length <= MAX_TABS) return tabs;
+  const out = [...tabs];
+  while (out.length > MAX_TABS) {
+    const i = out.findIndex(t => !sameTab(t, shown));
+    if (i < 0) break;
+    out.splice(i, 1);
+  }
+  return out;
+}
+
+/** A pane's tabs as the strip draws them: those it holds, with what it shows
+ *  (the shell's target for the pane in focus) among them. */
+export function paneTabs(s: SplitState, id: string, focusedTarget: StageTarget | null): readonly StageTarget[] {
+  const shown = paneTarget(s, id, focusedTarget);
+  return capTabs(mergeTab(s.tabs?.[id] ?? [], shown), shown);
+}
+
+/** The pane that holds `sessionId` in any of its tabs, and that tab, as kept
+ *  (a launch's tab keeps its launch). Panes in tree order. */
+export function tabWith(s: SplitState, sessionId: string, focusedTarget: StageTarget | null, except?: string): { pane: string; target: StageTarget } | null {
+  for (const id of paneIds(s.root)) {
+    if (id === except) continue;
+    const t = paneTabs(s, id, focusedTarget).find(x => x.kind === "session" && x.id === sessionId);
+    if (t) return { pane: id, target: t };
+  }
+  return null;
+}
+
 /** The same reading-order numbers in the list, headers and narrow pane strip.
- * The shell owns the focused target; its saved entry can still name the previous session. */
+ * The shell owns the focused target; its saved entry can still name the previous session.
+ * A session in a tab the pane does not show has its pane's number, not active. */
 export interface PaneLink { number: number; active: boolean }
 export function sessionPaneLinks(s: SplitState, focusedTarget: StageTarget | null, order = paneIds(s.root)): Map<string, PaneLink> {
   const links = new Map<string, PaneLink>();
   if (order.length < 2) return links;
   order.forEach((id, index) => {
-    const target = paneTarget(s, id, focusedTarget);
-    if (target.kind === "session") links.set(target.id, { number: index + 1, active: id === s.focused });
+    const shown = paneTarget(s, id, focusedTarget);
+    for (const t of paneTabs(s, id, focusedTarget)) {
+      if (t.kind === "session") links.set(t.id, { number: index + 1, active: id === s.focused && sameTab(t, shown) });
+    }
   });
   return links;
 }
 
-/** The pane that shows `sessionId`, other than `except`, or null. */
+/** The pane that holds `sessionId`, in any tab, other than `except`, or null. */
 export function paneWith(s: SplitState, sessionId: string, focusedTarget: StageTarget | null, except?: string): string | null {
-  for (const id of paneIds(s.root)) {
-    if (id === except) continue;
-    const t = paneTarget(s, id, focusedTarget);
-    if (t.kind === "session" && t.id === sessionId) return id;
-  }
-  return null;
+  return tabWith(s, sessionId, focusedTarget, except)?.pane ?? null;
 }
 
-/** The sessions the panes show, in pane order. */
+/** The sessions open in the panes, every tab, in pane order. */
 export function paneSessions(s: SplitState, focusedTarget: StageTarget | null): string[] {
-  return paneIds(s.root).flatMap(id => {
-    const t = paneTarget(s, id, focusedTarget);
-    return t.kind === "session" ? [t.id] : [];
-  });
+  return paneIds(s.root).flatMap(id => paneTabs(s, id, focusedTarget).flatMap(t => (t.kind === "session" ? [t.id] : [])));
+}
+
+/** A tab closed: the pane keeps the others, and when it was the tab on show,
+ *  shows its neighbour (the next one, else the one before). Null for the
+ *  pane's last tab: closing it is the pane's own close (removePane, or the one
+ *  pane emptied). */
+export function closeTab(s: SplitState, paneId: string, tab: StageTarget, focusedTarget: StageTarget | null): { state: SplitState; shows: StageTarget; shown: boolean } | null {
+  if (!paneIds(s.root).includes(paneId)) return null;
+  const tabs = paneTabs(s, paneId, focusedTarget);
+  const i = tabs.findIndex(t => sameTab(t, tab));
+  const shown = paneTarget(s, paneId, focusedTarget);
+  const rest = i < 0 ? tabs : tabs.filter((_, j) => j !== i);
+  const wasShown = sameTab(shown, tab);
+  if (rest.length === 0) return null;
+  const shows = wasShown ? rest[Math.min(Math.max(i, 0), rest.length - 1)]! : shown;
+  const state = { ...s, targets: { ...s.targets, [paneId]: shows }, tabs: { ...s.tabs, [paneId]: rest } };
+  return { state, shows, shown: wasShown };
+}
+
+/** `next` in the place of tab `old` of a pane, and on show there: Start
+ *  again, a continuation. A pane that does not hold `old` is left alone. */
+export function replaceTab(s: SplitState, paneId: string, old: StageTarget, next: StageTarget): SplitState {
+  if (!isTab(next)) return s;
+  // A tab that already holds `next` gives way to the one it replaces.
+  const held = (s.tabs?.[paneId] ?? []).filter(t => sameTab(t, old) || !sameTab(t, next));
+  const at = held.findIndex(t => sameTab(t, old));
+  if (at < 0) return s;
+  const tabs = held.map((t, j) => (j === at ? next : t));
+  return { ...s, targets: { ...s.targets, [paneId]: next }, tabs: { ...s.tabs, [paneId]: tabs } };
+}
+
+/** The pane emptied: it shows nothing and holds no tab. */
+export function emptyPaneTabs(s: SplitState, paneId: string): SplitState {
+  if (!paneIds(s.root).includes(paneId)) return s;
+  return { ...s, targets: { ...s.targets, [paneId]: EMPTY }, tabs: { ...s.tabs, [paneId]: [] } };
 }
 
 // ── sizes ────────────────────────────────────────────────────────────────────
@@ -300,7 +415,7 @@ export function insertPane(s: SplitState, at: string, zone: EdgeZone, target: St
   while (ids.includes(`p${n}`)) n++;
   const id = `p${n}`;
   const root = replaceLeaf(s.root, at, leaf => cut(leaf, zone, { kind: "leaf", id }));
-  return { state: { ...s, root, targets: { ...s.targets, [id]: target }, next: n + 1, max: null }, id };
+  return { state: { ...s, root, targets: { ...s.targets, [id]: target }, tabs: { ...s.tabs, [id]: isTab(target) ? [target] : [] }, next: n + 1, max: null }, id };
 }
 
 /** The leaf to hand the keys to when `id` goes: the nearest pane in the half
@@ -329,9 +444,11 @@ export function removePane(s: SplitState, id: string): SplitState {
   const root = dropLeaf(s.root, id) ?? s.root;
   const targets = { ...s.targets };
   delete targets[id];
+  const tabs = { ...s.tabs };
+  delete tabs[id];
   const focused = s.focused === id ? heir(s.root, id) ?? paneIds(root)[0]! : s.focused;
   const max = s.max === id || paneIds(root).length < 2 ? null : s.max;
-  return { ...s, root, targets, focused, max };
+  return { ...s, root, targets, tabs, focused, max };
 }
 
 /** A pane dragged by its header onto another pane's zone: on an edge it
@@ -368,15 +485,18 @@ export function setRatio(s: SplitState, path: string, ratio: number): SplitState
 /** The keys to another pane; what the pane in focus showed is kept for it. */
 export function focusSplit(s: SplitState, id: string, focusedTarget: StageTarget | null): SplitState {
   if (!paneIds(s.root).includes(id)) return s;
-  const targets = focusedTarget ? { ...s.targets, [s.focused]: focusedTarget } : s.targets;
-  return { ...s, targets, focused: id, max: s.max && s.max !== id ? id : s.max };
+  const kept = focusedTarget ? withFocusedTarget(s, focusedTarget) : s;
+  return { ...kept, focused: id, max: s.max && s.max !== id ? id : s.max };
 }
 
-/** What the pane in focus shows, written back into its entry. */
+/** What the pane in focus shows, written back into its entry, and into its
+ *  tabs: the tab it already is, or a new one at the end. */
 export function withFocusedTarget(s: SplitState, target: StageTarget): SplitState {
   const was = s.targets[s.focused];
-  if (was && sameShown(was, target)) return s;
-  return { ...s, targets: { ...s.targets, [s.focused]: target } };
+  const held = s.tabs?.[s.focused] ?? [];
+  const tabs = capTabs(mergeTab(held, target), target);
+  if (was && sameShown(was, target) && tabs === held) return s;
+  return { ...s, targets: { ...s.targets, [s.focused]: target }, tabs: { ...s.tabs, [s.focused]: tabs } };
 }
 
 function sameShown(a: StageTarget, b: StageTarget): boolean {
@@ -390,37 +510,67 @@ function sameShown(a: StageTarget, b: StageTarget): boolean {
  *  it as that session, on the connection it already has. */
 export function promoteLaunch(s: SplitState, key: string, sessionId: string): SplitState {
   let changed = false;
+  const promoted: StageTarget = { kind: "session", id: sessionId, launch: key };
   const targets: Record<string, StageTarget> = {};
   for (const [id, t] of Object.entries(s.targets)) {
-    if (t.kind === "launch" && t.key === key && id !== s.focused) { targets[id] = { kind: "session", id: sessionId, launch: key }; changed = true; }
+    if (t.kind === "launch" && t.key === key && id !== s.focused) { targets[id] = promoted; changed = true; }
     else targets[id] = t;
   }
-  return changed ? { ...s, targets } : s;
+  const tabs: Record<string, readonly StageTarget[]> = {};
+  for (const [id, list] of Object.entries(s.tabs ?? {})) {
+    const at = list.findIndex(t => t.kind === "launch" && t.key === key);
+    if (at < 0) { tabs[id] = list; continue; }
+    tabs[id] = list.map((t, j) => (j === at ? promoted : t));
+    changed = true;
+  }
+  return changed ? { ...s, targets, tabs } : s;
+}
+
+/** The launches the panes hold that are not yet sessions, by key, except
+ *  the one the pane in focus shows (the shell's own). */
+export function heldLaunches(s: SplitState, focusedTarget: StageTarget | null): string[] {
+  const keys = new Set<string>();
+  for (const id of paneIds(s.root)) {
+    for (const t of paneTabs(s, id, id === s.focused ? focusedTarget : null)) {
+      if (t.kind === "launch" && !(id === s.focused && sameTab(t, focusedTarget))) keys.add(t.key);
+    }
+  }
+  return [...keys];
 }
 
 // ── kept per browser ─────────────────────────────────────────────────────────
 interface Stored {
   v: 1;
   root: SplitNode;
+  /** The session each pane shows, or null. */
   panes: Record<string, string | null>;
+  /** Each pane's tabs, sessions only, in the strip's order. Left out by the
+   *  versions before tabs, whose arrangements load as one tab a pane. */
+  tabs?: Record<string, string[]>;
   focused: string;
   next: number;
 }
 
 const PANE_ID = /^p\d{1,4}$/;
+const validSession = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 200;
 
-/** The arrangement as it is kept: the panes and their sessions, never a
- *  launch (a reload starts nothing). One pane is not kept: it is the
- *  Workspace as it was before #102, which the reader's own memory serves. */
+/** The arrangement as it is kept: the panes and their sessions, every tab's,
+ *  never a launch (a reload starts nothing). One pane with one tab is not
+ *  kept: it is the Workspace as it was before panes, which the reader's own
+ *  memory serves. */
 export function serializeSplit(s: SplitState, focusedTarget: StageTarget | null): string | null {
   const ids = paneIds(s.root);
-  if (ids.length < 2) return null;
   const panes: Record<string, string | null> = {};
+  const tabs: Record<string, string[]> = {};
+  let many = false;
   for (const id of ids) {
     const t = paneTarget(s, id, focusedTarget);
     panes[id] = t.kind === "session" ? t.id : null;
+    tabs[id] = paneTabs(s, id, focusedTarget).flatMap(x => (x.kind === "session" ? [x.id] : []));
+    if (tabs[id]!.length > 1) many = true;
   }
-  const stored: Stored = { v: 1, root: s.root, panes, focused: s.focused, next: s.next };
+  if (ids.length < 2 && !many) return null;
+  const stored: Stored = { v: 1, root: s.root, panes, tabs, focused: s.focused, next: s.next };
   return JSON.stringify(stored);
 }
 
@@ -437,7 +587,9 @@ function validNode(n: unknown, seen: Set<string>, depth: number): n is SplitNode
     && validNode(o.a, seen, depth + 1) && validNode(o.b, seen, depth + 1);
 }
 
-/** The kept arrangement, or null for anything this version did not write. */
+/** The kept arrangement, or null for anything this version did not write.
+ *  One written before tabs (no `tabs`) loads with one tab a pane. A session
+ *  is in one pane at most: a second claim on it is dropped. */
 export function parseSplit(raw: string | null | undefined): SplitState | null {
   if (!raw) return null;
   let d: unknown;
@@ -445,23 +597,54 @@ export function parseSplit(raw: string | null | undefined): SplitState | null {
   const o = d as Partial<Stored> | null;
   if (!o || o.v !== 1 || !o.panes || typeof o.panes !== "object") return null;
   const seen = new Set<string>();
-  if (!validNode(o.root, seen, 0) || seen.size < 2 || seen.size > MAX_PANES) return null;
+  if (!validNode(o.root, seen, 0) || seen.size < 1 || seen.size > MAX_PANES) return null;
+  const kept = o.tabs && typeof o.tabs === "object" ? o.tabs as Record<string, unknown> : null;
+  const claimed = new Set<string>();
   const targets: Record<string, StageTarget> = {};
+  const tabs: Record<string, readonly StageTarget[]> = {};
   for (const id of seen) {
-    const sid = (o.panes as Record<string, unknown>)[id];
-    targets[id] = typeof sid === "string" && sid.length > 0 && sid.length <= 200 ? { kind: "session", id: sid } : EMPTY;
+    const raw = (o.panes as Record<string, unknown>)[id];
+    const shows = validSession(raw) && !claimed.has(raw) ? raw : null;
+    const listed = Array.isArray(kept?.[id]) ? (kept![id] as unknown[]) : [];
+    let list: string[] = [];
+    for (const sid of listed) if (validSession(sid) && !claimed.has(sid) && !list.includes(sid)) list.push(sid);
+    if (shows && !list.includes(shows)) list.push(shows);
+    // No more than MAX_TABS, the one on show always among them.
+    while (list.length > MAX_TABS) {
+      const drop = list.findIndex(sid => sid !== shows);
+      list = list.filter((_, i) => i !== drop);
+    }
+    for (const sid of list) claimed.add(sid);
+    // A pane that showed a launch shows its newest session tab, if any.
+    const on = shows ?? list[list.length - 1] ?? null;
+    targets[id] = on ? { kind: "session", id: on } : EMPTY;
+    tabs[id] = list.map(sid => ({ kind: "session", id: sid }));
   }
+  // One pane is kept only for its tabs (serializeSplit).
+  if (seen.size < 2 && (tabs[[...seen][0]!]?.length ?? 0) < 2) return null;
   const focused = typeof o.focused === "string" && seen.has(o.focused) ? o.focused : [...seen][0]!;
   const next = Number.isInteger(o.next) && (o.next as number) > 0 ? (o.next as number) : seen.size;
-  return { root: o.root as SplitNode, targets, focused, max: null, next };
+  return { root: o.root as SplitNode, targets, focused, max: null, next, tabs };
 }
 
-/** Panes whose session is gone close; nothing is started for them. */
+/** Tabs whose session is gone leave the strip, and a pane left with none
+ *  closes; nothing is started for any of them. A pane that showed a session
+ *  gone shows its neighbour. */
 export function pruneSplit(s: SplitState, known: (sessionId: string) => boolean): SplitState {
   let out = s;
   for (const id of paneIds(s.root)) {
-    const t = out.targets[id];
-    if (t?.kind === "session" && !known(t.id) && paneCount(out) > 1) out = removePane(out, id);
+    const held = paneTabs(out, id, null);
+    const keep = held.filter(t => t.kind !== "session" || known(t.id));
+    const shown = out.targets[id];
+    const gone = shown?.kind === "session" && !known(shown.id);
+    if (keep.length === held.length && !gone) continue;
+    if (keep.length === 0) {
+      if (paneCount(out) > 1) out = removePane(out, id);
+      continue;
+    }
+    const at = held.findIndex(t => sameTab(t, shown));
+    const shows = gone ? keep[Math.min(Math.max(at, 0), keep.length - 1)]! : shown ?? EMPTY;
+    out = { ...out, targets: { ...out.targets, [id]: shows }, tabs: { ...out.tabs, [id]: keep } };
   }
   return out;
 }

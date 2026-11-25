@@ -49,14 +49,16 @@ import type { AgentNodeData } from "../../types";
 import type { TerminalProvider } from "../../terminal-api";
 import { prefersReducedMotion } from "../../viewport-motion";
 import { tabStripMove } from "../../tablist-keys";
-import { MAX_PANES, paneIds, paneTarget, zoneAt, zoneRect, type DropZone, type Rect } from "../../workspace-split";
+import { MAX_PANES, paneIds, paneTabs, paneTarget, sameTab, tabKey, zoneAt, zoneRect, type DropZone, type Rect } from "../../workspace-split";
 import BoardNavigator from "../BoardNavigator";
 import NewSessionPopover from "./NewSessionPopover";
 import SplitDivider from "./SplitDivider";
 import { useCodexLaunch } from "./codex-launch";
 import { barArrival, barAsks, boardProjects, stageShowFor, waitingCardFor } from "./stage-board";
 import { closedAnnouncement } from "./stage-model";
-import TerminalStage, { stageName, type StageSplit } from "./TerminalStage";
+import TerminalStage, { stageName, type StageShow, type StageSplit } from "./TerminalStage";
+import type { PaneTabItem, PaneTabsView } from "./PaneTabs";
+import { WORKSPACE_PANE_ID } from "../../workspace-pane";
 
 // ---------------------------------------------------------------------------
 // The navigator, in the canvas.
@@ -153,17 +155,12 @@ interface SplitPaneProps {
   /** One pane on show and the strip names them all: this pane is the panel
    *  its tab in the strip controls. */
   strip: boolean;
-  target: StageTarget | null;
-  agents: ReadonlyMap<string, AgentNodeData>;
-  onFound(sessionId: string, key: string): void;
   /** A press or a focus inside a pane without the keys gives it them. */
   onFocusIn(): void;
   children: ReactNode;
 }
 
 function SplitPane(p: SplitPaneProps) {
-  // A Codex launch in any pane is found as its own (codex-launch.ts).
-  useCodexLaunch(p.target, p.agents, p.onFound);
   const r = p.rect;
   const style: CSSProperties | undefined = r ? { left: r.x, top: r.y, width: r.w, height: r.h, right: "auto", bottom: "auto" } : undefined;
   const away = p.multi && !p.focused && !p.hidden;
@@ -196,6 +193,29 @@ function SplitPane(p: SplitPaneProps) {
 /** The strip's tab for a pane, and the pane it shows. */
 const stripTabId = (pane: string) => `wsp-tab-${pane}`;
 const stripPanelId = (pane: string) => `wsp-pane-${pane}`;
+
+/** A Codex launch in any tab of a pane, on show or not, is found as its own
+ *  (codex-launch.ts). Draws nothing. */
+function LaunchWatch(p: { target: StageTarget | null; agents: ReadonlyMap<string, AgentNodeData>; onFound(sessionId: string, key: string): void }) {
+  useCodexLaunch(p.target, p.agents, p.onFound);
+  return null;
+}
+
+/** A pane's tab in its header's strip, and the pane's stage, the panel every
+ *  tab of it shows. */
+const paneTabId = (pane: string, key: string) => `wsp-ptab-${pane}-${key}`;
+const panePanelId = (pane: string) => `wsp-ptabpanel-${pane}`;
+
+/** One tab of a pane as the dock draws it. */
+interface TabView {
+  /** The tab's lasting key (tabKey). */
+  key: string;
+  target: StageTarget | null;
+  show: StageShow;
+  name: string;
+  /** The tab the pane shows. */
+  on: boolean;
+}
 
 /** What a drag over the Workspace would do, and where it lights up. */
 interface DropView { pane: string; zone: DropZone; rect: Rect; label: string; already: boolean }
@@ -430,7 +450,30 @@ export function StageDock(p: StageDockProps) {
     const focused = id === focusedId;
     const target = focused ? shell.target : paneTarget(split!, id, null);
     const paneShow = focused ? show : stageShowFor(target, agents, p.now);
-    return { id, focused, target, show: paneShow, name: stageName(paneShow, true) };
+    // WORKSPACE: every tab the pane holds, the one it shows among them. The
+    // Board's stage is one stage, whatever it shows.
+    const tabs: TabView[] = fill && split
+      ? paneTabs(split, id, focused ? shell.target : null).map(tab => {
+        const on = sameTab(tab, target);
+        const tabShow = on ? paneShow : stageShowFor(tab, agents, p.now);
+        return { key: tabKey(tab), target: on ? target : tab, show: tabShow, name: stageName(tabShow, true), on };
+      })
+      : [];
+    // The empty pane, or the Board's stage: what it shows.
+    if (!tabs.some(x => x.on)) tabs.push({ key: tabKey(target ?? { kind: "empty" }), target, show: paneShow, name: stageName(paneShow, true), on: true });
+    return { id, focused, target, show: paneShow, name: stageName(paneShow, true), tabs };
+  });
+  // Where the keyboard goes once a tab chosen from its strip is drawn: the
+  // tab itself, in the header of the terminal now on show.
+  const tabFocusRef = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const id = tabFocusRef.current;
+    if (!id) return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    tabFocusRef.current = null;
+    el.focus();
+    el.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   });
 
   const nameOfSession = (id: string) => stageName(stageShowFor({ kind: "session", id }, agents, p.now), true);
@@ -438,9 +481,10 @@ export function StageDock(p: StageDockProps) {
   const dropAt = (x: number, y: number): DropView | null => {
     const dragged = currentDrag();
     if (!dragged || !split) return null;
-    // A session already in a pane: the keys go there, whichever pane it is dropped on.
+    // A session already in a pane, in any of its tabs: that tab comes back,
+    // with the keys, whichever pane it is dropped on.
     if (dragged.kind === "session") {
-      const has = panes.find(x2 => x2.target?.kind === "session" && x2.target.id === dragged.id);
+      const has = panes.find(x2 => x2.tabs.some(tab => tab.target?.kind === "session" && tab.target.id === dragged.id));
       if (has) {
         const r = multi ? arrangement!.rects.get(has.id) : null;
         const box = r ?? { x: 0, y: 0, w: inRef.current?.clientWidth ?? 0, h: inRef.current?.clientHeight ?? 0 };
@@ -453,7 +497,10 @@ export function StageDock(p: StageDockProps) {
       if (!r || x < r.x || y < r.y || x > r.x + r.w || y > r.y + r.h) continue;
       if (dragged.kind === "pane" && dragged.id === pane.id) return null;
       const canSplit = dragged.kind === "pane" || (paneIds(split.root).length < MAX_PANES && pane.show.kind !== "empty");
-      const zone = zoneAt(r, x, y, canSplit);
+      // An edge with no room for another pane of 40 × 8 is the pane's Here:
+      // the session opens there as a tab (use-stage.ts openBeside).
+      const edge = zoneAt(r, x, y, canSplit);
+      const zone = edge !== "here" && dragged.kind === "session" && stage.roomBeside && !stage.roomBeside(pane.id, edge) ? "here" : edge;
       const key = dragged.kind === "pane"
         ? (zone === "here" ? "board.stage.split.moveSwap" : zone === "top" ? "board.stage.split.moveAbove" : zone === "bottom" ? "board.stage.split.moveBelow" : "board.stage.split.moveBeside")
         : (zone === "here" ? "board.stage.split.showHere" : zone === "top" ? "board.stage.split.openAbove" : zone === "bottom" ? "board.stage.split.openBelow" : "board.stage.split.openBeside");
@@ -490,17 +537,24 @@ export function StageDock(p: StageDockProps) {
     endDrag();
     if (!view || !dragged) return;
     if (dragged.kind === "pane") stage.movePaneTo(dragged.id, view.pane, view.zone);
-    else if (view.already) stage.focusPaneId(view.pane, { keys: true });
+    else if (view.already) stage.dropHere(view.pane, dragged.id);
     else if (view.zone === "here") stage.dropHere(view.pane, dragged.id);
     else stage.openBeside(dragged.id, { at: view.pane, zone: view.zone });
   }
 
   /** The terminal of one pane: the stage as it always was for the pane with
-   *  the keys, and the same stage, sized to its box, for every other pane. */
+   *  the keys, and the same stage, sized to its box, for every other pane.
+   *  ONE STAGE A PANE, ITS TABS SWITCHED IN PLACE. A tab not on show holds no
+   *  connection: the deck keeps four terminal sockets at most (one a pane),
+   *  and a socket nobody looks at is a tmux client for nothing. The session
+   *  runs on in tmux; a switch back attaches it again, as the one pane always
+   *  switched sessions: the screen and the last of its history drawn again,
+   *  its running turn where it got to. */
   const stageFor = (pane: typeof panes[number]) => {
     const own = pane.focused;
     const id = pane.id;
     const ps = pane.show;
+    const tab = pane.tabs.find(x => x.on)!;
     const rect = multi ? arrangement!.rects.get(id) : null;
     const geometry = multi && rect ? stage.geometryFor(rect.w, rect.h) : g!;
     const keysHere = () => { if (!own) stage.focusPaneId(id); };
@@ -513,10 +567,47 @@ export function StageDock(p: StageDockProps) {
       primary: own,
       max: arrangement!.why === "max",
       onMax: () => (arrangement!.why === "max" ? stage.showAll() : stage.toggleMax(id)),
-      onDragHead: e => beginDrag(e, { kind: "pane", id, name: pane.name }),
+      onDragHead: e => beginDrag(e, { kind: "pane", id, name: tab.name }),
     } : null;
-    const close = multi ? () => stage.closePane(id)
-      : fill ? (ps.kind === "empty" ? p.onBoard ?? stage.close : stage.emptyPane) : stage.close;
+    // A tab of the Workspace closes alone (its neighbour comes on); the last
+    // one closes its pane beside others, and empties the one pane. The empty
+    // pane's ✕ leaves for the Board. The Board's ✕ closes the stage, as it did.
+    const held = tab.target && tab.target.kind !== "empty" ? tab.target : null;
+    const close = !fill ? stage.close
+      : held ? () => stage.closeTab(id, held)
+        : multi ? () => stage.closePane(id) : p.onBoard ?? stage.close;
+    // The pane's strip, in its header, once it holds two. Every tab shows
+    // this stage: the panel each of them controls.
+    const strip = pane.tabs.filter(x => x.target && x.target.kind !== "empty");
+    const panel = own ? WORKSPACE_PANE_ID : panePanelId(id);
+    const tabsView: PaneTabsView | null = fill && strip.length > 1 ? {
+      items: strip.map((x): PaneTabItem => ({
+        key: x.key,
+        id: paneTabId(id, x.key),
+        name: x.name,
+        status: x.show.kind === "session" ? x.show.session.status : { state: x.show.kind === "launch" ? "starting" : "none", phrase: "" },
+        on: x.on,
+        panel,
+      })),
+      onSelect: (key, how) => {
+        const to = strip.find(x => x.key === key);
+        if (!to?.target) return;
+        if (!how.keys) tabFocusRef.current = paneTabId(id, key);
+        if (to.on && how.keys) { stage.focusPaneId(id, { keys: true }); return; }
+        stage.activateTab(id, to.target, { keys: how.keys });
+      },
+      onClose: (key, how) => {
+        const at = strip.findIndex(x => x.key === key);
+        const gone = strip[at];
+        if (!gone?.target || gone.target.kind === "empty") return;
+        const rest = strip.filter(x => x.key !== key);
+        // From the strip by keys, the keyboard stays on the strip: on the
+        // neighbour, or in the pane once one tab is left and the strip goes.
+        if (how.keys && rest.length > 1) tabFocusRef.current = paneTabId(id, rest[Math.min(at, rest.length - 1)]!.key);
+        stage.closeTab(id, gone.target, { keys: !how.keys || rest.length < 2 });
+        if (how.keys && rest.length < 2 && !gone.on) stage.focusPaneId(id, { keys: true });
+      },
+    } : null;
     return (
       <TerminalStage
         show={ps}
@@ -538,9 +629,9 @@ export function StageDock(p: StageDockProps) {
         onNextAsk={p.asks.nextAsk}
         onOpenWaiting={id => stage.switchTo(id, { focusPane: true })}
         onAnswerArrival={p.asks.nextAsk}
-        // Workspace: ✕ empties the pane, and on the empty pane leaves for the
-        // Board. The Board's ✕ closes the stage, as it did. With panes side by
-        // side ✕ (or the agent ending itself, #104) closes that pane alone.
+        // Workspace: ✕ closes the tab, and on the empty pane leaves for the
+        // Board. The Board's ✕ closes the stage, as it did. The agent ending
+        // itself closes its own tab, on show or not.
         onClose={close}
         waiting={own && fill && ps.kind === "empty" ? waitingCardFor(p.waitingSessions, p.now) : null}
         onToggleExpand={stage.toggleExpand}
@@ -559,17 +650,23 @@ export function StageDock(p: StageDockProps) {
         onContinuation={(sessionId, cwd) => {
           const next = p.stateRef.current.agents.get(sessionId);
           if (!next || next.provider !== "claude" || next.cwd !== cwd) return false;
-          if (multi) stage.dropHere(id, sessionId);
+          if (multi) stage.dropHere(id, sessionId, held ? { replace: held } : undefined);
           else stage.switchTo(sessionId, { focusPane: true });
           return true;
         }}
-        onLaunchAgain={ps.kind === "launch" ? () => { keysHere(); stage.launch(ps.agent, ps.cwd, ps.options); } : undefined}
+        // Start again and a new session in place of this one take this tab's
+        // place in the strip: the launch or session it replaces is not left
+        // behind as a tab of its own.
+        onLaunchAgain={ps.kind === "launch" ? () => { keysHere(); stage.launch(ps.agent, ps.cwd, ps.options, held ? { replace: held } : undefined); } : undefined}
         // A session Reopen here could not bring back: a new one of its agent
         // in its folder, in this pane, on that press only.
-        onStartNew={fresh ? () => { keysHere(); stage.launch(fresh.agent, fresh.cwd); } : undefined}
+        onStartNew={fresh ? () => { keysHere(); stage.launch(fresh.agent, fresh.cwd, undefined, held ? { replace: held } : undefined); } : undefined}
         onAnnounce={stage.announce}
         windows={stage.windows}
         split={splitView}
+        panelId={tabsView ? panel : undefined}
+        tabs={tabsView}
+        tabbedBy={tabsView ? paneTabId(id, tab.key) : undefined}
       />
     );
   };
@@ -662,11 +759,9 @@ export function StageDock(p: StageDockProps) {
             focused={pane.focused}
             hidden={multi && arrangement!.mode === "strip" && !pane.focused}
             strip={multi && arrangement!.mode === "strip"}
-            target={pane.target}
-            agents={agents}
-            onFound={onFound}
             onFocusIn={() => stage.focusPaneId(pane.id)}
           >
+            {pane.tabs.map(tab => <LaunchWatch key={tab.key} target={tab.target} agents={agents} onFound={onFound} />)}
             {stageFor(pane)}
           </SplitPane>
         ))}
