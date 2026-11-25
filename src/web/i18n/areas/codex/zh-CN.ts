@@ -135,6 +135,16 @@ const catalog: Catalog = {
   "codex.menu.save": "保存",
   "codex.menu.saveTitle": "用于代替邮箱显示的简短名称",
 
+  // Codex's own home: why it has no Remove, and its Hide / Show
+  "codex.menu.hide": "隐藏",
+  "codex.menu.hideTitle": "在保持未登录期间隐藏此行。Codex 在这里登录后，它会自动重新出现。",
+  "codex.menu.show": "显示 {name}",
+  "codex.menu.showTitle": "将隐藏的账号放回列表",
+  "codex.menu.notRemovable": "无法移除：这是 Codex 自己的登录文件夹，{product} 从不删除它。",
+  "codex.panel.hidden": "已隐藏 {name}。任一账号的 ⋯ 菜单都可以重新显示它。",
+  "codex.panel.hideFailed": "无法隐藏账号，请重新加载后重试。",
+  "codex.panel.showFailed": "无法显示账号，请重新加载后重试。",
+
   "codex.add.reason.missing": "这台电脑上未安装 Codex，或 ccdeck 找不到它。",
   "codex.add.reason.expired": "验证码在使用前已过期。",
   "codex.add.reason.noCode": "Codex 没有提供登录验证码。",

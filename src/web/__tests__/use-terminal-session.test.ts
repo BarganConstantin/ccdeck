@@ -34,6 +34,7 @@ import {
   CTRL_V,
   ECHO_WINDOW_MS,
   ELSEWHERE_POLL_MS,
+  EXIT_WATCH_POLL_MS,
   ENGINE_NO_RETURN_MSG,
   ENGINE_NO_RETURN_WINDOWS_MSG,
   NO_RETURN_MSG,
@@ -705,6 +706,207 @@ describe("checking an external terminal", () => {
     expect(r.last().phase).toMatchObject({ kind: "not-attachable", target: { kind: "gone" }, stillRunning: false });
     expect(r.last().phase, "freed, the plain card again").not.toHaveProperty("held");
     expect(r.adopt).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Resume here after exit: armed on the card of a Claude session running in a
+// terminal outside the deck, the stage looks closely at that exact session
+// and, once nothing holds it any more, reopens it here by itself — the adopt
+// Reopen here would have made, never a new conversation. Cancel puts the card
+// back as it was. Only the session on show is ever asked about or adopted.
+describe("resume here after exit", () => {
+  const external = { kind: "C" as const, label: "running elsewhere", adoptable: true };
+  const gone = { kind: "gone" as const, label: "ended", adoptable: true };
+  const elsewhere = { kind: "not-attachable", target: external, stillRunning: true, busy: false } as const;
+
+  async function runningElsewhere(opts: Parameters<typeof rig>[0] = {}, ref = REF) {
+    const made = rig(opts);
+    made.r.open.mockResolvedValue({ ok: false, target: external });
+    made.ctl.show({ kind: "session", ref });
+    await flush();
+    expect(made.r.last().phase).toEqual(elsewhere);
+    return made;
+  }
+
+  it("arms only on the card of a Claude session still running elsewhere, and only once", async () => {
+    const { r, ctl } = await runningElsewhere();
+    const opens = r.open.mock.calls.length;
+    ctl.resumeAfterExit();
+    expect(r.last().phase).toEqual({ ...elsewhere, awaitingExit: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(r.open, "a first look at once: it may have been quit since the last one").toHaveBeenCalledTimes(opens + 1);
+    const snaps = r.snaps.length;
+    ctl.resumeAfterExit();
+    ctl.resumeAfterExit();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(r.snaps.length, "a second press changes nothing").toBe(snaps);
+    expect(r.open, "and asks nothing more").toHaveBeenCalledTimes(opens + 1);
+
+    // Not for Codex, whose idle session outside the deck holds nothing the
+    // deck can see; not on Windows; not on a card for a session that ended.
+    const codex = await runningElsewhere({}, { ...REF, provider: "codex" });
+    codex.ctl.resumeAfterExit();
+    expect(codex.r.last().phase).toEqual(elsewhere);
+    const win = await runningElsewhere({ windows: true });
+    win.ctl.resumeAfterExit();
+    expect(win.r.last().phase).toEqual(elsewhere);
+    const ended = rig();
+    ended.r.open.mockResolvedValue({ ok: false, target: gone });
+    ended.ctl.show({ kind: "session", ref: REF });
+    await flush();
+    ended.ctl.resumeAfterExit();
+    expect(ended.r.last().phase).not.toHaveProperty("awaitingExit");
+    expect(ended.r.adopt).not.toHaveBeenCalled();
+  });
+
+  it("keeps waiting while the session is busy there, looking closely even with the page hidden", async () => {
+    const { r, ctl } = await runningElsewhere();
+    ctl.resumeAfterExit();
+    await vi.advanceTimersByTimeAsync(0);
+    const opens = r.open.mock.calls.length;
+    const g = globalThis as { document?: unknown };
+    const had = "document" in g;
+    const before = g.document;
+    g.document = { visibilityState: "hidden" };
+    try {
+      await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS * 4);
+    } finally {
+      if (had) g.document = before; else delete g.document;
+    }
+    expect(r.open.mock.calls.length - opens, "one look per short interval, the page hidden or not").toBe(4);
+    expect(r.open.mock.calls.every(c => c[0] === REF), "only the session on show is asked about").toBe(true);
+    expect(r.adopt, "a session still running is never reopened beside itself").not.toHaveBeenCalled();
+    expect(r.last().phase).toEqual({ ...elsewhere, awaitingExit: true });
+  });
+
+  it("reopens the same conversation here by itself once the session stopped there", async () => {
+    const { r, ctl } = await runningElsewhere();
+    ctl.resumeAfterExit();
+    await vi.advanceTimersByTimeAsync(0);
+    r.open.mockResolvedValue({ ok: false, target: gone });
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS);
+    expect(r.adopt, "no press").toHaveBeenCalledTimes(1);
+    expect(r.adopt.mock.calls[0][0], "the same session, by its id, in its own folder").toEqual(REF);
+    expect(r.launch, "never a new conversation").not.toHaveBeenCalled();
+    expect(r.sockets.map(x => x.url).at(-1)).toMatch(/ticket=adopted$/);
+    // Once its pane is up the wait is over: nothing more is looked at.
+    const opens = r.open.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS * 3);
+    expect(r.open).toHaveBeenCalledTimes(opens);
+    expect(r.adopt).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks about the folder first, as Reopen here does, and names a folder that went away", async () => {
+    const { r, ctl } = await runningElsewhere();
+    const checkFolder = vi.fn(async () => ({ ok: false, code: "missing" }) as const);
+    (r.deps.api as { checkFolder?: unknown }).checkFolder = checkFolder;
+    ctl.resumeAfterExit();
+    await vi.advanceTimersByTimeAsync(0);
+    r.open.mockResolvedValue({ ok: false, target: gone });
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS);
+    expect(checkFolder).toHaveBeenCalledWith(REF.cwd);
+    expect(r.adopt, "never resumed anywhere else").not.toHaveBeenCalled();
+    expect(r.last().phase).toMatchObject({ kind: "folder-gone", cwd: REF.cwd });
+  });
+
+  it("adopts past an ended deck pane of its own instead of showing that pane's last frame", async () => {
+    const { r, ctl } = await runningElsewhere();
+    ctl.resumeAfterExit();
+    await vi.advanceTimersByTimeAsync(0);
+    const sockets = r.sockets.length;
+    r.open.mockResolvedValue({ ok: true, ticket: "dead-frame", target: gone });
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS);
+    expect(r.adopt).toHaveBeenCalledTimes(1);
+    expect(r.sockets.slice(sockets).map(x => x.url), "the dead frame's ticket is never used").not.toContainEqual(expect.stringMatching(/dead-frame/));
+  });
+
+  it("shows the pane another tab already reopened it in, and starts nothing", async () => {
+    const { r, ctl } = await runningElsewhere();
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    ctl.resumeAfterExit();
+    await vi.advanceTimersByTimeAsync(0);
+    r.open.mockResolvedValue(ticketed("other-tab"));
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS);
+    expect(r.adopt).not.toHaveBeenCalled();
+    const s = r.sockets.at(-1)!;
+    expect(s.url).toMatch(/ticket=other-tab$/);
+    s.open();
+    s.text({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: false });
+    s.text({ t: "reset", cols: 120, rows: 40 });
+    s.binary(enc("RESUMED"));
+    r.terminal().parse();
+    expect(r.last().phase).toEqual({ kind: "live", sizeOwner: "dock", readOnly: false });
+    // The wait ended with the card: a later card for this session is plain.
+    const opens = r.open.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS * 3);
+    expect(r.open).toHaveBeenCalledTimes(opens);
+  });
+
+  it("keeps waiting when the deck says something took the session first", async () => {
+    const { r, ctl } = await runningElsewhere();
+    ctl.resumeAfterExit();
+    await vi.advanceTimersByTimeAsync(0);
+    r.open.mockResolvedValueOnce({ ok: false, target: gone });
+    r.adopt.mockResolvedValueOnce(failure(409, "still-running"));
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS);
+    expect(r.adopt).toHaveBeenCalledTimes(1);
+    expect(r.last().phase).toMatchObject({ kind: "not-attachable", stillRunning: true, busy: false, awaitingExit: true });
+    // Free again: reopened then.
+    r.open.mockResolvedValue({ ok: false, target: gone });
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS);
+    expect(r.adopt).toHaveBeenCalledTimes(2);
+    expect(r.sockets.at(-1)?.url).toMatch(/ticket=adopted$/);
+  });
+
+  it("ends the wait on a refused reopen, whose card offers Try again", async () => {
+    const { r, ctl } = await runningElsewhere();
+    ctl.resumeAfterExit();
+    await vi.advanceTimersByTimeAsync(0);
+    r.open.mockResolvedValue({ ok: false, target: gone });
+    r.adopt.mockResolvedValueOnce(failure(500, "The deck could not start Claude Code here."));
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS);
+    expect(r.last().phase).toEqual({ kind: "error", message: "The deck could not start Claude Code here.", reopen: true });
+    const opens = r.open.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS * 3);
+    expect(r.open, "no more looks once it has said why").toHaveBeenCalledTimes(opens);
+    expect(r.adopt).toHaveBeenCalledTimes(1);
+    ctl.retry();
+    await flush();
+    expect(r.adopt, "Try again reopens the same session").toHaveBeenCalledTimes(2);
+    expect(r.adopt.mock.calls[1][0]).toEqual(REF);
+  });
+
+  it("Cancel stops waiting and leaves the card and the session as they were", async () => {
+    const { r, ctl } = await runningElsewhere();
+    ctl.resumeAfterExit();
+    await vi.advanceTimersByTimeAsync(0);
+    ctl.stopWaitingForExit();
+    expect(r.last().phase, "the card as before arming").toEqual(elsewhere);
+    const opens = r.open.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS);
+    expect(r.open, "back to the quiet look").toHaveBeenCalledTimes(opens);
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS - EXIT_WATCH_POLL_MS);
+    expect(r.open).toHaveBeenCalledTimes(opens + 1);
+    r.open.mockResolvedValue({ ok: false, target: gone });
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS);
+    expect(r.last().phase, "stopped there: Reopen here, on its press").toEqual({ kind: "not-attachable", target: gone, stillRunning: false, busy: false });
+    expect(r.adopt).not.toHaveBeenCalled();
+    ctl.stopWaitingForExit();
+    expect(r.adopt).not.toHaveBeenCalled();
+  });
+
+  it("ends the wait when the stage shows another session", async () => {
+    const { r, ctl } = await runningElsewhere();
+    ctl.resumeAfterExit();
+    await vi.advanceTimersByTimeAsync(0);
+    ctl.show({ kind: "session", ref: OTHER });
+    await flush();
+    expect(r.last().phase).toEqual(elsewhere);
+    r.open.mockResolvedValue({ ok: false, target: gone });
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS * 2);
+    expect(r.adopt, "the other session is never reopened by the first one's wait").not.toHaveBeenCalled();
+    expect(r.open.mock.calls.at(-1)?.[0]).toEqual(OTHER);
   });
 });
 
@@ -3112,12 +3314,15 @@ describe("a pane whose folder is not reachable", () => {
   it("names it when the reopened agent itself says it cannot read its folder, never 'could not resume' with a new session offered", async () => {
     for (const cols of [120, 40]) {
       const { r, ctl } = await endedPane();
-      asksFolder(r, THERE);
+      // There when asked before the reopen; asked again once the agent says so, not reachable.
+      const check = asksFolder(r, THERE, UNREACHABLE);
       ctl.adopt();
       await flush();
       expect(r.last().phase, "reopening, the frame kept").toEqual({ kind: "ended", busy: true });
       diesSaying(r, r.sockets[1], CANT_READ, cols);
       r.terminal().parse();
+      await flush();
+      expect(check, "asked again once the agent said so").toHaveBeenCalledTimes(2);
       expect(r.last().phase, `${cols} columns`).toEqual(goneOnNas);
       await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
       expect(r.adopt, "started once, for the press").toHaveBeenCalledTimes(1);
@@ -3140,11 +3345,12 @@ describe("a pane whose folder is not reachable", () => {
 
   it("resumes the same conversation once the drive is back, and only on Check again", async () => {
     const { r, ctl } = await endedPane();
-    const check = asksFolder(r, THERE, UNREACHABLE, UNREACHABLE, THERE);
+    const check = asksFolder(r, THERE, UNREACHABLE, UNREACHABLE, UNREACHABLE, THERE);
     ctl.adopt();
     await flush();
     diesSaying(r, r.sockets[1], CANT_READ);
     r.terminal().parse();
+    await flush();
     expect(r.last().phase).toEqual(goneOnNas);
     // Still disconnected: said so, nothing started — press after press.
     for (let press = 1; press <= 2; press++) {
@@ -3155,13 +3361,13 @@ describe("a pane whose folder is not reachable", () => {
       expect(r.last().phase, `press ${press}: still not reachable`).toEqual({ ...goneOnNas, busy: false, checked: true });
       await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
     }
-    expect(check, "one question a press, and the first before the reopen").toHaveBeenCalledTimes(3);
+    expect(check, "one question a press, the first before the reopen and one as the agent said so").toHaveBeenCalledTimes(4);
     expect(r.adopt, "no process started while it is unreachable").toHaveBeenCalledTimes(1);
     expect(r.sockets).toHaveLength(2);
     // Remounted: the same conversation, by its id, in its own folder.
     ctl.retry();
     await flush();
-    expect(check).toHaveBeenCalledTimes(4);
+    expect(check).toHaveBeenCalledTimes(5);
     expect(r.adopt).toHaveBeenCalledTimes(2);
     expect(r.adopt.mock.calls[1][0], "the same session id and folder").toEqual(ON_NAS);
     expect(r.launch, "never a new session").not.toHaveBeenCalled();
@@ -3177,13 +3383,17 @@ describe("a pane whose folder is not reachable", () => {
     await flush();
     diesSaying(r, r.sockets[1], CANT_READ);
     r.terminal().parse();
+    await flush();
+    // The deck finds the folder there: the agent could not open it, the folder is not called gone.
+    expect(r.last().phase).toEqual({ ...goneOnNas, there: true });
     for (let press = 1; press <= 3; press++) {
       ctl.retry();
       await flush();
       expect(r.adopt, `press ${press}: one start`).toHaveBeenCalledTimes(press + 1);
       diesSaying(r, r.sockets[press + 1], CANT_READ);
       r.terminal().parse();
-      expect(r.last().phase, `press ${press}: still not reachable, said so`).toEqual({ ...goneOnNas, checked: true });
+      await flush();
+      expect(r.last().phase, `press ${press}: still could not, said so`).toEqual({ ...goneOnNas, checked: true, there: true });
       await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
       expect(r.adopt, `press ${press}: nothing by itself`).toHaveBeenCalledTimes(press + 1);
     }
@@ -3234,12 +3444,13 @@ describe("a pane whose folder is not reachable", () => {
     const { r, ctl } = rig({ onLaunchAgain: again });
     ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
     await flush();
-    const check = asksFolder(r, UNREACHABLE, THERE);
+    const check = asksFolder(r, UNREACHABLE, UNREACHABLE, THERE);
     ctl.show({ kind: "launch", agent: "claude", cwd: NAS, key: "nas-2" });
     await flush();
     readable(r);
     diesSaying(r, r.sockets[0], CANT_READ);
     r.terminal().parse();
+    await flush();
     const launchGone = { kind: "folder-gone", cwd: NAS, code: "folder-unreachable", agent: "claude", frame: true };
     expect(r.last().phase, "no conversation to keep: a launch's").toEqual(launchGone);
     await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
@@ -3250,7 +3461,7 @@ describe("a pane whose folder is not reachable", () => {
     expect(again).not.toHaveBeenCalled();
     ctl.retry();
     await flush();
-    expect(check).toHaveBeenCalledTimes(2);
+    expect(check, "once as the agent said so, once a press").toHaveBeenCalledTimes(3);
     expect(again, "started again, once, under a new key").toHaveBeenCalledTimes(1);
     expect(r.launch, "never the same key's dead agent again").toHaveBeenCalledTimes(1);
     expect(r.last().phase, "the ended pane until the stage starts it").toEqual({ kind: "ended", atOpen: true });
@@ -3271,6 +3482,121 @@ describe("a pane whose folder is not reachable", () => {
     ctl.cancelFolder();
     expect(r.last().phase).toEqual({ kind: "ended", atOpen: true });
     expect(again).not.toHaveBeenCalled();
+    ctl.dispose();
+  });
+
+  // A Codex whose working folder could not be read as it started: what the
+  // shell that starts it and Codex itself print then, on macOS (bash as
+  // /bin/sh) and on Linux (dash says it first). The line is longer than many
+  // panes are wide, and a pane hands it over in rows.
+  const SHELL_INIT = "shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory";
+  const CODEX_NO_CWD = `${SHELL_INIT}\r\nError: No such file or directory (os error 2)\r\n`;
+  const DASH_NO_CWD = `sh: 0: getcwd() failed: No such file or directory\r\n${CODEX_NO_CWD}`;
+  /** `text` as xterm reads it back from a pane `cols` wide: one row per
+   *  width, each trimmed of its trailing blanks. */
+  const rowsOf = (text: string, cols: number) => {
+    const rows: string[] = [];
+    for (const line of text.split(/\r?\n/)) for (let i = 0; i < Math.max(1, line.length); i += cols) rows.push(line.slice(i, i + cols).trimEnd());
+    return rows.join("\n");
+  };
+  const PROJECT = "/Users/u/code/paycore";
+  const HERE: Answer = { ok: true, cwd: PROJECT };
+  const launchDies = async (words: string, cols: number, ...answers: Answer[]) => {
+    const again = vi.fn();
+    const { r, ctl } = rig({ onLaunchAgain: again });
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    const check = answers.length ? asksFolder(r, ...answers) : null;
+    ctl.show({ kind: "launch", agent: "codex", cwd: PROJECT, key: `cwd-${cols}` });
+    await flush();
+    readable(r);
+    diesSaying(r, r.sockets[0], words, cols);
+    r.terminal().parse();
+    await flush();
+    return { r, ctl, again, check };
+  };
+
+  it("reads the shell's and Codex's words for a working folder it could not read, at any pane width", () => {
+    for (const words of [CODEX_NO_CWD, DASH_NO_CWD]) {
+      for (let cols = 12; cols <= 140; cols++) {
+        expect(agentFolderFailure(rowsOf(words, cols), cols), `${cols} columns`).toBe("folder-missing");
+      }
+    }
+    // Read row by row with no width, only a line that fits one row is read.
+    expect(agentFolderFailure(rowsOf(CODEX_NO_CWD, 132))).toBe("folder-missing");
+    // Codex's own line alone does not say which file: no folder in it.
+    expect(agentFolderFailure("Error: No such file or directory (os error 2)", 80)).toBeNull();
+    // A short row ends its line: two lines are never read as one.
+    expect(agentFolderFailure("│ cwd: /home/u/paycore │\nError: ENOENT: no such file or directory, open 'x'", 80)).toBeNull();
+  });
+
+  it("names the folder for a Codex that ends at once saying so in a narrow pane, never 'Start Codex again' alone", async () => {
+    for (const cols of [40, 64, 80, 100]) {
+      const { r, ctl, again } = await launchDies(CODEX_NO_CWD, cols);
+      expect(r.last().phase, `${cols} columns`).toEqual({ kind: "folder-gone", cwd: PROJECT, code: "folder-missing", agent: "codex", frame: true });
+      await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+      expect(r.launch, "started once, for the press").toHaveBeenCalledTimes(1);
+      expect(again, "never started again by itself").not.toHaveBeenCalled();
+      ctl.dispose();
+    }
+  });
+
+  it("asks the deck about the folder and says what it finds: gone, not this account's, not reachable", async () => {
+    for (const [answer, code] of [[{ ok: false, code: "missing" }, "folder-missing"], [{ ok: false, code: "denied" }, "folder-denied"], [UNREACHABLE, "folder-unreachable"]] as const) {
+      const { r, ctl, check } = await launchDies(CODEX_NO_CWD, 80, answer);
+      expect(check).toHaveBeenCalledWith(PROJECT);
+      expect(r.last().phase, code).toEqual({ kind: "folder-gone", cwd: PROJECT, code, agent: "codex", frame: true });
+      ctl.dispose();
+    }
+  });
+
+  it("never says a folder the deck finds is gone: the agent could not open its working folder, though the folder is there", async () => {
+    const { r, ctl, again, check } = await launchDies(CODEX_NO_CWD, 80, HERE);
+    expect(check).toHaveBeenCalledTimes(1);
+    const there = { kind: "folder-gone", cwd: PROJECT, code: "folder-missing", agent: "codex", frame: true, there: true };
+    expect(r.last().phase).toEqual(there);
+    await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+    expect(again, "nothing started by itself").not.toHaveBeenCalled();
+    // Check again: one question and one start a press, never a loop.
+    ctl.retry();
+    await flush();
+    expect(check).toHaveBeenCalledTimes(2);
+    expect(again, "started again once, for the press").toHaveBeenCalledTimes(1);
+    expect(r.launch, "never the same key's dead agent again").toHaveBeenCalledTimes(1);
+    ctl.dispose();
+  });
+
+  it("keeps the agent's word when the deck cannot say", async () => {
+    const { r, ctl } = await launchDies(CODEX_NO_CWD, 80, { ok: false, code: "offline" } as unknown as Answer);
+    expect(r.last().phase).toEqual({ kind: "folder-gone", cwd: PROJECT, code: "folder-missing", agent: "codex", frame: true });
+    ctl.dispose();
+  });
+
+  it("resumes the same conversation on Check again when its folder is there, and says so again when it still fails", async () => {
+    const { r, ctl } = await endedPane();
+    const check = asksFolder(r, THERE);
+    ctl.adopt();
+    await flush();
+    diesSaying(r, r.sockets[1], CODEX_NO_CWD, 80);
+    r.terminal().parse();
+    await flush();
+    const there = { ...goneOnNas, code: "folder-missing", there: true };
+    expect(r.last().phase).toEqual(there);
+    ctl.retry();
+    await flush();
+    expect(r.adopt, "the same conversation, once").toHaveBeenCalledTimes(2);
+    expect(r.adopt.mock.calls[1][0]).toEqual(ON_NAS);
+    expect(r.launch, "never a new session").not.toHaveBeenCalled();
+    diesSaying(r, r.sockets[2], CODEX_NO_CWD, 80);
+    r.terminal().parse();
+    await flush();
+    expect(r.last().phase).toEqual({ ...there, checked: true });
+    // The folder went meanwhile: Check again says so in the deck's words.
+    check.mockImplementation(async () => ({ ok: false, code: "missing" }));
+    ctl.retry();
+    await flush();
+    expect(r.last().phase).toEqual({ ...goneOnNas, code: "folder-missing", checked: true, busy: false });
+    expect(r.adopt).toHaveBeenCalledTimes(2);
     ctl.dispose();
   });
 });

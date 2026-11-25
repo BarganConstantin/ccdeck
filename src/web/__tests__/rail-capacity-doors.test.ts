@@ -124,9 +124,11 @@ describe("the rows come in the panel's order with no panel to take it from", () 
 
   // CHANGED ON PURPOSE (internal #94): the panel has one order now, usable
   // first, so the report takes that order rather than a stored choice.
+  // CHANGED ON PURPOSE (near the weekly limit): a week at 90% stands under one
+  // at 10% and over one that is spent.
   it("puts the live account first, then the others usable first", () => {
     const [a1, a2, a3, a4] = [acct(1, false, 100), acct(2, true, 50), acct(3, false, 90), acct(4, false, 10)];
-    expect(panelOrder([a1, a2, a3, a4], 0)).toEqual(keys(a2, a3, a4, a1));
+    expect(panelOrder([a1, a2, a3, a4], 0)).toEqual(keys(a2, a4, a3, a1));
   });
 
   it("keeps the roster's own order while nobody is live", () => {

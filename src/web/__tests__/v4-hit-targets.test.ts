@@ -75,6 +75,9 @@ const INSET: { control: string; target: string; box: [number, number]; inset: st
   // The version at the right end of the status bar: 54 x 16 -> 54 x 24, the
   // Compact bar's whole height.
   { control: ".statusbar-version", target: ".statusbar-version::after", box: [54, 16], inset: "-4px 0" },
+  // Got it, beside the first-run line in the status bar: drawn 20 tall so the
+  // whole button sits inside the 24px bar, 57 x 20 -> 57 x 24.
+  { control: ".statusbar-stage .ts-first + .btn", target: ".statusbar-stage .ts-first + .btn::after", box: [57, 20], inset: "-2px 0" },
   // CHANGED ON PURPOSE: Resume, in the board's "Auto-fit off" strip, is gone;
   // the whole strip is the "Fit all" button, 24 tall on its own (below).
   // The info mark beside the Inspector's Agents title: 14 x 14 -> 24 x 24.

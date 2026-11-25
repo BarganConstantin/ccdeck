@@ -43,6 +43,9 @@ import type { Provider } from "../../types";
  *    pane's own Reopen here led here — the deck said the conversation is
  *    still open, and it could not be shown where it is — named by its agent,
  *    whose card then says so and offers a new session in its place.
+ *    `awaitingExit`: Resume here after exit is armed for a Claude session
+ *    running outside the deck. The stage keeps looking at that exact session
+ *    and reopens it here, by itself, once nothing holds it any more.
  *  - tmux-installing: no usable tmux, and the deck is fetching its own
  *    (src/server/tmux-download.mjs); the stage asks again until it lands.
  *    `progress` is how far it has got, once the deck has said.
@@ -77,6 +80,8 @@ import type { Provider } from "../../types";
  *    from an ended pane, whose last frame stays and whose end bar offers the
  *    choices, Cancel among them (back to that pane as it was); else a card.
  *    `busy` while Check again asks; `checked` once one found it still gone.
+ *    `there` when the agent said it could not read its working folder but
+ *    the deck finds the folder there: not what failed, and never called gone.
  *  - error: anything else, said in a sentence, with a way to try again.
  *    `reopen` when it is the deck refusing a Reopen here: Try again reopens
  *    again, and a new session in the same folder is offered beside it.
@@ -86,7 +91,7 @@ export type StagePhase =
   | { kind: "attaching"; reconnect: boolean }
   | { kind: "starting"; agent: TerminalProvider; cwd: string }
   | { kind: "live"; sizeOwner: SizeOwner; readOnly: boolean }
-  | { kind: "not-attachable"; target: TerminalTarget; stillRunning: boolean; busy: boolean; held?: TerminalProvider }
+  | { kind: "not-attachable"; target: TerminalTarget; stillRunning: boolean; busy: boolean; held?: TerminalProvider; awaitingExit?: boolean }
   | { kind: "tmux-installing"; progress?: TmuxProgress }
   | { kind: "tmux-missing"; reason: string; install?: string; download?: string; busy: boolean }
   | { kind: "ended"; atOpen?: boolean; clean?: boolean; updated?: boolean; busy?: boolean; unresumed?: boolean }
@@ -115,6 +120,9 @@ export interface FolderGonePhase {
   frame?: boolean;
   busy?: boolean;
   checked?: boolean;
+  /** The agent could not read the folder it was started in, and the deck
+   *  finds the folder there: the folder is not what failed. */
+  there?: boolean;
 }
 
 /** Whether the pane shows no frame and no end bar, only a card: the cards
@@ -328,6 +336,27 @@ export const START_NEW_MSG = "board.stage.startNewHere";
 export const START_NEW_TIP_MSG = "board.stage.startNewTip";
 /** The card's first line when the deck refused a Reopen here. */
 export const REOPEN_FAILED_MSG = "board.stage.reopenFailed";
+/** What leads the command that resumes a Claude conversation by hand, shown
+ *  with its Copy under a refused Reopen here. */
+export const RESUME_BY_HAND_MSG = "board.stage.resumeByHand";
+
+/** Resume here after exit, for a Claude session running outside the deck:
+ *  the button; the card's status line while it waits for that exact session
+ *  to end; and the one line that says what to do meanwhile. */
+export const AFTER_EXIT_MSG = "board.stage.afterExit.arm";
+export const AFTER_EXIT_WAITING_MSG = "board.stage.afterExit.waiting";
+export const AFTER_EXIT_HOW_MSG = "board.stage.afterExit.how";
+
+/**
+ * The command that continues a Claude conversation in a terminal of the
+ * reader's own: its folder, then `claude --resume` with its id. The folder is
+ * quoted for a POSIX shell (and fish) unless it is plain; the id is a UUID the
+ * deck checked before it ever named the session.
+ */
+export function resumeCommand(cwd: string, sessionId: string): string {
+  const folder = /^[\w@%+=:,./-]+$/.test(cwd) ? cwd : `'${cwd.replace(/'/g, "'\\''")}'`;
+  return `cd ${folder} && claude --resume ${sessionId}`;
+}
 
 /** The folder-gone card and end bar (StagePhase `folder-gone`): its title, by
  *  why; what it says for a conversation and for a launch ({name}: the agent);
@@ -355,6 +384,12 @@ export const FOLDER_UNREACHABLE_LAUNCH_MSG = "board.stage.folderGone.bodyLaunchU
 export const STILL_UNREACHABLE_MSG = "board.stage.folderGone.stillUnreachable";
 export const FOLDER_UNREACHABLE_PHRASE_MSG = "board.stage.folderGone.phraseUnreachable";
 export const FOLDER_UNREACHABLE_LEAD_MSG = "board.stage.folderGone.leadUnreachable";
+/** The same for an agent that could not read the folder it was started in,
+ *  where the deck finds the folder there ({name}: the agent). */
+export const FOLDER_THERE_LEAD_MSG = "board.stage.folderGone.leadThere";
+export const FOLDER_THERE_BODY_MSG = "board.stage.folderGone.bodyThere";
+export const STILL_THERE_MSG = "board.stage.folderGone.stillThere";
+export const FOLDER_THERE_PHRASE_MSG = "board.stage.folderGone.phraseThere";
 
 /** The folder-gone phase's words, by why the folder is not one to start in. */
 const FOLDER_WORDS: Record<FolderGonePhase["code"], { title: string; still: string; phrase: string; lead: string }> = {
@@ -374,15 +409,23 @@ export function folderGoneTitle(phase: FolderGonePhase): string {
  *  conversation yet. A folder that is only unreachable says how it comes
  *  back: its drive or network folder reconnected, then Check again. */
 export function folderGoneBody(phase: FolderGonePhase): string {
-  const away = phase.code === "folder-unreachable";
-  if (phase.sessionId) return t(away ? FOLDER_UNREACHABLE_BODY_MSG : FOLDER_GONE_BODY_MSG);
+  const away = phase.code === "folder-unreachable" && !phase.there;
+  if (phase.sessionId) return t(phase.there ? FOLDER_THERE_BODY_MSG : away ? FOLDER_UNREACHABLE_BODY_MSG : FOLDER_GONE_BODY_MSG);
   return t(away ? FOLDER_UNREACHABLE_LAUNCH_MSG : FOLDER_GONE_LAUNCH_MSG, { name: agentName(phase.agent) });
 }
 
 /** What a Check again that found the folder still gone adds, or null. */
 export function folderStillGone(phase: FolderGonePhase): string | null {
   if (!phase.checked || phase.busy) return null;
+  if (phase.there) return t(STILL_THERE_MSG, { name: agentName(phase.agent) });
   return t(FOLDER_WORDS[phase.code].still);
+}
+
+/** The first half of the folder-gone line: what is wrong, by the folder's
+ *  name — or, for a folder that is there, by the agent's (`there`). */
+function folderLead(phase: FolderGonePhase, folder: string): string {
+  if (phase.there) return t(FOLDER_THERE_LEAD_MSG, { name: agentName(phase.agent), folder });
+  return t(FOLDER_WORDS[phase.code].lead, { folder });
 }
 
 /**
@@ -395,7 +438,7 @@ export function folderStillGone(phase: FolderGonePhase): string | null {
  */
 export function folderGoneLine(phase: FolderGonePhase): { lead: string; next: string } {
   const folder = folderName(phase.cwd);
-  const lead = folderStillGone(phase) ?? t(FOLDER_WORDS[phase.code].lead, { folder });
+  const lead = folderStillGone(phase) ?? folderLead(phase, folder);
   const next = phase.sessionId ? t(FOLDER_GONE_NEXT_MSG) : t(FOLDER_GONE_NEXT_LAUNCH_MSG, { name: agentName(phase.agent) });
   return { lead, next };
 }
@@ -454,7 +497,7 @@ export function headerStatus(board: StageStatus | null, phase: StagePhase): Stag
       // own name in the word, the whole path in the tooltip.
       return {
         state: "ended",
-        phrase: t(FOLDER_WORDS[phase.code].phrase, { folder: folderName(phase.cwd) }),
+        phrase: t(phase.there ? FOLDER_THERE_PHRASE_MSG : FOLDER_WORDS[phase.code].phrase, { folder: folderName(phase.cwd) }),
         arg: phase.cwd,
       };
     default:
@@ -537,7 +580,7 @@ export function stageAnnouncement(name: string, phase: StagePhase): string | nul
     case "not-attachable": return phase.stillRunning ? t("board.stage.announceStillRunning", { name }) : t("board.stage.announceNoPane", { name });
     case "tmux-installing": return t("board.stage.announceTmuxSetup");
     case "tmux-missing": return t("board.stage.announceTmuxMissing");
-    case "folder-gone": return folderStillGone(phase) ?? t("board.stage.announceFolderGone", { name, folder: phase.cwd });
+    case "folder-gone": return folderStillGone(phase) ?? (phase.there ? folderLead(phase, phase.cwd) : t("board.stage.announceFolderGone", { name, folder: phase.cwd }));
     case "error": return phase.missing ? t(MISSING_MSGS[phase.missing]) : errorWords(phase.message);
     default: return null;
   }

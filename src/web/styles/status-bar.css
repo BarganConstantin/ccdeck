@@ -65,6 +65,15 @@
 }
 .statusbar-stage .ts-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .statusbar-stage .ts-hint { flex-shrink: 0; }
+/* The first-run line (KeysBar) in the bar: one line, cut with an ellipsis
+   where the window is narrow, its title the whole sentence. It wraps only on
+   a phone, where the bar stays in the pane. Got it is drawn 20 tall so the
+   whole button sits inside the bar; its target is the bar's height (WCAG
+   2.5.8), as the version's is, so its row takes the bar's height too. */
+.statusbar-stage .ts-first { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.statusbar-stage .ts-keys:has(> .ts-first) { align-self: stretch; }
+.statusbar-stage .ts-first + .btn { position: relative; min-height: 0; height: 20px; line-height: 16px; }
+.statusbar-stage .ts-first + .btn::after { content: ""; position: absolute; inset: -2px 0; }
 .statusbar-version {
   position: relative;
   flex: none;
@@ -139,6 +148,11 @@
   cursor: pointer;
 }
 .statusbar-keys::after { content: ""; position: absolute; inset: -4px 0; }
+/* While the first-run line is up it is the bar's one message: the bar's own
+   hints (Shift ×2, the pane switch, the view chord) give way to it at every
+   width until Got it, so the release chord it names has the room. The version
+   stays. Kept after the hints' own rules and the view chord's display: flex. */
+.statusbar:has(.statusbar-stage .ts-first) > .statusbar-hint { display: none; }
 
 /* V4's Kbd (V4's Figma, Top bar), the deck's mono at 11 on 14. 16 tall and 17
    wide for one letter: the 1px stroke sits INSIDE the frame's 5px by 1px

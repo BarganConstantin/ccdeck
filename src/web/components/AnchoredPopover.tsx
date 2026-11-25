@@ -37,6 +37,11 @@
 // control after it for a plain Tab — instead of stepping through four items
 // the arrows already walk. In a form view Tab stays inside, which is the hook's
 // trap: a form's draft is not lost to a Tab.
+//
+// An item a row carries beside it (`data-menu-aside`: the × after a tab's row
+// in a pane's tab menu, PaneTabs.tsx) is an item of the menu and never inside
+// another, but not a stop for Up, Down, Home, End or the first focus: its row
+// reaches it with Right, so the arrows walk the rows alone.
 import {
   useCallback,
   useEffect,
@@ -99,12 +104,15 @@ interface Props {
 // (the accounts list's order) and the checkboxes of one that ticks several
 // (the canvas's ⋯, its tool filter).
 const ITEM = '[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]';
+// The same items less the asides (`data-menu-aside`), which their own rows reach.
+const STOP = '[role="menuitem"]:not([data-menu-aside]), [role="menuitemradio"]:not([data-menu-aside]), [role="menuitemcheckbox"]:not([data-menu-aside])';
 
 /** The items the arrows can land on, in order. A disabled button cannot take
- *  focus, so it is not a stop — the same rule isTabbable applies to Tab. */
+ *  focus, so it is not a stop — the same rule isTabbable applies to Tab. Nor
+ *  is an aside. */
 function itemsIn(root: HTMLElement | null): HTMLButtonElement[] {
   if (!root) return [];
-  return Array.from(root.querySelectorAll<HTMLButtonElement>(ITEM)).filter(b => !b.disabled);
+  return Array.from(root.querySelectorAll<HTMLButtonElement>(STOP)).filter(b => !b.disabled);
 }
 
 export default function AnchoredPopover({

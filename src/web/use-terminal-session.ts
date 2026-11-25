@@ -56,6 +56,7 @@ import {
   type ApiFailure,
   type SessionRef,
   type TerminalProvider,
+  type TerminalTarget,
   type TmuxProgress,
   type TmuxStatus,
 } from "./terminal-api";
@@ -126,6 +127,11 @@ export const TMUX_SETUP_GIVE_UP_MS = 180_000;
  *  that quitting it there turns the card into Reopen here before the reader
  *  reaches for a button, and an open is one loopback read. */
 export const ELSEWHERE_POLL_MS = 4_000;
+/** The same look while Resume here after exit is armed: the reader has said
+ *  they are about to exit Claude there, so the conversation follows within a
+ *  second or two of it, and the look goes on with the page hidden, since the
+ *  reader is in that other terminal. Still one loopback read each. */
+export const EXIT_WATCH_POLL_MS = 1_500;
 
 // ---------------------------------------------------------------------------
 // What the stage is asked to show.
@@ -639,6 +645,14 @@ export interface TerminalSessionController {
   focus(): void;
   /** Keys typed before the pane could take them (type-ahead.ts). */
   type(text: string): void;
+  /** Resume here after exit: for a Claude session running in a terminal
+   *  outside the deck, keep this card up (`awaitingExit`), look at that exact
+   *  session closely, and reopen it here by itself once nothing holds it any
+   *  more. Only from that card, and only once: a second call does nothing. */
+  resumeAfterExit(): void;
+  /** Cancel on that card: stop waiting, and leave the session and the card
+   *  as they were before. Nothing is asked or started. */
+  stopWaitingForExit(): void;
   /** Paste and submit only to the caller's subjectKey, without moving focus. */
   sendPrompt(text: string, expectedSubject: string): PromptSendResult;
   /** Answer Claude Code's question prompt, a step at a time: each step's keys
@@ -724,19 +738,42 @@ const CWD_LINE = /\b(?:current|working)\s+directory\b|\bcwd\b|\buv_cwd\b/i;
 const ERRNO_SAID = /\b(E[A-Z][A-Z0-9]+)\b(?=\s*[:)'",])/g;
 
 /**
+ * The screen's rows put back into the lines the program printed, for a pane
+ * `cols` wide: a row that fills the width wrapped, and its line goes on in
+ * the next row. A row is read without its trailing blanks, so one that
+ * wrapped at a space is a column short, and gets that space back. Without a
+ * width, each row is a line, as it is read.
+ */
+function screenLines(screen: string, cols?: number): string[] {
+  const rows = screen.split("\n");
+  if (!cols || cols < 2) return rows;
+  const lines: string[] = [];
+  let line = "";
+  for (const row of rows) {
+    if (row.length >= cols) line += row;
+    else if (row.length === cols - 1) line += `${row} `;
+    else { lines.push(line + row); line = ""; }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+/**
  * Why the folder an agent was started in could not be used, as the agent's
  * last screen says it, or null when it says nothing of the kind. Read only
  * from an agent this pane started that ended at once, never from a session
  * at work. Claude Code's own sentence counts whatever its code (one this list
  * does not know is a folder it could not read: not reachable); any other line
  * must name the current or working directory and the system's code or
- * sentence for it.
+ * sentence for it — the shell that starts the agent says "error retrieving
+ * current directory: getcwd: … No such file or directory", in one line wider
+ * than many panes, which `cols` (the pane's width) puts back together.
  */
-export function agentFolderFailure(screen: string): FolderRefusal | null {
+export function agentFolderFailure(screen: string, cols?: number): FolderRefusal | null {
   if (!screen) return null;
   const said = CANT_READ_CWD.exec(screen.replace(/\n/g, ""));
   if (said) return (said[1] && ERRNO_REFUSALS[said[1].toUpperCase()]) || "folder-unreachable";
-  for (const line of screen.split("\n")) {
+  for (const line of screenLines(screen, cols)) {
     if (!CWD_LINE.test(line)) continue;
     for (const [, code] of line.matchAll(ERRNO_SAID)) {
       const refusal = ERRNO_REFUSALS[code];
@@ -862,9 +899,13 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   let goneFrom: StagePhase | null = null;
   /** The generation a startIfFolder is asking the deck in: one at a time. */
   let askingAt: number | null = null;
+  /** Resume here after exit is armed for the subject on show: it lasts while
+   *  the stage shows that session's card, and ends with anything else. */
+  let exitWatch = false;
 
   const emit = (next: Partial<SessionSnapshot>) => {
     if (disposed) return;
+    if (next.phase) next = { ...next, phase: exitWatched(next.phase) };
     snap = { ...snap, ...next, subject: subjectKey(subject) };
     callbacks.onChange(snap);
   };
@@ -901,35 +942,58 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     void check(phase.cwd).then(answer => {
       if (my !== gen || disposed) return;
       const code = folderProblem(answer);
-      if (code) { setPhase({ ...phase, code, busy: false, checked: true }); return; }
+      if (code) {
+        // The folder itself is the reason now, whatever was said before.
+        const { there: _there, ...gone } = phase;
+        setPhase({ ...gone, code, busy: false, checked: true });
+        return;
+      }
       back();
     });
   };
 
   /** The agent this pane started ended at once saying its folder could not
-   *  be read (agentFolderFailure): the folder-gone phase, over the frame the
-   *  press was made on. Check again starts the same thing again once the
-   *  folder is back — the same conversation by its id, or the launch again —
-   *  and only then: never by itself, so an agent that ends the same way is
-   *  started once a press. A Check again that led here says the folder is
-   *  still not reachable. False when the screen says nothing of the kind or
-   *  there is no folder to name: the ending as before. */
-  const folderSaid = (screen: string, started: Started, unseen: boolean): boolean => {
-    const code = agentFolderFailure(screen);
+   *  be read (agentFolderFailure, `cols`: the pane's width): the folder-gone
+   *  phase, over the frame the press was made on. Check again starts the same
+   *  thing again once the folder is back — the same conversation by its id,
+   *  or the launch again — and only then: never by itself, so an agent that
+   *  ends the same way is started once a press. A Check again that led here
+   *  says so. False when the screen says nothing of the kind or there is no
+   *  folder to name: the ending as before.
+   *
+   *  THE DECK SAYS WHY. The agent says only that it could not read the folder
+   *  it was handed; the deck is asked about the folder itself, and its answer
+   *  is the one named — gone, not this account's, not reachable. A folder the
+   *  deck finds there (`there`) was not what failed: the agent was started
+   *  somewhere it could not read (a terminal still running in a folder that
+   *  was removed), and the words never call the folder gone. A deck that
+   *  cannot say leaves the agent's own word. */
+  const folderSaid = (screen: string, started: Started, unseen: boolean, cols?: number): boolean => {
+    const code = agentFolderFailure(screen, cols);
     if (!code) return false;
+    let gone: { phase: FolderGonePhase; from: StagePhase; then: () => void };
     if (started.kind === "reopen") {
       const ref = refOf();
       const agent = startable(ref?.provider);
       if (!ref || !agent || !ref.cwd) return false;
       const phase = folderGone(code, ref.cwd, { agent, sessionId: ref.sessionId });
-      goneAt(started.checked ? { ...phase, checked: true } : phase, started.from, () => reopen(true));
-      return true;
+      gone = { phase: started.checked ? { ...phase, checked: true } : phase, from: started.from, then: () => reopen(true) };
+    } else {
+      if (subject.kind !== "launch") return false;
+      // A launch has no conversation to keep: its ended pane is what Cancel
+      // goes back to, and Check again starts it again under a new key.
+      const ended: StagePhase = unseen ? { kind: "ended", atOpen: true } : { kind: "ended" };
+      gone = { phase: folderGone(code, subject.cwd, { agent: subject.agent }), from: ended, then: () => callbacks.onLaunchAgain?.() };
     }
-    if (subject.kind !== "launch") return false;
-    // A launch has no conversation to keep: its ended pane is what Cancel
-    // goes back to, and Check again starts it again under a new key.
-    const ended: StagePhase = unseen ? { kind: "ended", atOpen: true } : { kind: "ended" };
-    goneAt(folderGone(code, subject.cwd, { agent: subject.agent }), ended, () => callbacks.onLaunchAgain?.());
+    const check = deps.api.checkFolder;
+    if (!check) { goneAt(gone.phase, gone.from, gone.then); return true; }
+    const my = gen;
+    void check(gone.phase.cwd).then(answer => {
+      if (my !== gen || disposed) return;
+      const problem = folderProblem(answer);
+      const phase: FolderGonePhase = problem ? { ...gone.phase, code: problem } : answer.ok ? { ...gone.phase, there: true } : gone.phase;
+      goneAt(phase, gone.from, gone.then);
+    });
     return true;
   };
 
@@ -1143,7 +1207,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
           if (started && atOnce && seeded && shown?.screen) {
             shown.write("", () => {
               if (my !== gen || disposed) return;
-              if (!folderSaid(shown.screen?.() ?? "", started, unseen)) endAsBefore();
+              if (!folderSaid(shown.screen?.() ?? "", started, unseen, shown.cols)) endAsBefore();
             });
           } else endAsBefore();
         }
@@ -1253,7 +1317,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     watchElsewhere(my);
   };
 
-  const watchElsewhere = (my: number) => {
+  const watchElsewhere = (my: number, delay = exitWatch ? EXIT_WATCH_POLL_MS : ELSEWHERE_POLL_MS) => {
     clearTimer(retryTimer);
     retryTimer = setTimeout(() => {
       retryTimer = null;
@@ -1261,7 +1325,9 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       const now = snap.phase;
       if (now.kind !== "not-attachable" || !now.stillRunning) return;
       const ref = refOf();
-      const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+      // Armed, it looks with the page hidden too: the reader is in the other
+      // terminal, exiting Claude, and the conversation is to be here after.
+      const hidden = !exitWatch && typeof document !== "undefined" && document.visibilityState === "hidden";
       if (!ref || hidden || now.busy) { watchElsewhere(my); return; }
       void deps.api.open(ref, {}, { ...want }, paneColours()).then(answer => {
         if (my !== gen || disposed) return;
@@ -1269,9 +1335,32 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         if (still.kind !== "not-attachable" || !still.stillRunning || still.busy) return;
         // Still running there, or the deck blinked: the card stays as it is.
         if (isFailure(answer) || (!answer.ok && answer.target.kind === "C")) { watchElsewhere(my); return; }
+        // Armed, and nothing holds the conversation any more: reopened here,
+        // as Reopen here would. An ended deck pane of its own is no stop on
+        // the way (the adopt clears it). Held anywhere the deck can show — a
+        // pane another tab reopened it in — it is shown there instead.
+        if (exitWatch && answer.target.kind === "gone" && answer.target.adoptable === true) { resumeHere(answer.target); return; }
         void landOpen(answer, my, false);
       });
-    }, ELSEWHERE_POLL_MS);
+    }, delay);
+  };
+
+  /** Arming and its end, on every phase the stage shows (emit): the card
+   *  says it waits while armed, and anything but the card ends the wait. */
+  const exitWatched = (phase: StagePhase): StagePhase => {
+    if (phase.kind !== "not-attachable") { exitWatch = false; return phase; }
+    if (exitWatch) return phase.awaitingExit ? phase : { ...phase, awaitingExit: true };
+    if (!phase.awaitingExit) return phase;
+    const { awaitingExit: _was, ...rest } = phase;
+    return rest;
+  };
+
+  /** The armed session has stopped where it ran: this card's Reopen here,
+   *  pressed for the reader. Its folder is asked about first and the adopt
+   *  is the deck's, which refuses while anything still holds the session. */
+  const resumeHere = (target: TerminalTarget) => {
+    setPhase({ kind: "not-attachable", target, stillRunning: false, busy: false });
+    reopen();
   };
 
   const landOpen = async (answer: Awaited<ReturnType<SessionDeps["api"]["open"]>>, my: number, reconnecting: boolean, held?: SessionRef["provider"]) => {
@@ -1360,6 +1449,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     dropConnection();
     goneThen = null;
     goneFrom = null;
+    exitWatch = false;
     if (subject.kind === "empty") { setPhase({ kind: "empty" }); return; }
     if (toLaunch() && subject.kind === "launch") {
       setPhase({ kind: "starting", agent: subject.agent, cwd: subject.cwd });
@@ -1623,6 +1713,29 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
 
     adopt() { reopen(); },
 
+    resumeAfterExit() {
+      const phase = snap.phase;
+      const ref = refOf();
+      // Claude only: an idle Codex outside the deck holds nothing the deck can
+      // see, so "nothing holds it" would not mean it stopped. Never on
+      // Windows, whose sessions the deck cannot watch this way.
+      if (disposed || exitWatch || windows || ref?.provider !== "claude") return;
+      if (phase.kind !== "not-attachable" || !phase.stillRunning || phase.busy || phase.target.adoptable !== true) return;
+      exitWatch = true;
+      setPhase(phase);
+      // A first look at once: it may have been quit since the last one.
+      watchElsewhere(gen, 0);
+    },
+
+    stopWaitingForExit() {
+      if (disposed || !exitWatch) return;
+      exitWatch = false;
+      const phase = snap.phase;
+      if (phase.kind !== "not-attachable") return;
+      setPhase(phase);
+      if (phase.stillRunning && !phase.busy) watchElsewhere(gen);
+    },
+
     retry() {
       if (disposed) return;
       const phase = snap.phase;
@@ -1836,6 +1949,8 @@ export interface TerminalSessionView extends SessionSnapshot {
   cancelFolder(): void;
   focus(): void;
   type(text: string): void;
+  resumeAfterExit(): void;
+  stopWaitingForExit(): void;
   sendPrompt(text: string, expectedSubject: string): PromptSendResult;
   sendAsk(steps: readonly AskStep[], expectedSubject: string): Promise<AskSendResult>;
   readScreen(expectedSubject: string): string | null;
@@ -1896,6 +2011,8 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
   const cancelFolder = useCallback(() => controller.current?.cancelFolder(), []);
   const focus = useCallback(() => controller.current?.focus(), []);
   const type = useCallback((text: string) => controller.current?.type(text), []);
+  const resumeAfterExit = useCallback(() => controller.current?.resumeAfterExit(), []);
+  const stopWaitingForExit = useCallback(() => controller.current?.stopWaitingForExit(), []);
   const sendPrompt = useCallback((text: string, expectedSubject: string): PromptSendResult => {
     const ctl = controller.current;
     // A new subject can render before the effect has switched the controller.
@@ -1916,5 +2033,5 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
   const holdsFocus = useCallback(() => controller.current?.holdsFocus() === true, []);
   const release = useCallback(() => controller.current?.release(), []);
 
-  return { ...snapshot, hostRef, adopt, retry, startIfFolder, cancelFolder, focus, type, sendPrompt, sendAsk, readScreen, press, holdsFocus, release };
+  return { ...snapshot, hostRef, adopt, retry, startIfFolder, cancelFolder, focus, type, resumeAfterExit, stopWaitingForExit, sendPrompt, sendAsk, readScreen, press, holdsFocus, release };
 }

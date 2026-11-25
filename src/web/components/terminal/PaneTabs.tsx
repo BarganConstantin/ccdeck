@@ -24,14 +24,28 @@
 //
 // NARROW. The strip scrolls sideways (a wheel scrolls it too), and once it
 // holds more than it shows, a chevron after it lists every tab in a menu, so no
-// tab is out of reach at 641 wide.
+// tab is out of reach at 641 wide. A tab's state word gives way before its
+// name, and no word leaves its tab (workspace-split.css); at a new width the
+// strip keeps the tab on show, or the one under the keyboard, in its view.
+//
+// THE MENU CLOSES TABS TOO. Each row shows its tab, and the × after it closes
+// that tab without showing it first, through the strip's own close (onClose):
+// the same lifecycle as Delete on a tab or the header's ✕. Row and × are two
+// items side by side, never one inside the other. Up and Down walk the rows,
+// Right goes on to the row's ×, Left comes back, and a bare Delete on either
+// closes the row's tab. The keyboard then lands on the next row (the one
+// before, from the last), and the menu stays open, with its chevron, for the
+// next close, even once the strip has room for every tab; shut then, the
+// chevron goes and the keyboard it was handed lands on the strip.
 import { useEffect, useId, useLayoutEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type WheelEvent } from "react";
 import { useT } from "../../i18n";
+import { menuMove } from "../../menu-keys";
+import { isBrowserChord } from "../../shortcuts";
 import { tabStripManualMove, type TabStripKey } from "../../tablist-keys";
 import AnchoredPopover from "../AnchoredPopover";
 import { KitIcon } from "../kit-icons";
 import type { StageStatus } from "./stage-model";
-import { StageGlyph, type StageGlyphKind } from "./stage-icons";
+import { CloseGlyph, StageGlyph, type StageGlyphKind } from "./stage-icons";
 
 /** One tab of the strip. */
 export interface PaneTabItem {
@@ -58,8 +72,22 @@ export interface PaneTabsView {
    *  the strip), or by a press or Enter (the keyboard goes into its
    *  terminal). */
   onSelect(key: string, how: { keys: boolean }): void;
-  /** A tab closed: from the strip by Delete (`keys`), or a middle press. */
-  onClose(key: string, how: { keys: boolean }): void;
+  /** A tab closed: from the strip by Delete (`keys`), a middle press, or its
+   *  row's × or Delete in the strip's menu (`keys` and `menu`: the menu keeps
+   *  the keyboard, on its next row, and no terminal takes it). */
+  onClose(key: string, how: { keys: boolean; menu?: boolean }): void;
+  /** The strip's menu, open or not, held above the header (TerminalStage.tsx):
+   *  the close of the tab on show draws the header afresh for the tab that
+   *  comes on, and the menu stays open through that. Left out, the strip
+   *  holds it. */
+  menu?: { open: TabsMenuOpen | null; set(next: TabsMenuOpen | null): void };
+}
+
+/** The strip's menu while open: the end its focus starts at, and the row a
+ *  close from it lands on. */
+export interface TabsMenuOpen {
+  at: "first" | "last";
+  land?: string;
 }
 
 /** A tab as the header draws it: its glyph, and the words StageHeader has
@@ -92,6 +120,55 @@ export function stripStop(items: readonly Pick<PaneTabItem, "key" | "on">[], foc
   return items.find(x => x.on)?.key ?? items[0]?.key ?? null;
 }
 
+/** What a key asks on row `at` of the strip's menu, on the row itself or on
+ *  its × (`on`): close that row's tab (a bare Delete on either), or move the
+ *  keyboard to a row or to a row's ×. Up, Down, Home and End on a row are the
+ *  menu's own (AnchoredPopover walks the rows); from a × they walk the rows
+ *  as from its row. Enter and Space are the item's own press. */
+export function menuRowKey(e: TabStripKey, at: number, count: number, on: "row" | "x"): { kind: "close" | "row" | "x"; index: number } | null {
+  if (at < 0 || at >= count || isBrowserChord(e)) return null;
+  if (e.key === "Delete") return { kind: "close", index: at };
+  if (on === "row") return e.key === "ArrowRight" ? { kind: "x", index: at } : null;
+  if (e.key === "ArrowLeft") return { kind: "row", index: at };
+  const move = menuMove(e, at, count);
+  return move.kind === "focus" ? { kind: "row", index: move.index } : null;
+}
+
+/** The row the keyboard lands on once tab `key` is closed from the menu: the
+ *  next one, else the one before. None once one tab is left: the strip goes
+ *  then, its menu with it, and the pane takes the keys, as after Delete on the
+ *  strip (StageShell.tsx). */
+export function menuLanding(items: readonly Pick<PaneTabItem, "key">[], key: string): string | null {
+  const at = items.findIndex(x => x.key === key);
+  if (at < 0 || items.length - 1 < 2) return null;
+  return (items[at + 1] ?? items[at - 1])!.key;
+}
+
+/** The tab the strip keeps in its view: the one under the keyboard while the
+ *  keyboard is on the strip, else the tab on show. At a new width, and once
+ *  the keyboard leaves, the strip scrolls to it, so the strip's edge never
+ *  cuts the name of the tab on show. */
+export function tabInView(strip: Pick<Element, "contains" | "querySelector">, active: Element | null): Element | null {
+  const under = active?.closest?.("[role=tab]") ?? null;
+  if (under && strip.contains(under)) return under;
+  return strip.querySelector("[role=tab][aria-selected=true]");
+}
+
+type Span = { left: number; right: number };
+/** How far the strip scrolls for `tab` to be in its view: 0 when it already
+ *  is; a tab wider than the strip shows its start. */
+export function revealBy(strip: Span, tab: Span): number {
+  if (tab.left < strip.left) return tab.left - strip.left;
+  if (tab.right > strip.right) return Math.min(tab.right - strip.right, tab.left - strip.left);
+  return 0;
+}
+
+/** Scrolls the strip alone, never a box around it, to `tab`. */
+function reveal(strip: HTMLElement, tab: Element | null) {
+  const by = tab ? revealBy(strip.getBoundingClientRect(), tab.getBoundingClientRect()) : 0;
+  if (by) strip.scrollLeft += by;
+}
+
 export default function PaneTabs({ view, words, onRename }: {
   view: PaneTabsView;
   words(status: StageStatus): PaneTabWords;
@@ -104,20 +181,31 @@ export default function PaneTabs({ view, words, onRename }: {
   // The tab the keyboard is on, while it is on the strip: the strip's one tab
   // stop. Back to the tab on show once the keyboard leaves the strip.
   const [focused, setFocused] = useState<string | null>(null);
+  // The menu, open at its first row or its last; open, it keeps its chevron.
+  const held = useState<TabsMenuOpen | null>(null);
+  const [menu, setMenu] = view.menu ? [view.menu.open, view.menu.set] : held;
   const count = view.items.length;
   const onKey = view.items.find(x => x.on)?.key ?? null;
   const stop = stripStop(view.items, focused);
   // Whether the strip holds more than it shows: the menu is drawn only then.
+  // A new width (a window or a divider moved) keeps its tab in view.
   useLayoutEffect(() => {
     const el = listRef.current;
     if (!el) return;
-    const measure = () => setOver(el.scrollWidth > el.clientWidth + 1);
+    const measure = () => {
+      setOver(el.scrollWidth > el.clientWidth + 1);
+      reveal(el, tabInView(el, document.activeElement));
+    };
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const watch = new ResizeObserver(measure);
     watch.observe(el);
+    // The tab on show grows once its state word arrives, in a strip that
+    // keeps its width: that is a new width too.
+    const on = el.querySelector("[role=tab][aria-selected=true]");
+    if (on) watch.observe(on);
     return () => watch.disconnect();
-  }, [count]);
+  }, [count, onKey]);
   // The tab on show is scrolled into the strip's view, and again once the
   // menu's chevron takes its room at the strip's end.
   useEffect(() => {
@@ -161,7 +249,10 @@ export default function PaneTabs({ view, words, onRename }: {
     if (tab) setFocused(tab.key);
   };
   const focusOut = (e: FocusEvent<HTMLDivElement>) => {
-    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(null);
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setFocused(null);
+    // Back to the tab on show, which the keyboard may have scrolled away from.
+    reveal(e.currentTarget, tabInView(e.currentTarget, null));
   };
   // A wheel turned over the strip scrolls it sideways: the header has nothing
   // to scroll up or down.
@@ -208,19 +299,71 @@ export default function PaneTabs({ view, words, onRename }: {
           );
         })}
       </div>
-      {over && <TabsMenu view={view} words={words} />}
+      {(over || menu) && (
+        <TabsMenu view={view} words={words} menu={menu} setMenu={setMenu} over={over}
+          toStrip={() => { const to = view.items.find(x => x.key === stop); if (to) document.getElementById(to.id)?.focus(); }} />
+      )}
     </>
   );
 }
 
-/** Every tab of the pane in a menu, for a strip that holds more than it shows. */
-function TabsMenu({ view, words }: { view: PaneTabsView; words(status: StageStatus): PaneTabWords }) {
+/** Every tab of the pane in a menu, for a strip that holds more than it shows:
+ *  each row shows its tab, the × after it closes it. */
+export function TabsMenu({ view, words, menu, setMenu, over, toStrip }: {
+  view: PaneTabsView;
+  words(status: StageStatus): PaneTabWords;
+  menu: TabsMenuOpen | null;
+  setMenu(next: TabsMenuOpen | null): void;
+  /** The strip holds more than it shows: the chevron stays once the menu shuts. */
+  over: boolean;
+  /** The keyboard to the strip, for a chevron that goes as the menu shuts. */
+  toStrip(): void;
+}) {
   const t = useT();
   const id = `ts-tabs-${useId()}`;
   const menuId = `${id}-menu`;
-  const [menu, setMenu] = useState<"first" | "last" | null>(null);
   const open = menu !== null;
   const label = t("board.stage.tabs.all", { count: view.items.length });
+  const rows = useRef(new Map<string, HTMLButtonElement>());
+  const xs = useRef(new Map<string, HTMLButtonElement>());
+  // The row the keyboard goes to once a close is drawn: the × that was
+  // pressed has gone with its row. A close of the tab on show draws the
+  // header afresh, and this menu with it: the row comes with the open state.
+  const land = useRef<string | null | undefined>(menu?.land);
+  // Drawn afresh by such a close, the menu was on screen already: no entrance.
+  const [kept] = useState(() => menu?.land != null);
+  // After the menu's own first focus (AnchoredPopover's, an effect of a child,
+  // so it runs before this one), which it overrides.
+  useEffect(() => {
+    const key = land.current;
+    if (key == null) return;
+    land.current = null;
+    rows.current.get(key)?.focus();
+  });
+  const close = (key: string) => {
+    const next = menuLanding(view.items, key);
+    land.current = next;
+    // The strip's last close takes the strip, and the menu with it.
+    setMenu(next == null ? null : { at: menu?.at ?? "first", land: next });
+    view.onClose(key, { keys: true, menu: true });
+  };
+  const rowKey = (e: KeyboardEvent<HTMLButtonElement>, at: number, on: "row" | "x") => {
+    const ask = menuRowKey(e, at, view.items.length, on);
+    if (!ask) return;
+    // The deck's own Delete (the selected card's) stays out of it.
+    e.preventDefault();
+    e.stopPropagation();
+    const key = view.items[ask.index]!.key;
+    if (ask.kind === "close") close(key);
+    else (ask.kind === "x" ? xs : rows).current.get(key)?.focus();
+  };
+  // Escape and Tab hand the keyboard to the chevron. Once closes have left
+  // the strip room for every tab, the chevron goes as the menu shuts, and the
+  // keyboard goes on to the strip.
+  const shut = () => {
+    setMenu(null);
+    if (!over && document.activeElement === document.getElementById(id)) toStrip();
+  };
   return (
     <>
       <button
@@ -235,27 +378,41 @@ function TabsMenu({ view, words }: { view: PaneTabsView; words(status: StageStat
         onKeyDown={e => {
           if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
           e.preventDefault();
-          setMenu(e.key === "ArrowUp" ? "last" : "first");
+          setMenu({ at: e.key === "ArrowUp" ? "last" : "first" });
         }}
-        onClick={() => setMenu(open ? null : "first")}
+        onClick={() => setMenu(open ? null : { at: "first" })}
       >
         <KitIcon name="chevron-down" />
       </button>
       {open && (
-        <AnchoredPopover anchorId={id} id={menuId} className="ap-pop dock-more-pop" role="menu" labelledBy={id} start={menu} onClose={() => setMenu(null)}>
-          {view.items.map(x => {
+        <AnchoredPopover anchorId={id} id={menuId} className={`ap-pop dock-more-pop${kept ? " ts-tabs-pop-kept" : ""}`} role="menu" labelledBy={id}
+          start={menu?.at} onClose={shut}>
+          {view.items.map((x, i) => {
             const w = words(x.status);
             const glyph = x.mark ?? w.glyph;
+            const closeName = t("board.stage.tabs.close", { name: x.name });
             return (
-              <button key={x.key} type="button" role="menuitemradio" aria-checked={x.on} className="ap-menu-item ts-tabs-item"
-                onClick={() => {
-                  setMenu(null);
-                  view.onSelect(x.key, { keys: true });
-                }}>
-                {glyph && <StageGlyph kind={glyph} />}
-                <span className="wsp-tab-name">{x.name}</span>
-                {w.word && <span className="ts-tab-word" data-state={x.status.state}>{w.word}</span>}
-              </button>
+              <div key={x.key} role="none" className="ts-tabs-row">
+                <button type="button" role="menuitemradio" aria-checked={x.on} aria-posinset={i + 1} aria-setsize={view.items.length}
+                  className="ap-menu-item ts-tabs-item"
+                  ref={el => { if (el) rows.current.set(x.key, el); else rows.current.delete(x.key); }}
+                  onKeyDown={e => rowKey(e, i, "row")}
+                  onClick={() => {
+                    setMenu(null);
+                    view.onSelect(x.key, { keys: true });
+                  }}>
+                  {glyph && <StageGlyph kind={glyph} />}
+                  <span className="wsp-tab-name">{x.name}</span>
+                  {w.word && <span className="ts-tab-word" data-state={x.status.state}>{w.word}</span>}
+                </button>
+                <button type="button" role="menuitem" tabIndex={-1} data-menu-aside="" aria-keyshortcuts="Delete"
+                  className="glyph-btn ts-tabs-x" aria-label={closeName} title={closeName}
+                  ref={el => { if (el) xs.current.set(x.key, el); else xs.current.delete(x.key); }}
+                  onKeyDown={e => rowKey(e, i, "x")}
+                  onClick={() => close(x.key)}>
+                  <CloseGlyph />
+                </button>
+              </div>
             );
           })}
         </AnchoredPopover>
