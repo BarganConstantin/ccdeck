@@ -582,7 +582,7 @@ export function useDeckShortcuts({
       // is not and never was one, because the session list is an <aside> beside
       // the canvas rather than a modal, so it registers no dismisser with
       // modalStack (see modal-dismiss.ts). The shortcuts sheet below still
-      // lists L, which is where the feature is discoverable from now.
+      // lists S, which is where the feature is discoverable from now.
       //
       // What removing the button cost the accessibility tree: aria-expanded on
       // that ☰ was the only place the panel's open/closed state was reported,
@@ -650,6 +650,10 @@ export function useDeckShortcuts({
         // not name P in its deck layer either.
         if (!stageRef?.current?.open) peekSelected();
       }
+      // M is This machine, B Browser Watch and V Settings at Sounds. Shift+M
+      // is the sound switch, from anywhere, once the stored flag has been read
+      // back (before that there is nothing to invert). Shift is read off the
+      // event, not the letter's case, as N does: Caps Lock sends "M" too.
       if (e.key === "m" || e.key === "M") {
         if (e.shiftKey) {
           if (soundOnRef.current !== null) activateSoundRef.current(e.shiftKey);

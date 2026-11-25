@@ -6,7 +6,7 @@
 // — the read-back on mount and the toggle — and key-help.test.ts refused a
 // third, but anything among five thousand lines could have been the third. Now
 // the setter is private to this file, and App.tsx gets the state to draw, the
-// toggle for the menu's control, and the refs for M.
+// toggle for the menu's control, and the refs for Shift+M.
 import { useCallback, useEffect, useState, type MutableRefObject } from "react";
 
 import type { createChimePlayer } from "./chime-player";
