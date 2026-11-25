@@ -28,13 +28,13 @@ import { cancelRow, type DecisionEvent } from "./decision-machine";
 import type { DecisionModel } from "./decision-model";
 
 /** The digit keys: one for each of up to nine rows. */
-export const DIGIT_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
+export const DIGIT_BINDS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
 
 export const DECISION_KEY_GROUP: KeyHelpGroup = {
   id: "decision",
   get title() { return t("board.chat.compose.keys.title"); },
   rows: [
-    { cap: "1 – 9", get action() { return t("board.chat.compose.keys.pick"); }, binds: DIGIT_KEYS },
+    { cap: "1 – 9", get action() { return t("board.chat.compose.keys.pick"); }, binds: DIGIT_BINDS },
     { cap: "Esc", get action() { return t("board.chat.compose.keys.no"); }, binds: ["Escape"] },
     { cap: "↑ ↓ Tab", get action() { return t("board.chat.compose.keys.move"); }, binds: ["ArrowUp", "ArrowDown", "Tab"] },
     { cap: "↵", get action() { return t("board.chat.compose.keys.send"); }, binds: ["Enter"] },
@@ -44,7 +44,7 @@ export const DECISION_KEY_GROUP: KeyHelpGroup = {
 const cap = (text: string, spoken?: string) => ({ text, spoken });
 
 export const DECISION_HINTS: readonly StatusHint[] = [
-  { get caps() { return [cap("1–9", t("board.chat.compose.keys.spoken", { first: 1, last: 9 }))]; }, get word() { return t("board.chat.compose.keys.word.pick"); }, binds: DIGIT_KEYS },
+  { get caps() { return [cap("1–9", t("board.chat.compose.keys.spoken", { first: 1, last: 9 }))]; }, get word() { return t("board.chat.compose.keys.word.pick"); }, binds: DIGIT_BINDS },
   { caps: [cap("Esc", "Escape")], get word() { return t("board.chat.compose.keys.word.no"); }, binds: ["Escape"] },
   { caps: [cap("↑"), cap("↓"), cap("Tab")], get word() { return t("board.chat.compose.keys.word.move"); }, binds: ["ArrowUp", "ArrowDown", "Tab"] },
   { caps: [cap("↵", "Enter")], get word() { return t("board.chat.compose.keys.word.send"); }, binds: ["Enter"] },

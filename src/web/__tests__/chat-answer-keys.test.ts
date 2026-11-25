@@ -428,12 +428,17 @@ describe("every new word in all ten languages", () => {
   const keys = Object.keys(en).filter(k => k.startsWith("board.chat.compose."));
   const slots = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map(m => m[1]).sort();
 
-  it("has the block, one contiguous run right after board.chat.noTranscript", () => {
+  it("has the block, one contiguous run after board.chat.noTranscript", () => {
+    // Other Chat blocks (rich content, live words) sit between it and
+    // noTranscript; what holds is that this one is whole, in English's order.
     expect(keys.length).toBeGreaterThanOrEqual(33);
     for (const { code, catalog } of boards) {
       const order = Object.keys(catalog);
-      const at = order.indexOf("board.chat.noTranscript");
-      expect(order.slice(at + 1, at + 1 + keys.length), code).toEqual(keys);
+      const after = order.indexOf("board.chat.noTranscript");
+      const at = order.indexOf(keys[0]);
+      expect(after, code).toBeGreaterThan(-1);
+      expect(at, code).toBeGreaterThan(after);
+      expect(order.slice(at, at + keys.length), code).toEqual(keys);
     }
   });
 
