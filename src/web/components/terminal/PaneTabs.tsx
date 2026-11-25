@@ -24,7 +24,9 @@
 //
 // NARROW. The strip scrolls sideways (a wheel scrolls it too), and once it
 // holds more than it shows, a chevron after it lists every tab in a menu, so no
-// tab is out of reach at 641 wide.
+// tab is out of reach at 641 wide. A tab's state word gives way before its
+// name, and no word leaves its tab (workspace-split.css); at a new width the
+// strip keeps the tab on show, or the one under the keyboard, in its view.
 //
 // THE MENU CLOSES TABS TOO. Each row shows its tab, and the × after it closes
 // that tab without showing it first, through the strip's own close (onClose):
@@ -130,6 +132,31 @@ export function menuLanding(items: readonly Pick<PaneTabItem, "key">[], key: str
   return (items[at + 1] ?? items[at - 1])!.key;
 }
 
+/** The tab the strip keeps in its view: the one under the keyboard while the
+ *  keyboard is on the strip, else the tab on show. At a new width, and once
+ *  the keyboard leaves, the strip scrolls to it, so the strip's edge never
+ *  cuts the name of the tab on show. */
+export function tabInView(strip: Pick<Element, "contains" | "querySelector">, active: Element | null): Element | null {
+  const under = active?.closest?.("[role=tab]") ?? null;
+  if (under && strip.contains(under)) return under;
+  return strip.querySelector("[role=tab][aria-selected=true]");
+}
+
+type Span = { left: number; right: number };
+/** How far the strip scrolls for `tab` to be in its view: 0 when it already
+ *  is; a tab wider than the strip shows its start. */
+export function revealBy(strip: Span, tab: Span): number {
+  if (tab.left < strip.left) return tab.left - strip.left;
+  if (tab.right > strip.right) return Math.min(tab.right - strip.right, tab.left - strip.left);
+  return 0;
+}
+
+/** Scrolls the strip alone, never a box around it, to `tab`. */
+function reveal(strip: HTMLElement, tab: Element | null) {
+  const by = tab ? revealBy(strip.getBoundingClientRect(), tab.getBoundingClientRect()) : 0;
+  if (by) strip.scrollLeft += by;
+}
+
 export default function PaneTabs({ view, words, onRename }: {
   view: PaneTabsView;
   words(status: StageStatus): PaneTabWords;
@@ -148,16 +175,24 @@ export default function PaneTabs({ view, words, onRename }: {
   const onKey = view.items.find(x => x.on)?.key ?? null;
   const stop = stripStop(view.items, focused);
   // Whether the strip holds more than it shows: the menu is drawn only then.
+  // A new width (a window or a divider moved) keeps its tab in view.
   useLayoutEffect(() => {
     const el = listRef.current;
     if (!el) return;
-    const measure = () => setOver(el.scrollWidth > el.clientWidth + 1);
+    const measure = () => {
+      setOver(el.scrollWidth > el.clientWidth + 1);
+      reveal(el, tabInView(el, document.activeElement));
+    };
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const watch = new ResizeObserver(measure);
     watch.observe(el);
+    // The tab on show grows once its state word arrives, in a strip that
+    // keeps its width: that is a new width too.
+    const on = el.querySelector("[role=tab][aria-selected=true]");
+    if (on) watch.observe(on);
     return () => watch.disconnect();
-  }, [count]);
+  }, [count, onKey]);
   // The tab on show is scrolled into the strip's view, and again once the
   // menu's chevron takes its room at the strip's end.
   useEffect(() => {
@@ -201,7 +236,10 @@ export default function PaneTabs({ view, words, onRename }: {
     if (tab) setFocused(tab.key);
   };
   const focusOut = (e: FocusEvent<HTMLDivElement>) => {
-    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(null);
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setFocused(null);
+    // Back to the tab on show, which the keyboard may have scrolled away from.
+    reveal(e.currentTarget, tabInView(e.currentTarget, null));
   };
   // A wheel turned over the strip scrolls it sideways: the header has nothing
   // to scroll up or down.
