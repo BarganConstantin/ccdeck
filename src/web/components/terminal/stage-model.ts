@@ -18,7 +18,7 @@
 // decided there; the stage only prints the chord and
 // says who owns the keys.
 import type { SizeOwner } from "../../terminal-protocol";
-import type { FolderRefusal, PanelUnavailable, ProjectWorktree, TerminalProvider, TerminalTarget, TmuxProgress } from "../../terminal-api";
+import type { FolderRefusal, PanelUnavailable, ProjectWorktree, StopElsewhereReason, TerminalProvider, TerminalTarget, TmuxProgress } from "../../terminal-api";
 import { shortAgo } from "../../relative-time";
 import { elapsed } from "../../duration";
 import { clockShort } from "../../elapsed-short";
@@ -46,6 +46,10 @@ import type { Provider } from "../../types";
  *    `awaitingExit`: Resume here after exit is armed for a Claude session
  *    running outside the deck. The stage keeps looking at that exact session
  *    and reopens it here, by itself, once nothing holds it any more.
+ *    `stopping`: that wait was armed by Stop there and resume here, and the
+ *    deck is ending Claude where it runs; `slowStop` once it still runs a
+ *    while after the stop was sent. `stopIssue`: why the last Stop there and
+ *    resume here stopped nothing, while nothing is armed.
  *  - tmux-installing: no usable tmux, and the deck is fetching its own
  *    (src/server/tmux-download.mjs); the stage asks again until it lands.
  *    `progress` is how far it has got, once the deck has said.
@@ -91,7 +95,10 @@ export type StagePhase =
   | { kind: "attaching"; reconnect: boolean }
   | { kind: "starting"; agent: TerminalProvider; cwd: string }
   | { kind: "live"; sizeOwner: SizeOwner; readOnly: boolean }
-  | { kind: "not-attachable"; target: TerminalTarget; stillRunning: boolean; busy: boolean; held?: TerminalProvider; awaitingExit?: boolean }
+  | {
+    kind: "not-attachable"; target: TerminalTarget; stillRunning: boolean; busy: boolean; held?: TerminalProvider; awaitingExit?: boolean;
+    stopping?: boolean; slowStop?: boolean; stopIssue?: StopElsewhereReason;
+  }
   | { kind: "tmux-installing"; progress?: TmuxProgress }
   | { kind: "tmux-missing"; reason: string; install?: string; download?: string; busy: boolean }
   | { kind: "ended"; atOpen?: boolean; clean?: boolean; updated?: boolean; busy?: boolean; unresumed?: boolean }
@@ -346,6 +353,55 @@ export const RESUME_BY_HAND_MSG = "board.stage.resumeByHand";
 export const AFTER_EXIT_MSG = "board.stage.afterExit.arm";
 export const AFTER_EXIT_WAITING_MSG = "board.stage.afterExit.waiting";
 export const AFTER_EXIT_HOW_MSG = "board.stage.afterExit.how";
+
+/** Stop there and resume here, beside Resume here after exit: the button; the
+ *  card's line while it is on offer; the confirmation's title ({name}: the
+ *  name the pane header shows), what happens, its warnings and its button;
+ *  the line while the deck stops Claude there, and the one once Claude has
+ *  not stopped after a while. */
+export const STOP_ELSEWHERE_MSG = "board.stage.stopElsewhere.stop";
+export const STOP_OFFER_MSG = "board.stage.stopElsewhere.offer";
+export const STOP_CONFIRM_TITLE_MSG = "board.stage.stopElsewhere.title";
+export const STOP_CONFIRM_WHAT_MSG = "board.stage.stopElsewhere.what";
+export const STOP_WARN_TURN_MSG = "board.stage.stopElsewhere.warnTurn";
+export const STOP_WARN_QUESTION_MSG = "board.stage.stopElsewhere.warnQuestion";
+export const STOP_WARN_UNSENT_MSG = "board.stage.stopElsewhere.warnUnsent";
+export const STOP_CONFIRM_MSG = "board.stage.stopElsewhere.confirm";
+export const STOP_STOPPING_MSG = "board.stage.stopElsewhere.stopping";
+export const STOP_SLOW_MSG = "board.stage.stopElsewhere.slow";
+
+/** The one line for a Stop there and resume here that stopped nothing, by
+ *  why. Every reason the deck or the page can give has one; any other is the
+ *  plain one. */
+export const STOP_ISSUE_MSG: Readonly<Record<StopElsewhereReason, string>> = {
+  unverifiable: "board.stage.stopElsewhere.unverifiable",
+  "not-found": "board.stage.stopElsewhere.unverifiable",
+  ambiguous: "board.stage.stopElsewhere.unverifiable",
+  background: "board.stage.stopElsewhere.background",
+  "shared-parent": "board.stage.stopElsewhere.sharedParent",
+  changed: "board.stage.stopElsewhere.changed",
+  unsupported: "board.stage.stopElsewhere.failed",
+  "not-elsewhere": "board.stage.stopElsewhere.failed",
+  "signal-failed": "board.stage.stopElsewhere.failed",
+  network: "board.stage.stopElsewhere.failed",
+};
+
+/** The reasons pressing Stop there and resume here again cannot change: the
+ *  deck cannot tell the process, it is a background session, or the deck runs
+ *  inside it. The button goes, and Resume here after exit leads. */
+export const STOP_FINAL: ReadonlySet<StopElsewhereReason> = new Set(["unverifiable", "not-found", "ambiguous", "background", "shared-parent", "unsupported"]);
+
+/** What the confirmation warns of before Claude is stopped there, by what
+ *  the board says it is doing: a turn in progress stops where it is, a
+ *  question or a permission prompt waiting there goes, and whatever was typed
+ *  there and not sent is lost, always. */
+export function stopWarnings(state: StageState | null | undefined): string[] {
+  return [
+    ...(state === "working" ? [STOP_WARN_TURN_MSG] : []),
+    ...(state === "waiting" ? [STOP_WARN_QUESTION_MSG] : []),
+    STOP_WARN_UNSENT_MSG,
+  ];
+}
 
 /**
  * The command that continues a Claude conversation in a terminal of the

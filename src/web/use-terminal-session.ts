@@ -45,6 +45,8 @@ import {
   folderRefusal,
   launchTerminal,
   openTerminal,
+  stopElsewhere,
+  stopElsewhereCheck,
   terminalStatus,
   panelUnavailable,
   PANEL_RECOVERING,
@@ -55,6 +57,7 @@ import {
   type PaneColours,
   type ApiFailure,
   type SessionRef,
+  type StopElsewhereReason,
   type TerminalProvider,
   type TerminalTarget,
   type TmuxProgress,
@@ -132,6 +135,11 @@ export const ELSEWHERE_POLL_MS = 4_000;
  *  second or two of it, and the look goes on with the page hidden, since the
  *  reader is in that other terminal. Still one loopback read each. */
 export const EXIT_WATCH_POLL_MS = 1_500;
+/** Stop there and resume here: how long after the deck sent the stop the card
+ *  says Claude has not stopped yet, if it still runs there. Claude Code ends
+ *  on the signal within a second or two at most; the wait goes on after this,
+ *  and the reader can still cancel it or exit Claude there. */
+export const STOP_SLOW_MS = 15_000;
 
 // ---------------------------------------------------------------------------
 // What the stage is asked to show.
@@ -552,6 +560,11 @@ export interface SessionApi {
    *  on the folder-gone card. An API without it (a suite's) never asks, and
    *  the press goes straight to the deck, which asks the same itself. */
   checkFolder?: typeof checkFolder;
+  /** Stop there and resume here: the check, which finds the process holding
+   *  the session where it runs and signals nothing, and the stop. An API
+   *  without them (a suite's) offers no stop: the check answers unsupported. */
+  stopElsewhereCheck?: typeof stopElsewhereCheck;
+  stopElsewhere?: typeof stopElsewhere;
 }
 
 export interface SessionDeps {
@@ -562,7 +575,7 @@ export interface SessionDeps {
 }
 
 export const DEFAULT_DEPS: SessionDeps = {
-  api: { status: terminalStatus, open: openTerminal, adopt: adoptTerminal, launch: launchTerminal, codexUpdated, checkFolder },
+  api: { status: terminalStatus, open: openTerminal, adopt: adoptTerminal, launch: launchTerminal, codexUpdated, checkFolder, stopElsewhereCheck, stopElsewhere },
   connect: connectTerminal,
   mount: mountXterm,
   now: () => Date.now(),
@@ -612,6 +625,11 @@ export const PASTE_TOO_LARGE_MSG = "board.session.pasteTooLarge";
  *  A partial send pasted the text but could not safely submit it; never retry it. */
 export type PromptSendResult = "sent" | "unavailable" | "too-large" | "partial" | "empty";
 
+/** Stop there and resume here's check, as the card reads it: the deck found
+ *  the process and holds its token (`gone` when the session had ended there
+ *  already, and the wait that resumes it is armed), or why it will not stop it. */
+export type StopCheckResult = { ok: true; gone?: true } | { ok: false; reason: StopElsewhereReason };
+
 /** An answer from Chat: every key went; the screen showed something else and
  *  nothing went; some keys went before it stopped; or no connection to send on. */
 export type AskSendResult = "sent" | "changed" | "partial" | "unavailable";
@@ -653,6 +671,23 @@ export interface TerminalSessionController {
   /** Cancel on that card: stop waiting, and leave the session and the card
    *  as they were before. Nothing is asked or started. */
   stopWaitingForExit(): void;
+  /** Stop there and resume here, its first step: where Resume here after
+   *  exit could be armed, ask the deck which process holds the session there.
+   *  Signals nothing; the token it answers stays here for the second step. A
+   *  refusal is put on the phase (`stopIssue`) for the card to say. One at a
+   *  time: a second call while one is asked answers the same. */
+  checkStopElsewhere(): Promise<StopCheckResult>;
+  /** Its second step, once the reader confirmed: Resume here after exit
+   *  armed (`awaitingExit`, `stopping`), then the stop sent with the token.
+   *  The wait resumes the conversation here once Claude has ended there; a
+   *  stop the deck refused disarms it and says why (`stopIssue`). Still
+   *  running STOP_SLOW_MS after the stop was sent, the phase says so
+   *  (`slowStop`) and the wait goes on. Once per check: a second call does
+   *  nothing. */
+  confirmStopElsewhere(): void;
+  /** Cancel on the confirmation: the token is let go, nothing is sent. The
+   *  wait's own Cancel, once armed, is stopWaitingForExit. */
+  cancelStopElsewhere(): void;
   /** Paste and submit only to the caller's subjectKey, without moving focus. */
   sendPrompt(text: string, expectedSubject: string): PromptSendResult;
   /** Answer Claude Code's question prompt, a step at a time: each step's keys
@@ -902,6 +937,33 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   /** Resume here after exit is armed for the subject on show: it lasts while
    *  the stage shows that session's card, and ends with anything else. */
   let exitWatch = false;
+  // STOP THERE AND RESUME HERE (stop-elsewhere.mjs on the deck). The token
+  // the check answered, for the generation it was asked in; the check being
+  // asked; a stop being asked; whether the wait was armed by a stop, so the
+  // card says Claude is being stopped rather than waited for; whether it
+  // still runs STOP_SLOW_MS after the stop was sent; and why the last check
+  // or stop did not happen, said until the next press. All of it goes with
+  // the card, a Cancel, another subject or the controller.
+  let stopToken: { token: string; at: number } | null = null;
+  let stopChecking: Promise<StopCheckResult> | null = null;
+  let stopAsking = false;
+  let stopArmed = false;
+  let stopSlow = false;
+  let stopIssue: StopElsewhereReason | null = null;
+  let stopTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Moved on whenever the stop's state is let go: an answer to an older
+   *  question finds a newer run, and does nothing. */
+  let stopRun = 0;
+  const endStop = () => {
+    stopRun += 1;
+    stopToken = null;
+    stopChecking = null;
+    stopAsking = false;
+    stopArmed = false;
+    stopSlow = false;
+    if (stopTimer !== null) clearTimeout(stopTimer);
+    stopTimer = null;
+  };
 
   const emit = (next: Partial<SessionSnapshot>) => {
     if (disposed) return;
@@ -1346,13 +1408,24 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   };
 
   /** Arming and its end, on every phase the stage shows (emit): the card
-   *  says it waits while armed, and anything but the card ends the wait. */
+   *  says it waits while armed, and anything but the card ends the wait. A
+   *  wait a stop armed says so too, and Claude not stopped yet; a check or a
+   *  stop that did not happen says why while nothing is armed. */
   const exitWatched = (phase: StagePhase): StagePhase => {
-    if (phase.kind !== "not-attachable") { exitWatch = false; return phase; }
-    if (exitWatch) return phase.awaitingExit ? phase : { ...phase, awaitingExit: true };
-    if (!phase.awaitingExit) return phase;
-    const { awaitingExit: _was, ...rest } = phase;
-    return rest;
+    if (phase.kind !== "not-attachable") { exitWatch = false; endStop(); stopIssue = null; return phase; }
+    const awaitingExit = exitWatch || undefined;
+    const stopping = (exitWatch && stopArmed) || undefined;
+    const slowStop = (exitWatch && stopArmed && stopSlow) || undefined;
+    const issue = (!exitWatch && stopIssue) || undefined;
+    if (phase.awaitingExit === awaitingExit && phase.stopping === stopping && phase.slowStop === slowStop && phase.stopIssue === issue) return phase;
+    const { awaitingExit: _was, stopping: _stopping, slowStop: _slow, stopIssue: _issue, ...rest } = phase;
+    return {
+      ...rest,
+      ...(awaitingExit ? { awaitingExit } : {}),
+      ...(stopping ? { stopping } : {}),
+      ...(slowStop ? { slowStop } : {}),
+      ...(issue ? { stopIssue: issue } : {}),
+    };
   };
 
   /** The armed session has stopped where it ran: this card's Reopen here,
@@ -1450,6 +1523,8 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     goneThen = null;
     goneFrom = null;
     exitWatch = false;
+    endStop();
+    stopIssue = null;
     if (subject.kind === "empty") { setPhase({ kind: "empty" }); return; }
     if (toLaunch() && subject.kind === "launch") {
       setPhase({ kind: "starting", agent: subject.agent, cwd: subject.cwd });
@@ -1721,6 +1796,10 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       // Windows, whose sessions the deck cannot watch this way.
       if (disposed || exitWatch || windows || ref?.provider !== "claude") return;
       if (phase.kind !== "not-attachable" || !phase.stillRunning || phase.busy || phase.target.adoptable !== true) return;
+      // A stop asked about and not confirmed is let go, and why the last one
+      // did not happen is no longer the card's line.
+      endStop();
+      stopIssue = null;
       exitWatch = true;
       setPhase(phase);
       // A first look at once: it may have been quit since the last one.
@@ -1730,10 +1809,111 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
     stopWaitingForExit() {
       if (disposed || !exitWatch) return;
       exitWatch = false;
+      // A stop under way is let go too: its answer, and the line that says
+      // Claude has not stopped yet, are no one's now.
+      endStop();
       const phase = snap.phase;
       if (phase.kind !== "not-attachable") return;
       setPhase(phase);
       if (phase.stillRunning && !phase.busy) watchElsewhere(gen);
+    },
+
+    checkStopElsewhere() {
+      const phase = snap.phase;
+      const ref = refOf();
+      const ask = deps.api.stopElsewhereCheck;
+      const no: StopCheckResult = { ok: false, reason: "unsupported" };
+      // Where Resume here after exit could be armed, and only there: the
+      // stop's way back here is that wait.
+      if (disposed || exitWatch || windows || ref?.provider !== "claude" || !ask) return Promise.resolve(no);
+      if (phase.kind !== "not-attachable" || !phase.stillRunning || phase.busy || phase.target.adoptable !== true) return Promise.resolve(no);
+      if (stopChecking) return stopChecking;
+      stopToken = null;
+      if (stopIssue) { stopIssue = null; setPhase(phase); }
+      const run = stopRun;
+      const my = gen;
+      const asked: Promise<StopCheckResult> = ask(ref)
+        .catch(() => ({ ok: false, reason: "network" }) as const)
+        .then((answer): StopCheckResult => {
+          if (stopChecking === asked) stopChecking = null;
+          // Let go meanwhile (a Cancel, another subject), or the card moved
+          // on: the answer is no one's, and nothing is said.
+          const now = snap.phase;
+          if (run !== stopRun || my !== gen || disposed || exitWatch) return { ok: false, reason: "changed" };
+          if (now.kind !== "not-attachable" || !now.stillRunning || now.busy) return { ok: false, reason: "changed" };
+          if (answer.ok && "gone" in answer) {
+            // It ended there already: nothing to stop, and the wait finds it
+            // gone at its first look and reopens it here, as asked.
+            exitWatch = true;
+            setPhase(now);
+            watchElsewhere(gen, 0);
+            return { ok: true, gone: true };
+          }
+          if (answer.ok) { stopToken = { token: answer.token, at: gen }; return { ok: true }; }
+          stopIssue = answer.reason;
+          setPhase(now);
+          return { ok: false, reason: answer.reason };
+        });
+      stopChecking = asked;
+      return asked;
+    },
+
+    confirmStopElsewhere() {
+      const phase = snap.phase;
+      const ref = refOf();
+      const send = deps.api.stopElsewhere;
+      const held = stopToken;
+      // Once per check, and never a second stop while one is asked.
+      if (disposed || exitWatch || stopAsking || windows || !held || held.at !== gen || ref?.provider !== "claude" || !send) return;
+      if (phase.kind !== "not-attachable" || !phase.stillRunning || phase.busy || phase.target.adoptable !== true) return;
+      stopToken = null;
+      stopIssue = null;
+      stopRun += 1;
+      const run = stopRun;
+      const my = gen;
+      // Armed first, as Resume here after exit arms: once Claude has ended
+      // there, the wait reopens the conversation here by itself.
+      exitWatch = true;
+      stopArmed = true;
+      stopSlow = false;
+      stopAsking = true;
+      setPhase(phase);
+      watchElsewhere(gen);
+      void send(ref, held.token)
+        .catch(() => ({ ok: false, reason: "network" }) as const)
+        .then(answer => {
+          if (run !== stopRun) return;
+          stopAsking = false;
+          if (my !== gen || disposed) return;
+          // Ended already: the wait looks at once, and resumes it.
+          if (answer.ok && "gone" in answer) { watchElsewhere(gen, 0); return; }
+          if (answer.ok) {
+            stopTimer = setTimeout(() => {
+              stopTimer = null;
+              const now = snap.phase;
+              if (run !== stopRun || disposed || !exitWatch || !stopArmed) return;
+              if (now.kind !== "not-attachable" || !now.stillRunning) return;
+              stopSlow = true;
+              setPhase(now);
+            }, STOP_SLOW_MS);
+            return;
+          }
+          // Nothing was stopped: the wait ends with it, the card says why,
+          // and Resume here after exit is still on offer.
+          exitWatch = false;
+          stopArmed = false;
+          stopIssue = answer.reason;
+          const now = snap.phase;
+          if (now.kind !== "not-attachable") return;
+          setPhase(now);
+          if (now.stillRunning && !now.busy) watchElsewhere(gen);
+        });
+    },
+
+    cancelStopElsewhere() {
+      // The armed wait's Cancel is stopWaitingForExit, which ends it.
+      if (disposed || exitWatch) return;
+      endStop();
     },
 
     retry() {
@@ -1903,6 +2083,7 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
       if (disposed) return;
       gen += 1;
       dropConnection();
+      endStop();
       clearTimer(sizeTimer);
       disposed = true;
       held = [];
@@ -1951,6 +2132,9 @@ export interface TerminalSessionView extends SessionSnapshot {
   type(text: string): void;
   resumeAfterExit(): void;
   stopWaitingForExit(): void;
+  checkStopElsewhere(): Promise<StopCheckResult>;
+  confirmStopElsewhere(): void;
+  cancelStopElsewhere(): void;
   sendPrompt(text: string, expectedSubject: string): PromptSendResult;
   sendAsk(steps: readonly AskStep[], expectedSubject: string): Promise<AskSendResult>;
   readScreen(expectedSubject: string): string | null;
@@ -2013,6 +2197,10 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
   const type = useCallback((text: string) => controller.current?.type(text), []);
   const resumeAfterExit = useCallback(() => controller.current?.resumeAfterExit(), []);
   const stopWaitingForExit = useCallback(() => controller.current?.stopWaitingForExit(), []);
+  const checkStopElsewhere = useCallback((): Promise<StopCheckResult> =>
+    controller.current?.checkStopElsewhere() ?? Promise.resolve({ ok: false, reason: "unsupported" }), []);
+  const confirmStopElsewhere = useCallback(() => controller.current?.confirmStopElsewhere(), []);
+  const cancelStopElsewhere = useCallback(() => controller.current?.cancelStopElsewhere(), []);
   const sendPrompt = useCallback((text: string, expectedSubject: string): PromptSendResult => {
     const ctl = controller.current;
     // A new subject can render before the effect has switched the controller.
@@ -2033,5 +2221,8 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
   const holdsFocus = useCallback(() => controller.current?.holdsFocus() === true, []);
   const release = useCallback(() => controller.current?.release(), []);
 
-  return { ...snapshot, hostRef, adopt, retry, startIfFolder, cancelFolder, focus, type, resumeAfterExit, stopWaitingForExit, sendPrompt, sendAsk, readScreen, press, holdsFocus, release };
+  return {
+    ...snapshot, hostRef, adopt, retry, startIfFolder, cancelFolder, focus, type, resumeAfterExit, stopWaitingForExit,
+    checkStopElsewhere, confirmStopElsewhere, cancelStopElsewhere, sendPrompt, sendAsk, readScreen, press, holdsFocus, release,
+  };
 }
