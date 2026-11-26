@@ -181,15 +181,21 @@ export function tabWith(
 
 /** The same reading-order numbers in the list, headers and narrow pane strip.
  * The shell owns the focused target; its saved entry can still name the previous session.
- * A session in a tab the pane does not show has its pane's number, not active. */
+ * A session in a tab the pane does not show has its pane's number, not active.
+ * `shows`, as tabWith's: a tab kept under a session a /clear left behind is
+ * listed under the session its terminal went on as, so the number and the
+ * active mark are on the row of the conversation the pane draws, not on the
+ * row of the one that ended. */
 export interface PaneLink { number: number; active: boolean }
-export function sessionPaneLinks(s: SplitState, focusedTarget: StageTarget | null, order = paneIds(s.root)): Map<string, PaneLink> {
+export function sessionPaneLinks(
+  s: SplitState, focusedTarget: StageTarget | null, order = paneIds(s.root), shows?: (tabId: string) => string,
+): Map<string, PaneLink> {
   const links = new Map<string, PaneLink>();
   if (order.length < 2) return links;
   order.forEach((id, index) => {
     const shown = paneTarget(s, id, focusedTarget);
     for (const t of paneTabs(s, id, focusedTarget)) {
-      if (t.kind === "session") links.set(t.id, { number: index + 1, active: id === s.focused && sameTab(t, shown) });
+      if (t.kind === "session") links.set(shows ? shows(t.id) : t.id, { number: index + 1, active: id === s.focused && sameTab(t, shown) });
     }
   });
   return links;

@@ -42,6 +42,7 @@ import {
   type Dispatch, type MutableRefObject, type SetStateAction,
 } from "react";
 import { terminalSessionId } from "./canvas-session";
+import { afterClears, selectionAfterClear, type PaneShows } from "./cleared-session";
 import type { BlockedSession } from "./ambient-counts";
 import { boardRect } from "./board-rect";
 import { focusCanvasNode } from "./canvas-node-element";
@@ -466,6 +467,13 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
    *  effect below, which selects the session once it is known. */
   const unheardRef = useRef<string | null>(null);
   const follow = useCallback((sessionId: string) => {
+    // A tab kept under a session a /clear left behind draws the session its
+    // terminal went on as (cleared-session.ts), and that one is what the
+    // stage moved to: a tab brought back, the neighbour a closed tab leaves on
+    // show, a reload's pane. Selected by its own id, the list lit the row of
+    // the session that ended. A /clear while the tab is on show is followed by
+    // the effect below (selectionAfterClear).
+    sessionId = afterClears(stateRef.current.agents, sessionId);
     if (stateRef.current.agents.has(sessionId)) {
       selectRef.current(sessionId, false, false);
       return;
@@ -1012,6 +1020,23 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     unheardRef.current = null;
     selectRef.current(t.id, false, false);
   });
+  // A /clear in the terminal of the tab on show: the tab stays, and the
+  // session it stands for is the new one (afterClears, the part of
+  // terminalSessionId that a /clear moves). The selection was the old one,
+  // which ended; it goes to the new one, once for each /clear, and never from
+  // a session the reader picked since (selectionAfterClear says when). Read
+  // in every render: App renders for every board change, the one that pairs
+  // the two ends of the /clear among them.
+  const tabOnShow = shell.phase === "closed" ? null : targetSession(shell.target);
+  const shownSession = tabOnShow === null ? null : afterClears(stateRef.current.agents, tabOnShow);
+  const paneShowsRef = useRef<PaneShows | null>(null);
+  useEffect(() => {
+    const before = paneShowsRef.current;
+    const now = tabOnShow === null || shownSession === null ? null : { tab: tabOnShow, session: shownSession };
+    paneShowsRef.current = now;
+    const to = selectionAfterClear(stateRef.current.agents, before, now, primarySelectedIdRef.current);
+    if (to !== null && stateRef.current.agents.has(to)) selectRef.current(to, false, false);
+  }, [tabOnShow, shownSession, stateRef, primarySelectedIdRef, selectRef]);
 
   // ── the keys ───────────────────────────────────────────────────────────────
   /** The keys back to the board: onto the socket's tile, as v3 does — or,

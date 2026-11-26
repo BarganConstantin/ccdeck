@@ -588,7 +588,8 @@ describe("the seen marker", () => {
   it("is marked by what is selected or open on the stage, through one hook and no route", () => {
     const hook = code("../use-mark-seen.ts");
     expect(hook).toContain("markSeen(root.sessionId, turnEndedAt(root))");
-    expect(code("../App.tsx")).toMatch(/useMarkSeen\(stateRef, \[\.\.\.selectedIds, stage\.enabled/);
+    expect(code("../App.tsx")).toMatch(/useMarkSeen\(stateRef, \[\.\.\.selectedIds, stageTab, stageDraws\]/);
+    expect(code("../App.tsx")).toContain('const stageTab = stage.enabled && stage.shell.phase !== "closed" ? targetSession(stage.shell.target) : null;');
     expect(code("../session-seen.ts")).toContain('"agent-dag.sessionsSeen"');
     expect(code("../session-seen.ts")).not.toMatch(/fetch\(|\/api\//);
   });

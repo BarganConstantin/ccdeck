@@ -2088,3 +2088,89 @@ describe("subagents open their main conversation's terminal", () => {
     expect(now().stage.shell.target).toEqual({ kind: "session", id: "lead" });
   });
 });
+
+describe("a /clear in the terminal of the tab on show", () => {
+  // Claude Code's /clear goes on in the same terminal as a NEW session; the
+  // pane goes on with it (cleared-session.ts) while its tab keeps the id it
+  // was opened on. The session on the stage is the selected one, so the
+  // selection goes with the pane: once for each /clear, and never off a
+  // session the reader picked since.
+  const CWD = "/w/paycore";
+  const S = (id: string) => ({ kind: "session" as const, id });
+  /** X at work in its folder, B in another. */
+  const board = () => [root("X", { cwd: CWD }), root("B", { cwd: "/w/shop" })];
+  /** The board hears both ends of a /clear: `from` ends, `to` begins in the same terminal. */
+  const clear = (agents: Map<string, AgentNodeData>, from: string, to: string, at: number) => {
+    agents.set(from, { ...agents.get(from)!, clearedAt: at, closedAt: at });
+    agents.set(to, root(to, { cwd: CWD, clearBeganAt: at + 40 }));
+  };
+  /** The selection as App keeps it: the one selected last is the primary. */
+  function tracked(view: "board" | "workspace") {
+    const t = setup({ agents: board(), view });
+    t.selectAgent.mockImplementation((id: string) => { (t.deps.primarySelectedIdRef as { current: string | null }).current = id; });
+    t.turnOn();
+    return t;
+  }
+
+  it("moves the selection to the new session once, and on through the next /clear", () => {
+    const t = tracked("workspace");
+    t.now().stage.openInPane("X");
+    expect(t.selectAgent.mock.calls).toEqual([["X", false, false]]);
+    t.selectAgent.mockClear();
+    clear(t.agents, "X", "Y", 1_000);
+    t.view.rerender(t.props);
+    expect(t.now().stage.shell.target, "the tab keeps the id it was opened on").toEqual(S("X"));
+    expect(t.selectAgent.mock.calls).toEqual([["Y", false, false]]);
+    t.view.rerender(t.props);
+    t.view.rerender(t.props);
+    expect(t.selectAgent.mock.calls, "once for each /clear").toHaveLength(1);
+    clear(t.agents, "Y", "Z", 50_000);
+    t.view.rerender(t.props);
+    expect(t.selectAgent.mock.calls).toEqual([["Y", false, false], ["Z", false, false]]);
+  });
+
+  it("leaves a session the reader selected meanwhile, the pane left as it was", () => {
+    const t = tracked("workspace");
+    t.now().stage.openInPane("X");
+    (t.deps.primarySelectedIdRef as { current: string | null }).current = "B";
+    t.selectAgent.mockClear();
+    clear(t.agents, "X", "Y", 1_000);
+    t.view.rerender(t.props);
+    expect(t.selectAgent).not.toHaveBeenCalled();
+  });
+
+  it("leaves B selected when B went on the pane and the /clear came in X's tab behind it", () => {
+    const t = tracked("workspace");
+    t.now().stage.openInPane("X");
+    t.now().stage.openInPane("B");
+    t.selectAgent.mockClear();
+    clear(t.agents, "X", "Y", 1_000);
+    t.view.rerender(t.props);
+    expect(t.selectAgent).not.toHaveBeenCalled();
+    expect(t.deps.primarySelectedIdRef.current).toBe("B");
+    expect(t.now().stage.shell.target).toEqual(S("B"));
+  });
+
+  it("selects the new session, not the ended one, when the cleared tab comes back on show", () => {
+    const t = tracked("workspace");
+    t.now().stage.openInPane("X");
+    t.now().stage.openInPane("B");
+    clear(t.agents, "X", "Y", 1_000);
+    t.view.rerender(t.props);
+    t.selectAgent.mockClear();
+    t.now().stage.closeTab(t.now().stage.split.focused, S("B"));
+    expect(t.now().stage.shell.target).toEqual(S("X"));
+    expect(t.selectAgent.mock.calls).toEqual([["Y", false, false]]);
+  });
+
+  it("selects the new session when the ended one is asked for again, on the Board's stage too", () => {
+    const t = tracked("board");
+    t.now().stage.switchTo("X", { focusPane: false });
+    t.now().stage.switchTo("B", { focusPane: false });
+    clear(t.agents, "X", "Y", 1_000);
+    t.view.rerender(t.props);
+    t.selectAgent.mockClear();
+    t.now().stage.switchTo("X", { focusPane: false });
+    expect(t.selectAgent.mock.calls).toEqual([["Y", false, false]]);
+  });
+});
