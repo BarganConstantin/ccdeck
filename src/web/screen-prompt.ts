@@ -90,15 +90,28 @@ function textOver(lines: string[], start: number): string {
   return above.join(" ").replace(/\s+/g, " ").trim();
 }
 
-/** The permission prompt or plan approval the screen shows, or null for anything else. */
-export function readScreenPrompt(screen: string): ScreenPrompt | null {
-  const lines = screen.split("\n").map(clean);
+/** The selection list at the foot of the screen, read from its lines (each
+ *  without a frame's sides): the last list that starts at 1 with the pointer
+ *  on exactly one row, followed by nothing but its notes and help line. A
+ *  list higher up is an old frame the program has moved on from, and a list
+ *  with no pointer is text, not a choice. Null for anything else. */
+export function bottomRows(lines: string[]): { start: number; end: number; options: string[] } | null {
   const rows = lastRows(lines);
   if (!rows) return null;
-  // Nothing may follow the rows but their notes and help line: a list higher
-  // up is an old frame the program has moved on from.
   const after = lines.slice(rows.end + 1).filter(Boolean);
-  if (after.length > MAX_GAP + 3) return null;
+  return after.length > MAX_GAP + 3 ? null : rows;
+}
+
+/** A screen's lines as bottomRows reads them. */
+export function cleanLines(screen: string): string[] {
+  return screen.split("\n").map(clean);
+}
+
+/** The permission prompt or plan approval the screen shows, or null for anything else. */
+export function readScreenPrompt(screen: string): ScreenPrompt | null {
+  const lines = cleanLines(screen);
+  const rows = bottomRows(lines);
+  if (!rows) return null;
   const text = textOver(lines, rows.start);
   const permission = PERMISSION_QUESTION.exec(text);
   if (permission) return { kind: "permission", question: permission[1], options: rows.options };

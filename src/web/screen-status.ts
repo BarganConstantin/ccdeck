@@ -15,7 +15,18 @@
 // parenthesis ("37s", "1m 05s"); screenSpinner hands it on, so a row drawn
 // after a refresh or a reconnect counts from when the work began, not from
 // when the deck looked.
+//
+// AND A CHOICE THE AGENT DRAWS ITSELF (screenMenu). Some of what Claude Code
+// asks never reaches the transcript Chat reads: a menu of its own commands,
+// a dialog a plugin or a hook opens, a question whose card Chat does not
+// have. The screen shows it as a numbered list with the pointer on one row
+// ("❯ 1. Looks good — save it" over "  2. Discard and exit"), at the foot of
+// the screen, with nothing under it but its notes and help line: the same
+// rows the Decision card's prompts are read from (screen-prompt.ts
+// bottomRows). A list without the pointer is text the conversation printed,
+// and one with more than its help line under it is an old frame.
 import { lead } from "./ask-keys";
+import { bottomRows, cleanLines } from "./screen-prompt";
 
 /** The spinner's glyphs: Claude Code's cycle and its fallback, Codex's dots and braille. */
 const STATUS_LINE = /^[·✢✳✶✻✽*∗•◦●○⠀-⣿]\s+([^()\s][^()]*?)\s*\(([^()]*)\)$/u;
@@ -72,4 +83,25 @@ const COMPACTING = /^compacting\b/i;
 /** Whether a spinner's words say the conversation is being compacted. */
 export function saysCompacting(words: string): boolean {
   return COMPACTING.test(words);
+}
+
+/** The most of one choice shown: a label, not its description. */
+export const MAX_CHOICE = 60;
+
+/** A multi-select row's box, which is the row's state, not its words. */
+const CHECKBOX = /^(?:\[[ xX✔✓]\]|[☐☑☒])\s+/;
+
+/** One choice as Chat says it: one line, its box left off, cut with "…". */
+function choiceLabel(row: string): string {
+  const flat = row.replace(CHECKBOX, "").replace(/\s+/g, " ").trim();
+  return flat.length <= MAX_CHOICE ? flat : `${lead(flat, MAX_CHOICE - 1)}…`;
+}
+
+/** The choices of the selection menu at the foot of the screen, in order, or
+ *  null when the screen draws none. */
+export function screenMenu(screen: string): string[] | null {
+  const rows = bottomRows(cleanLines(screen));
+  if (!rows) return null;
+  const options = rows.options.map(choiceLabel).filter(Boolean);
+  return options.length >= 2 ? options : null;
 }
