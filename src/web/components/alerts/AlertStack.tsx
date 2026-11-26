@@ -82,11 +82,12 @@ export function placeBeside(row: AnchorBox, stack: StackBox, view: { right: numb
 const samePlace = (a: AnchorPlace | null, b: AnchorPlace | null) =>
   a === b || (!!a && !!b && a.left === b.left && a.top === b.top && a.width === b.width && a.notch === b.notch);
 
-/** Where the free page ends on the right: inside the right stripe, as the
- *  stack in the corner keeps. */
-function freeRight(el: HTMLElement): number {
-  const edge = parseFloat(getComputedStyle(el).getPropertyValue("--edge-w"));
-  return window.innerWidth - (Number.isFinite(edge) ? edge : 0);
+/** Where the free page ends on the right: the right stripe's left edge, as
+ *  the stack in the corner keeps clear of it; the window's edge where no
+ *  stripe is drawn (a phone). Read off the stripe's box, never its style. */
+function freeRight(): number {
+  const stripe = document.querySelector(".edge-rail-right")?.getBoundingClientRect();
+  return stripe && stripe.width > 0 ? stripe.left : window.innerWidth;
 }
 
 /** The session's row in the Sessions list, while it is drawn and seen: a row
@@ -155,7 +156,7 @@ export default function AlertStack(p: AlertStackProps) {
       const card = el?.querySelector<HTMLElement>(".ca-card[data-anchor]");
       const row = el && card ? rowBox(anchorId) : null;
       const next = el && card && row
-        ? placeBeside(row, { height: el.offsetHeight, cardTop: card.offsetTop, cardHeight: card.offsetHeight }, { right: freeRight(el), height: window.innerHeight })
+        ? placeBeside(row, { height: el.offsetHeight, cardTop: card.offsetTop, cardHeight: card.offsetHeight }, { right: freeRight(), height: window.innerHeight })
         : null;
       setPlace(prev => (samePlace(prev, next) ? prev : next));
     };

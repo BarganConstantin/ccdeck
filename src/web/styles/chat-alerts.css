@@ -65,7 +65,7 @@
   transition: top var(--dur-base) var(--ease);
 }
 .ca-stack[data-anchored] .ca-card { position: relative; transform-origin: left center; }
-.ca-stack[data-anchored] .ca-card:not([data-leaving]) { animation-name: ca-arrive-side; }
+.ca-stack[data-anchored] .ca-card:not([data-leaving]) { animation: ca-arrive-side var(--dur-base) var(--ease); }
 /* The point toward the row: a square turned on its corner, the card's own
    --panel and --warn edge, half of it under the card's border. */
 .ca-stack[data-notch] .ca-card[data-anchor]::before {
@@ -139,7 +139,7 @@ button.btn.ca-offer-on { --ctl-h: 24px; padding: 0 8px; font-size: calc(12px + v
   .ca-card { animation: ca-fade-in var(--dur-base) var(--ease); }
   .ca-card[data-leaving] { animation: ca-fade-out var(--dur-exit) var(--ease) forwards; }
   .ca-stack[data-anchored] { transition: none; }
-  .ca-stack[data-anchored] .ca-card:not([data-leaving]) { animation-name: ca-fade-in; }
+  .ca-stack[data-anchored] .ca-card:not([data-leaving]) { animation: ca-fade-in var(--dur-base) var(--ease); }
   .ca-offer { animation: ca-fade-in var(--dur-base) var(--ease); }
 }
 @keyframes ca-fade-in { from { opacity: 0; } }
