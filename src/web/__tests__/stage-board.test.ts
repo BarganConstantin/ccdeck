@@ -12,10 +12,14 @@ import type { AsksView } from "../use-asks";
 const NOW = 1_800_000_000_000;
 const MIN = 60_000;
 
+// CHANGED ON PURPOSE (Chat's Session details): the stage prices the session's
+// tokens now, so an agent carries the usage every board agent has.
+const NO_USAGE = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0 };
+
 function agent(id: string, extra: Partial<AgentNodeData> = {}): AgentNodeData {
   return {
     id, sessionId: id, kind: "root", label: "paycore", state: "done", tools: [], prompts: [],
-    startedAt: NOW - 30 * MIN, provider: "claude", cwd: "/w/paycore", cwdBasename: "paycore",
+    startedAt: NOW - 30 * MIN, provider: "claude", cwd: "/w/paycore", cwdBasename: "paycore", usage: NO_USAGE,
     ...extra,
   } as AgentNodeData;
 }

@@ -4,7 +4,8 @@
 // ONLY INTO AN EMPTY BOX. A draft written since is the person's and stays;
 // then the message stays drawn where it was, as "not taken", with Show Term.
 // Put back, it is no longer drawn under the conversation: the composer says
-// why it is back (ChatComposer `notTaken`), once.
+// why it is back (ChatComposer `notTaken`), once. Only what was typed goes
+// back: a /compact the ⋯ sent (`action`) stays drawn where it was.
 //
 // TAKEN AFTER ALL. Chat says "not taken" when the session has not been seen
 // to take it in time (chat-progress.ts); it can still take it later (it sat
@@ -32,7 +33,7 @@ export function useChatReturned(
 ): ChatReturned {
   const [returned, setReturned] = useState<Record<string, string>>({});
   const mine = returned[session];
-  const late = outgoing?.state === "unconfirmed" ? outgoing.text : undefined;
+  const late = outgoing?.state === "unconfirmed" && !outgoing.action ? outgoing.text : undefined;
   useBeforePaint(() => {
     if (late !== undefined && mine !== late) {
       // Late, and the box is free: the words go back.

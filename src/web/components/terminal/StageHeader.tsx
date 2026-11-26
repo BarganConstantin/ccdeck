@@ -63,6 +63,10 @@
 // `view`, which it does only with a transcript to show (use-screens.ts); the
 // deck has none, so the deck's header is the one it always was, and a control
 // that would have nothing behind it is not drawn.
+//
+// IN CHAT, A ⋯ BEFORE THEM, at every width: the session's actions (Compact,
+// Copy last reply, Show on Board, Show Term) and its details, in the menu a
+// narrow header's ⋯ already opened (ChatMenu.tsx), never a row of their own.
 import { contextFigure, contextPct, contextPercent, contextTokens } from "../../context-figure";
 import type { Provider } from "../../types";
 import { agentName, type KeysOwner, type StageState, type StageStatus } from "./stage-model";
@@ -81,6 +85,7 @@ import type { PaneLink } from "../../workspace-split";
 import { canGoLarger, canGoSmaller } from "../../terminal-text-size";
 import type { EndView } from "./KeysBar";
 import PaneTabs, { type PaneTabsView } from "./PaneTabs";
+import ChatMenuRows, { type ChatMenuView } from "./ChatMenu";
 
 /** A menu row's words. The full-screen item's label carries the shortcut hint
  *  after " — " (it stays on the desktop button's tooltip); the menu shows the
@@ -96,8 +101,13 @@ export function menuLabel(item: { id: string; label: string }): string {
 /** On a phone the three 24px controls the frame does not draw (type into the
  *  session, full screen, close) are one ⋯ at a 44 target, and its menu holds
  *  them, each doing what the control did. Hidden at any wider layout, where the
- *  controls themselves are drawn (stage-shell.css). */
-function PaneMore({ items, compact = false }: { items: Array<{ id: string; label: string; run(): void }>; compact?: boolean }) {
+ *  controls themselves are drawn (stage-shell.css).
+ *
+ *  IN CHAT it is drawn at every width, and Chat's actions lead its menu
+ *  (ChatMenu.tsx). The header's controls follow them only while the header is
+ *  too narrow to draw them itself, which is read as the menu opens: the menu
+ *  hangs on the page, outside the header's container query. */
+function PaneMore({ items, compact = false, chat }: { items: Array<{ id: string; label: string; run(): void }>; compact?: boolean; chat?: ChatMenuView }) {
   const t = useT();
   const instance = useId();
   const PANE_MORE_ID = `ts-more-${instance}`;
@@ -105,14 +115,27 @@ function PaneMore({ items, compact = false }: { items: Array<{ id: string; label
   // Open at the first row, or (ArrowUp on the button) at the last, like the
   // dock's More.
   const [menu, setMenu] = useState<"first" | "last" | null>(null);
+  const [withControls, setWithControls] = useState(true);
   const open = menu !== null;
   const more = t("board.rail.more");
+  // Whether the header's own controls are hidden now, and so go in the menu.
+  const measure = () => {
+    const ctl = document.getElementById(PANE_MORE_ID)?.closest(".ts-head")?.querySelector(".ts-ctl");
+    setWithControls(!chat || !ctl || ctl.getClientRects().length === 0);
+  };
+  const pick = (run: () => void) => {
+    document.getElementById(PANE_MORE_ID)?.focus();
+    setMenu(null);
+    window.requestAnimationFrame(run);
+  };
+  const rows = withControls ? items : [];
   return (
     <>
       <button
         type="button"
         id={PANE_MORE_ID}
         className={compact ? "glyph-btn ts-more ts-compact-more" : "glyph-btn ts-more"}
+        data-chat={chat ? "" : undefined}
         aria-label={more}
         title={more}
         aria-haspopup="menu"
@@ -121,18 +144,21 @@ function PaneMore({ items, compact = false }: { items: Array<{ id: string; label
         onKeyDown={e => {
           if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
           e.preventDefault();
+          measure();
           setMenu(e.key === "ArrowUp" ? "last" : "first");
         }}
-        onClick={() => setMenu(open ? null : "first")}
+        onClick={() => { if (!open) measure(); setMenu(open ? null : "first"); }}
       >
         <svg className="ts-icon" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
           <circle cx="2.8" cy="7" r="0.7" /><circle cx="7" cy="7" r="0.7" /><circle cx="11.2" cy="7" r="0.7" />
         </svg>
       </button>
       {open && (
-        <AnchoredPopover anchorId={PANE_MORE_ID} id={PANE_MORE_MENU_ID} className="ap-pop dock-more-pop" role="menu"
+        <AnchoredPopover anchorId={PANE_MORE_ID} id={PANE_MORE_MENU_ID} className={chat ? "ap-pop dock-more-pop ts-act-pop" : "ap-pop dock-more-pop"} role="menu"
           labelledBy={PANE_MORE_ID} start={menu} onClose={() => setMenu(null)}>
-          {items.map(item => (
+          {chat && <ChatMenuRows view={chat} pick={pick} />}
+          {chat && rows.length > 0 && <div role="separator" className="ap-menu-sep" />}
+          {rows.map(item => (
             <button key={item.id} type="button" role="menuitem" className="ap-menu-item"
               onClick={() => {
                 // Focus goes back to the ⋯ before the menu closes, so whatever
@@ -234,6 +260,9 @@ export interface StageHeaderProps {
    *  session's state glyph and name, in the place of the one name. One
    *  session draws the header as it always was. */
   tabs?: PaneTabsView;
+  /** CHAT: the session's actions, leading the ⋯'s menu, which is then drawn
+   *  at every width (ChatMenu.tsx). Left out in Term and on the Board. */
+  chat?: ChatMenuView | null;
   /** Ask the session for keys, or give them back. */
   onKeys(): void;
   onExpand(): void;
@@ -414,7 +443,7 @@ export default function StageHeader(p: StageHeaderProps) {
         </div>
       )}
       {(p.takeover || p.workspace === "pane") && (
-        <PaneMore compact={!p.takeover} items={[
+        <PaneMore compact={!p.takeover} chat={p.chat ?? undefined} items={[
           ...(renaming ? [{ id: "rename", label: renameLabel, run: renaming.start }] : []),
           ...(p.canType ? [{ id: "keys", label: keysLabel, run: p.onKeys }] : []),
           ...((p.canFull || p.split) && p.workspace !== "empty" ? [{ id: "expand", label: expandLabel, run: p.onExpand }] : []),

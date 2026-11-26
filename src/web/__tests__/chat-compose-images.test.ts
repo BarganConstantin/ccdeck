@@ -257,7 +257,7 @@ describe("the message on its way, with pictures", () => {
   const facts: ChatFacts = { turns: [], prompts: 3, state: "idle", connected: true, asked: false };
 
   it("counts the pictures beside the words, until the session takes it", () => {
-    const pending = pendingFor("look", facts, 0, 2);
+    const pending = pendingFor("look", facts, 0, { images: 2 });
     expect(chatShown(pending, facts, 1).outgoing).toEqual({ text: "look", state: "sending", images: 2 });
     expect(chatShown(pendingFor("look", facts, 0), facts, 1).outgoing, "none: as before").toEqual({ text: "look", state: "sending" });
   });

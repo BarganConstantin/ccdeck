@@ -42,9 +42,12 @@ function stageOn(target: StageTarget, over: Partial<ShellState> = {}, g = geomet
   } as unknown as Stage;
 }
 
+// CHANGED ON PURPOSE (Chat's Session details): the stage prices the session's
+// tokens now, so the agent carries the usage every board agent has.
 const paycore = {
   id: "s1", sessionId: "s1", kind: "root", label: "paycore", state: "active", tools: [], prompts: [],
   startedAt: 0, provider: "claude", cwd: "/w/paycore",
+  usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0 },
 } as unknown as AgentNodeData;
 
 const asks: Asks = {

@@ -25,6 +25,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { answerable, MAX_ASK_TEXT, offersChat, picksComplete, type AskPick } from "../../ask-keys";
 import type { AskSendResult } from "../../use-terminal-session";
 import { copyText } from "../../copy-text";
+import { replyText } from "../../chat-actions";
 import { CopyGlyph } from "../terminal/stage-icons";
 import { CODEX_TOOL_LABEL } from "../../tool-taxonomy";
 import DiffBlock, { DiffCounts } from "./ChatDiff";
@@ -367,7 +368,8 @@ export function AssistantBlock({ turns, provider = "claude", ask, todoAt, time }
   const author = providerLabel(provider);
   const t = useT();
   const [copied, setCopied] = useState(false);
-  const answer = turns.filter((turn): turn is Extract<Turn, { kind: "assistant" }> => turn.kind === "assistant").map(turn => turn.text).join("\n\n");
+  // What the ⋯'s Copy last reply takes too (chat-actions.ts).
+  const answer = replyText(turns);
   useEffect(() => setCopied(false), [answer]);
   // Tool calls run together into one disclosure, and an earlier task list
   // joins them where its TodoWrite call sat. A run with no call in it is drawn
