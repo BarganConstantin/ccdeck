@@ -9,6 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { QUICK_OPEN_PLACEHOLDER_MSG, railItems } from "../rail-items";
+import { SHIFT_TAPS_CAP } from "../quick-open";
 import { en } from "../i18n/en";
 
 const QUICK_OPEN_PLACEHOLDER = en[QUICK_OPEN_PLACEHOLDER_MSG];
@@ -134,7 +135,15 @@ describe("the right group", () => {
     expect(search).toContain(QUICK_OPEN_PLACEHOLDER);
     expect(QUICK_OPEN_PLACEHOLDER_MSG).toBe("board.quick.placeholder");
     expect(QUICK_OPEN_PLACEHOLDER).toBe("Open a session or run a command");
-    expect(search).toContain(`<kbd class="kbd">${rails.search.key!.cap}</kbd>`);
+    // CHANGED ON PURPOSE (two Shift taps in the field): the field's cap is the
+    // two Shift taps, which open Quick open from the terminal too, where the
+    // chord is the session's. The chord stays the door's key: in
+    // aria-keyshortcuts and in the hint, so the hover names the other way in.
+    expect(search).toContain(`<kbd class="kbd">${SHIFT_TAPS_CAP}</kbd>`);
+    expect(search).not.toContain(`<kbd class="kbd">${rails.search.key!.cap}</kbd>`);
+    expect(search).toContain(`aria-keyshortcuts="${rails.search.key!.aria}"`);
+    expect(railHint(rails.search, true, false)?.keys).toBe(rails.search.key!.cap);
+    expect(railHint(rails.search, false, false)?.keys).toBe(rails.search.key!.cap);
     // Named by the sentence it shows (WCAG 2.5.3, label in name).
     expect(search).toContain(`aria-label="${QUICK_OPEN_PLACEHOLDER}"`);
     expect(search).toContain('aria-haspopup="dialog"');

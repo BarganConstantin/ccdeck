@@ -231,18 +231,22 @@ describe("the Layout switch: 170x28, Medium on both, the selected one flat on --
 
 describe("Search: 264x28 with the key chip, and Feedback: a 28x28 icon with its name", () => {
   it("is a field 264 by 28 holding the sentence and the chord's Kbd", () => {
-    // CHANGED ON PURPOSE (V4's Figma): 264 is drawn around ⌘K. Off a Mac, Ctrl+K is about 24
-    // wider and cut the sentence, so the field fits what it holds, from 264 up to that 24 more.
+    // CHANGED ON PURPOSE (V4's Figma): 264 is drawn around ⌘K. The field fits what it holds.
+    // CHANGED ON PURPOSE (two Shift taps in the field): its cap is "Shift ×2", 63 wide to
+    // ⌘K's 23, so it grows by those 40 and the sentence keeps the room the drawing gave it.
     expect(decl(".rail-btn-bar.rail-btn-field", "width")).toBe("auto");
     expect(decl(".rail-btn-bar.rail-btn-field", "min-width")).toBe("264px");
-    expect(decl(".rail-btn-bar.rail-btn-field", "max-width")).toBe("288px");
+    expect(decl(".rail-btn-bar.rail-btn-field", "max-width")).toBe("304px");
     expect(decl(".rail-btn-field .rail-field-text", "flex")).toBe("1 1 auto");
     expect(decl(".rail-btn-bar.rail-btn-field", "height")).toBe("28px");
     expect(decl(".rail-btn-bar.rail-btn-field", "box-sizing")).toBe("border-box");
     expect(decl(".rail-btn-bar.rail-btn-field", "padding")).toBe("0 4px 0 8px");
     expect(decl(".rail-btn-bar.rail-btn-field", "gap")).toBe("8px");
     const rails = sourceOf("components/EdgeRails.tsx");
-    expect(rails).toContain("{item.key && <Kbd>{item.key.cap}</Kbd>}");
+    // CHANGED ON PURPOSE (two Shift taps in the field): a field draws its own
+    // cap where it has one, and the door's key where it has not.
+    expect(rails).toContain("{(item.fieldKey ?? item.key?.cap) && <Kbd>{item.fieldKey ?? item.key!.cap}</Kbd>}");
+    expect(sourceOf("rail-items.tsx")).toContain("fieldKey: SHIFT_TAPS_CAP");
     // CHANGED ON PURPOSE (the UI in every language): the source names the key,
     // and English maps it to the same words.
     expect(sourceOf("rail-items.tsx")).toContain('QUICK_OPEN_PLACEHOLDER_MSG = "board.quick.placeholder"');
