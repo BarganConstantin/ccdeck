@@ -795,7 +795,10 @@ describe("askDeck", () => {
       expect(await askDeck({ port, token: "t" }, { path: "/api/sessions", timeoutMs: 150 }))
         .toMatchObject({ ok: false, status: 0, reason: "timeout" });
       const took = Date.now() - t0;
-      expect(took).toBeGreaterThanOrEqual(1_800 + 150);
+      // A timer may fire a millisecond or so before Date.now says it is due
+      // (seen on CI: 1,949 ms). Without the fresh wait it would end near
+      // 1,800 ms, so a 20 ms margin still tells the two apart.
+      expect(took).toBeGreaterThanOrEqual(1_800 + 150 - 20);
       expect(took).toBeLessThan(1_800 + 1_500);
     } finally {
       srv.closeAllConnections?.();
