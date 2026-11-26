@@ -335,6 +335,11 @@ export const GATES = [
   // Windows cannot make a file symlink without a privilege and has no mkfifo. The
   // route's other refusals, the path-in-the-id cases among them, run on all three legs.
   { file: "session-transcript-route.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 6 },
+  // Stop there and resume here on the machine's real process table: a stand-in
+  // Claude started by the case, found by its record and start time, ended with
+  // SIGTERM. Windows has no such signal and is never offered the stop, which
+  // the route's own cases assert on every leg.
+  { file: "stop-elsewhere.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   { file: "supervisor-exit.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 3 },
   { file: "uv-bootstrap-atomic.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
 

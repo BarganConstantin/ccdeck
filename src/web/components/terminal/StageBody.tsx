@@ -27,12 +27,14 @@
 // control a press came from drops keyboard focus to <body>. It carries
 // aria-busy instead, and the session controller refuses the second press —
 // synchronously, off its own state, before any re-render could catch up.
-import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MutableRefObject } from "react";
 import { copyText } from "../../copy-text";
 import { CAUGHT_KEYS_ATTR } from "../../shortcuts";
 import type { TmuxProgress } from "../../terminal-api";
 import {
   AFTER_EXIT_HOW_MSG, AFTER_EXIT_MSG, AFTER_EXIT_WAITING_MSG,
+  STOP_CONFIRM_MSG, STOP_CONFIRM_TITLE_MSG, STOP_CONFIRM_WHAT_MSG, STOP_ELSEWHERE_MSG, STOP_FINAL, STOP_ISSUE_MSG, STOP_OFFER_MSG, STOP_SLOW_MSG,
+  STOP_STOPPING_MSG, stopWarnings,
   CHOOSE_FOLDER_MSG, LAUNCHED_UNREACHABLE_MSG, MISSING_MSGS, PROVENANCE_UNKNOWN_MSG, REOPEN_FAILED_MSG, REOPENING_MSG, RESUME_BY_HAND_MSG, START_NEW_MSG,
   agentName, elsewhereLine, errorWords, folderGoneBody, folderGoneTitle, folderShown, folderStillGone, frameRun, launchedUnreachable, provenanceUnknown,
   type FolderGonePhase, type FrameRun, type StagePhase, type StageState,
@@ -92,6 +94,23 @@ export const HANDOFF_LOOK_AGAIN_MSG = "board.stage.handoff.lookAgain";
  *  move already went and only its arrival is missing. */
 const HANDOFF_NO_RETRY: ReadonlySet<HandoffReason> = new Set(["ghostty-unsupported", "already-sent", "continuation-timeout"]);
 
+/** "Stop there and resume here", beside Resume here after exit
+ *  (TerminalStage): the session as the pane header names it and its folder,
+ *  for the confirmation; whether the deck is being asked which process holds
+ *  it (`checking`), or the reader is asked to confirm (`confirming`); `ask`,
+ *  the button's press, then `confirm` and `cancel`, the confirmation's. Once
+ *  confirmed, the phase's `stopping` says the wait is armed, and the wait's
+ *  own Cancel ends it. */
+export interface StopElsewhereOffer {
+  name: string;
+  cwd: string;
+  checking: boolean;
+  confirming: boolean;
+  ask(): void;
+  confirm(e?: { detail?: number }): void;
+  cancel(e?: { detail?: number }): void;
+}
+
 /** A server's reason as one of the card's; anything else is the generic failure. */
 export function handoffReason(value: unknown): HandoffReason {
   return typeof value === "string" && Object.hasOwn(HANDOFF_REASON_MSG, value) ? value as HandoffReason : "failed";
@@ -121,7 +140,7 @@ export interface StageBodyProps {
    *  `arm` keeps the card up and waits for that session to end, then reopens
    *  it here; the phase's `awaitingExit` says it is armed, and `cancel` is the
    *  card's Cancel then. */
-  afterExit?: { arm(): void; cancel(e?: { detail?: number }): void };
+  afterExit?: { arm(): void; cancel(e?: { detail?: number }): void; stop?: StopElsewhereOffer };
   /** The command that continues this conversation in a terminal by hand
    *  (stage-model resumeCommand): shown with its Copy when the deck refused
    *  a Reopen here of a Claude session. */
@@ -379,18 +398,49 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
       // Held after this pane's own Reopen here: the way on that does not wait
       // is a new session in the same folder, only ever on its own press.
       const fresh = phase.held && phase.stillRunning && !handoff && !afterExit ? p.onStartNew : undefined;
+      // STOP THERE AND RESUME HERE, the lead beside Resume here after exit:
+      // the deck ends Claude where it runs, and the same wait reopens it here.
+      // Not beside a move, whose own button leads, so the card keeps one
+      // primary and three buttons at most. Pressed, the deck is asked which
+      // process holds the session; then the card asks the reader to confirm,
+      // in place, naming the session and what is lost; confirmed, the wait is
+      // armed (`stopping`) and says Claude is being stopped. One that stopped
+      // nothing says why, in one line, and Resume here after exit stays: the
+      // button only where pressing it again could go another way.
+      const stopping = armed && phase.stopping === true;
+      const issue = afterExit && !armed ? phase.stopIssue : undefined;
+      const stop = afterExit && !armed && !moveAgain ? afterExit.stop : undefined;
+      const confirming = stop?.confirming === true;
+      const stopOffer = stop && !confirming && !(issue && STOP_FINAL.has(issue)) ? stop : undefined;
+      // Escape in the confirmation is its Cancel, and goes no further: not
+      // the deck's, which would close the pane.
+      const escape = confirming && stop ? (e: ReactKeyboardEvent) => {
+        if (e.key !== "Escape") return;
+        e.preventDefault();
+        e.stopPropagation();
+        stop.cancel();
+      } : undefined;
       return (
-        <div className="ts-card">
-          {p.context?.prompt && <div className="ts-ctx"><span className="ts-prompt">❯ </span>{p.context.prompt}</div>}
+        <div className="ts-card" data-stop-confirm={confirming || undefined} onKeyDown={escape}>
+          {confirming && stop
+            ? <div className="ts-ctx" title={stop.cwd}>{folderShown(stop.cwd)}</div>
+            : p.context?.prompt && <div className="ts-ctx"><span className="ts-prompt">❯ </span>{p.context.prompt}</div>}
+          {confirming && stop && <div className="ts-title">{t(STOP_CONFIRM_TITLE_MSG, { name: stop.name })}</div>}
           {/* The working glyph beside the words while something is under way:
               the move, or the wait for Claude to exit. One element in every
               state, so the reader hears each change as the status's. */}
           {armed
-            ? <p className="ts-text ts-wait" role="status"><StageGlyph kind="working" /><span>{t(AFTER_EXIT_WAITING_MSG)}</span></p>
+            ? <p className="ts-text ts-wait" role="status"><StageGlyph kind="working" /><span>{t(stopping ? (phase.slowStop ? STOP_SLOW_MSG : STOP_STOPPING_MSG) : AFTER_EXIT_WAITING_MSG)}</span></p>
+            : confirming
+            ? <p className="ts-text" role="status">{t(STOP_CONFIRM_WHAT_MSG)}</p>
             : handoff?.moving
             ? <p className="ts-text ts-wait" role="status"><StageGlyph kind="working" /><span>{t(handoff.reason === "already-sent" ? HANDOFF_REASON_MSG["already-sent"] : "board.stage.handoff.waiting")}</span></p>
+            : issue
+            ? <p className="ts-text" role="status">{t(STOP_ISSUE_MSG[issue] ?? STOP_ISSUE_MSG.network)}</p>
             : stopped
             ? <p className="ts-text" role="status">{t("board.stage.twoSentences", { first: t(HANDOFF_REASON_MSG[stopped]), second: t(afterExit ? HANDOFF_MANUAL_AFTER_EXIT_MSG : HANDOFF_MANUAL_MSG) })}</p>
+            : elsewhere && stopOffer
+            ? <p className="ts-text" role="status">{t(STOP_OFFER_MSG)}</p>
             // With the move offered, the line says so instead of "quit it there
             // and Reopen here", which would sit above a button that does it for
             // you; with Resume here after exit offered, the same. The header
@@ -398,7 +448,8 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
             : elsewhere
             ? <p className="ts-text" role="status">{t(handoff ? "board.stage.handoff.offer" : afterExit ? AFTER_EXIT_OFFER_MSG : elsewhereLine(p.boardState, phase.held))}</p>
             : <p className="ts-text">{ours ? t(LAUNCHED_UNREACHABLE_MSG) : unsure ? t(PROVENANCE_UNKNOWN_MSG) : target.label}</p>}
-          {armed && <p className="ts-text">{t(AFTER_EXIT_HOW_MSG)}</p>}
+          {armed && !stopping && <p className="ts-text">{t(AFTER_EXIT_HOW_MSG)}</p>}
+          {confirming && stopWarnings(p.boardState).map(key => <p key={key} className="ts-note">{t(key)}</p>)}
           <div className="ts-acts">
             {moveAgain && (
               <button type="button" className="btn primary" data-stage-land onClick={handoff.toggle}>
@@ -415,19 +466,43 @@ export function StateCard(p: Omit<StageBodyProps, "hostRef"> & { held?: boolean;
                 {t(HANDOFF_LOOK_AGAIN_MSG)}
               </button>
             )}
+            {/* The confirmation's own button, which becomes the wait's Cancel
+                in place once pressed: the focus stays on it, as on the
+                button that arms the wait. */}
+            {((confirming && stop) || stopping) && afterExit && (
+              <button
+                type="button" className={stopping ? "btn" : "btn primary"} data-stage-land={stopping || undefined}
+                data-stop-elsewhere={stopping ? "cancel" : "confirm"} onClick={stopping || !stop ? afterExit.cancel : stop.confirm}
+              >
+                {t(stopping ? "common.cancel" : STOP_CONFIRM_MSG)}
+              </button>
+            )}
+            {/* Stop there and resume here, which becomes the confirmation's
+                Cancel in place: the focus stays on it, so the rest of a
+                double-click or a held Enter lands on the way back, never on
+                the stop. Checking… while the deck is asked, still enabled. */}
+            {(stopOffer || (confirming && stop)) && (
+              <button
+                type="button" className={confirming ? "btn" : "btn primary"} data-stage-land={confirming || undefined}
+                aria-busy={(!confirming && stop?.checking) || undefined}
+                data-stop-elsewhere={confirming ? "back" : "stop"} onClick={confirming ? stop?.cancel : () => stop?.ask()}
+              >
+                {t(confirming ? "common.cancel" : stop?.checking ? "board.stage.checking" : STOP_ELSEWHERE_MSG)}
+              </button>
+            )}
             {/* One button for both: the press that arms it leaves the focus on
                 Cancel, where a keyboard reader expects it. Starting a wait is
                 no step to land on by accident, so the keys land on Not now. */}
-            {afterExit && (
+            {afterExit && !confirming && !stopping && (
               <button
-                type="button" className={armed || moveAgain ? "btn" : "btn primary"} data-stage-land={armed || undefined}
+                type="button" className={armed || moveAgain || stopOffer ? "btn" : "btn primary"} data-stage-land={armed || undefined}
                 data-after-exit={armed ? "cancel" : "arm"} onClick={armed ? afterExit.cancel : () => afterExit.arm()}
               >
                 {t(armed ? "common.cancel" : AFTER_EXIT_MSG)}
               </button>
             )}
             {fresh && <button type="button" className="btn" title={p.startNewTip} onClick={fresh}>{t(START_NEW_MSG)}</button>}
-            {!armed && <button type="button" className="btn" data-stage-land={offer ? undefined : true} onClick={p.onNotNow}>{t("common.notNow")}</button>}
+            {!armed && !confirming && <button type="button" className="btn" data-stage-land={offer ? undefined : true} onClick={p.onNotNow}>{t("common.notNow")}</button>}
           </div>
         </div>
       );

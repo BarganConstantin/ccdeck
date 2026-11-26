@@ -72,6 +72,10 @@ export const PROJECTS_ROUTE = "/api/terminal/projects";
 /** Did the Codex that just ended update itself? The deck answers this one
  *  itself too (codex-update.mjs), behind the same switch and gates. */
 export const CODEX_UPDATED_ROUTE = "/api/terminal/codex-updated";
+/** Stop there and resume here: end the Claude that holds a session in a
+ *  terminal outside the deck (stop-elsewhere.mjs). The deck answers it
+ *  itself, from this machine only, behind the same switch and gates. */
+export const STOP_ELSEWHERE_ROUTE = "/api/terminal/stop-elsewhere";
 
 export interface ProjectWorktree { projectCwd: string; projectName: string; branch?: string }
 export interface DiscoveredProject { cwd: string; name: string; worktree?: ProjectWorktree }
@@ -584,4 +588,56 @@ export function launchTerminal(
     if (!ticket || typeof body.name !== "string" || !body.name) return null;
     return { ok: true, sessionId: typeof body.sessionId === "string" ? body.sessionId : "", name: body.name, ticket };
   });
+}
+
+/** Why the deck would not stop a session there, as the route says it, and
+ *  `network` when it gave no answer this page reads (offline, a refusal at
+ *  the gates, a deck without the route). */
+export type StopElsewhereReason =
+  | "unsupported" | "not-elsewhere" | "unverifiable" | "not-found" | "ambiguous" | "background"
+  | "shared-parent" | "changed" | "signal-failed" | "network";
+const STOP_REASONS: ReadonlySet<string> = new Set([
+  "unsupported", "not-elsewhere", "unverifiable", "not-found", "ambiguous", "background", "shared-parent", "changed", "signal-failed",
+]);
+export type StopElsewhereRefusal = { ok: false; reason: StopElsewhereReason };
+/** The check: a token for the process the deck found, or the session ended already. */
+export type StopElsewhereChecked = { ok: true; token: string } | { ok: true; gone: true } | StopElsewhereRefusal;
+/** The stop: sent, or the session ended already. */
+export type StopElsewhereSent = { ok: true; stopping: true } | { ok: true; gone: true } | StopElsewhereRefusal;
+
+/** One question to the stop route, read into its answer. Never throws. */
+async function askStop(body: unknown, options: ApiOptions, accept: (body: Record<string, unknown>) => StopElsewhereChecked | StopElsewhereSent | null) {
+  const fetchFn = options.fetchFn ?? ((input: string, req?: RequestInit) => fetch(input, req));
+  let res: Response;
+  try {
+    const init = post(body);
+    res = await fetchFn(STOP_ELSEWHERE_ROUTE, options.signal ? { ...init, signal: options.signal } : init);
+  } catch {
+    return { ok: false, reason: "network" } as const;
+  }
+  const said: unknown = await res.json().catch(() => null);
+  if (!res.ok || !isObject(said)) return { ok: false, reason: "network" } as const;
+  if (said.ok === true && said.gone === true) return { ok: true, gone: true } as const;
+  const answer = said.ok === true ? accept(said) : null;
+  if (answer) return answer;
+  if (said.ok === false && typeof said.reason === "string" && STOP_REASONS.has(said.reason)) {
+    return { ok: false, reason: said.reason as StopElsewhereReason } as const;
+  }
+  return { ok: false, reason: "network" } as const;
+}
+
+/** Whether the deck can stop `ref` where it runs: a token for the process
+ *  it found there, which only the stop reads. Signals nothing. */
+export async function stopElsewhereCheck(ref: SessionRef, options: ApiOptions = {}): Promise<StopElsewhereChecked> {
+  const { sessionId, provider, cwd } = ref;
+  return await askStop({ session: { sessionId, provider, cwd }, check: true }, options,
+    body => (typeof body.token === "string" && body.token ? { ok: true, token: body.token } : null)) as StopElsewhereChecked;
+}
+
+/** Stop `ref` where it runs: SIGTERM to the process the check found, once
+ *  the deck has found it there again. Asked once per press. */
+export async function stopElsewhere(ref: SessionRef, token: string, options: ApiOptions = {}): Promise<StopElsewhereSent> {
+  const { sessionId, provider, cwd } = ref;
+  return await askStop({ session: { sessionId, provider, cwd }, token }, options,
+    body => (body.stopping === true ? { ok: true, stopping: true } : null)) as StopElsewhereSent;
 }

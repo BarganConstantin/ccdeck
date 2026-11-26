@@ -83,6 +83,7 @@ import { engineRefusal } from "./pro-engine-terminal.mjs";
 import { checkFolder } from "./terminal-folder.mjs";
 import { codexReplaced, liveForOf } from "./codex-update.mjs";
 import { discoverProjects } from "./project-discovery.mjs";
+import { STOP_PLATFORMS, STOP_TOKEN, checkStop, stopHolder } from "./stop-elsewhere.mjs";
 import { createTicketStore } from "./terminal-socket.mjs";
 import {
   PREFERRED_TMUX_VERSION, TMUX_BUILD, ensureManagedTmux, managedTmuxPath, recentTmuxFailure, tmuxDownloadBlocked,
@@ -176,6 +177,10 @@ const OWN_TMUX = ownTmux();
  * `ownTmux` is ccdeck's own tmux download (ownTmux above), which a status the
  * engine calls `fixable` runs (withOwnTmux). A test hands one that fetches
  * from a stand-in, never from the network.
+ *
+ * `stopElsewhere`, when a test hands it, is the stop's own seam: the process
+ * table, the config dir and the signal it reads and sends (stop-elsewhere.mjs).
+ * The product passes nothing.
  */
 export function terminalDeps(overrides = {}) {
   return {
@@ -337,6 +342,60 @@ export async function handleTerminalBackground(req, res, options) {
   } finally {
     backgroundRequests.delete(session.sessionId);
   }
+}
+
+/** The peers a route that acts on this machine's processes answers: the deck's
+ *  own machine, never a viewer on the LAN. */
+const LOOPBACK = Object.freeze(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+
+/**
+ * POST /api/terminal/stop-elsewhere `{ session: { sessionId, provider, cwd },
+ * check?, token? }`: Stop there and resume here. Ends the Claude Code process
+ * that holds the session in a terminal outside the deck, so the pane's Resume
+ * here after exit continues the conversation here (stop-elsewhere.mjs says
+ * what is checked before anything is signalled, and why).
+ *
+ * Asked from this machine only (403 from anywhere else), with the panel on,
+ * on Linux and macOS (`unsupported` elsewhere), and only for a session the
+ * engine says runs in a terminal of its own, as the move into the deck asks
+ * (`not-elsewhere` for any other kind). One that has ended already, by itself
+ * or by an earlier press, answers `{ ok: true, gone: true }`: no error.
+ *
+ * With `check: true` it signals nothing and answers `{ ok: true, token }`, an
+ * opaque name for the process it found, or `{ ok: false, reason }`. Without
+ * it the token is required (400 without one): the holder is looked up again,
+ * a token that does not name it answers `changed`, and otherwise SIGTERM goes
+ * to that one process: `{ ok: true, stopping: true }`, or `signal-failed`.
+ * Every answer past the gates is 200, its body saying what happened. No pid
+ * ever reaches the page.
+ */
+export async function handleTerminalStopElsewhere(req, res, options) {
+  const d = terminalDeps(options);
+  if (!d.enabled()) return notFound(res);
+  if (!LOOPBACK.includes(req.socket.remoteAddress)) return send(res, 403, { ok: false });
+  const body = await jsonBody(req, res);
+  if (res.headersSent) return;
+  if (!d.enabled()) return notFound(res);
+  const ref = body?.session;
+  const check = body?.check === true;
+  if (!ref || typeof ref !== "object" || ref.provider !== "claude" || typeof ref.cwd !== "string" || !ref.cwd.startsWith("/") ||
+      typeof ref.sessionId !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(ref.sessionId) ||
+      (!check && (typeof body.token !== "string" || !STOP_TOKEN.test(body.token)))) {
+    return send(res, 400, { ok: false });
+  }
+  const session = { sessionId: ref.sessionId.toLowerCase(), provider: "claude", cwd: ref.cwd };
+  const stop = d.stopElsewhere ?? {};
+  if (!STOP_PLATFORMS.includes(stop.platform ?? process.platform)) return send(res, 200, { ok: false, reason: "unsupported" });
+  // The engine's word first, as for the move: only a session in a terminal of
+  // its own (C) is one this may stop. Without an engine there is no word.
+  if (d.engine?.enabled !== true) return send(res, 200, { ok: false, reason: "unsupported" });
+  const said = await d.engine.route("target", session);
+  // Switched off while the engine looked: nothing is signalled.
+  if (!d.enabled()) return notFound(res);
+  const kind = said?.status === 200 ? said.body?.target?.kind : undefined;
+  if (kind === "gone") return send(res, 200, { ok: true, gone: true });
+  if (kind !== "C") return send(res, 200, { ok: false, reason: "not-elsewhere" });
+  return send(res, 200, check ? await checkStop(session, stop) : await stopHolder(session, body.token, stop));
 }
 
 /** POST /api/terminal/launch `{ agent, cwd, key? }` → `{ ok: true, sessionId,

@@ -30,7 +30,7 @@ import type { Dispatch, SetStateAction } from "react";
 import type { Providers } from "./providers";
 import type { PanelToggles } from "./use-panel-return";
 import { isApplePlatform, platformName } from "./platform";
-import { quickOpenChordLabel } from "./quick-open";
+import { quickOpenChordLabel, SHIFT_TAPS_CAP } from "./quick-open";
 import { settingsChordLabel, type SettingsSection } from "./settings";
 import { DOCK_MORE_ID, type RailItem } from "./components/EdgeRails";
 import { KitIcon } from "./components/kit-icons";
@@ -269,13 +269,16 @@ export function railItems({
   };
   // The field every door is also behind, by name. A chord, like Settings',
   // so it answers with the single-key shortcuts off. The top bar draws it as
-  // V4's search field.
+  // V4's search field, with two Shift taps at its end: no letter, so they
+  // answer with the single keys off too, and they open it from the terminal,
+  // where the chord would reach the session. The chord stays its key, in the
+  // hint and in aria-keyshortcuts (two taps have no aria-keyshortcuts form).
   const search: RailItem = {
     id: "quick-open", label: t("board.rail.search"), short: t("board.rail.search"),
     key: { cap: quickOpenChordLabel(apple), aria: apple ? "Meta+K" : "Control+K", single: false },
     ariaLabel: t("board.rail.search"), detail: t("board.rail.search.detail"),
     glyph: <SearchGlyph />, kind: "dialog", onPress: openQuickOpen,
-    barLook: "field", fieldText: t(QUICK_OPEN_PLACEHOLDER_MSG),
+    barLook: "field", fieldText: t(QUICK_OPEN_PLACEHOLDER_MSG), fieldKey: SHIFT_TAPS_CAP,
   };
   // People rarely found Feedback as a bare glyph in the corner, so its hint
   // says what it is for under its name, quick open pins it, and on every

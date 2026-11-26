@@ -200,7 +200,7 @@ import { handleIntegrations } from "./integrations/routes.mjs";
 // which runs its own gates because the route table never sees an upgrade
 // (terminal-socket.mjs).
 import {
-  handleTerminalAdopt, handleTerminalBackground, handleTerminalClaim, handleTerminalEndHosts, handleTerminalFolder, handleTerminalCodexUpdated, handleTerminalHosts, handleTerminalLaunch, handleTerminalOpen,
+  handleTerminalAdopt, handleTerminalBackground, handleTerminalStopElsewhere, handleTerminalClaim, handleTerminalEndHosts, handleTerminalFolder, handleTerminalCodexUpdated, handleTerminalHosts, handleTerminalLaunch, handleTerminalOpen,
   handleTerminalStatus, handleTerminalTarget, handleTerminalProjects, terminalUpgradeOptions,
   handleEngineStatus, handleEngineAction,
 } from "./terminal-routes.mjs";
@@ -578,6 +578,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "POST" && url.pathname === "/api/terminal/hosts/end") return guard(handleTerminalEndHosts(req, res, terminal), res);
     if (req.method === "POST" && url.pathname === "/api/terminal/open")   return guard(handleTerminalOpen(req, res, terminal), res);
     if (req.method === "POST" && url.pathname === "/api/terminal/background") return guard(handleTerminalBackground(req, res, terminal), res);
+    if (req.method === "POST" && url.pathname === "/api/terminal/stop-elsewhere") return guard(handleTerminalStopElsewhere(req, res, terminal), res);
     if (req.method === "POST" && url.pathname === "/api/terminal/adopt")  return guard(handleTerminalAdopt(req, res, terminal), res);
     if (req.method === "POST" && url.pathname === "/api/terminal/launch") return guard(handleTerminalLaunch(req, res, terminal), res);
     if (req.method === "POST" && url.pathname === "/api/terminal/claim")  return guard(handleTerminalClaim(req, res, terminal), res);

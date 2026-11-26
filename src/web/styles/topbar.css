@@ -347,12 +347,14 @@
    The full bar's first widths are the same squeeze again: from 641 the end
    group adds Board | Workspace and Search, and with the counts down to the
    waiting pill (above) the mark, the name and "11 aguardando" still needed
-   650px in Portuguese. The band runs to 679, where the widest end group
+   650px in Portuguese. The band runs to 689, where the widest end group
    measured (Japanese), the chip's widest words and the widest two-digit count
-   fit beside the name together; from 680 the bar draws the name as it did.
+   fit beside the name together; from 690 the bar draws the name as it did.
+   It ran to 679 until Search's cap named the two Shift taps, 13 wider than
+   Ctrl+K under 900 (topbar-counts-641.test.ts).
    The name leaves the screen and not the outline (it is the page's <h1>), so
    it is hidden the way .vis-hidden hides, never with display. */
-@media (max-width: 389px), (min-width: 641px) and (max-width: 679px) {
+@media (max-width: 389px), (min-width: 641px) and (max-width: 689px) {
   .topbar:has(.tb-end button.v) .brand h1 {
     position: absolute;
     width: 1px;

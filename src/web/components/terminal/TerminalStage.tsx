@@ -684,9 +684,50 @@ export default function TerminalStage(p: TerminalStageProps) {
   const resumeShown = resumeSource !== null && !moving && (awaitingExit
     || (!moveAwaited && (checkedFor === resumeSource || !couldMove) && (movableFor !== resumeSource || handoffStopped !== undefined)));
   const armedAt = useRef(0);
+  // STOP THERE AND RESUME HERE, beside it: the deck stops Claude where it
+  // runs, then the same wait reopens the conversation here. A press asks the
+  // deck which process holds it (`checking`), then the card asks the reader
+  // to confirm (`confirming`); confirmed, the wait is armed and the stop
+  // sent (use-terminal-session's checkStopElsewhere, confirmStopElsewhere).
+  // Held for the source it was asked for, so another session's card never
+  // shows this one's question.
+  const [stopAsk, setStopAsk] = useState<{ source: string; checking: boolean } | null>(null);
+  const stopAsked = stopAsk && stopAsk.source === resumeSource ? stopAsk : null;
+  useEffect(() => { if (!resumeSource) setStopAsk(null); }, [resumeSource]);
+  const stopAskedAt = useRef(0);
+  const stopElsewhere = resumeSource ? {
+    name,
+    cwd: handoffCwd,
+    checking: stopAsked?.checking === true,
+    confirming: stopAsked?.checking === false,
+    ask: () => {
+      if (stopAsked) return;
+      const source = resumeSource;
+      stopAskedAt.current = Date.now();
+      setStopAsk({ source, checking: true });
+      void session.checkStopElsewhere().then(said => {
+        setStopAsk(was => (was?.source !== source ? was : said.ok && !said.gone ? { source, checking: false } : null));
+      });
+    },
+    // The second click of a double-click, or a held Enter, on the press
+    // that asked lands here too, and confirms nothing (repeatedPress).
+    confirm: (e?: { detail?: number }) => {
+      if (repeatedPress(e, Date.now() - stopAskedAt.current)) return;
+      armedAt.current = Date.now();
+      setStopAsk(null);
+      session.confirmStopElsewhere();
+    },
+    // Escape answers at once; a press, as the wait's Cancel does.
+    cancel: (e?: { detail?: number }) => {
+      if (e && repeatedPress(e, Date.now() - stopAskedAt.current)) return;
+      setStopAsk(null);
+      session.cancelStopElsewhere();
+    },
+  } : undefined;
   const afterExit = resumeShown ? {
     arm: () => { armedAt.current = Date.now(); session.resumeAfterExit(); },
     cancel: (e?: { detail?: number }) => { if (!repeatedPress(e, Date.now() - armedAt.current)) session.stopWaitingForExit(); },
+    ...(stopElsewhere ? { stop: stopElsewhere } : {}),
   } : undefined;
   // After a move that was sent and has not arrived: wait for it again, and
   // never ask Ghostty a second time.
@@ -976,6 +1017,21 @@ export default function TerminalStage(p: TerminalStageProps) {
     if (!active || active === document.body || rootRef.current?.contains(active)) p.onWantKeys?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
+  // The wait Stop there and resume here armed ended with Claude still running
+  // there: its Cancel pressed, or the stop refused. That Cancel stood where the
+  // confirm was, a slot the offer does not draw, so the focus it held went to
+  // the page. It goes to the card's way on instead: Stop there and resume
+  // here, else Resume here after exit. Focus the reader took elsewhere stays.
+  const stopWait = phase.kind === "not-attachable" && phase.awaitingExit === true && phase.stopping === true;
+  const wasStopWait = useRef(stopWait);
+  useLayoutEffect(() => {
+    const ended = wasStopWait.current && !stopWait;
+    wasStopWait.current = stopWait;
+    if (!ended) return;
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    rootRef.current?.querySelector<HTMLElement>('.ts-card [data-stop-elsewhere="stop"], .ts-card [data-after-exit="arm"]')?.focus();
+  }, [stopWait]);
   // The session hook's snapshot is the shown subject's only once it has said
   // so: in the render that moves the stage, it is still the last one's, and
   // a request met on that pane, or answered by its card, would be spent on a
