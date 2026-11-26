@@ -18,7 +18,10 @@ describe("a Board card clicked while Workspace is offered", () => {
 
   it("puts that session on the pane with the keys in it, and lands its row", () => {
     const switchView = app.slice(app.indexOf("const switchView = useCallback("), app.indexOf("const switchViewRef"));
-    expect(switchView).toMatch(/if \(sessionId\) \{\s*openInPane\(sessionId, \{ focusPane: true \}\);\s*markLanded\(sessionId\);\s*\}/);
+    // CHANGED ON PURPOSE: an alert's Open in Chat passes keys = false (a focus
+    // request would bring Term); a Board card leaves the default, true.
+    expect(switchView).toMatch(/useCallback\(\(next: View, how: "pointer" \| "key", sessionId\?: string, keys = true\) =>/);
+    expect(switchView).toMatch(/if \(sessionId\) \{\s*openInPane\(sessionId, \{ focusPane: keys \}\);\s*markLanded\(sessionId\);\s*\}/);
   });
 
   it("takes the keys the way the stage's own card click does", () => {

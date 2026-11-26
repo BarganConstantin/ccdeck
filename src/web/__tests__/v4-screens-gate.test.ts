@@ -229,10 +229,12 @@ describe("what is drawn with the flags off", () => {
   // hands the session's key, the message on its way, what the session is doing
   // and the way to Term (chat-progress.ts, chat-progress.test.ts); still only
   // for a supported session.
+  // CHANGED ON PURPOSE (the composer takes back a message not taken): the
+  // message on its way is drawn unless it is back in the box (use-chat-returned.ts).
   it("the stage hands Chat only for a supported session with the flag effective, and the Decision card only in Chat", () => {
     const stage = code("components/terminal/TerminalStage.tsx");
     expect(stage).toContain('chatSessionFor(screenFlags.chat, chatRef)');
-    expect(stage).toContain("screens={chatSession !== null ? {\n          view, source: chatSource, provider: chatProvider, ask: chatAsk, decision: promptCard,\n          session: chatDraftKey, outgoing: chatProgress.outgoing, activity: chatProgress.activity, onShowTerm: () => showView(\"term\"),\n        } : undefined}");
+    expect(stage).toContain("screens={chatSession !== null ? {\n          view, source: chatSource, provider: chatProvider, ask: chatAsk, decision: promptCard,\n          session: chatDraftKey, outgoing: chatReturned.outgoing, activity: chatProgress.activity, onShowTerm: () => showView(\"term\"),\n        } : undefined}");
     expect(stage).toContain("const chatAsk: ChatAsk | undefined = chatSession === null ? undefined : {");
     expect(stage).toContain("view={chatSession !== null ? { current: view, onChange: showView } : undefined}");
     expect(stage).toContain('on: chatOn && chatProvider === "claude" && screenFlags.decision && chatCannotSend === undefined,');
@@ -298,7 +300,7 @@ describe("what the new code never does", () => {
       const raw = readFileSync(join(WEB_DIR, path), "utf8");
       expect(raw, path).not.toMatch(/design-v\d|figma\.com|\b\d{1,3}:\d{4,5}\b/i);
     }
-    for (const path of ["components/chat/chat.css", "components/decision/decision.css"]) {
+    for (const path of ["components/chat/chat.css", "components/chat/chat-rich.css", "components/decision/decision.css"]) {
       expect(readFileSync(join(WEB_DIR, path), "utf8"), path).not.toMatch(/design-v\d|figma\.com|\b\d{1,3}:\d{4,5}\b/i);
     }
   });

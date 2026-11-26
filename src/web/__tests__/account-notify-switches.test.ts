@@ -128,7 +128,9 @@ describe("the way to the desktop app", () => {
 
   it("is shown silently by the app when the deck says so, and with its tone otherwise", () => {
     const main = readFileSync(new URL("../../../desktop/main.mjs", import.meta.url), "utf8");
-    expect(main).toMatch(/function showNotification\(\{ title, body, chime, silent \}\)/);
+    // CHANGED ON PURPOSE: the frame names its session too, which a click opens
+    // in Chat (desktop/session-link.mjs); silence is read as it was.
+    expect(main).toMatch(/function showNotification\(\{ title, body, chime, silent, session \}\)/);
     expect(main).toContain("const quiet = silent === true;");
     expect(main).toContain("sound: quiet ? undefined : sound, silent: quiet");
   });

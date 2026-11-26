@@ -113,7 +113,9 @@ describe("an error the page hands the deck", () => {
     const body = sent.at(-1)!;
     expect(body.where).toBe("web");
     expect(JSON.stringify(body)).not.toContain("alices-macbook");
-    expect(JSON.stringify(body)).not.toContain("4317");
+    // The port travels as ":4317" inside a URL. A bare "4317" can also appear inside the
+    // random installId (a UUID), which made this check fail about once in a few hundred runs.
+    expect(JSON.stringify(body)).not.toContain(":4317");
     expect(body.message).toBe("Failed to fetch dynamically imported module: <deck>/assets/Settings-abc.js");
     expect(String(body.stack)).toContain("at Inner (<deck>/assets/index-abc.js:1:2345)");
     expect(String(body.stack)).toContain("at Ln (<deck>/assets/index-abc.js:8:9100)");

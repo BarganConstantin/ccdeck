@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { sheetText } from "./sheet-source";
 import { clearCopy } from "../clear-confirm";
 import { KEY_HELP, WORKSPACE_KEY_ROW, keyHelpFor } from "../key-help";
-import { PANE_FOCUS_CAP, paneFocusMacCap } from "../terminal-keys";
+import { CHAT_VIEW_CAP, PANE_FOCUS_CAP, paneFocusMacCap } from "../terminal-keys";
 import { capChips, splitColumns } from "../components/KeyboardHelp";
 import board from "../i18n/areas/board/en";
 import shell from "../i18n/areas/shell/en";
@@ -106,7 +106,10 @@ describe("Keyboard shortcuts", () => {
     // Ctrl + K, since they open Quick open from anywhere.
     for (const cap of ["F2", "1 – 4", "Ctrl + Shift + X", "Ctrl + =", "Ctrl + -", "Ctrl + 0", PANE_FOCUS_CAP, "Shift ×2"]) expect(caps, cap).toContain(cap);
     expect(caps.filter(cap => cap === "Shift ×2")).toHaveLength(2);
-    expect(caps).toHaveLength(50);
+    // CHANGED ON PURPOSE (interactive alerts): the chord that turns the
+    // focused pane between Chat and Term, after the one that moves the keys.
+    expect(caps, CHAT_VIEW_CAP).toContain(CHAT_VIEW_CAP);
+    expect(caps).toHaveLength(51);
     expect(caps).not.toContain("Space");
   });
   // CHANGED ON PURPOSE (first use of Workspace): with the Command Panel's two

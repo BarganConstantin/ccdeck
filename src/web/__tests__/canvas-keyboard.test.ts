@@ -408,11 +408,14 @@ describe("nothing else in the deck invents a focus stop", () => {
     // CHANGED ON PURPOSE (2026-11-24): the line between Sessions and Accounts
     // in the left column is the same widget, a window splitter whose value is
     // Sessions' share of the column's height; the arrow keys move it.
+    // CHANGED ON PURPOSE: a wide table in a Chat message scrolls sideways inside
+    // its own frame, as a Jira issue's wide table does: a named region the
+    // keyboard can reach and scroll.
     // Sorted, so the order is the paths' and not the file system's.
     expect([...offenders].sort()).toEqual([
       "components/CostTip.tsx", "components/ForgeHtml.tsx", "components/IntegrationSplit.tsx", "components/RadarSplitter.tsx", "components/RadioMap.tsx",
       "components/RadioPanel.tsx", "components/RailEdge.tsx", "components/ReleaseNotesModal.tsx", "components/SideColumn.tsx", "components/StackSplit.tsx", "components/ToolAuditSplitter.tsx",
-      "components/chat/ChatView.tsx", "components/forge/DetailJobs.tsx", "components/terminal/SplitDivider.tsx", "jira-html.tsx",
+      "components/chat/ChatMarkdown.tsx", "components/chat/ChatView.tsx", "components/forge/DetailJobs.tsx", "components/terminal/SplitDivider.tsx", "jira-html.tsx",
     ]);
     const paneLine = code(readFileSync(`${web}components/terminal/SplitDivider.tsx`, "utf8"));
     expect([...paneLine.matchAll(/tabIndex=/g)], "one stop, on the separator").toHaveLength(1);

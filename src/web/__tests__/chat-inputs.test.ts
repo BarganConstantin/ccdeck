@@ -159,7 +159,9 @@ function rig(initial: Partial<ChatComposerProps> = {}) {
   const onStop = vi.fn(() => pending.current.promise);
   const onSend = vi.fn<ChatComposerProps["onSend"]>(() => "sent");
   const onChange = vi.fn();
-  const props: ChatComposerProps = { value: "keep this draft", onChange, onSend, canStop: true, onStop, ...initial };
+  // CHANGED ON PURPOSE (the composer's one button): Stop is drawn in Send's
+  // place while nothing is typed, so these drive it with an empty box.
+  const props: ChatComposerProps = { value: "", onChange, onSend, canStop: true, onStop, ...initial };
   const view = mount(ChatComposer, props);
   const stop = () => one(view.tree, el => el.props.className === "btn chat-composer-stop");
   return {
@@ -178,7 +180,10 @@ describe("the composer's Stop", () => {
     expect(rig({ onStop: undefined }).stop()).toBeNull();
   });
 
-  it("sits beside Send as a quiet button, named for what it does", () => {
+  // CHANGED ON PURPOSE (herdr's composer, the owner's ask): one button. With
+  // nothing typed while Claude Code works it is Stop; a word typed makes it
+  // Send, which queues the message behind the turn.
+  it("takes Send's place while nothing is typed: a quiet button, named for what it does", () => {
     const r = rig();
     const button = r.stop()!;
     expect(button.type).toBe("button");
@@ -189,7 +194,20 @@ describe("the composer's Stop", () => {
     expect(button.props.disabled).toBe(false);
     const row = one(r.view.tree, el => el.props.className === "chat-composer-input")!;
     const buttons = all(row, el => el.type === "button");
-    expect(buttons.map(el => el.props.className)).toEqual(["btn chat-composer-stop", "btn primary chat-composer-send"]);
+    expect(buttons.map(el => el.props.className)).toEqual(["btn chat-composer-stop"]);
+  });
+
+  it("is Send again once a word is typed, and Stop again once the box is empty", () => {
+    const r = rig({ value: "queue this" });
+    expect(r.stop()).toBeNull();
+    const row = one(r.view.tree, el => el.props.className === "chat-composer-input")!;
+    expect(all(row, el => el.type === "button").map(el => el.props.className)).toEqual(["btn primary chat-composer-send"]);
+    expect(one(row, el => el.props.type === "submit")!.props.disabled).toBe(false);
+    r.view.rerender({ value: "  \n", onChange: r.onChange, onSend: r.onSend, canStop: true, onStop: r.onStop });
+    expect(r.stop()).not.toBeNull();
+    r.view.rerender({ value: "", onChange: r.onChange, onSend: r.onSend, canStop: false, onStop: r.onStop });
+    expect(r.stop(), "not working: the empty box has Send, disabled").toBeNull();
+    expect(one(r.view.tree, el => el.props.type === "submit")!.props.disabled).toBe(true);
   });
 
   it("calls onStop once, and is disabled while the stop is pending", async () => {
@@ -257,7 +275,7 @@ describe("the composer's Stop", () => {
     r.press();
     await r.settle("changed");
     const textarea = one(r.view.tree, el => el.type === "textarea")!;
-    (textarea.props.onChange as (event: unknown) => void)({ currentTarget: { value: "keep this draft!" } });
+    (textarea.props.onChange as (event: unknown) => void)({ currentTarget: { value: "a new draft" } });
     expect(textOf(r.status())).toBe("");
   });
 

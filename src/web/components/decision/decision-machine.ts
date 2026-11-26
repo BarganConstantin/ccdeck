@@ -12,8 +12,10 @@
 // until the prompt is checked again" is this file's one promise, and with no
 // way to check (`canRecheck` false: the deck wires none) a pick moves the ring
 // and does nothing else. A locked row (it changes the session's rules or mode)
-// is read, never answered. Esc closes and never answers; in the free field it
-// goes back to the choices and keeps the text. A pick the outcome has settled
+// is read, never answered. Esc picks the prompt's No where it has one (a
+// permission prompt: Esc is how Term answers it too), and otherwise closes and
+// never answers; in the free field it goes back to the choices and keeps the
+// text. A pick the outcome has settled
 // (sent, changed, ended, elsewhere, stopped) does nothing until `dismissOutcome`.
 import type { MessageKey } from "../../i18n";
 import type { DecisionAnswer, DecisionModel, DecisionOutcomeInput, RecheckResult } from "./decision-model";
@@ -113,6 +115,12 @@ export function outcomeOf(input: DecisionOutcomeInput): Outcome {
 
 const stay = (state: DecisionState, effects: DecisionEffect[] = []): Step => ({ state, effects });
 
+/** The row Esc picks: the prompt's No, answerable from here and taking no
+ *  words; -1 when the card has none. */
+export function cancelRow(model: DecisionModel): number {
+  return model.options.findIndex(o => o.cancel && !o.locked && !o.free);
+}
+
 /** A pick can start only while nothing has settled the question: no outcome yet,
  *  or Held, which says "then pick again". */
 function open(state: DecisionState): boolean {
@@ -205,6 +213,8 @@ export function step(state: DecisionState, event: DecisionEvent, ctx: DecisionCo
       // The field first: back to the choices, the text kept. Then the card.
       // A pick being checked is cancelled by either: its late answer sends nothing.
       if (state.mode === "free") return stay({ ...cancelled(state), mode: "choose" });
+      // The prompt's No, picked as any row is: read again, then sent.
+      if (state.mode === "choose" && open(state) && cancelRow(ctx.model) >= 0) return pickRow(state, cancelRow(ctx.model), ctx);
       return stay({ ...cancelled(state), closed: true }, [{ type: "close" }]);
     case "result": {
       if (state.closed || state.outcome.kind !== "checking") return stay(state);

@@ -1,6 +1,6 @@
 // What Chat reads (use-session-transcript.ts): asked only while the Chat view
 // is on screen; soon after the session is heard from; once more when its
-// prompts or its end change; on a timer while the page is visible, every five
+// prompts or its end change; on a timer while the page is visible, every 1.5
 // seconds while the session works and every fifteen otherwise, sending the
 // version it holds; older pages on request, kept in front of the live window.
 // The answer as ChatView draws it, in the language on show.
@@ -80,7 +80,11 @@ describe("when it asks", () => {
   // status turns from working, after the last timed ask, so a status change is
   // one more ask. Changed again: the timer then slows to every 15 s rather than
   // resting (see the case above).
-  it("asks again every 5 s while the session is working, once more when its status changes, and then every 15 s", async () => {
+  // CHANGED ON PURPOSE (Chat live): every 1.5 s while the session works, so a
+  // turn reads live; an unmoved file costs the deck one stat per ask.
+  it("asks again every 1.5 s while the session is working, once more when its status changes, and then every 15 s", async () => {
+    expect(POLL_MS).toBe(1500);
+    expect(IDLE_POLL_MS).toBe(15000);
     const fetchFn = vi.fn(async () => ready());
     const h = setup({ ...on, working: true, change: "1:working" }, fetchFn);
     await flush();

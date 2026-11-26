@@ -183,11 +183,59 @@ describe("where a message sent from Chat stands", () => {
     vi.advanceTimersByTime(CONFIRM_MS - 500);
     expect(screens(view).outgoing?.state).toBe("sending");
     vi.advanceTimersByTime(1000);
-    expect(screens(view).outgoing).toEqual({ text: "stuck: please check", state: "unconfirmed" });
-    // Term is where it went; Chat never sends it again.
-    screens(view).onShowTerm();
+    // CHANGED ON PURPOSE (the composer, herdr's way): not taken, the words go
+    // back into the empty box with the reason under it, and are no longer
+    // drawn under the conversation, so the reason is said once.
+    expect(screens(view).outgoing).toBeUndefined();
+    expect(composer(view).value).toBe("stuck: please check");
+    expect(composer(view).notTaken).toBe("stuck: please check");
+    // Term is where it went; Chat never sends it again by itself.
+    composer(view).onShowTerm!();
     expect((header(view).view as { current: string }).current).toBe("term");
     expect(held.sendPrompt).toHaveBeenCalledOnce();
+    view.unmount();
+  });
+
+  it("not taken while a new draft is in the box: the draft stays, and the message stays drawn as not taken", () => {
+    vi.useFakeTimers();
+    const view = mount(TerminalStage, props("a", false, "idle", "codex")); changeView(view, "chat");
+    composer(view).onSend("first");
+    composer(view).onChange("second, being written");
+    vi.advanceTimersByTime(CONFIRM_MS + 500);
+    expect(composer(view).value).toBe("second, being written");
+    expect(composer(view).notTaken).toBeUndefined();
+    expect(screens(view).outgoing).toEqual({ text: "first", state: "unconfirmed" });
+    view.unmount();
+  });
+
+  it("taken after all once it was put back: the same words leave the box", () => {
+    vi.useFakeTimers();
+    const view = mount(TerminalStage, board(props("a", false, "idle", "codex"), { promptCount: 1 })); changeView(view, "chat");
+    composer(view).onSend("late one");
+    vi.advanceTimersByTime(CONFIRM_MS + 500);
+    expect(composer(view).value).toBe("late one");
+    // It sat behind something in Term; the session takes it now.
+    held.turns = [{ kind: "user", text: "late one" }];
+    view.rerender(board(props("a", false, "working", "codex"), { promptCount: 2, heardAt: Date.now() }));
+    expect(composer(view).value).toBe("");
+    expect(composer(view).notTaken).toBeUndefined();
+    expect(held.sendPrompt).toHaveBeenCalledOnce();
+    view.unmount();
+  });
+
+  it("says a message sent while the session works is queued behind its turn", () => {
+    const view = mount(TerminalStage, board(props("a", false, "working"), { promptCount: 1, heardAt: Date.now() })); changeView(view, "chat");
+    composer(view).onSend("next, please");
+    expect(screens(view).outgoing).toEqual({ text: "next, please", state: "sending", queued: true });
+    view.unmount();
+  });
+
+  it("hands the composer the session's key, its conversation and its agent", () => {
+    held.turns = [{ kind: "command", name: "/compact" }];
+    const view = mount(TerminalStage, props("a", false, "idle", "codex")); changeView(view, "chat");
+    expect(composer(view).session).toBe("codex:a");
+    expect(composer(view).turns).toEqual([{ kind: "command", name: "/compact" }]);
+    expect(composer(view).provider).toBe("codex");
     view.unmount();
   });
 

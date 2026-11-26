@@ -4,6 +4,7 @@
 // Space press it as a click does.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DiffBlock, ToolRow } from "../components/chat/ChatTurn";
+import { DiffCounts } from "../components/chat/ChatDiff";
 import type { ChatTurn } from "../components/chat/chat-model";
 import { setLanguage } from "../i18n";
 import { all, mount, one, textOf, type Drawn } from "./fake-react";
@@ -57,7 +58,9 @@ describe("an edit's row", () => {
 
   it("shows its counts and opens its change on demand", () => {
     const r = rig(turn);
-    expect(textOf(one(r.view.tree, el => el.props.className === "chat-tool-note"))).toBe("+2 −1");
+    // CHANGED ON PURPOSE: the note is drawn by DiffCounts, in the change's tints.
+    const note = one(r.view.tree, el => el.props.className === "chat-tool-note");
+    expect(one(note, el => el.type === DiffCounts)!.props.note).toBe("+2 −1");
     expect(r.button().props["aria-expanded"]).toBe(false);
     expect(all(r.view.tree, el => el.type === DiffBlock)).toEqual([]);
     r.press();

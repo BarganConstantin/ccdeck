@@ -37,7 +37,7 @@ export function sheetText(): string {
  *  markup hard-codes have a rule" or "does every control have a look" asks of
  *  the sheet AND of these. */
 export function lazySheetText(): string {
-  return ["components/chat/chat.css", "components/chat/chat-composer.css", "components/decision/decision.css"]
+  return ["components/chat/chat.css", "components/chat/chat-composer.css", "components/chat/chat-rich.css", "components/chat/chat-motion.css", "components/decision/decision.css"]
     .map(path => readFileSync(`${WEB_DIR}${path}`, "utf8")).join("");
 }
 

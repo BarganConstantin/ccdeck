@@ -7,8 +7,25 @@
 // view is given). Test and harness data live in __tests__/, never here.
 //
 // THE COLUMN stops at 776 and centres in a wider pane (chat.css). It sticks to the
-// bottom as lines arrive, unless the reader scrolled up to read; there is no
-// virtualisation in 4.0, and a host caps the turns it hands over.
+// bottom as lines arrive, unless the reader scrolled up to read (more than
+// BOTTOM_SLACK above the end); the stick is instant, and holds when the column
+// or the region changes size under it (a Decision card docking, a disclosure
+// opening). A reader scrolled up gets the way back with how many turns came
+// meanwhile ("3 new"), and it goes there smoothly unless motion is reduced.
+// There is no virtualisation in 4.0, and a host caps the turns it hands over.
+//
+// A TURN IS DRAWN AGAIN ONLY WHEN IT CHANGED. Each read of the transcript gives
+// every turn back as a new object; they are kept as the objects they were
+// (chat-turn-align.ts), the blocks are memoised (chat-blocks.ts) and keyed by where
+// they stand in the whole conversation, so a clock tick, a key typed in the
+// composer or a read that only added a line redraws the block that changed.
+//
+// LINES THAT ARRIVE WHILE YOU WATCH rise into place (chat-motion.css): the
+// column carries `data-arrive` only once a first read of this conversation is
+// drawn, and not on the render that puts older turns in front or moves "Since
+// you looked" (what came while you were away is there, not arriving). That
+// divider goes right before the first turn that came: a reply it falls in is
+// drawn as two, the part read already and the part that came since.
 //
 // OLDER TURNS come on request: a quiet button at the top while the host has
 // more (`source.older`). When they arrive above, the line being read stays
@@ -21,17 +38,23 @@
 // its way, the session's work is the turn before it, so that line goes first.
 // A screen reader hears each change of state once, in words, never the clock
 // or the tool that ticks beside them; a switch to another session says nothing.
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import IntegrationSkeleton from "../IntegrationSkeleton";
+import { KitIcon } from "../kit-icons";
 import type { Provider } from "../../types";
 import { useT, type TFunction } from "../../i18n";
 import { providerLabel } from "../../provider-copy";
 import { stoppedInChat } from "../../chat-progress";
+import { prefersReducedMotion } from "../../viewport-motion";
 import DecisionCard, { type DecisionCardProps } from "../decision/DecisionCard";
-import type { ChatActivity, ChatAsk, ChatOutgoing, ChatSource, ChatTurn } from "./chat-model";
+import type { ChatActivity, ChatAsk, ChatOutgoing, ChatSource, ChatTurn, ConversationBlock } from "./chat-model";
 import { conversationBlocks } from "./chat-model";
-import { ActivityLine, AssistantBlock, OutgoingMessage, RecordLine, SinceDivider, YourCommand, YourMessage } from "./ChatTurn";
+import { blockTimes } from "./chat-rich";
+import { ActivityLine, OutgoingMessage, SinceDivider } from "./ChatTurn";
+import { MemoAssistantBlock, MemoRecordLine, MemoYourCommand, MemoYourMessage } from "./chat-blocks";
+import { alignTurns, turnInterner } from "../../chat-turn-align";
 import "./chat.css";
+import "./chat-motion.css";
 
 export interface ChatViewProps {
   source: ChatSource;
@@ -89,8 +112,63 @@ export function lastTodoAt(turns: readonly ChatTurn[]): number {
 /** Where `at` falls in a block of `length` turns starting at `start`, or undefined outside it. */
 const inBlock = (at: number, start: number, length: number) => (at >= start && at < start + length ? at - start : undefined);
 
-/** The distance from the bottom, in px, under which the reader counts as at the bottom. */
-export const BOTTOM_SLACK = 24;
+/** The distance from the bottom, in px, under which the reader counts as at the
+ *  bottom: a nudge of the wheel does not stop the conversation following. */
+export const BOTTOM_SLACK = 48;
+
+const NO_TURNS: ChatTurn[] = [];
+
+/** Where the turns stand in the whole conversation: `origin` numbers the first
+ *  of them, `era` moves when they are another conversation's, and `arrived`
+ *  is how many came at the end since the turns before. */
+interface Placed { origin: number; era: number; arrived: number }
+
+interface Place { turns: readonly ChatTurn[]; session?: string; at: Placed }
+
+const FIRST_PLACE: Place = { turns: NO_TURNS, at: { origin: 0, era: 0, arrived: 0 } };
+
+/** What was drawn last: a first read of this conversation, with the head it had. */
+interface Drawn { ready: boolean; session?: string; head: number; era: number; since?: number }
+
+const NOTHING_DRAWN: Drawn = { ready: false, head: 0, era: -1 };
+
+/** The blocks with the reply that holds turn `at` cut in two there, so "Since
+ *  you looked" goes right before the first turn that came, not above the part
+ *  of the reply that was read already. */
+export function cutAt(blocks: ConversationBlock[], at: number | undefined): ConversationBlock[] {
+  if (at === undefined) return blocks;
+  const i = blocks.findIndex(block => block.kind === "assistant" && at > block.index && at < block.index + block.turns.length);
+  if (i < 0) return blocks;
+  const block = blocks[i] as Extract<ConversationBlock, { kind: "assistant" }>;
+  const k = at - block.index;
+  return [...blocks.slice(0, i),
+    { kind: "assistant", turns: block.turns.slice(0, k), index: block.index },
+    { kind: "assistant", turns: block.turns.slice(k), index: at },
+    ...blocks.slice(i + 1)];
+}
+
+/** The stage's way to answer a question, steady from one render to the next.
+ *  The stage makes it anew each time it draws (each key typed in the composer),
+ *  and the block that holds a waiting question would be drawn again with it;
+ *  each call goes to the newest one the stage handed over. */
+function useSteadyAsk(ask: ChatAsk | undefined): ChatAsk | undefined {
+  const newest = useRef(ask);
+  newest.current = ask;
+  const has = ask !== undefined;
+  const blocked = ask?.blocked;
+  const chat = ask?.chat !== undefined;
+  const term = ask?.onShowTerm !== undefined;
+  return useMemo(() => {
+    if (!has) return undefined;
+    const steady: ChatAsk = {
+      send: (questions, picks) => newest.current ? newest.current.send(questions, picks) : Promise.resolve("unavailable"),
+    };
+    if (blocked !== undefined) steady.blocked = blocked;
+    if (chat) steady.chat = questions => newest.current?.chat ? newest.current.chat(questions) : Promise.resolve("unavailable");
+    if (term) steady.onShowTerm = () => newest.current?.onShowTerm?.();
+    return steady;
+  }, [has, blocked, chat, term]);
+}
 
 /** What identifies the last turn: its kind and what it says, and a tool row's,
  *  a question card's, a task list's or a sub-agent's state, a command's output
@@ -115,11 +193,40 @@ const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffe
 export default function ChatView({ source, provider, decision, ask, session, outgoing, activity, onShowTerm }: ChatViewProps) {
   const t = useT();
   const scroller = useRef<HTMLDivElement | null>(null);
+  const column = useRef<HTMLDivElement | null>(null);
   const stuck = useRef(true);
+  // A jump to the latest on its smooth way down: the reader is following already.
+  const jumping = useRef(false);
+  const latest = useRef<HTMLButtonElement | null>(null);
   const [following, setFollowing] = useState(true);
+  // Turns that arrived while the reader was scrolled up.
+  const [unread, setUnread] = useState(0);
   const count = source.state === "ready" ? source.turns.length : 0;
   const live = source.state === "ready" ? liveAskAt(source.turns) : -1;
   const todo = source.state === "ready" ? lastTodoAt(source.turns) : -1;
+  // Each turn the object it was in the last read whenever it says the same.
+  const interner = useRef<((turns: readonly ChatTurn[]) => ChatTurn[]) | null>(null);
+  const read = source.state === "ready" ? source.turns : NO_TURNS;
+  const turns = useMemo(() => (interner.current ??= turnInterner())(read), [read]);
+  // "Since you looked" (where the first turn that came since is) cuts its reply there.
+  const since = source.state === "ready" ? source.since?.at : undefined;
+  const blocks = useMemo(() => cutAt(conversationBlocks(turns), since), [turns, since]);
+  // Where they stand in the whole conversation, measured against the last read.
+  const place = useRef(FIRST_PLACE);
+  const placed = useMemo(() => {
+    const was = place.current;
+    if (was.turns === turns && was.session === session) return was.at;
+    const moved = was.session === session ? alignTurns(was.turns, turns) : null;
+    const at: Placed = moved
+      ? { origin: was.at.origin + moved.dropped, era: was.at.era, arrived: moved.arrived }
+      : { origin: 0, era: was.at.era + 1, arrived: 0 };
+    place.current = { turns, session, at };
+    return at;
+  }, [turns, session]);
+  const steadyAsk = useSteadyAsk(ask);
+  // The block the "Since you looked" divider goes before: the one holding its turn.
+  let sinceAt = -1;
+  if (since !== undefined) for (let i = 0; i < blocks.length && blocks[i].index <= since; i++) sinceAt = i;
   const cue = progressCue(outgoing, activity);
   // The message on its way and the session's state are the last lines too.
   const tail = `${source.state === "ready" ? tailKey(source.turns[source.turns.length - 1]) : ""}|${cue}|${outgoing?.state ?? ""}|${outgoing?.text ?? ""}`;
@@ -154,6 +261,43 @@ export default function ChatView({ source, provider, decision, ask, session, out
     const el = scroller.current;
     if (el && stuck.current) el.scrollTop = el.scrollHeight;
   }, [count, tail]);
+  // And when anything changes size under a reader at the bottom: the region
+  // (a Decision card docks under it) or the column (a disclosure opens, a
+  // block of code grows). The observer answers after layout, before paint.
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(() => { if (stuck.current) el.scrollTop = el.scrollHeight; });
+    watch.observe(el);
+    if (column.current) watch.observe(column.current);
+    return () => watch.disconnect();
+  }, []);
+  // Turns that arrive while the reader is scrolled up are counted on the way back.
+  useEffect(() => {
+    if (placed.arrived > 0 && !stuck.current) setUnread(n => n + placed.arrived);
+  }, [placed]);
+  // Another conversation has nothing unread.
+  useEffect(() => { setUnread(0); }, [placed.era]);
+  // What was drawn, for the next render to tell an arrival from a first read.
+  const drawn = useRef(NOTHING_DRAWN);
+  const arriving = source.state === "ready" && drawn.current.ready && drawn.current.session === session
+    && drawn.current.head === head && drawn.current.era === placed.era && drawn.current.since === since;
+  useEffect(() => { drawn.current = { ready: source.state === "ready", session, head, era: placed.era, since }; });
+  /** Back to the latest: smoothly, or at once under reduced motion. */
+  const jump = () => {
+    const el = scroller.current;
+    stuck.current = true;
+    setFollowing(true);
+    setUnread(0);
+    if (!el) return;
+    if (typeof el.scrollTo === "function" && !prefersReducedMotion()) {
+      jumping.current = true;
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    } else el.scrollTop = el.scrollHeight;
+    el.focus({ preventScroll: true });
+  };
+  // A hand on the wheel, the screen, a key or the scrollbar takes the scroll back from a jump.
+  const takeOver = () => { jumping.current = false; };
   // Turns put in at the top: the line being read stays in place.
   useBeforePaint(() => {
     const el = scroller.current;
@@ -169,10 +313,14 @@ export default function ChatView({ source, provider, decision, ask, session, out
     }
     pressed.current = false;
   }, [head]);
-  const mine = outgoing ? <OutgoingMessage outgoing={outgoing} provider={provider} onShowTerm={onShowTerm} /> : null;
-  const doing = activity ? <ActivityLine activity={activity} provider={provider} onShowTerm={onShowTerm} /> : null;
+  // Keyed, so the two trade places without being drawn anew (and arriving again).
+  const mine = outgoing ? <OutgoingMessage key="mine" outgoing={outgoing} provider={provider} onShowTerm={onShowTerm} /> : null;
+  const doing = activity ? <ActivityLine key="doing" activity={activity} provider={provider} onShowTerm={onShowTerm} /> : null;
+  // Each answer ends on how long it took, once it is over: the last one only
+  // while the session is not at work on it or waiting on you.
+  const times = useMemo(() => blockTimes(blocks), [blocks]);
   return (
-    <div className="chat" data-docked={decision ? "" : undefined}>
+    <div className="chat" data-docked={decision ? "" : undefined} data-arrive={arriving ? "" : undefined}>
       <div className="chat-reading">
       <div
         ref={scroller}
@@ -182,11 +330,21 @@ export default function ChatView({ source, provider, decision, ask, session, out
         tabIndex={0}
         onScroll={e => {
           const el = e.currentTarget;
-          stuck.current = el.scrollHeight - el.scrollTop - el.clientHeight <= BOTTOM_SLACK;
-          setFollowing(stuck.current);
+          const bottom = el.scrollHeight - el.scrollTop - el.clientHeight <= BOTTOM_SLACK;
+          if (jumping.current && !bottom) return;
+          jumping.current = false;
+          stuck.current = bottom;
+          setFollowing(bottom);
+          if (bottom) setUnread(0);
+          // The way back goes at the bottom: the keys it held stay in the conversation.
+          if (bottom && latest.current && latest.current === document.activeElement) el.focus({ preventScroll: true });
         }}
+        onWheel={takeOver}
+        onTouchStart={takeOver}
+        onPointerDown={takeOver}
+        onKeyDown={takeOver}
       >
-        <div className="chat-col">
+        <div ref={column} className="chat-col">
           {source.state === "loading" && <IntegrationSkeleton label={t("board.chat.loading")} rows={5} variant="lines" />}
           {/* The empty conversation's own line and look: nothing went wrong. */}
           {source.state === "absent" && <p className="chat-empty">{source.message}</p>}
@@ -208,32 +366,37 @@ export default function ChatView({ source, provider, decision, ask, session, out
                   {t(older.loading ? "board.chat.olderLoading" : older.failed ? "board.chat.olderFailed" : "board.chat.older")}
                 </button>
               )}
-              {source.since && <SinceDivider since={source.since} />}
+              {source.since && source.since.at === undefined && <SinceDivider since={source.since} />}
               {source.turns.length === 0 && <p className="chat-empty">{t("board.chat.empty")}</p>}
-              {/* Keyed from where the turns were before any went in at the top,
-                  so a turn keeps its row (and what is open in it) when older ones arrive. */}
-              {conversationBlocks(source.turns).map(block => block.kind === "assistant"
-                ? <AssistantBlock key={block.index - head} turns={block.turns} provider={provider}
-                  ask={ask && live >= block.index && live < block.index + block.turns.length ? { ...ask, at: live - block.index } : undefined}
-                  todoAt={inBlock(todo, block.index, block.turns.length)} />
-                : block.kind === "user" ? <YourMessage key={block.index - head} text={block.text} images={block.images} />
-                : block.kind === "command" ? <YourCommand key={block.index - head} turn={block} />
-                : <RecordLine key={block.index - head} text={block.text} />)}
+              {/* Keyed by where each turn stands in the whole conversation, so a
+                  turn keeps its row (and what is open in it) when older ones
+                  arrive or the live window slides; another conversation's are new rows. */}
+              <Fragment key={placed.era}>
+              {blocks.flatMap((block, i) => {
+                const key = placed.origin + block.index;
+                const row = block.kind === "assistant"
+                  ? <MemoAssistantBlock key={key} turns={block.turns} provider={provider}
+                    ask={steadyAsk && live >= block.index && live < block.index + block.turns.length ? { ...steadyAsk, at: live - block.index } : undefined}
+                    todoAt={inBlock(todo, block.index, block.turns.length)}
+                    time={i < blocks.length - 1 || !activity ? times.get(block.index) : undefined} />
+                  : block.kind === "user" ? <MemoYourMessage key={key} text={block.text} images={block.images} at={block.at} />
+                  : block.kind === "command" ? <MemoYourCommand key={key} turn={turns[block.index] as Extract<ChatTurn, { kind: "command" }>} />
+                  : <MemoRecordLine key={key} text={block.text} />;
+                // Since you looked: before the block that holds the first turn that came since.
+                return i === sinceAt && source.since ? [<SinceDivider key="since" since={source.since} />, row] : [row];
+              })}
+              </Fragment>
             </>
           )}
-          {(source.state === "ready" || source.state === "error") && (outgoing && outgoing.state !== "taken" ? <>{doing}{mine}</> : <>{mine}{doing}</>)}
+          {(source.state === "ready" || source.state === "error") && (outgoing && outgoing.state !== "taken" ? [doing, mine] : [mine, doing])}
         </div>
       </div>
       {!following && source.state === "ready" && source.turns.length > 0 && (
-        <button type="button" className="chat-latest btn" onClick={() => {
-          const el = scroller.current;
-          stuck.current = true;
-          if (el) {
-            el.scrollTop = el.scrollHeight;
-            el.focus({ preventScroll: true });
-          }
-          setFollowing(true);
-        }}>{t("board.chat.latest")}</button>
+        <button ref={latest} type="button" className="chat-latest btn" onClick={jump}
+          aria-label={unread > 0 ? t("board.chat.live.latestNew", { count: unread }) : undefined}>
+          <span className="chat-latest-mark" aria-hidden="true"><KitIcon name="chevron-down" /></span>
+          <span>{unread > 0 ? t("board.chat.live.unread", { count: unread }) : t("board.chat.latest")}</span>
+        </button>
       )}
       </div>
       {decision && <DecisionCard key={decision.model.id} {...decision} />}

@@ -2,7 +2,8 @@
    The conversation of one session (components/chat/), in the Workspace pane.
    IN A LAZY CHUNK: ChatView.tsx imports this sheet, so until Chat is drawn the
    deck's first stylesheet carries none of it (v4-screens-bundle.test.ts reads
-   dist/web). Tokens only, and no motion: a new line appears where it belongs. */
+   dist/web). Tokens only, and no motion here: what moves in Chat is
+   chat-motion.css's, each rule with its reduced-motion answer. */
 
 .chat {
   flex: 1 1 auto;
@@ -140,7 +141,9 @@
 .chat-tool-arg { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); }
 .chat-tool-note { flex: none; margin-left: auto; padding-left: 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .chat-tool[data-running] .chat-tool-note { color: var(--inflight); }
-.chat-latest { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); background: var(--panel); }
+/* Centred by `translate`, so the button's press (a scale on `transform`) keeps it centred. */
+.chat-latest { position: absolute; bottom: 16px; left: 50%; translate: -50% 0; gap: 6px; max-width: calc(100% - 24px); background: var(--panel); }
+.chat-latest-mark { flex: none; display: inline-flex; color: var(--text-secondary); }
 .chat-empty { margin: 0; color: var(--text-secondary); font-size: calc(13px + var(--ui-text-increase, 0px)); }
 /* What you answered and how long it took: the spaces in it are the host's. */
 .chat-record { margin: 0; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--muted); white-space: pre-wrap; }
@@ -197,13 +200,19 @@
 .chat-notice { margin: 0; padding: 0 8px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
 .chat-notice[data-what="error"] { color: var(--warn); }
 
-/* What the session is doing, under the last line: a still mark, the words, then
-   the header's tool and time cut to the line. Waiting on you, and a long
-   silence, wear --warn on the mark. */
+/* What the session is doing, under the last line: the working mark, the
+   agent's words, how long the turn has run, then the header's tool cut to the
+   line. The mark is a window one frame high over Claude Code's six spinner
+   frames (ChatTurn WORKING_FRAMES), resting on ✻; chat-motion.css steps it
+   while the session works. Waiting on you, and a long silence, wear --warn on
+   a still mark. */
 .chat-progress { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; min-height: 20px; padding: 0 8px; font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--text-secondary); }
-.chat-progress-mark { flex: none; width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--inflight); }
-.chat-progress:is([data-state="waiting"], [data-quiet]) .chat-progress-mark { background: var(--warn); }
+.chat-progress-mark { flex: none; display: block; width: 14px; height: 16px; overflow: hidden; color: var(--inflight); font-size: 13px; line-height: 16px; text-align: center; }
+.chat-progress-frames { display: flex; flex-direction: column; translate: 0 -64px; }
+.chat-progress-frames > span { display: block; height: 16px; }
+.chat-progress:is([data-state="waiting"], [data-quiet]) .chat-progress-mark { color: var(--warn); }
 .chat-progress-text { flex: none; max-width: 100%; overflow-wrap: anywhere; }
+.chat-progress-time { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
 .chat-progress-detail { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 
 .chat-error { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--bg-soft); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--text); }

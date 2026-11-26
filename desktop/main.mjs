@@ -38,6 +38,7 @@ import { restartApp } from "./relaunch-linux.mjs";
 import { openAtLogin, replaceNpmLoginItem, setOpenAtLogin } from "./login-item.mjs";
 import { createOwnDeck, discoverPlan, startOwnDeck, stopChild } from "./own-deck.mjs";
 import { trayIconFile } from "./tray-icon.mjs";
+import { holdSession, pokePage, SESSION_TAKE_CHANNEL, takeHeld } from "./session-link.mjs";
 import { windowChrome, titlebarColors, TITLEBAR_HEIGHT } from "./window-chrome.mjs";
 import { placeText, WINDOW_MIN, windowPlaceToKeep, windowPlaceToOpen } from "./window-place.mjs";
 
@@ -155,6 +156,8 @@ function buildMenu() {
 
 const TRAY_ACTIONS = {
   openWindow: () => openWindow(),
+  // A blocked session's row: that session, in Chat.
+  openSession: id => openSession(id),
   // Only for a deck that came up: openWindow with none starts another.
   startDeck: () => ensureDeck().then(found => { if (found) openWindow(); }).catch(err => trace(`start failed: ${err?.message ?? err}`)),
   openInBrowser: () => deck && shell.openExternal(`http://127.0.0.1:${deck.port}/`),
@@ -592,7 +595,7 @@ function discoverSoon(ms = 2000) {
  *  rather than by a copy of it: a copy that drifted would name a sound macOS
  *  cannot find, and the notification would arrive in silence. Loaded with the
  *  tray model, before any deck can ask for a notification. */
-function showNotification({ title, body, chime, silent }) {
+function showNotification({ title, body, chime, silent, session }) {
   if (!Notification.isSupported()) return;
   // Quiet when the deck says so — the account notifications, which are
   // operational news rather than a tone standing in for one — and otherwise as
@@ -600,8 +603,22 @@ function showNotification({ title, body, chime, silent }) {
   const quiet = silent === true;
   const sound = process.platform === "darwin" ? chimeFiles[chime] : undefined;
   const n = new Notification({ title: String(title ?? "ccdeck"), body: String(body ?? ""), sound: quiet ? undefined : sound, silent: quiet });
-  n.on("click", () => openWindow());
+  // A session's notification opens that session in Chat; the rest, the window.
+  n.on("click", () => openSession(session));
   n.show();
+}
+
+/** The session the window is to open in Chat, `{ id, at }`, until a page
+ *  takes it (session-link.mjs), or null. */
+let heldSession = null;
+
+/** Opens the window on `id` in Chat; on the window as it was when `id` is not
+ *  a session's. The page takes the id (installSessionLinkIpc): one already
+ *  loaded is told to, one still loading asks as it starts. */
+function openSession(id) {
+  heldSession = holdSession(id, Date.now());
+  openWindow();
+  if (heldSession) pokePage(win?.webContents);
 }
 
 // ── the window ──────────────────────────────────────────────────────────────
@@ -824,6 +841,17 @@ function fromDeckPage(event) {
   if (!deck || !win || win.isDestroyed() || event.sender.id !== win.webContents.id) return false;
   const url = event.senderFrame?.url;
   return typeof url === "string" && navigationFor(url, `http://127.0.0.1:${deck.port}`) === "stay";
+}
+
+/** A page that starts asks once for the session a notification or a tray
+ *  row opened the window for (preload.cjs), and gets it once. */
+function installSessionLinkIpc() {
+  ipcMain.handle(SESSION_TAKE_CHANNEL, event => {
+    if (!fromDeckPage(event) || event.senderFrame !== event.sender.mainFrame) return null;
+    const id = takeHeld(heldSession, Date.now());
+    heldSession = null;
+    return id;
+  });
 }
 
 function installWindowChromeIpc() {
@@ -1104,6 +1132,7 @@ app.whenReady().then(async () => {
   installWindowChromeIpc();
   installTerminalKeysIpc();
   installFolderPickerIpc();
+  installSessionLinkIpc();
   if (process.platform !== "darwin") {
     Menu.setApplicationMenu(Menu.buildFromTemplate([
       { label: "File", submenu: [{ role: "close" }, { role: "quit" }] },

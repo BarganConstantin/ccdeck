@@ -4,8 +4,9 @@
 // open in it) and Checked.
 //
 // Interactive: the row. No filled button anywhere on the card. The key chip on
-// the left is the digit that picks it. A locked row is reachable so it can be
-// read, and says "aria-disabled" with its lock note as the description.
+// the left is the digit that picks it; the prompt's No says Esc at its end.
+// A locked row is reachable so it can be read, and says "aria-disabled" with
+// its lock note as the description.
 import { useId, type KeyboardEvent, type Ref } from "react";
 import { useT } from "../../i18n";
 import { LockGlyph } from "../chat/chat-icons";
@@ -25,6 +26,8 @@ export interface DecisionOptionProps {
   readOnly: boolean;
   /** The digit keys are on (Settings › Keyboard): the row names its digit. */
   singleKeys?: boolean;
+  /** Esc picks this row (the prompt's No): it says so at its end. */
+  escKey?: boolean;
   /** The row's tab stop: one row is reachable by Tab, the ring moves from it. */
   tabStop: boolean;
   rowRef?: Ref<HTMLDivElement>;
@@ -50,7 +53,8 @@ export default function DecisionOption(p: DecisionOptionProps) {
         aria-checked={p.checked}
         aria-disabled={o.locked || p.readOnly || undefined}
         aria-describedby={noteId}
-        aria-keyshortcuts={p.readOnly || p.singleKeys === false ? undefined : String(p.index + 1)}
+        aria-keyshortcuts={p.readOnly ? undefined
+          : [p.singleKeys === false ? "" : String(p.index + 1), p.escKey ? "Escape" : ""].filter(Boolean).join(" ") || undefined}
         tabIndex={p.readOnly ? undefined : p.tabStop ? 0 : -1}
         data-focus={p.focused || undefined}
         data-locked={o.locked || undefined}
@@ -68,6 +72,7 @@ export default function DecisionOption(p: DecisionOptionProps) {
             : <span className="dc-opt-sub">{o.sub}</span>}
         </span>
         {o.pick && <span className="dc-pick">{t("board.decision.pickTag")}</span>}
+        {p.escKey && !p.readOnly && <kbd className="dc-esc" aria-hidden="true">Esc</kbd>}
         {p.selection === "checkbox" && <span className="dc-box" aria-hidden="true" data-on={p.checked || undefined} />}
       </div>
       {p.typing && (

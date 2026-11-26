@@ -33,7 +33,7 @@
 import type { IntegrationKind } from "./integrations/types";
 import { isCharacterKey } from "./single-key-shortcuts";
 import { t } from "./i18n";
-import { PANE_FOCUS_CAP, paneFocusMacCap } from "./terminal-keys";
+import { CHAT_VIEW_CAP, CHAT_VIEW_MAC_CAP, PANE_FOCUS_CAP, paneFocusMacCap } from "./terminal-keys";
 
 /** One line of the sheet: what you press, and what happens. */
 export interface KeyHelpRow {
@@ -221,6 +221,7 @@ export const WORKSPACE_GROUP: KeyHelpGroup = {
   rows: [
     WORKSPACE_KEY_ROW,
     { cap: PANE_FOCUS_CAP, get macCap() { return paneFocusMacCap(); }, get action() { return t("board.keys.focusPane"); }, binds: [], chord: true },
+    { cap: CHAT_VIEW_CAP, macCap: CHAT_VIEW_MAC_CAP, get action() { return t("board.chat.alert.keyToggle"); }, binds: ["`", "~"], chord: true },
     { get cap() { return t("settings.key.cap.click"); }, get action() { return t("settings.key.wsClick"); }, binds: [] },
     { cap: "Enter", get action() { return t("settings.key.wsEnter"); }, binds: ["Enter"] },
     { cap: "Shift + Enter", get action() { return t("settings.key.wsBeside"); }, binds: ["Enter"] },

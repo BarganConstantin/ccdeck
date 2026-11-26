@@ -136,6 +136,8 @@ describe("every class the markup hard-codes", () => {
 
   it("leaves the runtime-composed prefixes out, since no DOM here can say what they became", () => {
     const stubs = [...tokens].flatMap(([, names]) => names.filter(composed));
-    expect([...new Set(stubs)].sort()).toEqual(["cat-", "state-", "status-", "tr-dot-", "tr-json-"]);
+    // CHANGED ON PURPOSE: Chat's coloured code composes `hl-${kind}` from the
+    // highlighter's token kinds; chat-rich.css styles every one of them.
+    expect([...new Set(stubs)].sort()).toEqual(["cat-", "hl-", "state-", "status-", "tr-dot-", "tr-json-"]);
   });
 });

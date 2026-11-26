@@ -1,4 +1,5 @@
-import { codexItemText, codexToolOutcome } from "./codex-translate.mjs";
+import { codexCommandResult, codexItemText, codexToolOutcome } from "./codex-translate.mjs";
+import { budgetDetail, cappedOutput, ESCAPES, isThinking, stampOf, thinkingTurn, toolResultDetail } from "./transcript-results.mjs";
 
 // A Claude Code transcript's lines, as the turns Chat draws: what you typed
 // (and how many images came with it), each slash command you ran with what it
@@ -8,17 +9,25 @@ import { codexItemText, codexToolOutcome } from "./codex-translate.mjs";
 // the API failed. Pure: lines in, turns out, nothing read from disk and
 // nothing remembered between calls.
 //
-// WHAT IS LEFT OUT, ON PURPOSE. Thinking blocks (they are not part of the
-// conversation a reader follows), sidechain lines (a subagent's own talk: the
+// WHEN. Each turn carries `at`, the time of the line it came from (ms since
+// the epoch), when the line has one: Chat says when you wrote and how long
+// the work took from it. A thinking block is a turn of its own, with its text
+// and, when its line holds nothing else, how long it took (`took`, from the
+// line before it). What a call printed or found rides on its row
+// (transcript-results.mjs).
+//
+// WHAT IS LEFT OUT, ON PURPOSE. Sidechain lines (a subagent's own talk: the
 // call that started it is the one line it gets), meta lines (text Claude Code
 // wrote for itself), and a user line that only carries a tool's answer: that
 // is the tool replying, not you typing.
 //
 // BOUNDED. Chat has no virtualisation, so the answer is the last MAX_TURNS
-// turns and each text is cut at MAX_TEXT, because the transcript's own size
-// says nothing about how much a page can draw.
+// turns, what you typed is cut at MAX_TEXT and what the assistant said at
+// MAX_PROSE (and says so: `cut`), because the transcript's own size says
+// nothing about how much a page can draw.
 export const MAX_TURNS = 200;
 export const MAX_TEXT = 4000;
+export const MAX_PROSE = 16000;
 export const MAX_ARG = 120;
 
 // The input fields a tool call is summed up by, in the order they are tried:
@@ -179,18 +188,25 @@ function textLines(text) {
   return lines;
 }
 
-/** The diff lines of a recorded structuredPatch, or null when there is none. */
+const lineNumber = value => (Number.isSafeInteger(value) && value >= 0 ? value : undefined);
+
+/** The diff lines of a recorded structuredPatch, and where each hunk starts
+ *  in the old and the new file when every hunk says; null when there is none. */
 function patchLines(own) {
   const hunks = own && typeof own === "object" && Array.isArray(own.structuredPatch) ? own.structuredPatch : null;
   if (!hunks) return null;
   const lines = [];
+  const starts = [];
   for (const hunk of hunks) {
     const body = hunk && typeof hunk === "object" && Array.isArray(hunk.lines) ? hunk.lines.filter(l => typeof l === "string") : [];
     if (!body.length) continue;
     if (lines.length) lines.push(DIFF_GAP);
     lines.push(...body);
+    const from = lineNumber(hunk.oldStart);
+    const to = lineNumber(hunk.newStart);
+    starts.push(from !== undefined && to !== undefined ? { old: from, new: to } : null);
   }
-  return lines.length ? lines : null;
+  return lines.length ? { lines, starts: starts.every(Boolean) ? starts : undefined } : null;
 }
 
 /** The diff lines an edit's input describes. */
@@ -209,10 +225,14 @@ function inputLines(name, input) {
   return lines;
 }
 
-/** The diff and note of an Edit, MultiEdit or Write call, or null when it changed nothing. */
+/** The diff and note of an Edit, MultiEdit or Write call, or null when it changed nothing.
+ *  `starts` (old and new line number of each hunk) comes with a recorded
+ *  patch, or with a file written whole, which starts at line 1. */
 export function editDiff(name, input, own) {
-  const all = patchLines(own) ?? inputLines(name, input);
+  const patch = patchLines(own);
+  const all = patch?.lines ?? inputLines(name, input);
   if (!all.length) return null;
+  const starts = patch ? patch.starts : name === "Write" ? [{ old: 0, new: 1 }] : undefined;
   let added = 0;
   let removed = 0;
   for (const line of all) {
@@ -235,6 +255,7 @@ export function editDiff(name, input, own) {
     chars += line.length;
   }
   const diff = over ? { lines, cut: true } : { lines };
+  if (starts) diff.starts = starts;
   return { diff, note: `+${added} −${removed}` };
 }
 
@@ -364,7 +385,6 @@ export const MAX_COMMAND_OUTPUT = 2000;
 const COMMAND_NAME = /<command-name>([\s\S]*?)<\/command-name>/;
 const COMMAND_ARGS = /<command-args>([\s\S]*?)<\/command-args>/;
 const COMMAND_OUTPUT = /<local-command-(stdout|stderr)>([\s\S]*?)<\/local-command-\1>/g;
-const ESCAPES = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-Z\\-_]/g;
 
 /** The command turn of a line that only holds a command's wrappers, or null. */
 function commandTurn(raw) {
@@ -456,7 +476,21 @@ export function transcriptWindow(lines) {
   }
   const turns = [];
   let afterCompaction = false;
+  // The turns of each line take its time once the line is done with.
+  let from = 0;
+  let stamp;
+  const stampTurns = () => {
+    if (stamp !== undefined) for (let i = from; i < turns.length; i++) turns[i].at = stamp;
+    from = turns.length;
+  };
+  // The time of the last line of yours or the assistant's in the main
+  // conversation: where a thinking block that follows it started.
+  let lastStamp;
   for (const rec of records) {
+    stampTurns();
+    stamp = stampOf(rec);
+    const before = lastStamp;
+    if (stamp !== undefined && rec.isSidechain !== true && (rec.type === "user" || rec.type === "assistant")) lastStamp = stamp;
     if (rec.type === "system") afterCompaction = rec.subtype === "compact_boundary";
     if (rec.isSidechain === true || rec.isMeta === true) continue;
     const content = rec.message?.content;
@@ -487,10 +521,17 @@ export function transcriptWindow(lines) {
     } else if (rec.type === "assistant" && rec.isApiErrorMessage === true) {
       turns.push(apiErrorTurn(content));
     } else if (rec.type === "assistant" && Array.isArray(content)) {
+      // Claude Code writes each block of a reply as a line of its own, when
+      // the block is done: a line of thinking alone ends where it ended, and
+      // began where the line before it was written.
+      const thinkingOnly = content.length > 0 && content.every(isThinking);
       for (const part of content) {
         if (!part || typeof part !== "object") continue;
         if (part.type === "text" && typeof part.text === "string" && part.text.trim()) {
-          turns.push({ kind: "assistant", text: cut(part.text.trim(), MAX_TEXT) });
+          const said = part.text.trim();
+          turns.push(said.length > MAX_PROSE ? { kind: "assistant", text: cut(said, MAX_PROSE), cut: true } : { kind: "assistant", text: said });
+        } else if (isThinking(part)) {
+          turns.push(thinkingTurn(part, thinkingOnly && stamp !== undefined && before !== undefined ? stamp - before : undefined));
         } else if (part.type === "tool_use" && typeof part.name === "string") {
           const result = typeof part.id === "string" ? answered.get(part.id) : undefined;
           if (part.name === PLAN_TOOL) {
@@ -528,17 +569,20 @@ export function transcriptWindow(lines) {
               turn.note = change.note;
               turn.diff = change.diff;
             }
-          }
+          } else Object.assign(turn, toolResultDetail(part.name, result));
           turns.push(turn);
         }
       }
     }
   }
+  stampTurns();
   return capTurns(turns);
 }
 
 function capTurns(turns) {
-  return turns.length > MAX_TURNS ? { turns: turns.slice(-MAX_TURNS), cut: true } : { turns, cut: false };
+  const kept = turns.length > MAX_TURNS ? { turns: turns.slice(-MAX_TURNS), cut: true } : { turns, cut: false };
+  budgetDetail(kept.turns);
+  return kept;
 }
 
 /** Prefer Codex's conversation events. The model-facing response items repeat
@@ -663,6 +707,14 @@ function codexToolTurn(name, input, answered, result, applied, over) {
   else if (outcome?.failed) turn.error = errorText(outcome.text.replace(ESCAPES, ""));
   else if (notApplied) turn.error = errorText(String(applied.stderr || applied.stdout || "").replace(ESCAPES, ""));
   else if (!answered && !applied && !over) turn.running = true;
+  // A command's output and exit code, as a Bash call's: from the head lines
+  // Codex writes over what it printed.
+  if (turn.mark === "terminal" && outcome && !outcome.declined) {
+    const printed = codexCommandResult(result);
+    if (printed.exit !== undefined) turn.exit = printed.exit;
+    const output = outcome.failed ? null : cappedOutput(printed.text);
+    if (output) turn.output = output;
+  }
   if (patch && turn.error === undefined && !turn.declined) {
     const change = editDiff(name, undefined, { structuredPatch: patch.hunks });
     if (change) {
@@ -695,7 +747,10 @@ function codexMessage(event) {
       text = typeof event.item.content === "string" ? event.item.content : codexItemText(event.item);
     }
   }
-  return typeof text === "string" && text.trim() ? { kind, text: cut(text.trim(), MAX_TEXT) } : null;
+  if (typeof text !== "string" || !text.trim()) return null;
+  const said = text.trim();
+  const max = kind === "assistant" ? MAX_PROSE : MAX_TEXT;
+  return said.length > max && kind === "assistant" ? { kind, text: cut(said, max), cut: true } : { kind, text: cut(said, max) };
 }
 
 /** The turns in a Codex rollout's `lines`, oldest first. */
@@ -720,7 +775,15 @@ function codexTurns(lines) {
     records.push(record);
   }
   const turns = [];
+  // Each turn takes the time of the record it came from, as Claude's do.
+  let from = 0;
+  const stampTurns = record => {
+    const stamp = stampOf(record);
+    if (stamp !== undefined) for (let i = from; i < turns.length; i++) turns[i].at = stamp;
+    from = turns.length;
+  };
   records.forEach((record, at) => {
+    if (at > 0) stampTurns(records[at - 1]);
     const payload = record.payload;
     if (record.type === "event_msg") {
       const message = codexMessage(payload);
@@ -761,5 +824,6 @@ function codexTurns(lines) {
     const id = typeof payload.call_id === "string" ? payload.call_id : undefined;
     turns.push(codexToolTurn(name, input, id !== undefined && results.has(id), results.get(id), id === undefined ? undefined : applied.get(id), at < ended));
   });
+  if (records.length) stampTurns(records[records.length - 1]);
   return turns;
 }

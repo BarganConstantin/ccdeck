@@ -25,11 +25,13 @@ const assets = join(repo, "dist", "web", "assets");
  *  CHANGED ON PURPOSE (Chat answers permission prompts and plans): the Decision
  *  card's sentences ("Checking the prompt is still on screen", "Sent only when you
  *  pick") moved to the board catalog the same way, so its class names
- *  ("dc-caption", "dc-opt-label") say where it is. */
+ *  ("dc-caption", "dc-opt-label") say where it is.
+ *  CHANGED ON PURPOSE (the card's key tables keyed): "pick and send" is no
+ *  longer a word anywhere; the No row's Esc chip ("dc-esc") says it instead. */
 const DECISION_MARK = "dc-caption";
 const FINGERPRINTS = [
   "chat-since", DECISION_MARK, "dc-opt-label",
-  "pick and send", "agent-dag.chat", "agent-dag.decision",
+  "dc-esc", "agent-dag.chat", "agent-dag.decision",
   ".dc-dock", ".dc-dq", ".chat-col", ".chat-body", "dc-tick", "chat-tool",
 ];
 

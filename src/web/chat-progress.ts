@@ -76,6 +76,10 @@ export interface ChatFacts {
   connected: boolean;
   /** A card in Chat asks what the session waits on. */
   asked: boolean;
+  /** What the agent's own screen says it is doing (use-screen-status.ts). */
+  status?: string;
+  /** When the turn at work began: the board's last prompt. */
+  since?: number;
 }
 
 /** What Chat draws now, and when that changes by itself. */
@@ -153,7 +157,7 @@ export function chatShown(pending: ChatPending | undefined, facts: ChatFacts, no
   if (pending && !taken) {
     const due = pending.since + CONFIRM_MS;
     const late = !facts.connected || (!pending.behind && now >= due);
-    out.outgoing = { text: pending.text, state: late ? "unconfirmed" : "sending" };
+    out.outgoing = { text: pending.text, state: late ? "unconfirmed" : "sending", ...(pending.behind && !late ? { queued: true } : {}) };
     if (!late && !pending.behind) out.next = due;
   } else if (pending && echoes(facts.turns, pending.text) <= pending.echoes
     && !(pending.takenAt !== undefined && now >= pending.takenAt + TAKEN_GRACE_MS)) {
@@ -166,6 +170,8 @@ export function chatShown(pending: ChatPending | undefined, facts: ChatFacts, no
   if (working) {
     const activity: ChatActivity = { state: "working" };
     if (facts.detail) activity.detail = facts.detail;
+    if (facts.status) activity.status = facts.status;
+    if (facts.since !== undefined) activity.since = facts.since;
     if (!facts.tool && facts.heardAt !== undefined) {
       const silent = now - facts.heardAt;
       if (silent >= QUIET_MS) {

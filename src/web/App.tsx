@@ -103,6 +103,12 @@ import { sessionsOf, useMarkSeen } from "./use-mark-seen";
 import { useRightPanels } from "./use-right-panels";
 import { useLiveAnnouncements } from "./use-live-announcements";
 import { useOsNotifications } from "./use-os-notifications";
+import { useChatAlerts } from "./use-chat-alerts";
+import { requestChatView } from "./chat-view-memory";
+import { openWaitingQueue } from "./waiting-queue";
+import { publishNotifyOffer } from "./notify-offer";
+import { inDesktopApp } from "./in-app";
+import AlertStack from "./components/alerts/AlertStack";
 import { useStopContinueFeed } from "./use-stop-continue";
 import { useMirroredRef } from "./use-mirrored-ref";
 import { useDialogs } from "./use-dialogs";
@@ -149,6 +155,7 @@ import { setSingleKeyShortcuts } from "./single-key-shortcuts";
 import { setHideFinishedAfter } from "./hide-finished";
 import type { Density, TextSize } from "./reading-preferences";
 import type { Theme } from "./theme";
+import { useScreenKeys } from "./screen-keys";
 
 /** Under this width the Inspector is the detail sheet, not a Workspace column
  *  (workspace.css, "Narrower windows"). */
@@ -265,6 +272,8 @@ function Inner() {
   // here because Workspace, which the stage hook decides, is never on one, and
   // because a sheet on a phone is held for its own, longer, exit.
   const phone = useMediaQuery(PHONE_QUERY);
+  // A question card's keys, while one is drawn: the status bar names them (screen-keys.ts).
+  const screenKeys = useScreenKeys();
   const railExitMs = useMemo(
     () => phone ? (reducedMotion ? sheetFadeMs() : sheetCloseMs()) : tokenMs(reducedMotion ? "--dur-xfade" : "--dur-fast"),
     [reducedMotion, phone]);
@@ -930,15 +939,16 @@ function Inner() {
   // Command Panel turned off): the canvas goes back to the grid.
   useEffect(() => { if (!inWorkspace) unpinBoard(appRef.current); }, [inWorkspace]);
   const { leaveWorkspace, openInPane } = stage;
-  const switchView = useCallback((next: View, how: "pointer" | "key", sessionId?: string) => {
+  const switchView = useCallback((next: View, how: "pointer" | "key", sessionId?: string, keys = true) => {
     runSwitch(how, () => {
       if (next === "workspace") {
         if (!workspaceRef.current) pinBoard(appRef.current, canvasRef.current);
         // A card clicked on the Board: its pane takes the keys, as the stage's
         // click did (use-stage.ts onNodeClick). Left on the deck, the first
         // letters meant for the agent fired the deck's shortcuts instead.
+        // An alert's Open in Chat leaves them: the keys would bring Term.
         if (sessionId) {
-          openInPane(sessionId, { focusPane: true });
+          openInPane(sessionId, { focusPane: keys });
           markLanded(sessionId);
         }
       } else {
@@ -1036,6 +1046,21 @@ function Inner() {
     if (workspaceRef.current && stage.enabled) { openInPane(sessionId); markLanded(sessionId); return; }
     focusSession(sessionId);
   }, [workspaceRef, stage.enabled, openInPane, markLanded, focusSession]);
+  // OPEN IN CHAT: an alert's buttons, a notification's, the desktop app's.
+  // The session in the Workspace pane, and the pane on Chat
+  // (chat-view-memory.ts): from the Board the view switches first. Where
+  // there is no Workspace (a phone, the Command Panel off) it is the jump
+  // every other way in makes.
+  const openInChat = useCallback((sessionId: string) => {
+    if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
+    requestChatView(sessionId);
+    if (!stage.enabled || !stage.workspaceOffered || phone) { focusSessionOnView(sessionId); return; }
+    const fromStack = typeof document !== "undefined" && !!document.activeElement?.closest?.(".ca-stack");
+    if (workspaceRef.current) { openInPane(sessionId); markLanded(sessionId); }
+    else switchView("workspace", "pointer", sessionId, false);
+    // A keyboard press on a card that is about to go lands in the pane, not on <body>.
+    if (fromStack) requestAnimationFrame(() => document.getElementById(WORKSPACE_PANE_ID)?.focus({ preventScroll: true }));
+  }, [removedAgentIds, bringBack, stage.enabled, stage.workspaceOffered, phone, focusSessionOnView, workspaceRef, openInPane, markLanded, switchView]);
   const openSession = useCallback((sessionId: string) => {
     // In Workspace a row opens that session in the pane, whatever the stage is
     // doing: a pane still on its way, or the empty one. followSession answers
@@ -1161,8 +1186,21 @@ function Inner() {
   // finished while the page was hidden: the permission, the switch, asking for
   // it, and what has already been raised — in use-os-notifications.ts. It is
   // fed the same waiting set the sidebar draws, and the graph for finished turns.
-  const notify = useOsNotifications({ waitingSessions, liveSince, focusSession: focusSessionOnView, stateRef });
+  const notify = useOsNotifications({ waitingSessions, liveSince, focusSession: focusSessionOnView, openInChat, stateRef });
   const { loadNotifyPrefs } = notify;
+  // The alert stack and every way in to its two actions — use-chat-alerts.ts.
+  const chatAlerts = useChatAlerts({ waitingSessions, stateRef, liveSince, openInChat, focusSession: focusSessionOnView });
+  // Chat's one-time offer of alerts reads the switch held here (notify-offer.ts).
+  const turnNotifyOn = useCallback(() => {
+    if (!notify.notifyOn) notify.toggleNotify();
+    else if (notify.notifyPermission === "default") notify.askForNotifications();
+  }, [notify.notifyOn, notify.toggleNotify, notify.notifyPermission, notify.askForNotifications]);
+  useEffect(() => {
+    publishNotifyOffer({
+      supported: notify.notifySupported, permission: notify.notifyPermission, on: notify.notifyOn,
+      vetoed: notify.notifyVetoed, desktop: inDesktopApp(), turnOn: turnNotifyOn,
+    });
+  }, [notify.notifySupported, notify.notifyPermission, notify.notifyOn, notify.notifyVetoed, turnNotifyOn]);
   // The terminal's run through the waiting sessions, and the stage's half of
   // the keys, which need the waiting list built just above — use-stage.ts.
   const asks = useStageAsks(stage, waitingSessions, canvasRef);
@@ -1728,10 +1766,17 @@ function Inner() {
 
       {account.on && <Suspense fallback={null}><AccountBridge appliers={accountAppliers} /></Suspense>}
 
+      {/* Sessions that started waiting on you, answerable from the corner —
+          components/alerts/AlertStack.tsx. */}
+      <AlertStack
+        alerts={chatAlerts.alerts} canChat={stage.enabled && stage.workspaceOffered && !phone} said={chatAlerts.said}
+        onAnswer={chatAlerts.answer} onOpen={chatAlerts.open} onDismiss={chatAlerts.dismiss} onMore={openWaitingQueue}
+      />
+
       {/* The foot of the shell: the grid's fourth row, under the canvas, the
           columns and the stripes (not drawn on a phone, where the dock is) —
           components/StatusBar.tsx. */}
-      {!phone && <StatusBar stageOpen={stage.enabled && stageClaimsKeys(stage.shell.phase)} zoomedOut={zoom.lod !== "detail"} viewChord={stage.workspaceOffered ? (inWorkspace ? "board" : "workspace") : null} splitPanes={stage.arrangement?.mode === "split"} waiting={waitingSessions.length > 0} version={version?.running ?? null} onVersion={welcome.openReleaseNotes} setKeyHelpOpen={setKeyHelpOpen} />}
+      {!phone && <StatusBar stageOpen={stage.enabled && stageClaimsKeys(stage.shell.phase)} zoomedOut={zoom.lod !== "detail"} viewChord={stage.workspaceOffered ? (inWorkspace ? "board" : "workspace") : null} splitPanes={stage.arrangement?.mode === "split"} waiting={waitingSessions.length > 0} version={version?.running ?? null} onVersion={welcome.openReleaseNotes} setKeyHelpOpen={setKeyHelpOpen} extra={screenKeys?.status} />}
       </BoardEmptyContext.Provider>
 
       {/* The dialogs, in the order they paint over one another — components/DeckDialogs.tsx. */}

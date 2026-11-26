@@ -79,15 +79,22 @@ import Divider from "./Divider";
 import HostsDialog from "./HostsDialog";
 import { t as tNow, useT } from "../../i18n";
 import { ChatComposerSlot, useScreenFlags } from "../../use-screens";
+import { useChatReturned } from "../../use-chat-returned";
 import { fontSizeFor, stepTerminalText, useTerminalTextStep } from "../../terminal-text-size";
 import { chatSessionFor, useSessionTranscript } from "../../use-session-transcript";
 import { isEventOnly } from "../../../server/provider-ids.mjs";
 import { askSteps, chatSteps, type AskStep } from "../../ask-keys";
 import { stopSteps } from "../../chat-stop";
 import { pendingFor, useChatProgress, waitsInChat, type ChatFacts, type ChatPending } from "../../chat-progress";
+import { useScreenStatus } from "../../use-screen-status";
 import { noteFeature, useFeatureUse } from "../../feature-use";
 import type { ChatAsk, ChatTurn } from "../chat/chat-model";
 import { usePromptDecision } from "../../use-prompt-decision";
+import { rememberedView, rememberView } from "../../chat-view-memory";
+import { useChatPaneLinks } from "../../use-chat-pane-links";
+import NotifyOffer from "../alerts/NotifyOffer";
+import { intentTarget, useIntentPress } from "../../use-intent-press";
+import { answerIntents, type IntentOutcome } from "../../answer-intent";
 import { DialogPresence } from "../Dialog";
 import type { HostsApi } from "./older-hosts";
 import { useOlderHosts } from "./use-older-hosts";
@@ -98,6 +105,14 @@ import type { PaneTabsView, TabsMenuOpen } from "./PaneTabs";
 
 /** One empty transcript for every render, so the card's words are not rebuilt for nothing. */
 const NO_TURNS: readonly ChatTurn[] = [];
+
+/** What the pane says when an answer chosen on an alert was not sent. */
+const INTENT_NOTICE: Partial<Record<IntentOutcome["kind"], string>> = {
+  changed: "board.chat.alert.notice.changed",
+  locked: "board.chat.alert.notice.locked",
+  timeout: "board.chat.alert.notice.timeout",
+  expired: "board.chat.alert.notice.timeout",
+};
 
 /** How long the keys bar holds a refusal before its hints come back. */
 const NOTICE_MS = 6000;
@@ -211,6 +226,8 @@ export interface StageSessionInfo {
   promptCount?: number;
   /** When the board last heard from it (its `lastEventAt`): Chat asks soon after this moves. */
   heardAt?: number;
+  /** When its last turn began (its last prompt): Chat's working row counts from it. */
+  turnStartedAt?: number;
   /** What the header's Rename needs (session-rename.ts renameFacts), for a
    *  session the board has; left out, the name is only drawn. */
   rename?: RenameFacts | null;
@@ -499,6 +516,12 @@ export default function TerminalStage(p: TerminalStageProps) {
   const chatReadOnly = isEventOnly(chatProvider);
   const chatDraftKey = `${chatProvider}:${chatSession}`;
   const [view, setView] = useState<"chat" | "term">("term");
+  // Each session opens in the view it was left in (chat-view-memory.ts), taken
+  // up in the render that brings it, so Term never flashes before Chat; one
+  // not remembered keeps the view the pane has.
+  const [viewFor, setViewFor] = useState<string | null>(null);
+  if (viewFor !== chatSession) { setViewFor(chatSession); const kept = rememberedView(chatSession); if (kept) setView(kept); }
+  useEffect(() => { rememberView(chatSession, view); }, [chatSession, view]);
   const chatOn = chatSession !== null && view === "chat";
   // A session's terminal pane shown, and its Chat view: features the usage
   // reports name (feature-use.ts). An empty Workspace pane is neither.
@@ -774,16 +797,10 @@ export default function TerminalStage(p: TerminalStageProps) {
     }
     return result;
   };
-  const chatAsk: ChatAsk | undefined = chatSession === null ? undefined : {
-    blocked: chatCannotSend,
-    onShowTerm: () => showView("term"),
-    send: (questions, picks) => answerAsk(askSteps(questions, picks)),
-    chat: questions => answerAsk(chatSteps(questions)),
-  };
   // Claude Code's permission prompt and plan approval, answered from the
   // Decision card docked under Chat: read off the live screen while the
   // transcript says a call or a plan waits (use-prompt-decision.ts).
-  const promptCard = usePromptDecision({
+  const promptDecision = usePromptDecision({
     on: chatOn && chatProvider === "claude" && screenFlags.decision && chatCannotSend === undefined,
     turns: chatSource.state === "ready" ? chatSource.turns : NO_TURNS,
     session: name,
@@ -793,14 +810,56 @@ export default function TerminalStage(p: TerminalStageProps) {
     onSent: () => { setChatSent(sent => sent + 1); noteFeature("chat-decision"); },
     onShowTerm: () => showView("term"),
   });
-  // Under Chat's last line: where a message sent from here stands, and what the
-  // session is doing, in the header's words (chat-progress.ts).
   const chatTurns = chatSource.state === "ready" ? chatSource.turns : NO_TURNS;
+  // An answer chosen on an alert (answer-intent.ts), pressed through the card
+  // that answers the prompt once its words are checked; a prompt that moved is
+  // left to the reader, with a line saying so (use-intent-press.ts).
+  const intentPress = useIntentPress({
+    sessionId: chatOn && chatProvider === "claude" && chatCannotSend === undefined ? chatSession : null,
+    target: intentTarget(promptDecision?.model, chatTurns),
+    readScreen: () => session.readScreen(key),
+    onOutcome: kind => {
+      if (chatSession) answerIntents.report({ sessionId: chatSession, kind, at: Date.now() });
+      const said = INTENT_NOTICE[kind];
+      if (said) setNotice(t(said));
+    },
+  });
+  const promptCard = promptDecision && intentPress && intentPress.for === promptDecision.model.id ? { ...promptDecision, press: intentPress } : promptDecision;
+  const chatAsk: ChatAsk | undefined = chatSession === null ? undefined : {
+    blocked: chatCannotSend,
+    onShowTerm: () => showView("term"),
+    send: (questions, picks) => answerAsk(askSteps(questions, picks)),
+    chat: questions => answerAsk(chatSteps(questions)),
+    ...(intentPress && !promptDecision ? { press: intentPress } : null),
+  };
+  // The pane's Chat | Term switch, as alerts, notifications and the chord
+  // reach it (use-chat-pane-links.ts).
+  useChatPaneLinks({
+    chatSession,
+    chatOn,
+    focused: workspace && (p.split?.primary ?? true),
+    showChat: () => showView("chat"),
+    toggle: () => {
+      if (chatOn) { intoPane(); return; }
+      showView("chat");
+    },
+  });
+  // Under Chat's last line: where a message sent from here stands, and what the
+  // session is doing, in the header's words (chat-progress.ts) and, while it
+  // works, its own screen's ("Pondering…", use-screen-status.ts). The row keeps
+  // the turn's clock, so the header's tool time is left out of its words.
+  const screenWords = useScreenStatus({
+    on: chatOn && status.state === "working" && chatCannotSend === undefined && (chatProvider === "claude" || chatProvider === "codex"),
+    subject: key,
+    readScreen: session.readScreen,
+  });
   const chatFacts: ChatFacts = {
     turns: chatTurns,
     prompts: p.show.kind === "session" ? p.show.session.promptCount ?? 0 : 0,
     state: status.state,
-    detail: metaRest(status) ?? undefined,
+    detail: metaRest({ ...status, seconds: undefined }) ?? undefined,
+    status: screenWords ?? undefined,
+    since: p.show.kind === "session" ? p.show.session.turnStartedAt : undefined,
     tool: !!status.tool,
     heardAt: p.show.kind === "session" ? p.show.session.heardAt : undefined,
     connected: chatCannotSend === undefined,
@@ -812,6 +871,9 @@ export default function TerminalStage(p: TerminalStageProps) {
     delete rest[chatDraftKey];
     return rest;
   }));
+  // A message the session did not take goes back into an empty box (use-chat-returned.ts).
+  const chatReturned = useChatReturned(chatDraftKey, chatProgress.outgoing, chatDrafts[chatDraftKey] ?? "",
+    text => setChatDrafts(drafts => ({ ...drafts, [chatDraftKey]: text })));
 
   // RENAMING (internal #101): held here rather than in the header, which is
   // drawn by calling it; the facts are the session on stage, so a switch to
@@ -1041,6 +1103,10 @@ export default function TerminalStage(p: TerminalStageProps) {
     onChange={value => setChatDrafts(drafts => ({ ...drafts, [chatDraftKey]: value }))}
     unavailable={chatUnavailable}
     onShowTerm={() => showView("term")}
+    session={chatDraftKey}
+    turns={chatTurns}
+    notTaken={chatReturned.text}
+    provider={chatProvider}
     onSend={text => {
       if (chatUnavailable) return "unavailable";
       const result = session.sendPrompt(text, key);
@@ -1164,9 +1230,11 @@ export default function TerminalStage(p: TerminalStageProps) {
         onOpenWaiting={openWaiting(p.waiting, p.onOpenWaiting)}
         screens={chatSession !== null ? {
           view, source: chatSource, provider: chatProvider, ask: chatAsk, decision: promptCard,
-          session: chatDraftKey, outgoing: chatProgress.outgoing, activity: chatProgress.activity, onShowTerm: () => showView("term"),
+          session: chatDraftKey, outgoing: chatReturned.outgoing, activity: chatProgress.activity, onShowTerm: () => showView("term"),
         } : undefined}
       />
+      {/* Once, in Chat: alerts when a session needs you (notify-offer.ts). */}
+      {chatOn && <NotifyOffer />}
       <KeysBar
         primary={p.split?.primary ?? true}
         owner={session.keysOwner}

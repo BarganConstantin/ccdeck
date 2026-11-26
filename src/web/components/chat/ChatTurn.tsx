@@ -8,13 +8,15 @@
 // own button. Only the conversation's last task list is drawn whole (ChatView
 // says which); earlier ones are a line each, folded in with the tool calls.
 //
-// NEW LINES APPEAR WITH NO MOTION. A line is drawn where it belongs and that is
-// all; there is no entrance, no highlight, no scroll animation.
+// MOTION IS chat-motion.css's, AND ONLY THERE. A line that arrives while you
+// watch rises into place; one already there when Chat opens, or loaded older,
+// is simply drawn. A disclosure opens and closes by its height. The working
+// row's mark cycles while the session works. Each has its reduced-motion rule.
 import {
   AgentGlyph, ChevronRightGlyph, DoneGlyph, FileGlyph, ImageGlyph, SearchGlyph, TodoActiveGlyph, TodoPendingGlyph, ToolTerminalGlyph,
 } from "./chat-icons";
 import { t as tNow, useT, type TFunction } from "../../i18n";
-import type { ChatActivity, ChatAsk, ChatDiff, ChatOutgoing, ChatQuestion, ChatSince, ChatTodo, ChatTurn as Turn } from "./chat-model";
+import type { ChatActivity, ChatAsk, ChatOutgoing, ChatQuestion, ChatSince, ChatTodo, ChatTurn as Turn } from "./chat-model";
 import type { Provider } from "../../types";
 import ProviderAvatar from "../ProviderAvatar";
 import { providerLabel } from "../../provider-copy";
@@ -25,17 +27,28 @@ import type { AskSendResult } from "../../use-terminal-session";
 import { copyText } from "../../copy-text";
 import { CopyGlyph } from "../terminal/stage-icons";
 import { CODEX_TOOL_LABEL } from "../../tool-taxonomy";
+import DiffBlock, { DiffCounts } from "./ChatDiff";
+import { failedByExit, ToolFacts, ToolOutputBlock, ToolPreview, WorkSummary } from "./ChatToolOutput";
+import ThinkingRow from "./ChatThinking";
+import { Clock, MessageMeta, TurnFooter } from "./ChatTime";
+import type { BlockTime } from "./chat-rich";
+import { clockShort } from "../../elapsed-short";
+import { useSingleKeyShortcuts } from "../../use-single-key-shortcuts";
+import { askDigitPicks, askTakesDigits, usePaneAnswerKeys } from "./answer-keys";
+
+export { diffOp, default as DiffBlock } from "./ChatDiff";
 
 /** What you typed, and a chip that counts the images you sent with it: under
  *  the words, or alone when you sent only images. The images themselves are
  *  never in the transcript Chat reads. */
-export function YourMessage({ text, images }: { text: string; images?: number }) {
+export function YourMessage({ text, images, at }: { text: string; images?: number; at?: number }) {
   const t = useT();
   return (
     <div className="chat-you">
       <span className="chat-author">{t("board.chat.you")}</span>
       {text && <p className="chat-you-text">{text.replace(/\r\n?/g, "\n")}</p>}
       {images ? <span className="chat-you-images"><span className="chat-you-images-mark"><ImageGlyph /></span>{t("board.chat.images", { count: images })}</span> : null}
+      <MessageMeta at={at} text={text} />
     </div>
   );
 }
@@ -54,7 +67,8 @@ export function OutgoingMessage({ outgoing, provider, onShowTerm }: { outgoing: 
       <p className="chat-you-text">{outgoing.text.replace(/\r\n?/g, "\n")}</p>
       {outgoing.state !== "taken" && (
         <p className="chat-you-state">
-          <span>{late ? t("board.chat.progress.unconfirmed", { agent: providerLabel(provider) }) : t("board.chat.progress.sending")}</span>
+          <span>{late ? t("board.chat.progress.unconfirmed", { agent: providerLabel(provider) })
+            : outgoing.queued ? t("board.chat.compose.queued", { agent: providerLabel(provider) }) : t("board.chat.progress.sending")}</span>
           {late && onShowTerm && <button type="button" className="chat-ask-term" onClick={onShowTerm}>{t("board.chat.showTerm")}</button>}
         </p>
       )}
@@ -62,22 +76,43 @@ export function OutgoingMessage({ outgoing, provider, onShowTerm }: { outgoing: 
   );
 }
 
+/** The working mark's frames, as Claude Code's own spinner draws them. One
+ *  column; chat-motion.css steps through it, there and back. */
+export const WORKING_FRAMES = "·✢✳✶✻✽";
+
 /** What the session is doing, under the conversation's last line: at work,
- *  with the header's tool and time, or silent for a while with the way to
- *  Term; or waiting on you where no card in Chat asks it. A still mark, never
- *  a spinner: nothing in Chat moves. */
-export function ActivityLine({ activity, provider, onShowTerm }: { activity: ChatActivity; provider?: Provider; onShowTerm?: () => void }) {
+ *  in the agent's own words when its screen shows them ("Pondering…") or
+ *  "Working…", for how long, and the header's tool; silent for a while, with
+ *  the way to Term; or waiting on you where no card in Chat asks it. The mark
+ *  cycles only while the session works (and stands still under reduced
+ *  motion); waiting and silence wear --warn on a still mark. */
+export function ActivityLine({ activity, onShowTerm }: { activity: ChatActivity; provider?: Provider; onShowTerm?: () => void }) {
   const t = useT();
-  const words = activity.state === "working" ? t("board.chat.progress.working", { agent: providerLabel(provider) }) : t("board.chat.ask.waiting");
+  const working = activity.state === "working";
+  const words = working ? activity.status || t("board.chat.live.working") : t("board.chat.live.waiting");
   const rest = activity.quiet ? t("board.chat.progress.quiet", { time: activity.quiet }) : activity.detail;
   return (
     <div className="chat-progress" data-state={activity.state} data-quiet={activity.quiet ? "" : undefined}>
-      <span className="chat-progress-mark" aria-hidden="true" />
+      <span className="chat-progress-mark" aria-hidden="true">
+        <span className="chat-progress-frames">{[...WORKING_FRAMES].map(frame => <span key={frame}>{frame}</span>)}</span>
+      </span>
       <span className="chat-progress-text">{words}</span>
+      {working && activity.since !== undefined && <TurnClock since={activity.since} />}
       {rest && <span className="chat-progress-detail" title={rest}>{rest}</span>}
       {activity.quiet && onShowTerm && <button type="button" className="chat-ask-term" onClick={onShowTerm}>{t("board.chat.showTerm")}</button>}
     </div>
   );
+}
+
+/** How long the turn has run, "1m 07s", ticking each second: its own state,
+ *  so the tick redraws this figure and nothing else. */
+export function TurnClock({ since }: { since: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return <span className="chat-progress-time">{clockShort(Math.max(0, Math.floor((now - since) / 1000)))}</span>;
 }
 
 /** A slash command you ran, as you typed it ("/model opus"), and what it
@@ -94,30 +129,15 @@ export function YourCommand({ turn }: { turn: Extract<Turn, { kind: "command" }>
   );
 }
 
-export function AssistantText({ text }: { text: string }) {
-  return <div className="chat-said"><ChatMarkdown text={text} /></div>;
+export function AssistantText({ text, cut }: { text: string; cut?: boolean }) {
+  const t = useT();
+  return <div className="chat-said"><ChatMarkdown text={text} />{cut && <p className="chat-said-cut">{t("board.chat.rich.saidCut")}</p>}</div>;
 }
 
 const MARKS = { file: FileGlyph, search: SearchGlyph, terminal: ToolTerminalGlyph } as const;
 
 type ToolTurn = Extract<Turn, { kind: "tool" }>;
 type TodoTurn = Extract<Turn, { kind: "todo" }>;
-
-/** Which way a diff line goes: added, removed, kept, or the gap between two hunks. */
-export function diffOp(line: string): "add" | "del" | "ctx" | "gap" {
-  if (line === "…") return "gap";
-  return line.startsWith("+") ? "add" : line.startsWith("-") ? "del" : "ctx";
-}
-
-/** An edit's change: one line per diff line, scrolled inside its own block. */
-export function DiffBlock({ diff }: { diff: ChatDiff }) {
-  const t = useT();
-  return <>
-    <pre className="chat-diff"><code>{diff.lines.map((line, i) =>
-      <span key={i} className="chat-diff-line" data-op={diffOp(line)}>{line}</span>)}</code></pre>
-    {diff.cut && <p className="chat-diff-cut">{t("board.chat.diff.cut")}</p>}
-  </>;
-}
 
 /** The word a tool row shows. Codex's raw names ("exec_command",
  *  "apply_patch") read as the board shows them ("Shell", "Edit"); the raw name
@@ -132,31 +152,35 @@ export function ToolRow({ turn }: { turn: ToolTurn }) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const Mark = MARKS[turn.mark ?? (turn.name === "Bash" ? "terminal" : turn.name === "Explore" ? "search" : "file")];
-  const failed = turn.error !== undefined;
+  const failed = turn.error !== undefined && !failedByExit(turn);
   const label = toolLabel(turn.name);
   const content = <>
     <span className="chat-tool-mark"><Mark /></span>
     <span className="chat-tool-name" title={label === turn.name ? undefined : turn.name}>{label}</span>
     <span className="chat-tool-arg" title={turn.arg}>{turn.arg}</span>
-    {turn.note && <span className="chat-tool-note">{turn.note}</span>}
+    {turn.note && <span className="chat-tool-note">{turn.diff ? <DiffCounts note={turn.note} /> : turn.note}</span>}
+    <ToolFacts turn={turn} />
     {failed && <span className="chat-tool-failed">{t("board.chat.tool.failed")}</span>}
     {turn.declined && <span className="chat-tool-declined">{t("board.chat.tool.declined")}</span>}
   </>;
-  // An error to read or a change to see: the row is a button that opens them,
-  // with the whole argument above, as the plain row's disclosure shows it.
-  if (turn.error || turn.diff?.lines.length) {
+  // An error to read, a change to see or an output: the row is a button that
+  // opens them, with the whole argument above, as the plain row's disclosure
+  // shows it. A command's closed row previews its output in one line.
+  if (turn.error || turn.diff?.lines.length || turn.output) {
     return (
       <div className="chat-tool-call">
         <button type="button" className="chat-tool chat-tool-toggle" data-running={turn.running || undefined}
           aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(was => !was)}>
           <span className="chat-disclosure"><ChevronRightGlyph /></span>
           {content}
+          {!open && <ToolPreview turn={turn} />}
         </button>
         {open && (
           <div className="chat-tool-detail" id={id}>
             {turn.arg && <pre className="chat-tool-input"><code>{turn.arg}</code></pre>}
             {turn.error && <pre className="chat-tool-error"><code>{turn.error}</code></pre>}
-            {turn.diff && turn.diff.lines.length > 0 && <DiffBlock diff={turn.diff} />}
+            {turn.diff && turn.diff.lines.length > 0 && <DiffBlock diff={turn.diff} path={turn.arg} />}
+            {turn.output && <ToolOutputBlock output={turn.output} />}
           </div>
         )}
       </div>
@@ -234,24 +258,40 @@ export function NoticeLine({ turn }: { turn: Extract<Turn, { kind: "notice" }> }
   return <p className="chat-notice" data-what={turn.what}>{text}</p>;
 }
 
-/** What folds into a run of tool calls: a call, or an earlier task list. */
-type Folded = ToolTurn | TodoTurn;
+/** What folds into a run of tool calls: a call, an earlier task list, or a thought between calls. */
+type Folded = ToolTurn | TodoTurn | Extract<Turn, { kind: "thinking" }>;
 
 /** The disclosure contains the actual calls; it never implies unseen output.
- *  Failed calls are counted on its head, so they show while it is closed. */
+ *  Failed calls are counted on its head, so they show while it is closed.
+ *
+ *  IT OPENS ITSELF WHILE A CALL RUNS, AND IS YOURS ONCE YOU TOGGLE IT. A
+ *  group you opened or closed stays as you left it, running or not. One that
+ *  opened itself folds again when its calls finish, unless the pointer or the
+ *  focus is in it: a group being read does not snap shut under the reader. */
 export function ToolGroup({ turns }: { turns: Folded[] }) {
   const t = useT();
   const running = turns.some(turn => turn.kind === "tool" && turn.running);
   const failed = turns.filter(turn => turn.kind === "tool" && turn.error !== undefined).length;
-  return <details className="chat-activity" open={running || undefined}>
+  const own = useRef<HTMLDetailsElement>(null);
+  // Your own toggle, once you made one; until then the group follows its calls.
+  const [chosen, setChosen] = useState<boolean | undefined>(undefined);
+  const [held, setHeld] = useState(running);
+  useEffect(() => {
+    if (running) setHeld(true);
+    else if (!own.current?.matches(":hover, :focus-within")) setHeld(false);
+  }, [running]);
+  const open = chosen ?? (running || held);
+  return <details ref={own} className="chat-activity" open={open}
+    onToggle={event => { const now = event.currentTarget.open; if (now !== open) setChosen(now); }}>
     <summary className="chat-activity-head">
       <span className="chat-disclosure"><ChevronRightGlyph /></span>
-      <span>{t("board.chat.tools", { count: turns.length })}</span>
+      <WorkSummary turns={turns} />
       {failed > 0 && <span className="chat-activity-failed">{t("board.chat.toolsFailed", { count: failed })}</span>}
       {running && <span className="chat-activity-running">{t("board.chat.running")}</span>}
     </summary>
     <div className="chat-activity-calls">{turns.map((turn, i) => turn.kind === "tool"
       ? <ToolRow key={i} turn={turn} />
+      : turn.kind === "thinking" ? <ThinkingRow key={i} turn={turn} />
       : <TodoLine key={i} turn={turn} />)}</div>
   </details>;
 }
@@ -261,7 +301,7 @@ export type LiveAsk = ChatAsk & { at: number };
 
 /** Identify each response once. `todoAt` is which of the block's turns is the
  *  conversation's last task list, drawn whole; none when it is elsewhere. */
-export function AssistantBlock({ turns, provider = "claude", ask, todoAt }: { turns: Turn[]; provider?: Provider; ask?: LiveAsk; todoAt?: number }) {
+export function AssistantBlock({ turns, provider = "claude", ask, todoAt, time }: { turns: Turn[]; provider?: Provider; ask?: LiveAsk; todoAt?: number; time?: BlockTime }) {
   // Never drawn for opencode or Copilot today (Chat reads no transcript of
   // theirs), and named by provider-copy.ts so it never says Claude Code if it is.
   const author = providerLabel(provider);
@@ -274,13 +314,15 @@ export function AssistantBlock({ turns, provider = "claude", ask, todoAt }: { tu
   // line by line: a disclosure of task lines alone would hide them.
   const parts: { index: number; turns: Turn[]; folded: boolean }[] = [];
   turns.forEach((turn, index) => {
-    const folded = turn.kind === "tool" || (turn.kind === "todo" && index !== todoAt);
+    const folded = turn.kind === "tool" || turn.kind === "thinking" || (turn.kind === "todo" && index !== todoAt);
     const last = parts.at(-1);
     if (folded && last?.folded) last.turns.push(turn);
     else parts.push({ index, turns: [turn], folded });
   });
+  const started = turns.find(turn => turn.at !== undefined)?.at;
   return <section className="chat-response" aria-label={author}>
     <div className="chat-response-author"><ProviderAvatar provider={provider} /><span>{author}</span>
+      {started !== undefined && <Clock at={started} className="chat-response-time" />}
       {answer && <button type="button" className="glyph-btn chat-copy" title={t(copied ? "board.stage.copied" : "board.stage.copy")}
         aria-label={t(copied ? "board.stage.copied" : "board.stage.copy")}
         onClick={() => { void copyText(answer).then(ok => setCopied(ok)); }}><CopyGlyph /></button>}
@@ -290,6 +332,7 @@ export function AssistantBlock({ turns, provider = "claude", ask, todoAt }: { tu
       return part.turns.map((turn, i) => <TurnRow key={part.index + i} turn={turn}
         ask={ask?.at === part.index + i ? ask : undefined} latest={todoAt === part.index + i} />);
     })}</div>
+    {time && <TurnFooter time={time} />}
   </section>;
 }
 
@@ -381,23 +424,51 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
   // Set aside, nothing was chosen: a pick made before it wears no mark.
   const answered = done && !chatting;
   const canChat = !!live?.chat && !sending && !done && !chatMissing && live.blocked === undefined && offersChat(turn.questions);
+  // The pane's digits (answer-keys.ts): with every question one choice from a
+  // list, a digit answers the next unanswered one, and the last sends.
+  const singleKeys = useSingleKeyShortcuts();
+  const card = useRef<HTMLElement | null>(null);
+  const digits = !locked && singleKeys && askTakesDigits(turn.questions);
+  usePaneAnswerKeys(card, digits, e => {
+    if (e.ctrlKey || e.metaKey || e.altKey || !/^[1-9]$/.test(e.key)) return false;
+    const next = askDigitPicks(turn.questions, picks, Number(e.key) - 1);
+    if (!next) return false;
+    setPicks(next);
+    setResult(null);
+    if (picksComplete(turn.questions, next)) void send(next);
+    return true;
+  });
 
   function update(i: number, pick: AskPick) {
     setPicks(previous => previous.map((old, at) => (at === i ? pick : old)));
     setResult(null);
   }
 
-  async function send() {
-    if (!live || !ready) return;
+  async function send(using: AskPick[] = picks) {
+    if (!live || locked || !picksComplete(turn.questions, using)) return;
     setChatting(false);
     setSending(true);
     setResult(null);
     let outcome: AskSendResult;
-    try { outcome = await live.send(turn.questions, picks); }
+    try { outcome = await live.send(turn.questions, using); }
     catch { outcome = "unavailable"; }
     setSending(false);
     setResult(outcome);
   }
+
+  // An answer chosen on an alert: the option is picked and sent by this card's
+  // own Send, once, and only on the question it was chosen for.
+  const pressedId = useRef(0);
+  const press = live?.press;
+  useEffect(() => {
+    if (!press || press.id === pressedId.current) return;
+    if (press.for !== turn.questions.map(q => q.question).join("\n") || turn.questions.length !== 1 || turn.questions[0].multi) return;
+    pressedId.current = press.id;
+    const chosen: AskPick[] = [{ options: [press.index] }];
+    setPicks(chosen);
+    void send(chosen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [press]);
 
   async function chat() {
     if (!live?.chat || !canChat) return;
@@ -441,8 +512,10 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
                   <li key={n} className="chat-ask-option chat-ask-choice" data-chosen={on || undefined}>
                     <label className="chat-ask-pick">
                       <input type={question.multi ? "checkbox" : "radio"} name={name} checked={on} disabled={locked}
+                        aria-keyshortcuts={digits && n < 9 ? String(n + 1) : undefined}
                         onChange={() => update(i, choose(question, pick.text === undefined ? pick : { options: [] }, n))} />
                       {text}
+                      {digits && n < 9 && <span className="chat-ask-n chat-ask-key" aria-hidden="true">{n + 1}</span>}
                       {on && answered && <span className="chat-ask-chosen"><DoneGlyph />{t("board.chat.ask.chosen")}</span>}
                     </label>
                   </li>
@@ -496,7 +569,7 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
     && (result !== null || !reachable);
 
   return (
-    <section className="chat-ask" data-state={state} aria-label={t("board.chat.ask.title", { count: turn.questions.length })}>
+    <section ref={card} className="chat-ask" data-state={state} aria-label={t("board.chat.ask.title", { count: turn.questions.length })}>
       <div className="chat-ask-head">
         <span className="chat-ask-title">{t("board.chat.ask.title", { count: turn.questions.length })}</span>
         <span className="chat-ask-state">{t(`board.chat.ask.${state}`)}</span>
@@ -563,9 +636,10 @@ export function SinceDivider({ since }: { since: ChatSince }) {
 /** One turn. `latest` says a task list is the conversation's last, drawn whole. */
 export function TurnRow({ turn, ask, latest }: { turn: Turn; ask?: ChatAsk; latest?: boolean }) {
   switch (turn.kind) {
-    case "user": return <YourMessage text={turn.text} images={turn.images} />;
+    case "user": return <YourMessage text={turn.text} images={turn.images} at={turn.at} />;
     case "command": return <YourCommand turn={turn} />;
-    case "assistant": return <AssistantText text={turn.text} />;
+    case "assistant": return <AssistantText text={turn.text} cut={turn.cut} />;
+    case "thinking": return <ThinkingRow turn={turn} />;
     case "tool": return <ToolRow turn={turn} />;
     case "todo": return latest ? <TodoList turn={turn} /> : <TodoLine turn={turn} />;
     case "agent": return <AgentLine turn={turn} />;

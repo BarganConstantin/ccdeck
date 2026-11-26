@@ -51,10 +51,18 @@ describe("the title names the call that waits", () => {
 });
 
 describe("the rows are the screen's, word for word", () => {
-  it("a rule-changing row is locked; No refuses and says Claude stops", () => {
-    const [, always, no] = promptDecision(BASH, [tool("Bash", "npm test")], "s").options;
+  // CHANGED ON PURPOSE (the card's keys, herdr's way): No is the row Esc picks.
+  it("a rule-changing row is locked; No refuses, says Claude stops, and is the row Esc picks", () => {
+    const [yes, always, no] = promptDecision(BASH, [tool("Bash", "npm test")], "s").options;
     expect(always).toEqual({ label: BASH.options[1], sub: "", locked: true, lockNote: "Changes the session’s rules, so only in the terminal" });
-    expect(no).toEqual({ label: "No", sub: "It doesn't run. Claude stops and waits for your next message." });
+    expect(no).toEqual({ label: "No", sub: "It doesn't run. Claude stops and waits for your next message.", cancel: true });
+    expect(yes.cancel).toBeUndefined();
+    expect(always.cancel).toBeUndefined();
+  });
+
+  it("a plan has no row Esc picks: keep planning takes words", () => {
+    const model = promptDecision(PLAN, [{ kind: "plan", text: "# Plan", running: true }], "web-api");
+    expect(model.options.filter(o => o.cancel)).toEqual([]);
   });
 
   it("a plan: mode rows locked, manual approve answers, keep planning takes words", () => {

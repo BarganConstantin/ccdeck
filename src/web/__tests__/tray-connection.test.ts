@@ -127,7 +127,8 @@ describe("the tray connection", () => {
     const frame = tray.text().split("event: notify\ndata: ")[1].split("\n")[0];
     // `chime` names the tone the page would have played, so the app plays it.
     // The title is the session alone: the app shows its own name above it.
-    expect(JSON.parse(frame)).toEqual({ title: "vcrm-core", body: "All tests pass.", chime: "done" });
+    // `session` is the one a click on the notification opens in Chat.
+    expect(JSON.parse(frame)).toEqual({ title: "vcrm-core", body: "All tests pass.", chime: "done", session: "tray-s1" });
     tray.req.destroy();
   });
 

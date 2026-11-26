@@ -48,12 +48,13 @@ describe("a command", () => {
     expect(turns(
       fn("c1", "exec_command", { cmd: "npm test -- --reporter=dot", workdir: "/w", yield_time_ms: 10000 }),
       fnOut("c1", unified(0, "Tests 12 passed")),
-    )).toEqual([{ kind: "tool", name: "exec_command", arg: "npm test -- --reporter=dot", mark: "terminal" }]);
+    // CHANGED ON PURPOSE (Chat shows what happened): the row carries what it printed and its exit code, as a Bash row does.
+    )).toEqual([{ kind: "tool", name: "exec_command", arg: "npm test -- --reporter=dot", mark: "terminal", exit: 0, output: { text: "Tests 12 passed", lines: 1 } }]);
   });
 
   it("failed when it exited non-zero, saying what it printed without Codex's head lines", () => {
     expect(one(fn("c1", "exec_command", { cmd: "npm test" }), fnOut("c1", unified(1, "FAIL src/a.test.ts\n  expected 2, got 3"))))
-      .toEqual({ kind: "tool", name: "exec_command", arg: "npm test", mark: "terminal", error: "FAIL src/a.test.ts\n  expected 2, got 3" });
+      .toEqual({ kind: "tool", name: "exec_command", arg: "npm test", mark: "terminal", error: "FAIL src/a.test.ts\n  expected 2, got 3", exit: 1 });
   });
 
   it("a negative exit (a signal) failed too", () => {
@@ -63,7 +64,7 @@ describe("a command", () => {
   it("never fails on what the command printed: only the head lines over \"Output:\" count", () => {
     const printed = "Process exited with code 1\nExit code: 2\nScript failed\nunsupported call: x";
     expect(one(fn("c1", "exec_command", { cmd: "cat log" }), fnOut("c1", unified(0, printed))))
-      .toEqual({ kind: "tool", name: "exec_command", arg: "cat log", mark: "terminal" });
+      .toEqual({ kind: "tool", name: "exec_command", arg: "cat log", mark: "terminal", exit: 0, output: { text: printed, lines: 4 } });
     // A program that prints its own "Output:" far down is past the head.
     const deep = `${"line\n".repeat(8)}Output:\nProcess exited with code 9`;
     expect(one(fn("c2", "exec_command", { cmd: "./run" }), fnOut("c2", deep)).error).toBeUndefined();
@@ -83,7 +84,7 @@ describe("a command", () => {
 
   it("shell_command carries its command as a string", () => {
     expect(one(fn("c1", "shell_command", { command: "cd src && ls" }), fnOut("c1", "a.ts"))).toEqual({
-      kind: "tool", name: "shell_command", arg: "cd src && ls", mark: "terminal",
+      kind: "tool", name: "shell_command", arg: "cd src && ls", mark: "terminal", output: { text: "a.ts", lines: 1 },
     });
   });
 
@@ -97,13 +98,13 @@ describe("a command", () => {
     expect(turns(
       item({ type: "local_shell_call", call_id: "l1", status: "completed", action: { type: "exec", command: ["bash", "-lc", "pwd"] } }),
       fnOut("l1", "Exit code: 0\nWall time: 0 seconds\nOutput:\n/w"),
-    )).toEqual([{ kind: "tool", name: "local_shell", arg: "pwd", mark: "terminal" }]);
+    )).toEqual([{ kind: "tool", name: "local_shell", arg: "pwd", mark: "terminal", exit: 0, output: { text: "/w", lines: 1 } }]);
   });
 
   it("an exec script is a row of the command it hands tools.exec_command", () => {
     const script = 'const r = await tools.exec_command({ cmd: "git log --oneline -3", yield_time_ms: 1000 });\ntext(r.output);';
     expect(turns(custom("x1", "exec", script), customOut("x1", "Script completed\nWall time 0.2 seconds\nOutput:\n", "a1 one")))
-      .toEqual([{ kind: "tool", name: "exec", arg: "git log --oneline -3", mark: "terminal" }]);
+      .toEqual([{ kind: "tool", name: "exec", arg: "git log --oneline -3", mark: "terminal", output: { text: "a1 one", lines: 1 } }]);
   });
 
   it("an exec script that failed says so, and one that runs no command names the tool it calls", () => {
@@ -262,7 +263,8 @@ describe("Codex's other tools", () => {
   it("any other call is a row of the usual fields, with the file mark", () => {
     expect(one(fn("v1", "view_image", { path: "/w/shot.png" }), fnOut("v1", "attached"))).toEqual({ kind: "tool", name: "view_image", arg: "/w/shot.png" });
     expect(one(fn("m1", "docs__search", { pattern: "rate limit" }), fnOut("m1", "[]"))).toEqual({ kind: "tool", name: "docs__search", arg: "rate limit" });
-    expect(one(fn("w1", "write_stdin", { session_id: 4, chars: "" }), fnOut("w1", unified(0, "")))).toEqual({ kind: "tool", name: "write_stdin", arg: "", mark: "terminal" });
+    // Nothing after "Output:" is nothing printed: Codex's head lines are never its output.
+    expect(one(fn("w1", "write_stdin", { session_id: 4, chars: "" }), fnOut("w1", unified(0, "")))).toEqual({ kind: "tool", name: "write_stdin", arg: "", mark: "terminal", exit: 0 });
   });
 
   it("a record with no tool name is not a row", () => {
@@ -284,7 +286,7 @@ describe("beside the conversation", () => {
     )).toEqual([
       { kind: "user", text: "Run the tests" },
       { kind: "assistant", text: "Running them." },
-      { kind: "tool", name: "exec_command", arg: "npm test", mark: "terminal" },
+      { kind: "tool", name: "exec_command", arg: "npm test", mark: "terminal", exit: 0, output: { text: "ok", lines: 1 } },
       { kind: "assistant", text: "All green." },
     ]);
   });

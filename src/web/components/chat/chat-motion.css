@@ -1,0 +1,92 @@
+/* ---------------- Chat's motion ----------------
+   Every transition and animation of Chat lives here (chat.css draws, this
+   sheet moves), in the deck's motion tokens (styles/tokens.css): --dur-fast
+   for a chevron, --dur-base and --ease for a line or a disclosure, and
+   --loop-loader for the one thing that loops, the working mark, which runs
+   only while the session works. Each rule that moves has its own
+   prefers-reduced-motion answer at the end of the sheet, and the stick to the
+   bottom stays instant: nothing here scrolls.
+
+   ARRIVALS. A line that arrives while you watch rises 6px into place as it
+   fades in. Only lines put in while `.chat` carries data-arrive (ChatView
+   sets it once a first read of the conversation is drawn, and drops it for
+   the render that loads older turns), and only on the element's first style
+   (@starting-style), so nothing already on screen moves again. The line takes
+   its room at once and is on its way from the first frame: no delay, no
+   blank gap under the reader. A reply's author and each of its parts arrive
+   on their own; a call joining an open group fades in place. */
+
+/* Lets a disclosure's height ease to and from its content's (auto). */
+.chat { interpolate-size: allow-keywords; }
+
+.chat[data-arrive] .chat-col > :not(.chat-response),
+.chat[data-arrive] .chat-response-author,
+.chat[data-arrive] .chat-response-content > * {
+  transition: opacity var(--dur-base) var(--ease), translate var(--dur-base) var(--ease);
+}
+.chat[data-arrive] .chat-activity-calls > * {
+  transition: opacity var(--dur-base) var(--ease);
+}
+@starting-style {
+  .chat[data-arrive] .chat-col > :not(.chat-response),
+  .chat[data-arrive] .chat-response-author,
+  .chat[data-arrive] .chat-response-content > * { opacity: 0; translate: 0 6px; }
+  .chat[data-arrive] .chat-activity-calls > * { opacity: 0; }
+}
+
+/* DISCLOSURES. The chevron turns as its group or call opens, and the content
+   opens and closes by its height (the details' own content box; a browser
+   without it opens at once, as before). The detail a failed call or an edit
+   opens from its row grows in as it is drawn and goes at once. */
+.chat-disclosure { transition: transform var(--dur-fast) var(--ease); }
+.chat-activity::details-content,
+details.chat-tool-call::details-content {
+  block-size: 0;
+  overflow-y: clip;
+  transition: block-size var(--dur-base) var(--ease), content-visibility var(--dur-base) var(--ease) allow-discrete;
+}
+.chat-activity[open]::details-content,
+details.chat-tool-call[open]::details-content { block-size: auto; }
+.chat-tool-detail {
+  overflow-y: clip;
+  transition: block-size var(--dur-base) var(--ease), opacity var(--dur-base) var(--ease);
+}
+@starting-style {
+  .chat-tool-detail { block-size: 0; opacity: 0; }
+}
+
+/* THE WAY BACK. "Latest messages" / "3 new" rises in as the reader scrolls up,
+   and keeps the button's own feedback (button.btn, which it must outrank). */
+.chat-latest.btn {
+  transition: opacity var(--dur-base) var(--ease), translate var(--dur-base) var(--ease),
+              border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+              background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+@starting-style {
+  .chat-latest.btn { opacity: 0; translate: -50% 6px; }
+}
+
+/* THE WORKING MARK. Claude Code's own spinner, a column of six frames stepped
+   through there and back (the ends held twice, as the terminal draws them),
+   100ms a frame. Still on ✻ (chat.css) while it waits on you, when it has
+   gone quiet, and under reduced motion. */
+.chat-progress[data-state="working"]:not([data-quiet]) .chat-progress-frames {
+  animation: chat-working calc(var(--loop-loader) / 2) steps(6, jump-none) infinite alternate;
+}
+@keyframes chat-working {
+  from { translate: 0 0; }
+  to { translate: 0 -80px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat[data-arrive] .chat-col > :not(.chat-response),
+  .chat[data-arrive] .chat-response-author,
+  .chat[data-arrive] .chat-response-content > * { transition: none; }
+  .chat[data-arrive] .chat-activity-calls > * { transition: none; }
+  .chat-disclosure { transition: none; }
+  .chat-activity::details-content,
+  details.chat-tool-call::details-content { transition: none; }
+  .chat-tool-detail { transition: none; }
+  .chat-latest.btn { transition: none; }
+  .chat-progress[data-state="working"]:not([data-quiet]) .chat-progress-frames { animation: none; }
+}

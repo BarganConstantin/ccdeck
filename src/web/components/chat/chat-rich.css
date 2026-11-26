@@ -1,0 +1,122 @@
+/* ---------------- Chat: what happened, in detail ----------------
+   Code blocks with their language and Copy, coloured code, an edit's change
+   with its line numbers, what a call printed and how a command ended, the
+   assistant's thinking, tables, and when things were said. Loaded with Chat
+   (ChatCode, ChatDiff, ChatToolOutput, ChatThinking, ChatTime import it), so
+   the deck's first stylesheet carries none of it. Tokens only: the syntax
+   colours are the theme's category inks, set for light and dark by every
+   theme. Nothing moves; a press answers with the deck's scale. */
+
+/* A code block: a slim band with the language and Copy over the code. */
+.chat-markdown .chat-code { box-sizing: border-box; max-width: 100%; min-width: 0; margin: 12px 0; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--sunken); overflow: hidden; }
+.chat-code-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; padding: 0 4px 0 12px; border-bottom: 1px solid var(--line-soft); color: var(--text-secondary); font: 400 calc(11px + var(--ui-text-increase, 0px))/16px var(--font-sans); }
+.chat-code-lang { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-markdown .chat-code pre { margin: 0; border: 0; border-radius: 0; background: transparent; }
+
+/* Copy, on a code block and under your message: the deck's copy glyph, its
+   word beside it on a code block. It says Copied in --ok for a moment. */
+.chat-code-copy, .chat-meta-copy { flex: none; display: inline-flex; align-items: center; gap: 4px; min-height: 24px; margin: 0; padding: 0 6px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text-secondary); font: inherit; cursor: pointer; }
+.chat-code-copy[data-copied], .chat-meta-copy[data-copied] { color: var(--ok); }
+.chat-code-copy:focus-visible, .chat-meta-copy:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
+.chat-code-copy:active, .chat-meta-copy:active { transform: scale(var(--press)); }
+.chat-meta-copy .chat-copy-word { display: none; }
+.chat-meta-copy[data-copied] .chat-copy-word { display: inline; }
+
+/* Coloured code. Comments recede; strings, numbers, keywords, keys, tags and
+   marks each take one of the theme's category inks. */
+.chat .hl-com { color: var(--muted); font-style: italic; }
+.chat .hl-str { color: var(--cat-task); }
+.chat :is(.hl-num, .hl-lit) { color: var(--cat-shell); }
+.chat .hl-kw { color: var(--cat-plan); }
+.chat .hl-key { color: var(--cat-file); }
+.chat .hl-tag { color: var(--cat-agent); }
+.chat .hl-meta { color: var(--cat-web); }
+.chat .hl-add { color: var(--ok); }
+.chat .hl-del { color: var(--err); }
+
+/* A table: scrolled sideways inside the message when it is wider. */
+.chat-table-wrap { box-sizing: border-box; max-width: 100%; margin: 12px 0; overflow-x: auto; overscroll-behavior-x: contain; border: 1px solid var(--line); border-radius: var(--r-ctl); }
+.chat-table-wrap:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
+.chat-table { min-width: 100%; border-collapse: collapse; line-height: 1.5; }
+.chat-table :is(th, td) { padding: 6px 10px; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: top; overflow-wrap: normal; }
+.chat-table th { background: var(--sunken); font-weight: 600; white-space: nowrap; }
+.chat-table code { white-space: nowrap; }
+.chat-table tbody tr:last-child td { border-bottom: 0; }
+.chat-table [data-align="center"] { text-align: center; }
+.chat-table [data-align="right"] { text-align: right; }
+.chat-markdown em { font-style: italic; }
+.chat-markdown del { color: var(--text-secondary); }
+.chat-markdown hr { height: 1px; margin: 16px 0; border: 0; background: var(--line); }
+.chat-markdown a:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: 0; }
+.chat-said-cut { margin: 8px 0 0; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; }
+
+/* An edit's change: "+N" in --ok and "−M" in --err on the row; the card
+   numbers each line in a gutter that stays put while the code scrolls. */
+.chat-diff-plus { color: var(--ok); }
+.chat-diff-minus { color: var(--err); }
+.chat-diff[data-numbered] .chat-diff-line { padding-left: 0; }
+.chat-diff-num { position: sticky; left: 0; display: inline-block; box-sizing: border-box; min-width: 6ch; padding: 0 8px 0 10px; background: var(--sunken); color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; user-select: none; }
+.chat-diff-num::before { content: attr(data-n); }
+.chat-diff-line[data-op="add"] .chat-diff-num { background: color-mix(in srgb, var(--ok) 14%, var(--sunken)); }
+.chat-diff-line[data-op="del"] .chat-diff-num { background: color-mix(in srgb, var(--err) 14%, var(--sunken)); }
+.chat-diff-sign { display: inline-block; width: 2ch; color: var(--muted); }
+.chat-diff-text { padding-right: 10px; }
+.chat-diff-line[data-op="add"] .chat-diff-sign { color: var(--ok); }
+.chat-diff-line[data-op="del"] .chat-diff-sign { color: var(--err); }
+
+/* What a call counted, and how a command ended: a quiet figure, and a chip
+   that is muted for exit 0, --err for any other code, --warn when stopped. */
+.chat-tool-stat { color: var(--text-secondary); }
+.chat-exit { flex: none; margin-left: auto; padding: 0 6px; border-radius: var(--r-tag); color: var(--muted); font: 500 calc(11px + var(--ui-text-increase, 0px))/18px var(--font-sans); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chat-exit[data-state="failed"] { background: var(--err-12); color: var(--err); }
+.chat-exit[data-state="interrupted"] { background: color-mix(in srgb, var(--warn) 12%, transparent); color: var(--warn); }
+:is(.chat-tool-note, .chat-exit) + .chat-exit, .chat-exit + :is(.chat-tool-failed, .chat-tool-declined) { margin-left: 0; }
+/* A command's closed row previews its output in one muted line under the words. */
+.chat-tool-toggle:has(.chat-tool-preview) { flex-wrap: wrap; row-gap: 0; padding-top: 4px; padding-bottom: 4px; }
+.chat-tool-preview { flex: 1 0 100%; box-sizing: border-box; min-width: 0; padding-left: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: 400 calc(12px + var(--ui-text-increase, 0px))/18px var(--font-mono); }
+/* What it printed: wrapped, and scrolled inside past a screenful. */
+.chat-tool-output { margin: 0 8px 8px 30px; padding: 8px 10px; max-height: 320px; overflow-y: auto; overscroll-behavior: contain; border-radius: var(--r-ctl); background: var(--sunken); color: var(--text); font: calc(12px + var(--ui-text-increase, 0px))/1.6 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-tool-output code { font: inherit; }
+.chat-tool-output-cut { margin: -4px 8px 8px 30px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; }
+
+/* A run of calls, summed up by kind on its head. */
+.chat-work { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Thinking: a tool row's quiet line; what it thought opens under it, dimmed. */
+.chat-thinking-label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.chat-thinking-text { margin: 0 8px 8px 30px; padding: 2px 0 2px 12px; max-height: 320px; overflow-y: auto; overscroll-behavior: contain; border-left: 2px solid var(--line); color: var(--text-secondary); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.6; }
+.chat-thinking-text .chat-markdown code { color: var(--text-secondary); }
+/* With nothing to open, the row keeps the chevron's room so its mark lines up with the others'. */
+.chat-thinking[data-empty]::before { content: ""; flex: none; width: 14px; }
+
+/* When things were said. Your message's time and Copy sit in the gap under
+   it, shown while the pointer or the keys are on it; the answer's start time
+   beside its name the same way; its end, with how long it worked, always. */
+.chat-you { position: relative; }
+.chat-meta { position: absolute; top: 100%; right: 0; display: flex; align-items: center; gap: 2px; min-height: 24px; color: var(--muted); font: 400 calc(11px + var(--ui-text-increase, 0px))/16px var(--font-sans); font-variant-numeric: tabular-nums; opacity: 0; }
+.chat-you:focus-within .chat-meta { opacity: 1; }
+.chat-response-time { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; opacity: 0; }
+.chat-response:focus-within .chat-response-time { opacity: 1; }
+.chat-turn-foot { margin: 12px 0 0 28px; color: var(--muted); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 16px; font-variant-numeric: tabular-nums; }
+
+@media (hover: hover) and (pointer: fine) {
+  .chat-you:hover .chat-meta, .chat-response:hover .chat-response-time { opacity: 1; }
+  .chat-code-copy:hover, .chat-meta-copy:hover { background: var(--ctl-fill); color: var(--text); }
+  .chat-tool.chat-thinking[data-empty]:hover { background: transparent; }
+}
+@media (hover: none) {
+  .chat-meta, .chat-response-time { opacity: 1; }
+}
+@media (pointer: coarse) {
+  .chat-code-copy, .chat-meta-copy { min-width: 44px; min-height: 44px; justify-content: center; }
+  /* A finger needs the whole target: the row takes its own room under the message. */
+  .chat-meta { position: static; }
+}
+@container chat-pane (max-width: 480px) {
+  .chat-turn-foot { margin-left: 0; }
+  .chat-tool-output, .chat-tool-output-cut, .chat-thinking-text { margin-left: 8px; }
+  .chat-tool-preview { padding-left: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-code-copy:active, .chat-meta-copy:active { transform: none; }
+}

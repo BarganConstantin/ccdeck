@@ -415,7 +415,7 @@ describe("older windows, by cursor", () => {
     expect(live.turns[0].text).toBe("n0");
     const older = (await call(`?session=known&provider=codex&before=${live.older}`, io)).body;
     expect(older.complete).toBe(true);
-    expect(older.turns.at(-1)).toEqual({ kind: "tool", name: "exec_command", arg: "npm test", mark: "terminal", error: "FAIL src/a.test.ts" });
+    expect(older.turns.at(-1)).toEqual({ kind: "tool", name: "exec_command", arg: "npm test", mark: "terminal", error: "FAIL src/a.test.ts", exit: 1 });
   });
 });
 
@@ -630,5 +630,58 @@ describe("Claude foreground-to-background continuation", () => {
     const other = join(otherProject, `${moved}.jsonl`);
     writeFileSync(other, said("An unrelated project."));
     expect((await call(query, { pathOf: (id: string) => id === original ? source : other })).body.sessionId).toBeNull();
+  });
+});
+
+describe("what a turn adds beside its words, through the route", () => {
+  const T0 = Date.parse("2026-11-25T13:56:00.000Z");
+  const at = (ms: number) => ({ timestamp: new Date(ms).toISOString() });
+  const rec = (o: object, ms: number) => JSON.stringify({ ...o, ...at(ms) });
+  const asked = (text: string, ms: number) => rec({ type: "user", message: { role: "user", content: text } }, ms);
+  const thought = (text: string, ms: number) => rec({ type: "assistant", message: { content: [{ type: "thinking", thinking: text }] } }, ms);
+  const ran = (id: string, command: string, ms: number) => rec({ type: "assistant", message: { content: [{ type: "tool_use", id, name: "Bash", input: { command } }] } }, ms);
+  const printed = (id: string, stdout: string, ms: number) =>
+    rec({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: id, content: stdout }] }, toolUseResult: { stdout, stderr: "", interrupted: false } }, ms);
+
+  it("answers times, thinking and what a command printed, and the next ask on an unchanged file is one stat", async () => {
+    const path = file("rich.jsonl", [
+      asked("Run the tests", T0), thought("Run them first.", T0 + 4000), ran("b1", "npm test", T0 + 5000),
+      printed("b1", "\u001b[32m12 passed\u001b[0m\n", T0 + 9000), rec({ type: "assistant", message: { content: [{ type: "text", text: "All green." }] } }, T0 + 12000),
+    ].join("\n") + "\n");
+    const first = await call("?session=known", known(path));
+    expect(first.status).toBe(200);
+    expect(first.body.turns).toEqual([
+      { kind: "user", text: "Run the tests", at: T0 },
+      { kind: "thinking", text: "Run them first.", took: 4000, at: T0 + 4000 },
+      { kind: "tool", name: "Bash", arg: "npm test", exit: 0, output: { text: "12 passed", lines: 1 }, at: T0 + 5000 },
+      { kind: "assistant", text: "All green.", at: T0 + 12000 },
+    ]);
+    const { seen, io } = await counted(path);
+    expect((await call(`?session=known&since=${first.body.version}`, io)).body).toEqual({ ok: true, unchanged: true });
+    expect(seen).toMatchObject({ lstat: 1, open: 0, bytes: 0 });
+  });
+
+  it("an older window reads a call's output from the line after it, and stays the same size", async () => {
+    const lines = [
+      ...Array.from({ length: 29 }, (_, i) => asked(`m${i}`, T0 + i)),
+      ran("b1", "ls", T0 + 100), printed("b1", "a.ts\nb.ts", T0 + 200),
+      ...Array.from({ length: 200 }, (_, i) => asked(`n${i}`, T0 + 300 + i)),
+    ];
+    const path = file("rich-older.jsonl", lines.join("\n") + "\n");
+    const [live, older] = await pages(path);
+    expect(live.turns[0].text).toBe("n0");
+    expect(older.turns.at(-1)).toEqual({ kind: "tool", name: "Bash", arg: "ls", exit: 0, output: { text: "a.ts\nb.ts", lines: 2 }, at: T0 + 100 });
+    expect(older.turns).toHaveLength(30);
+  });
+
+  it("keeps the answer small however much the commands printed", async () => {
+    const huge = Array.from({ length: 400 }, (_, i) => `${i} ${"x".repeat(60)}`).join("\n");
+    const lines = Array.from({ length: 60 }, (_, i) => [ran(`b${i}`, `run ${i}`, T0 + i * 10), printed(`b${i}`, huge, T0 + i * 10 + 5)]).flat();
+    const path = file("rich-huge.jsonl", lines.join("\n") + "\n");
+    const { body } = await call("?session=known", known(path));
+    const outputs = body.turns.map((t: { output?: { text: string; lines: number; cut?: boolean } }) => t.output);
+    expect(outputs.every((o: { lines: number; cut?: boolean }) => o.lines === 400 && o.cut === true)).toBe(true);
+    // Each output is its first lines only, and the whole answer is a fraction of what was read.
+    expect(JSON.stringify(body).length).toBeLessThan(READ_WINDOW / 2);
   });
 });

@@ -18,8 +18,11 @@ const WEB_DIST = resolve(PKG_ROOT, "dist", "web");
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
-  ".js":   "application/javascript; charset=utf-8",
-  ".mjs":  "application/javascript; charset=utf-8",
+  // text/javascript is the type RFC 9239 names for scripts; a service worker
+  // (public/sw.js, served from here at /sw.js) must arrive as a JavaScript
+  // type or the browser refuses to register it.
+  ".js":   "text/javascript; charset=utf-8",
+  ".mjs":  "text/javascript; charset=utf-8",
   ".css":  "text/css; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg":  "image/svg+xml",

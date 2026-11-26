@@ -5,8 +5,9 @@
 import type { AskPick } from "../../ask-keys";
 import type { AskSendResult } from "../../use-terminal-session";
 
-/** One line of the conversation. */
-export type ChatTurn =
+/** One line of the conversation, with when its line was written (`at`, ms
+ *  since the epoch) when the transcript says. */
+export type ChatTurn = ChatTurnTime & (
   | {
       kind: "user";
       /** What you typed; "" when you sent only images. */
@@ -25,7 +26,21 @@ export type ChatTurn =
       /** It printed on stderr: it failed. */
       failed?: boolean;
     }
-  | { kind: "assistant"; text: string }
+  | {
+      kind: "assistant";
+      text: string;
+      /** It said more than the transcript route keeps: the rest is in Term. */
+      cut?: boolean;
+    }
+  /** A thinking block: what it thought, when the transcript keeps it, and for how long. */
+  | {
+      kind: "thinking";
+      text?: string;
+      /** How long it took, in ms, when the transcript's times tell it. */
+      took?: number;
+      /** It thought more than the route keeps. */
+      cut?: boolean;
+    }
   | {
       kind: "tool";
       /** "Read", "Edit", "Bash"… */
@@ -44,6 +59,14 @@ export type ChatTurn =
       declined?: boolean;
       /** What an edit changed (Edit, MultiEdit, Write), as diff lines. */
       diff?: ChatDiff;
+      /** What it printed or found: its first lines. */
+      output?: ChatOutput;
+      /** A command's exit code, when its answer tells it. */
+      exit?: number;
+      /** A command you stopped before it ended. */
+      interrupted?: boolean;
+      /** What its answer counted: a read file's lines, a search's matches… */
+      stat?: ChatStat;
     }
   /** The assistant's task list (TodoWrite): each call is the whole list as it stands. */
   | { kind: "todo"; items: ChatTodo[] }
@@ -97,7 +120,32 @@ export type ChatTurn =
       approved?: boolean;
     }
   /** What you answered and how long it took, after the card folds. */
-  | { kind: "record"; text: string };
+  | { kind: "record"; text: string }
+);
+
+/** When a turn's line was written, in ms since the epoch. */
+export interface ChatTurnTime {
+  at?: number;
+}
+
+/** What a call printed or found: its first lines, and how many it had in all. */
+export interface ChatOutput {
+  text: string;
+  lines: number;
+  /** It printed more than is kept here. */
+  cut?: boolean;
+}
+
+/** What a call's answer counted. */
+export interface ChatStat {
+  lines?: number;
+  files?: number;
+  matches?: number;
+  results?: number;
+  /** A fetch's HTTP status. */
+  status?: number;
+  bytes?: number;
+}
 
 /** An edit's change. Lines start " " (kept), "-" (removed) or "+" (added);
  *  a "…" line parts two hunks. */
@@ -105,6 +153,8 @@ export interface ChatDiff {
   lines: string[];
   /** The change was longer than the transcript keeps. */
   cut?: boolean;
+  /** Where each hunk starts in the old and the new file, when the transcript says. */
+  starts?: { old: number; new: number }[];
 }
 
 /** One item of the task list. */
@@ -135,12 +185,19 @@ export interface ChatAsk {
    *  shows the question and that row. Without it the card does not offer it. */
   chat?(questions: ChatQuestion[]): Promise<AskSendResult>;
   onShowTerm?(): void;
+  /** An answer chosen on an alert (use-intent-press.ts): option `index` of the
+   *  one question, sent once by the card whose questions are `for`. */
+  press?: { id: number; index: number; for: string };
 }
 
 export interface ChatSince {
   toolCalls: number;
   /** "now asking", or what the session is doing now. */
   label: string;
+  /** Where the first turn that came since you looked is: the divider goes
+   *  right before it, a reply it falls in drawn as two. Without it, over the
+   *  whole conversation. */
+  at?: number;
 }
 
 /** A message sent from Chat that the conversation does not show yet
@@ -152,6 +209,8 @@ export interface ChatOutgoing {
   /** On its way; not taken in time, so it may sit in Term's input; or taken,
    *  and the conversation not read again since. */
   state: "sending" | "unconfirmed" | "taken";
+  /** Sent while the session was at work: it waits for that turn to end. */
+  queued?: boolean;
 }
 
 /** What the session is doing, said under the conversation's last line. */
@@ -161,6 +220,10 @@ export interface ChatActivity {
   detail?: string;
   /** How long nothing was heard from a session at work with no call open: "3m". */
   quiet?: string;
+  /** What the agent's own screen says it is doing: "Pondering…". */
+  status?: string;
+  /** When the turn at work began (epoch ms): the row counts from it. */
+  since?: number;
 }
 
 /** The part of the conversation before the turns held, offered on request. */
@@ -199,7 +262,7 @@ export type ConversationBlock =
   | { kind: "assistant"; turns: ChatTurn[]; index: number };
 
 /** The kinds that start the assistant's block. */
-const ASSISTANT_KINDS: ReadonlySet<string> = new Set(["assistant", "tool", "todo", "notice", "agent", "ask", "plan"]);
+const ASSISTANT_KINDS: ReadonlySet<string> = new Set(["assistant", "thinking", "tool", "todo", "notice", "agent", "ask", "plan"]);
 
 /** Keep an assistant's prose and tool calls together, in transcript order. A
  *  kind this build does not know (a newer host's) is drawn as nothing: it
