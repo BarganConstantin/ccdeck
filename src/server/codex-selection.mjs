@@ -143,17 +143,25 @@ async function lockRecord(file) {
   finally { await handle?.close(); }
 }
 const sameLock = (a, b) => a && b && a.pid === b.pid && a.nonce === b.nonce && a.ino === b.ino && a.dev === b.dev;
+// Where the recovery mutex listens. Linux's ephemeral ports (32768-60999)
+// cover the whole port range below, so any unrelated connection could hold
+// the port and block recovery for as long as it lives. An abstract socket
+// name has no port at all and, like the port, is gone when its holder dies.
+function recoveryMutexAddress(canonical) {
+  const digest = createHash('sha256').update(canonical).digest();
+  if (process.platform === 'linux') return { path: `\0ccdeck-codex-accounts-${digest.toString('hex')}` };
+  return { host: '127.0.0.1', port: 32768 + digest.readUInt16BE(0) % 16384 };
+}
 async function reclaimDeadLock(file, dir) {
   const observed = await lockRecord(file);
   if (!observed || ownerAlive(observed.pid)) return;
-  const canonical = await realpath(dir);
-  const port = 32768 + createHash('sha256').update(canonical).digest().readUInt16BE(0) % 16384;
+  const address = recoveryMutexAddress(await realpath(dir));
   const mutex = createServer(socket => socket.destroy());
   const held = await new Promise(resolve => {
     mutex.once('error', () => resolve(false));
-    mutex.listen({ host: '127.0.0.1', port, exclusive: true }, () => resolve(true));
+    mutex.listen({ ...address, exclusive: true }, () => resolve(true));
   });
-  if (!held) return; // occupied port: never reclaim without exclusive ownership
+  if (!held) return; // taken mutex: never reclaim without exclusive ownership
   try {
     const current = await lockRecord(file);
     if (!sameLock(observed, current) || ownerAlive(current.pid)) return;

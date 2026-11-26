@@ -214,6 +214,20 @@
 .chat-progress-text { flex: none; max-width: 100%; overflow-wrap: anywhere; }
 .chat-progress-time { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
 .chat-progress-detail { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+/* What the session still does after its turn (LiveLine): the working row's
+   look, one row each. The background agents' count opens their list, which
+   lines up under the words. */
+.chat-live { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.chat-live-toggle { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; min-height: 24px; margin: 0; padding: 0; border: 0; border-radius: var(--r-ctl); background: transparent; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.chat-live-toggle:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
+.chat-live-toggle[aria-expanded="true"] .chat-disclosure { transform: rotate(90deg); }
+@media (hover: hover) and (pointer: fine) {
+.chat-live-toggle:hover { color: var(--text); }
+}
+.chat-live-agents { flex: 1 0 100%; display: flex; flex-direction: column; gap: 2px; min-width: 0; margin: 0; padding: 0 0 0 22px; list-style: none; }
+.chat-live-agent { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.chat-live-agent-name { flex: none; font-weight: 500; color: var(--text-secondary); }
+.chat-live-agent-task { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 
 .chat-error { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--bg-soft); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--text); }
 .chat-error > span { min-width: 0; overflow-wrap: anywhere; }
@@ -222,9 +236,12 @@
 @media (hover: hover) and (pointer: fine) {
 .chat-retry:hover { text-decoration: underline; }
 }
-/* Older messages, on request: Retry's quiet link, centred over the conversation. */
-.chat-older { align-self: center; margin: 0; }
+/* Older messages: Retry's quiet link, centred over the conversation. They come
+   by themselves as the reader nears it; while a page is read it is the Loader
+   and its words, in the button's colour. */
+.chat-older { align-self: center; margin: 0; display: inline-flex; align-items: center; gap: 8px; }
 .chat-older[aria-busy] { color: var(--text-secondary); cursor: progress; }
+.chat-older .loader { color: currentColor; }
 
 /* A question the assistant asked (AskUserQuestion): a card as wide as its
    prose. It waits in --warn, as the Decision card does, and goes neutral once
@@ -355,7 +372,7 @@
   .chat-tool, .chat-activity-head, .chat-latest { min-height: 44px; }
   .chat-response-author .chat-copy { min-width: 44px; min-height: 44px; }
   .chat-retry { min-height: 44px; }
-  .chat-ask-pick, .chat-ask .chat-ask-send, .chat-ask-term, .chat-ask-text { min-height: 44px; }
+  .chat-ask-pick, .chat-ask .chat-ask-send, .chat-ask-term, .chat-ask-text, .chat-live-toggle { min-height: 44px; }
   /* A row taller than its words keeps them in the middle, not over a gap. */
   .chat-ask-pick { align-items: center; }
   .chat-ask-pick input { margin-top: 0; }

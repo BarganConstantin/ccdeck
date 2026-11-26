@@ -26,7 +26,8 @@
 // (StageBody) — the header and the keys bar are where focus lands when the
 // keys go back to the board, and from there j, k and n are the board's.
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type RefObject } from "react";
-import { terminalTarget, type LaunchOptions, type SessionRef, type TerminalProvider } from "../../terminal-api";
+import { saveChatImage, terminalTarget, type LaunchOptions, type SessionRef, type TerminalProvider } from "../../terminal-api";
+import { takesImages, type ChatImage } from "../../chat-images";
 import { terminalTheme } from "../../terminal-palette";
 import { releaseChordLabel } from "../../terminal-keys";
 import { platformName } from "../../platform";
@@ -87,8 +88,10 @@ import { askSteps, chatSteps, type AskStep } from "../../ask-keys";
 import { stopSteps } from "../../chat-stop";
 import { pendingFor, useChatProgress, waitsInChat, type ChatFacts, type ChatPending } from "../../chat-progress";
 import { useScreenStatus } from "../../use-screen-status";
+import { useLiveCompaction } from "../../use-live-compaction";
+import { chatLive } from "../../live-activity";
 import { noteFeature, useFeatureUse } from "../../feature-use";
-import type { ChatAsk, ChatTurn } from "../chat/chat-model";
+import type { ChatAsk, ChatLiveAgent, ChatTurn } from "../chat/chat-model";
 import { usePromptDecision } from "../../use-prompt-decision";
 import { rememberedView, rememberView } from "../../chat-view-memory";
 import { useChatPaneLinks } from "../../use-chat-pane-links";
@@ -105,6 +108,7 @@ import type { PaneTabsView, TabsMenuOpen } from "./PaneTabs";
 
 /** One empty transcript for every render, so the card's words are not rebuilt for nothing. */
 const NO_TURNS: readonly ChatTurn[] = [];
+const NO_IMAGES: readonly ChatImage[] = [];
 
 /** What the pane says when an answer chosen on an alert was not sent. */
 const INTENT_NOTICE: Partial<Record<IntentOutcome["kind"], string>> = {
@@ -228,6 +232,9 @@ export interface StageSessionInfo {
   heardAt?: number;
   /** When its last turn began (its last prompt): Chat's working row counts from it. */
   turnStartedAt?: number;
+  /** Its background agents still running once its turn is over (live-activity.ts):
+   *  Chat's live row says them. */
+  background?: readonly ChatLiveAgent[];
   /** What the header's Rename needs (session-rename.ts renameFacts), for a
    *  session the board has; left out, the name is only drawn. */
   rename?: RenameFacts | null;
@@ -530,6 +537,9 @@ export default function TerminalStage(p: TerminalStageProps) {
   // Drafts belong to session IDs, so switching panes or Chat/Term cannot
   // send one session's draft to another. They stay in this stage's memory.
   const [chatDrafts, setChatDrafts] = useState<Record<string, string>>({});
+  // And the pictures pasted beside a draft (chat-images.ts), the same way:
+  // in this page's memory only, until Send hands them to the deck.
+  const [chatImages, setChatImages] = useState<Record<string, ChatImage[]>>({});
   // A message sent from Chat until the session says it took it and its turn
   // is over (chat-progress.ts), held per session as the drafts are, so one
   // session's never shows on another.
@@ -914,6 +924,20 @@ export default function TerminalStage(p: TerminalStageProps) {
     delete rest[chatDraftKey];
     return rest;
   }));
+  // What the session still does once its turn is over, on Chat's live row
+  // (live-activity.ts): its background agents, as the board's lifecycle has
+  // them, and a compaction its own screen shows. The screen is read for that
+  // only while the working row's read (above) is off.
+  const compaction = useLiveCompaction({
+    on: chatOn && status.state !== "working" && chatCannotSend === undefined && (chatProvider === "claude" || chatProvider === "codex"),
+    subject: key,
+    readScreen: session.readScreen,
+  });
+  const chatLiveNow = chatLive({
+    agents: p.show.kind === "session" ? p.show.session.background : undefined,
+    compacting: compaction,
+    working: chatProgress.activity?.state === "working",
+  });
   // A message the session did not take goes back into an empty box (use-chat-returned.ts).
   const chatReturned = useChatReturned(chatDraftKey, chatProgress.outgoing, chatDrafts[chatDraftKey] ?? "",
     text => setChatDrafts(drafts => ({ ...drafts, [chatDraftKey]: text })));
@@ -1165,6 +1189,28 @@ export default function TerminalStage(p: TerminalStageProps) {
     turns={chatTurns}
     notTaken={chatReturned.text}
     provider={chatProvider}
+    images={chatImages[chatDraftKey] ?? NO_IMAGES}
+    onImagesChange={images => setChatImages(all => ({ ...all, [chatDraftKey]: images }))}
+    imagesInTerm={takesImages(chatProvider)}
+    // Each picture is kept by the deck first, then its path goes into the
+    // session as Term pastes a dropped file's (chat-images.ts). One the deck
+    // did not keep sends nothing at all: the draft and pictures stay.
+    onSendImages={takesImages(chatProvider) ? async (text, images) => {
+      if (chatUnavailable) return "unavailable";
+      const paths: string[] = [];
+      for (const image of images) {
+        const path = await saveChatImage(image.blob);
+        if (!path) return "images-failed";
+        paths.push(path);
+      }
+      const result = await session.sendPromptWithImages(text, paths, key);
+      if (result === "sent") {
+        setChatSent(sent => sent + 1);
+        noteFeature("chat-reply");
+        setChatPending(all => ({ ...all, [chatDraftKey]: pendingFor(text, chatFacts, Date.now(), images.length) }));
+      }
+      return result;
+    } : undefined}
     onSend={text => {
       if (chatUnavailable) return "unavailable";
       const result = session.sendPrompt(text, key);
@@ -1288,7 +1334,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         onOpenWaiting={openWaiting(p.waiting, p.onOpenWaiting)}
         screens={chatSession !== null ? {
           view, source: chatSource, provider: chatProvider, ask: chatAsk, decision: promptCard,
-          session: chatDraftKey, outgoing: chatReturned.outgoing, activity: chatProgress.activity, onShowTerm: () => showView("term"),
+          session: chatDraftKey, outgoing: chatReturned.outgoing, activity: chatProgress.activity, live: chatLiveNow, onShowTerm: () => showView("term"),
         } : undefined}
       />
       {/* Once, in Chat: alerts when a session needs you (notify-offer.ts). */}

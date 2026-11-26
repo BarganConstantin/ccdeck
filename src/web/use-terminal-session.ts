@@ -70,11 +70,12 @@ import { codexTerminalSurfaces } from "./codex-terminal-surfaces";
 import type { Cell } from "./stage-geometry";
 import { terminalKeyInput, terminalKeyOutcome, type TerminalKey } from "./terminal-keys";
 import { stepTerminalText, textSizeChord } from "./terminal-text-size";
-import { openLink } from "./terminal-links";
+import { URL_IN_OUTPUT, keepsPressFromProgram, linkHint, openLink } from "./terminal-links";
 import { copyText } from "./copy-text";
 import { leaveRepliesToTmux } from "./terminal-replies";
 import { isApplePlatform, platformName } from "./platform";
 import { screenShows, type AskStep } from "./ask-keys";
+import { IMAGE_TAKE_WAIT_MS, imagePaste, imageTaken, imageToken } from "./chat-images";
 import { prefersReducedMotion } from "./viewport-motion";
 import { t as tr } from "./i18n";
 import { isEventOnly } from "../server/provider-ids.mjs";
@@ -335,7 +336,8 @@ function copySelection(term: { hasSelection(): boolean; getSelection(): string; 
  * (`viewAnswers`).
  *
  * LINKS NEED CTRL (Cmd on a Mac), and never a browser dialog
- * (terminal-links.ts), for OSC 8 links and plain URLs alike.
+ * (terminal-links.ts), for OSC 8 links and plain URLs alike, and open here
+ * even while the program has the mouse.
  */
 export const mountXterm: MountTerminal = async (host, init, events) => {
   const [{ Terminal }, { UnicodeGraphemesAddon }, { WebLinksAddon }] = await Promise.all([
@@ -347,9 +349,21 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
   ]);
   const apple = isApplePlatform(platformName());
   // Read when a link is pressed, so a program that turns the mouse on later
-  // keeps its clicks (terminal-links.ts).
+  // gets its other clicks (terminal-links.ts).
   let programHasMouse = () => false;
-  const follow = (e: MouseEvent, uri: string) => openLink(e, uri, { apple, programHasMouse: programHasMouse() });
+  // The link under the pointer, as xterm's hover and leave report it for both
+  // kinds; while one is, the screen's tooltip names it and the gesture.
+  let overLink: string | null = null;
+  let screenElement: HTMLElement | null = null;
+  const hover = (_e: MouseEvent, uri: string) => {
+    overLink = uri;
+    screenElement?.setAttribute("title", linkHint(uri, { apple }));
+  };
+  const leave = () => {
+    overLink = null;
+    screenElement?.removeAttribute("title");
+  };
+  const follow = (e: MouseEvent, uri: string) => { openLink(e, uri, { apple }); };
   const term = new Terminal({
     cols: init.cols,
     rows: init.rows,
@@ -377,14 +391,14 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
     // The stage announces what changed, once, through the deck's own regions.
     screenReaderMode: false,
     // OSC 8 links, without xterm's confirm() and only with Ctrl/Cmd held.
-    linkHandler: { activate: follow, allowNonHttpProtocols: false },
+    linkHandler: { activate: follow, hover, leave, allowNonHttpProtocols: false },
     // Option-drag selects on a Mac while the program has the mouse, as Shift
     // does elsewhere; without it a Mac has no way to select there at all.
     macOptionClickForcesSelection: true,
   });
   // Activates "15-graphemes" itself.
   term.loadAddon(new UnicodeGraphemesAddon());
-  term.loadAddon(new WebLinksAddon(follow));
+  term.loadAddon(new WebLinksAddon(follow, { hover, leave, urlRegex: URL_IN_OUTPUT }));
   programHasMouse = () => term.modes.mouseTrackingMode !== "none";
   // With no application mouse tracking, an alternate screen has no local
   // scrollback. xterm otherwise fabricates Up/Down key presses for its wheel,
@@ -398,6 +412,20 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
   });
   const replies = leaveRepliesToTmux(term.parser);
   term.open(host);
+  // The gesture on a link is the link's alone while the program has the mouse
+  // (terminal-links.ts). xterm's link detection listens on the screen and has
+  // seen the press by now, so it still opens the link on the release; stopped
+  // here, the press never reaches the listener on xterm's element that
+  // reports it to the program. That listener also takes the keys, so this
+  // does.
+  screenElement = term.element?.querySelector<HTMLElement>(".xterm-screen") ?? null;
+  const onLinkPress = (e: MouseEvent) => {
+    if (!keepsPressFromProgram(e, { apple, overLink: overLink !== null, programHasMouse: programHasMouse() })) return;
+    e.preventDefault();
+    e.stopPropagation();
+    term.focus();
+  };
+  screenElement?.addEventListener("mousedown", onLinkPress);
   // A form field with neither id nor name is flagged by the browser's issues
   // panel on every open; the pane's input is named for what it is.
   term.textarea?.setAttribute("name", "terminal-input");
@@ -535,6 +563,7 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
       host.removeEventListener("dragover", onDragOver, true);
       host.removeEventListener("drop", onDrop, true);
       host.removeEventListener("mousedown", onMouseDown, true);
+      screenElement?.removeEventListener("mousedown", onLinkPress);
       textarea?.removeEventListener("focus", onFocus);
       textarea?.removeEventListener("blur", onBlur);
       for (const d of disposables) d.dispose();
@@ -690,6 +719,11 @@ export interface TerminalSessionController {
   cancelStopElsewhere(): void;
   /** Paste and submit only to the caller's subjectKey, without moving focus. */
   sendPrompt(text: string, expectedSubject: string): PromptSendResult;
+  /** The same, with pictures the deck kept (chat-images.ts): each path pasted
+   *  on its own as Term pastes a dropped file, the next only once the screen
+   *  shows the program took it; then the words, if any, and Enter. A picture
+   *  the program did not take in time is `partial`: nothing more is sent. */
+  sendPromptWithImages(text: string, paths: readonly string[], expectedSubject: string): Promise<PromptSendResult>;
   /** Answer Claude Code's question prompt, a step at a time: each step's keys
    *  go only once the live screen shows what it expects (ask-keys.ts). */
   sendAsk(steps: readonly AskStep[], expectedSubject: string): Promise<AskSendResult>;
@@ -2015,6 +2049,46 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
         return pasted ? "partial" : "unavailable";
       }
     },
+    async sendPromptWithImages(text, paths, expectedSubject) {
+      const current = conn;
+      const my = gen;
+      const writable = () => !disposed && gen === my && conn === current
+        && subjectKey(subject) === expectedSubject && snap.subject === expectedSubject
+        && snap.phase.kind === "live"
+        && !snap.phase.readOnly && !readOnly;
+      if (!current || !writable()) return "unavailable";
+      if (!paths.length && !text.trim()) return "empty";
+      if (pasteTooLarge(text)) return "too-large";
+      // The pastes as Term's drop makes them, in the session's own quoting.
+      const platform = windows ? "Windows" : undefined;
+      const pastes = paths.map(path => imagePaste(path, platform));
+      if (pastes.some(paste => paste === null) || !term?.screen) return "unavailable";
+      const screen = () => term?.screen?.() ?? "";
+      let pasted = false;
+      try {
+        for (const [i, paste] of pastes.entries()) {
+          const before = screen();
+          typed();
+          if (!writable()) return pasted ? "partial" : "unavailable";
+          if (!current.sendPaste(paste!)) return pasted ? "partial" : "unavailable";
+          pasted = true;
+          // The program reads the file in its own time: the words and Enter
+          // wait until the screen shows it took the picture.
+          const token = imageToken(paths[i]);
+          const until = deps.now() + IMAGE_TAKE_WAIT_MS;
+          while (writable() && !imageTaken(before, screen(), token) && deps.now() < until) await sleep(ASK_SCREEN_POLL_MS);
+          if (!writable() || !imageTaken(before, screen(), token)) return "partial";
+        }
+        if (text.trim()) {
+          typed();
+          if (!current.sendPaste(text)) return "partial";
+          if (!writable()) return "partial";
+        }
+        return current.sendInput("\r") ? "sent" : "partial";
+      } catch {
+        return pasted ? "partial" : "unavailable";
+      }
+    },
     async sendAsk(steps, expectedSubject) {
       const current = conn;
       const my = gen;
@@ -2136,6 +2210,7 @@ export interface TerminalSessionView extends SessionSnapshot {
   confirmStopElsewhere(): void;
   cancelStopElsewhere(): void;
   sendPrompt(text: string, expectedSubject: string): PromptSendResult;
+  sendPromptWithImages(text: string, paths: readonly string[], expectedSubject: string): Promise<PromptSendResult>;
   sendAsk(steps: readonly AskStep[], expectedSubject: string): Promise<AskSendResult>;
   readScreen(expectedSubject: string): string | null;
   press(bytes: string, held?: boolean): void;
@@ -2207,6 +2282,11 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
     if (!ctl || expectedSubject !== subjectKey(latest.current.subject)) return "unavailable";
     return ctl.sendPrompt(text, expectedSubject);
   }, []);
+  const sendPromptWithImages = useCallback(async (text: string, paths: readonly string[], expectedSubject: string): Promise<PromptSendResult> => {
+    const ctl = controller.current;
+    if (!ctl || expectedSubject !== subjectKey(latest.current.subject)) return "unavailable";
+    return ctl.sendPromptWithImages(text, paths, expectedSubject);
+  }, []);
   const sendAsk = useCallback(async (steps: readonly AskStep[], expectedSubject: string): Promise<AskSendResult> => {
     const ctl = controller.current;
     if (!ctl || expectedSubject !== subjectKey(latest.current.subject)) return "unavailable";
@@ -2223,6 +2303,6 @@ export function useTerminalSession(options: UseTerminalSessionOptions): Terminal
 
   return {
     ...snapshot, hostRef, adopt, retry, startIfFolder, cancelFolder, focus, type, resumeAfterExit, stopWaitingForExit,
-    checkStopElsewhere, confirmStopElsewhere, cancelStopElsewhere, sendPrompt, sendAsk, readScreen, press, holdsFocus, release,
+    checkStopElsewhere, confirmStopElsewhere, cancelStopElsewhere, sendPrompt, sendPromptWithImages, sendAsk, readScreen, press, holdsFocus, release,
   };
 }

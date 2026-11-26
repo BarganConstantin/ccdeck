@@ -214,6 +214,8 @@ export interface ChatOutgoing {
   state: "sending" | "unconfirmed" | "taken";
   /** Sent while the session was at work: it waits for that turn to end. */
   queued?: boolean;
+  /** The pictures sent with it, when there were any. */
+  images?: number;
 }
 
 /** What the session is doing, said under the conversation's last line. */
@@ -227,6 +229,28 @@ export interface ChatActivity {
   status?: string;
   /** When the turn at work began (epoch ms): the row counts from it. */
   since?: number;
+}
+
+/** What the session is still doing once its turn is over (live-activity.ts),
+ *  said on its own row under the conversation's last line. The turn's own
+ *  "Worked for…" stays where it is: this is the session, not that turn. */
+export interface ChatLive {
+  /** The conversation is being compacted, since this moment (epoch ms). */
+  compacting?: { since: number };
+  /** Background agents still running, oldest first. */
+  agents?: readonly ChatLiveAgent[];
+}
+
+/** A background agent still running, as the board knows it. */
+export interface ChatLiveAgent {
+  /** Its node on the board. */
+  id: string;
+  /** Its type, as its card names it: "Explore". */
+  label: string;
+  /** What it was asked to do, in the words of the call that started it. */
+  task?: string;
+  /** When it started (epoch ms). */
+  since: number;
 }
 
 /** The part of the conversation before the turns held, offered on request. */

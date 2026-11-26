@@ -27,10 +27,16 @@
 // divider goes right before the first turn that came: a reply it falls in is
 // drawn as two, the part read already and the part that came since.
 //
-// OLDER TURNS come on request: a quiet button at the top while the host has
-// more (`source.older`). When they arrive above, the line being read stays
-// where it was: the height above it grew by what was put in, and the scroll
-// moves by the same. `source.head` says when that happened.
+// OLDER TURNS come as the reader nears the top, while the host has more
+// (`source.older`): once the top is within a view's height of what shows, the
+// page before is asked for by itself (chat-older.ts decides when), and a first
+// page too short to scroll is followed by the next until it scrolls. The quiet
+// button at the top stays for keys and screen readers; it shows the Loader
+// while a page is read, and says when one could not be read, pressing it then
+// tries again. An IntersectionObserver watches the button; a page without one
+// measures on scroll and after each draw. When they arrive above, the line
+// being read stays where it was: the height above it grew by what was put in,
+// and the scroll moves by the same. `source.head` says when that happened.
 //
 // WHERE IT STANDS comes last (chat-progress.ts decides it): a message sent from
 // here that the conversation does not show yet, with "Sending…" or why it was
@@ -38,6 +44,11 @@
 // its way, the session's work is the turn before it, so that line goes first.
 // A screen reader hears each change of state once, in words, never the clock
 // or the tool that ticks beside them; a switch to another session says nothing.
+//
+// AFTER THE TURN, what the session still does has a row of its own, last
+// (live-activity.ts): background agents still running, or the conversation
+// being compacted. The turn's "Worked for…" stays above it, since that turn
+// is over; the row is the session's, not the turn's.
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import IntegrationSkeleton from "../IntegrationSkeleton";
 import { KitIcon } from "../kit-icons";
@@ -47,10 +58,13 @@ import { providerLabel } from "../../provider-copy";
 import { stoppedInChat } from "../../chat-progress";
 import { prefersReducedMotion } from "../../viewport-motion";
 import DecisionCard, { type DecisionCardProps } from "../decision/DecisionCard";
-import type { ChatActivity, ChatAsk, ChatOutgoing, ChatSource, ChatTurn, ConversationBlock } from "./chat-model";
+import { Loader } from "../Loader";
+import type { ChatActivity, ChatAsk, ChatLive, ChatOutgoing, ChatSource, ChatTurn, ConversationBlock } from "./chat-model";
 import { conversationBlocks } from "./chat-model";
 import { blockTimes } from "./chat-rich";
-import { ActivityLine, OutgoingMessage, SinceDivider } from "./ChatTurn";
+import { OLDER_MARGIN, olderPager, topInReach, type OlderPager } from "./chat-older";
+import { ActivityLine, LiveLine, OutgoingMessage, SinceDivider } from "./ChatTurn";
+import { liveKey } from "../../live-activity";
 import { MemoAssistantBlock, MemoRecordLine, MemoYourCommand, MemoYourMessage } from "./chat-blocks";
 import { alignTurns, turnInterner } from "../../chat-turn-align";
 import "./chat.css";
@@ -69,6 +83,8 @@ export interface ChatViewProps {
   outgoing?: ChatOutgoing;
   /** What the session is doing, under the last line. */
   activity?: ChatActivity;
+  /** What it still does once its turn is over, on a row of its own after that. */
+  live?: ChatLive;
   /** The way to Term, for a message not taken or a session gone quiet. */
   onShowTerm?(): void;
 }
@@ -198,7 +214,7 @@ export function tailKey(turn: ChatTurn | undefined): string {
  *  where there is no layout to wait for (rendering to a string). */
 const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
-export default function ChatView({ source, provider, decision, ask, session, outgoing, activity, onShowTerm }: ChatViewProps) {
+export default function ChatView({ source, provider, decision, ask, session, outgoing, activity, live: after, onShowTerm }: ChatViewProps) {
   const t = useT();
   const scroller = useRef<HTMLDivElement | null>(null);
   const column = useRef<HTMLDivElement | null>(null);
@@ -237,7 +253,7 @@ export default function ChatView({ source, provider, decision, ask, session, out
   if (since !== undefined) for (let i = 0; i < blocks.length && blocks[i].index <= since; i++) sinceAt = i;
   const cue = progressCue(outgoing, activity);
   // The message on its way and the session's state are the last lines too.
-  const tail = `${source.state === "ready" ? tailKey(source.turns[source.turns.length - 1]) : ""}|${cue}|${outgoing?.state ?? ""}|${outgoing?.text ?? ""}`;
+  const tail = `${source.state === "ready" ? tailKey(source.turns[source.turns.length - 1]) : ""}|${cue}|${outgoing?.state ?? ""}|${outgoing?.text ?? ""}|${liveKey(after)}`;
   // What the live region says: one sentence per change of state in this session.
   const [said, setSaid] = useState("");
   const cueWas = useRef(cue);
@@ -256,11 +272,15 @@ export default function ChatView({ source, provider, decision, ask, session, out
   }, [cue, session]);
   const head = source.state === "ready" ? source.head ?? 0 : 0;
   const older = source.state === "ready" ? source.older : undefined;
-  // How tall the conversation was before turns went in at the top: read while
-  // rendering, before the new ones reach the page.
+  // How tall the conversation was, and where its scroll stood, before turns
+  // went in at the top: read while rendering, before the new ones reach the page.
   const anchorHead = useRef(head);
   const anchorHeight = useRef(0);
-  if (head !== anchorHead.current && scroller.current) anchorHeight.current = scroller.current.scrollHeight;
+  const anchorTop = useRef(0);
+  if (head !== anchorHead.current && scroller.current) {
+    anchorHeight.current = scroller.current.scrollHeight;
+    anchorTop.current = scroller.current.scrollTop;
+  }
   const pressed = useRef(false);
   // New lines keep the reader at the bottom, unless they scrolled up. The last
   // turn counts as well as how many there are: once a host's cap slides the
@@ -310,20 +330,75 @@ export default function ChatView({ source, provider, decision, ask, session, out
   useBeforePaint(() => {
     const el = scroller.current;
     const wasHeight = anchorHeight.current;
+    const wasTop = anchorTop.current;
     if (head === anchorHead.current) return;
     anchorHead.current = head;
     anchorHeight.current = 0;
     if (!el) return;
-    if (!stuck.current) el.scrollTop += el.scrollHeight - wasHeight;
+    // Set, never added to: a browser that anchors the scroll itself (Chrome,
+    // Firefox, away from the very top) has moved it by the same once the page
+    // is laid out, and adding would move it twice; there this sets the value
+    // it holds, and a wheel's momentum goes on. Elsewhere this is the move.
+    if (!stuck.current) el.scrollTop = wasTop + el.scrollHeight - wasHeight;
     // The button pressed is gone once the start is reached: the reading region keeps the keys.
     if (pressed.current && !older && typeof document !== "undefined" && (document.activeElement === null || document.activeElement === document.body)) {
       el.focus({ preventScroll: true });
     }
     pressed.current = false;
   }, [head]);
+  // Older turns by themselves: the page before is asked for once the top is in
+  // reach and chat-older.ts says it is due. Read from the newest draw, since the
+  // observer and the scroll answer between draws.
+  const olderMark = useRef<HTMLButtonElement | null>(null);
+  const pager = useRef<OlderPager | null>(null);
+  // Whether the top is in reach; null until the newest watch has said. Without
+  // an observer watching, the scroll measures it.
+  const near = useRef<boolean | null>(null);
+  const watched = useRef(false);
+  const offer = useRef(older);
+  offer.current = older;
+  const shownSession = useRef(session);
+  shownSession.current = session;
+  const scrolledTo = useRef(0);
+  const reach = () => {
+    const now = offer.current;
+    if (!now || near.current === null || !(pager.current ??= olderPager()).due({ session: shownSession.current, older: now, near: near.current })) return;
+    // The button holding the keys goes with the last page: the reading region takes them, as after a press.
+    if (typeof document !== "undefined" && olderMark.current && document.activeElement === olderMark.current) pressed.current = true;
+    now.load();
+  };
+  // Watched again once a page is in, its read is over or the session changes:
+  // an observer's first answer says where the top is now. Until it does, the
+  // scroll asks nothing: the one that sticks a reader to the bottom under a
+  // page just put in comes first, and the last answer is stale. Before paint,
+  // after the scroll is put where it goes, so no scroll event comes between.
+  const olderState = !older ? "" : older.loading ? "loading" : older.failed ? "failed" : "idle";
+  useBeforePaint(() => {
+    const el = scroller.current;
+    near.current = null;
+    watched.current = false;
+    if (!el || !olderState) return;
+    const mark = olderMark.current;
+    if (typeof IntersectionObserver === "undefined" || !mark) {
+      near.current = topInReach(el);
+      reach();
+      return;
+    }
+    const watch = new IntersectionObserver(entries => {
+      near.current = entries[entries.length - 1].isIntersecting;
+      reach();
+    }, { root: el, rootMargin: OLDER_MARGIN });
+    watch.observe(mark);
+    watched.current = true;
+    return () => watch.disconnect();
+    // reach reads only refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [olderState, head, session]);
   // Keyed, so the two trade places without being drawn anew (and arriving again).
   const mine = outgoing ? <OutgoingMessage key="mine" outgoing={outgoing} provider={provider} onShowTerm={onShowTerm} /> : null;
   const doing = activity ? <ActivityLine key="doing" activity={activity} provider={provider} onShowTerm={onShowTerm} /> : null;
+  // Keyed by the session, so an agent list opened in one is not open in the next.
+  const still = after ? <LiveLine key={`live:${session ?? ""}`} live={after} onShowTerm={onShowTerm} /> : null;
   // Each answer ends on how long it took, once it is over: the last one only
   // while the session is not at work on it or waiting on you.
   const times = useMemo(() => blockTimes(blocks), [blocks]);
@@ -346,8 +421,21 @@ export default function ChatView({ source, provider, decision, ask, session, out
           if (bottom) setUnread(0);
           // The way back goes at the bottom: the keys it held stay in the conversation.
           if (bottom && latest.current && latest.current === document.activeElement) el.focus({ preventScroll: true });
+          // A move up is taken as the reader's (what this view moves goes down, at a page put in or a jump
+          // to the latest): a new run of older pages.
+          if (el.scrollTop < scrolledTo.current) pager.current?.moved();
+          scrolledTo.current = el.scrollTop;
+          if (!watched.current) near.current = topInReach(el);
+          reach();
         }}
-        onWheel={takeOver}
+        onWheel={e => {
+          takeOver();
+          // Up at the top, where nothing scrolls: the reader asks for more.
+          if (e.deltaY < 0) {
+            pager.current?.moved();
+            reach();
+          }
+        }}
         onTouchStart={takeOver}
         onPointerDown={takeOver}
         onKeyDown={takeOver}
@@ -365,12 +453,13 @@ export default function ChatView({ source, provider, decision, ask, session, out
           {source.state === "ready" && (
             <>
               {older && (
-                <button type="button" className="chat-retry chat-older" aria-busy={older.loading || undefined}
+                <button ref={olderMark} type="button" className="chat-retry chat-older" aria-busy={older.loading || undefined}
                   onClick={() => {
                     if (older.loading) return;
                     pressed.current = true;
                     older.load();
                   }}>
+                  {older.loading && <Loader />}
                   {t(older.loading ? "board.chat.olderLoading" : older.failed ? "board.chat.olderFailed" : "board.chat.older")}
                 </button>
               )}
@@ -396,7 +485,7 @@ export default function ChatView({ source, provider, decision, ask, session, out
               </Fragment>
             </>
           )}
-          {(source.state === "ready" || source.state === "error") && (outgoing && outgoing.state !== "taken" ? [doing, mine] : [mine, doing])}
+          {(source.state === "ready" || source.state === "error") && (outgoing && outgoing.state !== "taken" ? [doing, mine, still] : [mine, doing, still])}
         </div>
       </div>
       {!following && source.state === "ready" && source.turns.length > 0 && (
