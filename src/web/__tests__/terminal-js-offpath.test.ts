@@ -14,6 +14,9 @@
 // tmux-download.mjs, ccdeck's own tmux, which the deck fetches when the
 // engine's status says the machine has none it can use (terminal-routes.mjs'
 // withOwnTmux). It names nothing of the backend, and nothing it names does.
+// The process reads the backend shares with Stop there and resume here
+// (stop-elsewhere.mjs) are not of it either: they live in process-identity.mjs,
+// which the backend imports and which imports nothing of it.
 //
 // "Every way" is over-approximated on purpose. A file is an edge of another
 // if any string in its code — not its comments — names it: a static import
@@ -129,6 +132,12 @@ describe("the JS terminal backend, from what the deck runs", () => {
 
   it("knows every import of a computed name it cannot follow", () => {
     expect(computed).toEqual(COMPUTED_IMPORTS);
+  });
+
+  it("reaches the process reads Stop there and resume here shares with the backend, and nothing of the backend with them", () => {
+    expect(reached.has("src/server/process-identity.mjs"), "stop-elsewhere.mjs proves the process it may signal with them").toBe(true);
+    const shared = reach(["src/server/process-identity.mjs"]).files;
+    expect(JS_BACKEND.filter(f => shared.has(resolve(PKG_ROOT, f)))).toEqual([]);
   });
 
   it("reaches the deck's own tmux download, which names only the deck's data folder: nothing of the backend comes with it", () => {

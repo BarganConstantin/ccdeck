@@ -45,6 +45,7 @@ import {
   RESTART_FAST_MS,
   RESTART_POLL_MS,
   RESIZE_SETTLE_MS,
+  STOP_SLOW_MS,
   STREAM_QUIET_MS,
   TMUX_SETUP_GIVE_UP_MS,
   TMUX_SETUP_POLL_MS,
@@ -907,6 +908,247 @@ describe("resume here after exit", () => {
     await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS * 2);
     expect(r.adopt, "the other session is never reopened by the first one's wait").not.toHaveBeenCalled();
     expect(r.open.mock.calls.at(-1)?.[0]).toEqual(OTHER);
+  });
+});
+
+// Stop there and resume here: the deck checks which process holds the session
+// where it runs, the reader confirms, and the same wait as Resume here after
+// exit is armed before the stop is sent, so it is that wait that reopens the
+// conversation here once Claude has ended there.
+describe("stop there and resume here", () => {
+  const external = { kind: "C" as const, label: "running elsewhere", adoptable: true };
+  const gone = { kind: "gone" as const, label: "ended", adoptable: true };
+  const elsewhere = { kind: "not-attachable", target: external, stillRunning: true, busy: false } as const;
+  const TOKEN = "0123456789abcdef0123456789abcdef";
+
+  type Checked = { ok: true; token: string } | { ok: true; gone: true } | { ok: false; reason: string };
+  type Sent = { ok: true; stopping: true } | { ok: true; gone: true } | { ok: false; reason: string };
+
+  /** The card of a Claude session running elsewhere, with the stop's two
+   *  questions to the deck: by default the check finds it, and the stop is sent. */
+  async function runningElsewhere(opts: Parameters<typeof rig>[0] = {}, ref = REF) {
+    const made = rig(opts);
+    const check = vi.fn(async (_ref: SessionRef): Promise<Checked> => ({ ok: true, token: TOKEN }));
+    const stop = vi.fn(async (_ref: SessionRef, _token: string): Promise<Sent> => ({ ok: true, stopping: true }));
+    Object.assign(made.r.deps.api, { stopElsewhereCheck: check, stopElsewhere: stop });
+    made.r.open.mockResolvedValue({ ok: false, target: external });
+    made.ctl.show({ kind: "session", ref });
+    await flush();
+    expect(made.r.last().phase).toEqual(elsewhere);
+    return { ...made, check, stop };
+  }
+
+  function deferred<T>() {
+    let resolve_!: (v: T) => void;
+    const promise = new Promise<T>(r => { resolve_ = r; });
+    return { promise, resolve: resolve_ };
+  }
+
+  it("checks, signalling nothing, then arms the wait and sends the stop once; the wait reopens it here", async () => {
+    const { r, ctl, check, stop } = await runningElsewhere();
+    expect(await ctl.checkStopElsewhere()).toEqual({ ok: true });
+    expect(check).toHaveBeenCalledWith(REF);
+    expect(stop, "the check alone stops nothing").not.toHaveBeenCalled();
+    expect(r.last().phase, "nothing armed yet").toEqual(elsewhere);
+
+    ctl.confirmStopElsewhere();
+    expect(r.last().phase).toEqual({ ...elsewhere, awaitingExit: true, stopping: true });
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(stop).toHaveBeenCalledWith(REF, TOKEN);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(r.last().phase, "still running there: the wait goes on").toEqual({ ...elsewhere, awaitingExit: true, stopping: true });
+
+    // Claude ended there on the signal: the wait reopens the same conversation.
+    r.open.mockResolvedValue({ ok: false, target: gone });
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS);
+    expect(r.adopt).toHaveBeenCalledTimes(1);
+    expect(r.adopt.mock.calls[0][0]).toEqual(REF);
+    expect(r.launch, "never a new conversation").not.toHaveBeenCalled();
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends one stop however often it is confirmed, and asks one check at a time", async () => {
+    const { r, ctl, check, stop } = await runningElsewhere();
+    const asked = deferred<Checked>();
+    check.mockReturnValueOnce(asked.promise);
+    const first = ctl.checkStopElsewhere();
+    const second = ctl.checkStopElsewhere();
+    expect(check, "one question in flight").toHaveBeenCalledTimes(1);
+    ctl.confirmStopElsewhere();
+    expect(stop, "no token yet: nothing to confirm").not.toHaveBeenCalled();
+    asked.resolve({ ok: true, token: TOKEN });
+    expect(await first).toEqual({ ok: true });
+    expect(await second).toEqual({ ok: true });
+
+    const sent = deferred<Sent>();
+    stop.mockReturnValueOnce(sent.promise);
+    ctl.confirmStopElsewhere();
+    ctl.confirmStopElsewhere();
+    ctl.confirmStopElsewhere();
+    expect(stop, "a second confirm while one is asked does nothing").toHaveBeenCalledTimes(1);
+    sent.resolve({ ok: true, stopping: true });
+    await flush();
+    ctl.confirmStopElsewhere();
+    expect(stop, "nor after: the token went with the first").toHaveBeenCalledTimes(1);
+    expect(await ctl.checkStopElsewhere(), "armed: no new check").toEqual({ ok: false, reason: "unsupported" });
+    expect(check).toHaveBeenCalledTimes(1);
+    expect(r.last().phase).toEqual({ ...elsewhere, awaitingExit: true, stopping: true });
+  });
+
+  it("says why a check found nothing to stop, and keeps Resume here after exit on offer", async () => {
+    const { r, ctl, check, stop } = await runningElsewhere();
+    check.mockResolvedValueOnce({ ok: false, reason: "unverifiable" });
+    expect(await ctl.checkStopElsewhere()).toEqual({ ok: false, reason: "unverifiable" });
+    expect(r.last().phase).toEqual({ ...elsewhere, stopIssue: "unverifiable" });
+    ctl.confirmStopElsewhere();
+    expect(stop).not.toHaveBeenCalled();
+    expect(r.last().phase, "not armed").not.toHaveProperty("awaitingExit");
+    // The quiet look goes on, and keeps the reason on the card.
+    const opens = r.open.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS);
+    expect(r.open).toHaveBeenCalledTimes(opens + 1);
+    expect(r.last().phase).toEqual({ ...elsewhere, stopIssue: "unverifiable" });
+    // Resume here after exit arms as it always did, and the reason goes.
+    ctl.resumeAfterExit();
+    expect(r.last().phase).toEqual({ ...elsewhere, awaitingExit: true });
+    // A deck that did not answer is the plain failure.
+    const offline = await runningElsewhere();
+    offline.check.mockRejectedValueOnce(new Error("offline"));
+    expect(await offline.ctl.checkStopElsewhere()).toEqual({ ok: false, reason: "network" });
+    expect(offline.r.last().phase).toEqual({ ...elsewhere, stopIssue: "network" });
+  });
+
+  it("disarms a stop the deck refused, says why, and goes back to the quiet look", async () => {
+    const { r, ctl, stop } = await runningElsewhere();
+    await ctl.checkStopElsewhere();
+    stop.mockResolvedValueOnce({ ok: false, reason: "changed" });
+    ctl.confirmStopElsewhere();
+    await flush();
+    expect(r.last().phase).toEqual({ ...elsewhere, stopIssue: "changed" });
+    const opens = r.open.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS);
+    expect(r.open, "no longer the armed look").toHaveBeenCalledTimes(opens);
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS - EXIT_WATCH_POLL_MS);
+    expect(r.open).toHaveBeenCalledTimes(opens + 1);
+    r.open.mockResolvedValue({ ok: false, target: gone });
+    await vi.advanceTimersByTimeAsync(ELSEWHERE_POLL_MS);
+    expect(r.adopt, "nothing armed: no reopen by itself").not.toHaveBeenCalled();
+  });
+
+  it("resumes a session that had ended there already through the same wait", async () => {
+    const { r, ctl, check, stop } = await runningElsewhere();
+    check.mockResolvedValueOnce({ ok: true, gone: true });
+    r.open.mockResolvedValue({ ok: false, target: gone });
+    expect(await ctl.checkStopElsewhere()).toEqual({ ok: true, gone: true });
+    expect(stop).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(r.adopt).toHaveBeenCalledTimes(1);
+    expect(r.adopt.mock.calls[0][0]).toEqual(REF);
+  });
+
+  it("says Claude has not stopped yet 15 s after the stop, and keeps waiting", async () => {
+    const { r, ctl } = await runningElsewhere();
+    await ctl.checkStopElsewhere();
+    ctl.confirmStopElsewhere();
+    await vi.advanceTimersByTimeAsync(STOP_SLOW_MS - 1);
+    expect(r.last().phase).toEqual({ ...elsewhere, awaitingExit: true, stopping: true });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(r.last().phase).toEqual({ ...elsewhere, awaitingExit: true, stopping: true, slowStop: true });
+    const opens = r.open.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS);
+    expect(r.open, "still the close look").toHaveBeenCalledTimes(opens + 1);
+    // It ends there after all: reopened here.
+    r.open.mockResolvedValue({ ok: false, target: gone });
+    await vi.advanceTimersByTimeAsync(EXIT_WATCH_POLL_MS);
+    expect(r.adopt).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets it all go on Cancel: before the confirm, and on the wait it armed", async () => {
+    const { r, ctl, stop } = await runningElsewhere();
+    await ctl.checkStopElsewhere();
+    ctl.cancelStopElsewhere();
+    ctl.confirmStopElsewhere();
+    expect(stop, "the token went with the Cancel").not.toHaveBeenCalled();
+    expect(r.last().phase).toEqual(elsewhere);
+
+    // Armed, then the wait's own Cancel: the stop's answer and its timer are no one's.
+    await ctl.checkStopElsewhere();
+    const sent = deferred<Sent>();
+    stop.mockReturnValueOnce(sent.promise);
+    ctl.confirmStopElsewhere();
+    ctl.stopWaitingForExit();
+    expect(r.last().phase).toEqual(elsewhere);
+    sent.resolve({ ok: false, reason: "signal-failed" });
+    await flush();
+    expect(r.last().phase, "no reason said for a stop let go").toEqual(elsewhere);
+    // A stop that was sent before the Cancel never says it is slow.
+    await ctl.checkStopElsewhere();
+    ctl.confirmStopElsewhere();
+    await flush();
+    ctl.stopWaitingForExit();
+    await vi.advanceTimersByTimeAsync(STOP_SLOW_MS * 2);
+    expect(r.snaps.some(s => s.phase.kind === "not-attachable" && s.phase.slowStop && !s.phase.awaitingExit)).toBe(false);
+    expect(r.last().phase).toEqual(elsewhere);
+  });
+
+  it("lets it all go with another subject on the stage", async () => {
+    const { r, ctl, check, stop } = await runningElsewhere();
+    // A check answered after the switch is no one's.
+    const asked = deferred<Checked>();
+    check.mockReturnValueOnce(asked.promise);
+    const answer = ctl.checkStopElsewhere();
+    ctl.show({ kind: "session", ref: OTHER });
+    await flush();
+    asked.resolve({ ok: true, token: TOKEN });
+    expect(await answer).toEqual({ ok: false, reason: "changed" });
+    ctl.confirmStopElsewhere();
+    expect(stop).not.toHaveBeenCalled();
+
+    // Armed for one session, then another on show: no slow line on its card.
+    ctl.show({ kind: "session", ref: REF });
+    await flush();
+    await ctl.checkStopElsewhere();
+    ctl.confirmStopElsewhere();
+    await flush();
+    expect(stop).toHaveBeenCalledTimes(1);
+    ctl.show({ kind: "session", ref: OTHER });
+    await flush();
+    expect(r.last().phase).toEqual(elsewhere);
+    await vi.advanceTimersByTimeAsync(STOP_SLOW_MS);
+    expect(r.last().phase).toEqual(elsewhere);
+    // A refusal said on one card is not said on the next.
+    check.mockResolvedValueOnce({ ok: false, reason: "background" });
+    await ctl.checkStopElsewhere();
+    expect(r.last().phase).toMatchObject({ stopIssue: "background" });
+    ctl.show({ kind: "session", ref: REF });
+    await flush();
+    expect(r.last().phase).toEqual(elsewhere);
+  });
+
+  it("is asked only where Resume here after exit could be armed", async () => {
+    const no = { ok: false, reason: "unsupported" };
+    const codex = await runningElsewhere({}, { ...REF, provider: "codex" });
+    expect(await codex.ctl.checkStopElsewhere()).toEqual(no);
+    const win = await runningElsewhere({ windows: true });
+    expect(await win.ctl.checkStopElsewhere()).toEqual(no);
+    for (const made of [codex, win]) {
+      made.ctl.confirmStopElsewhere();
+      expect(made.check).not.toHaveBeenCalled();
+      expect(made.stop).not.toHaveBeenCalled();
+    }
+    // An API without the stop (an older page's deps) offers none.
+    const bare = rig();
+    bare.r.open.mockResolvedValue({ ok: false, target: external });
+    bare.ctl.show({ kind: "session", ref: REF });
+    await flush();
+    expect(await bare.ctl.checkStopElsewhere()).toEqual(no);
+    // A card for a session that ended there: Reopen here, no stop.
+    const ended = await runningElsewhere();
+    ended.r.open.mockResolvedValue({ ok: false, target: gone });
+    ended.ctl.show({ kind: "session", ref: OTHER });
+    await flush();
+    expect(await ended.ctl.checkStopElsewhere()).toEqual(no);
+    expect(ended.check).not.toHaveBeenCalled();
   });
 });
 
