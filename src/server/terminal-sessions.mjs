@@ -166,26 +166,40 @@ export function agentArgv({
 
 /** What New session may ask of a new Claude, each a value Claude Code's own
  *  CLI lists (2.1.301: `--model <alias>`, `--permission-mode <mode>`,
- *  `--worktree`). Never a mode that stops asking — bypassPermissions, dontAsk:
- *  a deck that never answers for the reader does not start an agent that
- *  answers for itself. Anything else is refused, so nothing a page sends
- *  becomes a flag the deck did not choose. */
+ *  `--worktree`). The permission modes never include one that stops asking —
+ *  bypassPermissions, dontAsk. Anything else is refused, so nothing a page
+ *  sends becomes a flag the deck did not choose. */
 export const LAUNCH_MODELS = Object.freeze(["opus", "sonnet", "haiku"]);
 export const LAUNCH_PERMISSION_MODES = Object.freeze(["manual", "auto", "acceptEdits", "plan"]);
 
+/** The one flag that starts Claude without asking before it runs a tool, for
+ *  `skipPermissions: true` and nothing else. Its own boolean rather than a
+ *  permission mode: the reader turns it on in New session for the one session
+ *  it starts, the deck itself never chooses it, and it is not a value the page
+ *  could reach by sending some other mode. Claude Code refuses it as root and
+ *  where an organization's managed settings turn it off; it then says so and
+ *  ends, and the pane keeps its words. */
+export const SKIP_PERMISSIONS_FLAG = "--dangerously-skip-permissions";
+
 /** The flags for a launch's options, after the session id. Pure; throws
- *  `bad-options` for anything not on the lists above, or for options on
- *  anything but a new Claude. `--worktree` goes last: its value is optional,
- *  and last it can take nothing that was meant as another flag. */
+ *  `bad-options` for anything not on the lists above, for options on
+ *  anything but a new Claude, and for a permission mode beside
+ *  `skipPermissions`, which is a mode of its own. `--worktree` goes last: its
+ *  value is optional, and last it can take nothing that was meant as another
+ *  flag. */
 export function launchOptionArgs(agent, kind, options) {
   if (options == null) return [];
   if (typeof options !== "object" || Array.isArray(options)) throw new TerminalSessionError("bad-options", "Those session options are not ones the deck knows.");
-  const { model, permissionMode, worktree, ...rest } = options;
-  if (Object.keys(rest).length || (worktree != null && typeof worktree !== "boolean")) {
+  const { model, permissionMode, worktree, skipPermissions, ...rest } = options;
+  if (Object.keys(rest).length || (worktree != null && typeof worktree !== "boolean")
+    || (skipPermissions != null && typeof skipPermissions !== "boolean")) {
     throw new TerminalSessionError("bad-options", "Those session options are not ones the deck knows.");
   }
-  if (model == null && permissionMode == null && worktree !== true) return [];
+  if (model == null && permissionMode == null && worktree !== true && skipPermissions !== true) return [];
   if (agent !== "claude" || kind !== "launch") throw new TerminalSessionError("bad-options", "Only a new Claude session takes those options.");
+  if (skipPermissions === true && permissionMode != null) {
+    throw new TerminalSessionError("bad-options", "A session that skips permission checks takes no other permission mode.");
+  }
   const out = [];
   if (model != null) {
     if (!LAUNCH_MODELS.includes(model)) throw new TerminalSessionError("bad-options", "That is not a model the deck can start Claude with.");
@@ -195,6 +209,7 @@ export function launchOptionArgs(agent, kind, options) {
     if (!LAUNCH_PERMISSION_MODES.includes(permissionMode)) throw new TerminalSessionError("bad-options", "That is not a permission mode the deck can start Claude in.");
     out.push("--permission-mode", permissionMode);
   }
+  if (skipPermissions === true) out.push(SKIP_PERMISSIONS_FLAG);
   if (worktree === true) out.push("--worktree");
   return out;
 }

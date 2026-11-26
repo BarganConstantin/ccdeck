@@ -41,11 +41,20 @@
 // scale from 0.97, no fade), because a translucent form over a running
 // terminal is two things read at once.
 //
-// CLAUDE'S OWN THREE CHOICES, for a new Claude only: the model, how it asks
-// for permission, and whether it works in a new git worktree — the choices
-// the Claude app's new chat offers, as Claude Code's own flags. Each starts at
+// CLAUDE'S OWN CHOICES, for a new Claude only: the model, how it asks for
+// permission, and whether it works in a new git worktree — the choices the
+// Claude app's new chat offers, as Claude Code's own flags. Each starts at
 // "Default", which passes nothing and leaves the reader's settings in charge;
-// no choice here stops it asking (the launcher refuses those modes anyway).
+// no permission mode on the list stops it asking.
+//
+// SKIP PERMISSION CHECKS is the one that does, and so it is a switch of its
+// own, never a mode on that list: off every time the form opens and whenever
+// the agent leaves Claude, said beside the switch in one plain sentence, and
+// named in the collapsed summary while it is on. On, it stands in for the
+// permission mode — the select is held at it, and the mode chosen before
+// comes back when it is turned off — and the launch carries
+// `skipPermissions: true` and no mode (terminal-api.ts LaunchOptions). It
+// applies to the session this Start launches and to nothing after it.
 // Codex is started as it is.
 //
 // The form is its own component with no portal, so the suite can render it
@@ -75,6 +84,11 @@ const FIELD_ID = "ns-search";
 const LIST_ID = "ns-projects";
 const KEYS_ID = "ns-keys";
 const WORKTREE_ID = "ns-worktree-label";
+const SKIP_ID = "ns-skip-label";
+const SKIP_HINT_ID = "ns-skip-hint";
+/** The permission select's value while Skip permission checks holds it: not
+ *  a mode, and never sent as one. */
+const SKIP_VALUE = "skip";
 const optionId = (i: number) => `ns-opt-${i}`;
 const DISCOVERY_MSG = {
   loading: "board.newSession.discovery.loading",
@@ -149,11 +163,18 @@ export const MODE_CHOICES: Array<{ value: LaunchOptions["permissionMode"] | null
   { value: "plan", label: "board.newSession.modePlan", title: "board.newSession.modePlanTip" },
 ];
 
-/** The options a start passes: only what was chosen, so Default is nothing. */
-export function launchOptions(model: LaunchOptions["model"] | null, mode: LaunchOptions["permissionMode"] | null, worktree: boolean): LaunchOptions | undefined {
+/** Skip permission checks: the switch's name, which is also what the summary
+ *  and the held permission select say while it is on; and its sentence. */
+export const SKIP_PERMISSIONS_MSG = "board.newSession.skipPermissions";
+export const SKIP_PERMISSIONS_HINT_MSG = "board.newSession.skipPermissionsHint";
+
+/** The options a start passes: only what was chosen, so Default is nothing.
+ *  `skip` stands in for the permission mode, which is then left out. */
+export function launchOptions(model: LaunchOptions["model"] | null, mode: LaunchOptions["permissionMode"] | null, worktree: boolean, skip = false): LaunchOptions | undefined {
   const o: LaunchOptions = {};
   if (model) o.model = model;
-  if (mode) o.permissionMode = mode;
+  if (skip) o.skipPermissions = true;
+  else if (mode) o.permissionMode = mode;
   if (worktree) o.worktree = true;
   return Object.keys(o).length ? o : undefined;
 }
@@ -212,6 +233,13 @@ export function NewSessionForm({ projects, initialAgent = "claude", gone, window
   const [model, setModel] = useState<LaunchOptions["model"] | null>(null);
   const [mode, setMode] = useState<LaunchOptions["permissionMode"] | null>(null);
   const [worktree, setWorktree] = useState(false);
+  // Off at every open (the popover mounts this form afresh), and off again
+  // whenever the agent leaves Claude: only a press turns it on.
+  const [skip, setSkip] = useState(false);
+  const chooseAgent = (next: TerminalProvider) => {
+    setAgent(next);
+    if (next !== "claude") setSkip(false);
+  };
   const [busy, setBusy] = useState<"checking" | "picking" | null>(null);
   const [problem, setProblem] = useState<{ code: FolderProblem; cwd: string } | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -344,7 +372,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", gone, window
     const cwd = answer.ok ? answer.cwd : chosen.cwd;
     startedRef.current = true;
     keep(k => withRecent(k, cwd, deps.now()));
-    const options = agent === "claude" ? launchOptions(model, mode, worktree) : undefined;
+    const options = agent === "claude" ? launchOptions(model, mode, worktree, skip) : undefined;
     if (options) onStart(agent, cwd, options);
     else onStart(agent, cwd);
   };
@@ -381,6 +409,13 @@ export function NewSessionForm({ projects, initialAgent = "claude", gone, window
       : t("board.newSession.noMatches", { query: query.trim() });
   const problemText = problem && problem.code !== "unavailable" ? t(FOLDER_PROBLEM_MSG[problem.code]) : null;
   const keysHint = t("board.newSession.keysHint", { mod: deps.apple ? "⌘" : "Ctrl" });
+  // The collapsed options' one line: "Uses your settings" until something is
+  // chosen, then the model, how it asks (Skip permission checks while that is
+  // on) and the worktree.
+  const modeWords = skip ? t(SKIP_PERMISSIONS_MSG) : t(MODE_CHOICES.find(c => c.value === mode)!.label);
+  const optionsSaid = !model && !mode && !worktree && !skip
+    ? t("board.newSession.usesSettings")
+    : `${model ? MODEL_CHOICES.find(c => c.value === model)?.label : t("board.newSession.default")} · ${modeWords}${worktree ? ` · ${t("board.newSession.worktreeShort")}` : ""}`;
 
   const renderOption = (q: ProjectChoice) => {
     const i = positions.get(q.cwd)!;
@@ -511,7 +546,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", gone, window
             type="button"
             className="uh-range-btn"
             aria-pressed={agent === a.agent}
-            onClick={() => setAgent(a.agent)}
+            onClick={() => chooseAgent(a.agent)}
           >
             <ProviderGlyph provider={a.agent} size={16} /> {a.label}
           </Button>
@@ -521,7 +556,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", gone, window
         <details className="ns-options">
           <summary className="ns-options-summary">
             <span>{t("board.newSession.options")}</span>
-            <span className="ns-options-value">{!model && !mode && !worktree ? t("board.newSession.usesSettings") : <>{model ? MODEL_CHOICES.find(c => c.value === model)?.label : t("board.newSession.default")}{" · "}{t(MODE_CHOICES.find(c => c.value === mode)!.label)}{worktree ? ` · ${t("board.newSession.worktreeShort")}` : ""}</>}</span>
+            <span className="ns-options-value">{optionsSaid}</span>
             <svg className="ns-options-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><path d="m3 4.5 3 3 3-3" /></svg>
           </summary>
           <div className="ns-options-fields">
@@ -533,8 +568,13 @@ export function NewSessionForm({ projects, initialAgent = "claude", gone, window
             </label>
             <label className="ns-setting" htmlFor="ns-mode">
               <span className="ns-label" id="ns-mode-label">{t("board.newSession.permissions")}</span>
-              <SelectShell><select id="ns-mode" aria-labelledby="ns-mode-label" className="sm-select" value={mode ?? ""} title={t(MODE_CHOICES.find(c => c.value === mode)!.title)} onChange={e => setMode(MODE_CHOICES.find(c => c.value === e.currentTarget.value)?.value ?? null)}>
+              {/* Held at Skip permission checks while that is on: the mode
+                  chosen before stays in `mode` and comes back with it off. */}
+              <SelectShell><select id="ns-mode" aria-labelledby="ns-mode-label" className="sm-select" value={skip ? SKIP_VALUE : mode ?? ""} disabled={skip}
+                title={t(skip ? SKIP_PERMISSIONS_HINT_MSG : MODE_CHOICES.find(c => c.value === mode)!.title)}
+                onChange={e => setMode(MODE_CHOICES.find(c => c.value === e.currentTarget.value)?.value ?? null)}>
                 {MODE_CHOICES.map(c => <option key={c.label} value={c.value ?? ""}>{t(c.label)}</option>)}
+                {skip && <option value={SKIP_VALUE}>{t(SKIP_PERMISSIONS_MSG)}</option>}
               </select></SelectShell>
             </label>
           </div>
@@ -548,6 +588,23 @@ export function NewSessionForm({ projects, initialAgent = "claude", gone, window
               className="switch"
               title={t("board.newSession.worktreeTip")}
               onClick={() => setWorktree(w => !w)}
+            >
+              <span className="switch-knob" />
+            </button>
+          </label>
+          <label className="ns-worktree">
+            <span className="ns-skip-copy">
+              <span className="ns-worktree-label" id={SKIP_ID}>{t(SKIP_PERMISSIONS_MSG)}</span>
+              <span className="ns-skip-hint" id={SKIP_HINT_ID}>{t(SKIP_PERMISSIONS_HINT_MSG)}</span>
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={skip}
+              aria-labelledby={SKIP_ID}
+              aria-describedby={SKIP_HINT_ID}
+              className="switch"
+              onClick={() => setSkip(s => !s)}
             >
               <span className="switch-knob" />
             </button>

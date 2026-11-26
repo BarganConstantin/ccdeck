@@ -117,6 +117,8 @@ describe("the New session form", () => {
     all(tree, el => el.type === "select" && el.props["aria-labelledby"] === label)[0];
   const selectSetting = (tree: unknown, label: string, value: string) =>
     (strip(tree, label).props.onChange as (e: unknown) => void)({ currentTarget: { value } });
+  /** One of Claude's switches, by the id of the label that names it. */
+  const toggle = (tree: unknown, label: string) => one(tree, el => el.props.role === "switch" && el.props["aria-labelledby"] === label)!;
   const options = (tree: unknown) => all(tree, el => el.props.role === "option");
   const names = (tree: unknown) => options(tree).map(o => textOf(one(o, el => el.props.className === "ns-name")));
   const field = (tree: unknown) => one(tree, el => el.type === "input")!;
@@ -228,12 +230,120 @@ describe("the New session form", () => {
     expect(strip(m.tree, "ns-mode-label").props.value).toBe("");
     selectSetting(m.tree, "ns-model-label", "haiku");
     selectSetting(m.tree, "ns-mode-label", "plan");
-    click(one(m.tree, el => el.props.role === "switch")!);
+    // CHANGED ON PURPOSE: the worktree is one of two switches now, named by
+    // its label (Skip permission checks is the other).
+    click(toggle(m.tree, "ns-worktree-label"));
     expect(strip(m.tree, "ns-model-label").props.value).toBe("haiku");
     click(startButton(m.tree));
     await flush();
     expect(p.onStart).toHaveBeenCalledWith("claude", "/home/u/code/paycore", { model: "haiku", permissionMode: "plan", worktree: true });
     expect(MODE_CHOICES.map(c => c.value), "never a mode that stops asking").not.toContain("bypassPermissions");
+  });
+
+  // Skip permission checks: a switch of its own under Claude's options, off at
+  // every open, said in one sentence beside it, and named in the collapsed
+  // summary while on. It stands in for the permission mode, which comes back
+  // when it is turned off, and it reaches only the launch it was on for.
+  describe("Skip permission checks", () => {
+    const skipSwitch = (tree: unknown) => toggle(tree, "ns-skip-label");
+    const summary = (tree: unknown) => textOf(one(tree, el => el.props.className === "ns-options-value"));
+    const CWD = "/home/u/code/paycore";
+
+    it("is off at first, says what it does beside it, and is a switch the keyboard reaches", () => {
+      const m = mount(NewSessionForm, props());
+      const sw = skipSwitch(m.tree);
+      expect(sw.type, "a real button: Tab reaches it, Space and Enter press it").toBe("button");
+      expect(sw.props).toMatchObject({ role: "switch", "aria-checked": false, "aria-labelledby": "ns-skip-label", "aria-describedby": "ns-skip-hint" });
+      expect(sw.props.tabIndex, "never taken out of the tab order").toBeUndefined();
+      expect(textOf(one(m.tree, el => el.props.id === "ns-skip-label"))).toBe("Skip permission checks");
+      expect(textOf(one(m.tree, el => el.props.id === "ns-skip-hint"))).toBe("Claude can run tools without asking for approval.");
+      expect(summary(m.tree)).toBe("Uses your settings");
+      m.unmount();
+    });
+
+    it("on, holds the permission mode, says so in the summary, and starts that Claude with the flag's option alone", async () => {
+      const p = props();
+      const m = mount(NewSessionForm, p);
+      selectSetting(m.tree, "ns-mode-label", "plan");
+      expect(summary(m.tree)).toBe("Default · Plan");
+      click(skipSwitch(m.tree));
+      expect(skipSwitch(m.tree).props["aria-checked"]).toBe(true);
+      expect(summary(m.tree), "the collapsed options name it").toBe("Default · Skip permission checks");
+      const mode = strip(m.tree, "ns-mode-label");
+      expect(mode.props.disabled, "the permission mode is not a choice while it is on").toBe(true);
+      expect(mode.props.value).toBe("skip");
+      expect(textOf(all(mode, el => el.type === "option").find(o => o.props.value === "skip")), "and the select says what holds it").toBe("Skip permission checks");
+      click(startButton(m.tree));
+      await flush();
+      expect(p.onStart, "no permission mode beside it").toHaveBeenCalledWith("claude", CWD, { skipPermissions: true });
+      m.unmount();
+    });
+
+    it("off again, gives back the permission mode chosen before", async () => {
+      const p = props();
+      const m = mount(NewSessionForm, p);
+      selectSetting(m.tree, "ns-model-label", "opus");
+      selectSetting(m.tree, "ns-mode-label", "acceptEdits");
+      click(skipSwitch(m.tree));
+      click(skipSwitch(m.tree));
+      const mode = strip(m.tree, "ns-mode-label");
+      expect(mode.props.disabled).toBe(false);
+      expect(mode.props.value, "the mode as it was").toBe("acceptEdits");
+      expect(all(mode, el => el.type === "option").map(o => o.props.value), "the stand-in is gone").not.toContain("skip");
+      expect(summary(m.tree)).toBe("Opus · Edits");
+      click(startButton(m.tree));
+      await flush();
+      expect(p.onStart).toHaveBeenCalledWith("claude", CWD, { model: "opus", permissionMode: "acceptEdits" });
+      m.unmount();
+    });
+
+    it("starts off every time New session opens, so the next start after an opted-in one carries nothing", async () => {
+      const first = props();
+      const a = mount(NewSessionForm, first);
+      click(skipSwitch(a.tree));
+      click(startButton(a.tree));
+      await flush();
+      expect(first.onStart).toHaveBeenCalledWith("claude", CWD, { skipPermissions: true });
+      a.unmount();
+      const next = props();
+      const b = mount(NewSessionForm, next);
+      expect(skipSwitch(b.tree).props["aria-checked"], "reopened: off").toBe(false);
+      expect(summary(b.tree)).toBe("Uses your settings");
+      click(startButton(b.tree));
+      await flush();
+      expect(next.onStart, "an ordinary start: no options at all").toHaveBeenCalledWith("claude", CWD);
+      b.unmount();
+    });
+
+    it("is not drawn for Codex, never reaches a Codex start, and is off again when Claude comes back", async () => {
+      const p = props();
+      const m = mount(NewSessionForm, p);
+      click(skipSwitch(m.tree));
+      click(agents(m.tree)[1]);
+      expect(all(m.tree, el => el.props.role === "switch"), "hidden, not just disabled").toHaveLength(0);
+      expect(textOf(m.tree)).not.toContain("Skip permission checks");
+      click(startButton(m.tree));
+      await flush();
+      expect(p.onStart).toHaveBeenCalledWith("codex", CWD);
+      m.unmount();
+      const back = props();
+      const n = mount(NewSessionForm, back);
+      click(skipSwitch(n.tree));
+      click(agents(n.tree)[1]);
+      click(agents(n.tree)[0]);
+      expect(skipSwitch(n.tree).props["aria-checked"], "leaving Claude turned it off").toBe(false);
+      click(startButton(n.tree));
+      await flush();
+      expect(back.onStart).toHaveBeenCalledWith("claude", CWD);
+      n.unmount();
+    });
+
+    it("passes the one option, and the permission mode only without it", () => {
+      expect(launchOptions(null, "plan", false, true)).toEqual({ skipPermissions: true });
+      expect(launchOptions("opus", null, true, true)).toEqual({ model: "opus", skipPermissions: true, worktree: true });
+      expect(launchOptions(null, "plan", false, false)).toEqual({ permissionMode: "plan" });
+      expect(launchOptions(null, null, false), "off by default").toBeUndefined();
+    });
   });
 
   it("starts Codex as it is: none of Claude's choices are drawn or passed", async () => {

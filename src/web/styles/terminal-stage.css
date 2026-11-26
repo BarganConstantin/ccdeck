@@ -1011,6 +1011,11 @@ button.btn.ts-end-act {
 }
 .ns-worktree-label { font-weight: 500; font-size: 12px; }
 .ns-options .ns-worktree { min-height: 32px; margin: 0 0 8px; }
+/* Skip permission checks: the worktree row's shape, with its one sentence
+   under its name, always there and in the form's quiet note colour — what it
+   does, said plainly, never a warning. */
+.ns-skip-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ns-skip-hint { font-size: 11px; line-height: 15px; color: var(--muted); }
 .ns-note { margin: 12px 0 0; font-size: 12px; line-height: 16px; color: var(--muted); }
 /* Cancel and Start stay in sight: where the window leaves the popover less
    room than its form (it scrolls then, popover-place gives it the room
