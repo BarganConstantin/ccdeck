@@ -19,6 +19,7 @@ import {
   STILL_RUNNING,
   FOLDER_ROUTE,
   CODEX_UPDATED_ROUTE,
+  CHAT_IMAGE_ROUTE,
   TERMINAL_ROUTES,
   adoptTerminal,
   checkFolder,
@@ -29,6 +30,7 @@ import {
   launchTerminal,
   openTerminal,
   panelUnavailable,
+  saveChatImage,
   terminalHosts,
   terminalStatus,
   terminalTarget,
@@ -508,6 +510,32 @@ describe("asking whether the Codex that just ended updated itself", () => {
     expect(await codexUpdated(1, { fetchFn: answering(404, { ok: false, error: "not found" }).fetchFn })).toBe(false);
     expect(await codexUpdated(1, { fetchFn: answering(409, { ok: false, code: "not-installed" }).fetchFn })).toBe(false);
     expect(await codexUpdated(1, { fetchFn: async () => { throw new TypeError("Failed to fetch"); } })).toBe(false);
+  });
+});
+
+describe("handing the deck a picture pasted into Chat", () => {
+  it("posts the picture's own bytes, typed as it is, and reads back the path the deck kept it at", async () => {
+    expect(CHAT_IMAGE_ROUTE).toBe("/api/terminal/image");
+    expect(Object.values(TERMINAL_ROUTES)).not.toContain(CHAT_IMAGE_ROUTE);
+    const picture = new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], { type: "image/png" });
+    const { fetchFn, asked } = answering(200, { ok: true, path: "/data/ccdeck/chat-images/ab.png" });
+    expect(await saveChatImage(picture, { fetchFn })).toBe("/data/ccdeck/chat-images/ab.png");
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toMatchObject({ url: "/api/terminal/image", method: "POST" });
+    expect(asked[0].body, "the bytes as they are, not a form or JSON").toBe(picture);
+    expect(asked[0].headers["content-type"]).toBe("image/png");
+  });
+
+  it("answers null for anything short of the deck's path, never throwing", async () => {
+    const picture = new Blob([new Uint8Array([1])], { type: "image/png" });
+    for (const [status, body] of [
+      [415, { ok: false, code: "not-image" }], [413, { ok: false, code: "too-large" }], [500, { ok: false, code: "failed" }],
+      [404, { error: "not found" }], [409, { ok: false, code: "not-installed" }], [200, { ok: true }], [200, { ok: true, path: "" }],
+      [200, "<html>"],
+    ] as const) {
+      expect(await saveChatImage(picture, { fetchFn: answering(status, body).fetchFn }), `${status} ${JSON.stringify(body)}`).toBeNull();
+    }
+    expect(await saveChatImage(picture, { fetchFn: async () => { throw new TypeError("Failed to fetch"); } })).toBeNull();
   });
 });
 

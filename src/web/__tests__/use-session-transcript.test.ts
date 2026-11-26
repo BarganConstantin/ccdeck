@@ -449,6 +449,53 @@ describe("older pages", () => {
     expect((h.source as Ready).older).toMatchObject({ failed: false });
   });
 
+  it("reads one page at a time: asked again while it reads, it asks nothing more", async () => {
+    let release: (r: Response) => void = () => {};
+    const fetchFn = route({ c2: () => new Promise<Response>(done => { release = done; }) },
+      () => ({ ok: true, complete: false, turns: [turn("l0")], version: "v1", older: "c2" }));
+    const h = setup(on, fetchFn);
+    await flush();
+    const offer = (h.source as Ready).older!;
+    offer.load();
+    offer.load();
+    (h.source as Ready).older!.load();
+    await flush();
+    (h.source as Ready).older!.load();
+    expect(fetchFn.mock.calls.filter(([url]) => params(url).has("before"))).toHaveLength(1);
+    release(answer(200, p1));
+    await flush();
+    expect((h.source as Ready).turns).toEqual([turn("p1"), turn("l0")]);
+  });
+
+  it("drops a page that lands after another session is shown: the new one's offer is its own and idle", async () => {
+    let release: (r: Response) => void = () => {};
+    const fetchFn = vi.fn(async (url: string) => {
+      const q = params(url);
+      if (q.get("before") === "c2") return new Promise<Response>(done => { release = done; });
+      const id = q.get("session");
+      return answer(200, { ok: true, complete: false, turns: [turn(`${id}-live`)], version: "v1", older: id === "abc" ? "c2" : "d2" });
+    });
+    const h = setup(on, fetchFn);
+    await flush();
+    (h.source as Ready).older!.load();
+    await flush();
+    expect((h.source as Ready).older?.loading).toBe(true);
+    h.view.rerender({ ...on, session: "xyz" });
+    await flush();
+    expect((h.source as Ready).turns).toEqual([turn("xyz-live")]);
+    release(answer(200, p1));
+    await flush();
+    const src = h.source as Ready;
+    expect(src.turns).toEqual([turn("xyz-live")]);
+    expect(src.head).toBeUndefined();
+    expect(src.older).toMatchObject({ loading: false, failed: false });
+    // Its own page comes from its own cursor.
+    src.older!.load();
+    await flush();
+    expect(params(fetchFn.mock.calls.at(-1)![0]).get("before")).toBe("d2");
+    expect(params(fetchFn.mock.calls.at(-1)![0]).get("session")).toBe("xyz");
+  });
+
   it("is not left loading when Chat is hidden while a page is read: shown again, a press asks again", async () => {
     let n = 0;
     // The first read never answers: Chat goes away under it.

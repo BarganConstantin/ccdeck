@@ -170,7 +170,7 @@ describe("the way back", () => {
     const r = rig({ source: ready(talk) });
     r.scrollTo(300);
     (r.pill()!.props.onClick as () => void)();
-    (r.region().props.onWheel as () => void)();
+    (r.region().props.onWheel as (e: unknown) => void)({ deltaY: -40 });
     r.scrollTo(200);
     expect(r.pill()).not.toBeNull();
   });

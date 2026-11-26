@@ -15,6 +15,7 @@
 .chat-composer-col { position: relative; max-width: 776px; min-width: 0; margin-inline: auto; }
 .chat-composer-input {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 8px;
   min-width: 0;
@@ -92,13 +93,69 @@
 .chat-composer-status { flex: 1 1 180px; min-width: 0; margin: 6px 0 0; color: var(--text-secondary); overflow-wrap: anywhere; }
 .chat-composer-status:empty { flex: 0; margin: 0; }
 .chat-composer-status[data-result="partial"], .chat-composer-status[data-result="too-large"], .chat-composer-status[data-result="unavailable"], .chat-composer-status[data-result="empty"],
-.chat-composer-status[data-result="stop-partial"], .chat-composer-status[data-result="stop-unavailable"] { color: var(--warn); }
+.chat-composer-status[data-result="stop-partial"], .chat-composer-status[data-result="stop-unavailable"],
+.chat-composer-status[data-result="images-failed"], .chat-composer-status[data-result^="image-"] { color: var(--warn); }
 @media (hover: hover) and (pointer: fine) {
   .chat-composer-send:hover:not(:disabled) { border-color: var(--accent); background: var(--bg-soft); }
   .chat-composer-term:hover { color: var(--text); }
 }
 @container ts-bar (max-width: 480px) {
   .chat-composer { padding: 8px 12px 10px; }
+}
+
+/* PICTURES PASTED INTO THE BOX (chat-images.ts): a row of thumbnails over the
+   draft, inside the box's one edge, each with its own remove button on its
+   corner. The row wraps in a narrow pane; nothing here is uploaded until Send. */
+.chat-images {
+  display: flex;
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 8px 8px 2px;
+  list-style: none;
+}
+.chat-image { position: relative; flex: none; width: 56px; height: 56px; }
+.chat-image-thumb {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-ctl);
+  background: var(--ctl-fill);
+}
+.chat-composer button.chat-image-remove {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--ctl-edge);
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.chat-image-remove svg { width: 10px; height: 10px; }
+.chat-image-remove[aria-disabled="true"] { opacity: 0.5; cursor: default; }
+.chat-image-remove:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
+@media (hover: hover) and (pointer: fine) {
+  .chat-image-remove:hover:not([aria-disabled="true"]) { border-color: var(--text-secondary); color: var(--text); }
+}
+@media (pointer: coarse) {
+  .chat-composer button.chat-image-remove { top: -10px; right: -10px; width: 28px; height: 28px; }
+}
+@media (forced-colors: active) {
+  .chat-composer button.chat-image-remove { border-color: ButtonText; }
 }
 @container ts-bar (max-width: 390px) {
   .chat-composer-draft { font-size: max(16px, calc(13px + var(--ui-text-increase, 0px))); }

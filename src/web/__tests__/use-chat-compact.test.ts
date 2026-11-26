@@ -115,7 +115,7 @@ describe("the /compact message, under the conversation", () => {
     ({ turns: BEFORE, prompts: 1, state: "idle", connected: true, asked: false, ...over });
 
   it("is taken when the screen shows the compaction, which no prompt says", () => {
-    const p = pendingFor(COMPACT_COMMAND, facts(), T0, true);
+    const p = pendingFor(COMPACT_COMMAND, facts(), T0, { action: true });
     expect(wasTaken(p, facts())).toBe(false);
     expect(wasTaken(p, facts({ compacting: true }))).toBe(true);
     expect(wasTaken(pendingFor("hello", facts(), T0), facts({ compacting: true }))).toBe(false);
@@ -124,7 +124,7 @@ describe("the /compact message, under the conversation", () => {
   });
 
   it("draws no working row once taken: the live row speaks for a compaction", () => {
-    const p = { ...pendingFor(COMPACT_COMMAND, facts(), T0, true), takenAt: T0 + 1_000 };
+    const p = { ...pendingFor(COMPACT_COMMAND, facts(), T0, { action: true }), takenAt: T0 + 1_000 };
     const shown = chatShown(p, facts({ compacting: true }), T0 + 2_000);
     expect(shown.activity).toBeUndefined();
     expect(shown.outgoing).toEqual({ text: COMPACT_COMMAND, state: "taken", action: true });
@@ -133,9 +133,9 @@ describe("the /compact message, under the conversation", () => {
   });
 
   it("marks a message the menu sent, not one typed", () => {
-    expect(pendingFor(COMPACT_COMMAND, facts(), T0, true).action).toBe(true);
+    expect(pendingFor(COMPACT_COMMAND, facts(), T0, { action: true }).action).toBe(true);
     expect("action" in pendingFor(COMPACT_COMMAND, facts(), T0)).toBe(false);
-    const late = chatShown(pendingFor(COMPACT_COMMAND, facts(), T0, true), facts(), T0 + CONFIRM_MS);
+    const late = chatShown(pendingFor(COMPACT_COMMAND, facts(), T0, { action: true }), facts(), T0 + CONFIRM_MS);
     expect(late.outgoing).toEqual({ text: COMPACT_COMMAND, state: "unconfirmed", action: true });
   });
 });

@@ -65,7 +65,8 @@ export function OutgoingMessage({ outgoing, provider, onShowTerm }: { outgoing: 
   return (
     <div className="chat-you" data-outgoing={outgoing.state}>
       <span className="chat-author">{t("board.chat.you")}</span>
-      <p className="chat-you-text">{outgoing.text.replace(/\r\n?/g, "\n")}</p>
+      {(outgoing.text || !outgoing.images) && <p className="chat-you-text">{outgoing.text.replace(/\r\n?/g, "\n")}</p>}
+      {outgoing.images ? <span className="chat-you-images"><span className="chat-you-images-mark"><ImageGlyph /></span>{t("board.chat.images", { count: outgoing.images })}</span> : null}
       {outgoing.state !== "taken" && (
         <p className="chat-you-state">
           <span>{late ? t("board.chat.progress.unconfirmed", { agent: providerLabel(provider) })

@@ -26,7 +26,8 @@
 // (StageBody) — the header and the keys bar are where focus lands when the
 // keys go back to the board, and from there j, k and n are the board's.
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type RefObject } from "react";
-import { terminalTarget, type LaunchOptions, type SessionRef, type TerminalProvider } from "../../terminal-api";
+import { saveChatImage, terminalTarget, type LaunchOptions, type SessionRef, type TerminalProvider } from "../../terminal-api";
+import { takesImages, type ChatImage } from "../../chat-images";
 import { terminalTheme } from "../../terminal-palette";
 import { releaseChordLabel } from "../../terminal-keys";
 import { platformName } from "../../platform";
@@ -114,6 +115,7 @@ import type { PaneTabsView, TabsMenuOpen } from "./PaneTabs";
 
 /** One empty transcript for every render, so the card's words are not rebuilt for nothing. */
 const NO_TURNS: readonly ChatTurn[] = [];
+const NO_IMAGES: readonly ChatImage[] = [];
 
 /** What the pane says when an answer chosen on an alert was not sent. */
 const INTENT_NOTICE: Partial<Record<IntentOutcome["kind"], string>> = {
@@ -551,6 +553,9 @@ export default function TerminalStage(p: TerminalStageProps) {
   const [, setDraftMoved] = useState(0);
   const chatDraft = draftFor(chatDraftKey);
   const putDraft = (at: string, text: string) => { keepDraft(at, text); setDraftMoved(n => n + 1); };
+  // And the pictures pasted beside a draft (chat-images.ts): in this page's
+  // memory only, until Send hands them to the deck.
+  const [chatImages, setChatImages] = useState<Record<string, ChatImage[]>>({});
   // A message sent from Chat until the session says it took it and its turn
   // is over (chat-progress.ts), held per session as the drafts are, so one
   // session's never shows on another.
@@ -998,7 +1003,7 @@ export default function TerminalStage(p: TerminalStageProps) {
       setChatSent(sent => sent + 1);
       noteFeature("chat-reply");
       // On its way, not yet taken: Chat says so under the conversation.
-      setChatPending(all => ({ ...all, [chatDraftKey]: pendingFor(text, chatFacts, Date.now(), action) }));
+      setChatPending(all => ({ ...all, [chatDraftKey]: pendingFor(text, chatFacts, Date.now(), { action }) }));
       // A /compact typed in the box is followed too, when it would go now.
       if (compactOn && compactWhy === null && isCompactCommand(text)) compact.start();
     }
@@ -1270,6 +1275,28 @@ export default function TerminalStage(p: TerminalStageProps) {
     turns={chatTurns}
     notTaken={chatReturned.text}
     provider={chatProvider}
+    images={chatImages[chatDraftKey] ?? NO_IMAGES}
+    onImagesChange={images => setChatImages(all => ({ ...all, [chatDraftKey]: images }))}
+    imagesInTerm={takesImages(chatProvider)}
+    // Each picture is kept by the deck first, then its path goes into the
+    // session as Term pastes a dropped file's (chat-images.ts). One the deck
+    // did not keep sends nothing at all: the draft and pictures stay.
+    onSendImages={takesImages(chatProvider) ? async (text, images) => {
+      if (chatUnavailable) return "unavailable";
+      const paths: string[] = [];
+      for (const image of images) {
+        const path = await saveChatImage(image.blob);
+        if (!path) return "images-failed";
+        paths.push(path);
+      }
+      const result = await session.sendPromptWithImages(text, paths, key);
+      if (result === "sent") {
+        setChatSent(sent => sent + 1);
+        noteFeature("chat-reply");
+        setChatPending(all => ({ ...all, [chatDraftKey]: pendingFor(text, chatFacts, Date.now(), { images: images.length }) }));
+      }
+      return result;
+    } : undefined}
     onSend={text => sendFromChat(text)}
     // Stop is Claude Code's Esc, offered while the board says it works and
     // sent only once Term shows "esc to interrupt" (chat-stop.ts).
