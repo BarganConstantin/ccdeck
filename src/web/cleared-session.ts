@@ -21,6 +21,7 @@
 // separate posts); two sessions cleared in one folder at that moment are not
 // told apart, and neither is followed. A cleared session that begins again
 // (Reopen here, `--resume`) is its own terminal's again.
+import { rootAgentId } from "./graph-state";
 import type { AgentNodeData } from "./types";
 
 /** How far apart the two hooks of one /clear may land. They are posted back to
@@ -67,4 +68,38 @@ export function afterClears(agents: ReadonlyMap<string, AgentNodeData>, id: stri
     at = next;
   }
   return at;
+}
+
+/** What the pane in focus shows: the tab it holds, kept under the id it was
+ *  opened on (use-stage.ts splitOutTab), and the session that tab stands for
+ *  now (afterClears, above). The two differ only after a /clear in that
+ *  tab's terminal. */
+export interface PaneShows { tab: string; session: string }
+
+/**
+ * Where the selection goes when the pane in focus has followed its terminal
+ * through a /clear: the new session's root, or null to leave it as it is.
+ *
+ * The session on the stage is the selected one (use-stage.ts follow): every
+ * way the reader moves the stage selects what it moves to. A /clear moves
+ * what the pane shows with no one asking the stage for anything: the tab
+ * stays, and the session it stands for is the new one. Left there, the
+ * session list kept its highlight on the row of the session that ended, and
+ * the Inspector and the topbar's ribbon named it, beside a pane that draws
+ * the new conversation.
+ *
+ * So the selection follows the tab here, once for each /clear: at the render
+ * that sees the same tab stand for another session (`before` is what the
+ * pane showed at the render before, `now` what it shows). Only when the
+ * selection was the session the pane showed until then, its root or one of
+ * its cards (a subagent's card is its session's, graph-state.ts). A selection
+ * the reader moved to another session meanwhile is theirs, and stays.
+ */
+export function selectionAfterClear(
+  agents: ReadonlyMap<string, AgentNodeData>, before: PaneShows | null, now: PaneShows | null, primary: string | null,
+): string | null {
+  if (!before || !now || primary === null) return null;
+  if (before.tab !== now.tab || before.session === now.session) return null;
+  const selected = agents.get(primary)?.sessionId ?? primary;
+  return selected === before.session ? rootAgentId(now.session) : null;
 }
