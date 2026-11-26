@@ -132,6 +132,9 @@ const ROUTES: Array<[string, string, string?]> = [
   // ran no Codex in a pane, and says nothing about the one on this machine.
   ["POST", "/api/terminal/codex-updated", JSON.stringify({ liveForMs: 60_000 })],
   ["POST", "/api/terminal/codex-updated", "{not json"],
+  // A picture pasted into Chat, kept for its path: a deck with no engine has
+  // no pane to paste it into, and keeps nothing.
+  ["POST", "/api/terminal/image", "\x89PNG\r\n\x1a\n"],
   ["POST", "/api/terminal/launch", JSON.stringify({ agent: "claude", cwd: PROJECT, pad: "x".repeat(9 * 1024) })],
 ];
 

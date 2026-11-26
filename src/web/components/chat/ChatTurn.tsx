@@ -25,6 +25,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { answerable, MAX_ASK_TEXT, offersChat, picksComplete, type AskPick } from "../../ask-keys";
 import type { AskSendResult } from "../../use-terminal-session";
 import { copyText } from "../../copy-text";
+import { replyText } from "../../chat-actions";
 import { CopyGlyph } from "../terminal/stage-icons";
 import { CODEX_TOOL_LABEL } from "../../tool-taxonomy";
 import DiffBlock, { DiffCounts } from "./ChatDiff";
@@ -64,7 +65,8 @@ export function OutgoingMessage({ outgoing, provider, onShowTerm }: { outgoing: 
   return (
     <div className="chat-you" data-outgoing={outgoing.state}>
       <span className="chat-author">{t("board.chat.you")}</span>
-      <p className="chat-you-text">{outgoing.text.replace(/\r\n?/g, "\n")}</p>
+      {(outgoing.text || !outgoing.images) && <p className="chat-you-text">{outgoing.text.replace(/\r\n?/g, "\n")}</p>}
+      {outgoing.images ? <span className="chat-you-images"><span className="chat-you-images-mark"><ImageGlyph /></span>{t("board.chat.images", { count: outgoing.images })}</span> : null}
       {outgoing.state !== "taken" && (
         <p className="chat-you-state">
           <span>{late ? t("board.chat.progress.unconfirmed", { agent: providerLabel(provider) })
@@ -380,7 +382,8 @@ export function AssistantBlock({ turns, provider = "claude", ask, todoAt, time }
   const author = providerLabel(provider);
   const t = useT();
   const [copied, setCopied] = useState(false);
-  const answer = turns.filter((turn): turn is Extract<Turn, { kind: "assistant" }> => turn.kind === "assistant").map(turn => turn.text).join("\n\n");
+  // What the ⋯'s Copy last reply takes too (chat-actions.ts).
+  const answer = replyText(turns);
   useEffect(() => setCopied(false), [answer]);
   // Tool calls run together into one disclosure, and an earlier task list
   // joins them where its TodoWrite call sat. A run with no call in it is drawn

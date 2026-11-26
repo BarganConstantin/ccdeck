@@ -7,8 +7,8 @@
 // its hooks, and the output watch's line for each block the transcript gains),
 // so a burst of events is one ask; once more when the session's prompt count
 // or its end changes (`change`); and on a timer while the page is visible,
-// every POLL_MS while the session works and every IDLE_POLL_MS otherwise, for
-// what no event says. Every ask after the first sends the version it holds, and
+// every POLL_MS while the session works or a compaction is followed (`brisk`)
+// and every IDLE_POLL_MS otherwise, for what no event says. Every ask after the first sends the version it holds, and
 // a file that has not moved is answered `unchanged` after one stat, so the
 // quick timer of a turn at work (a line every second or two, as Term shows
 // them) costs the deck one stat a tick while nothing moves.
@@ -126,6 +126,9 @@ export interface SessionTranscriptInput {
   shown: boolean;
   /** The session is working: the timer asks every POLL_MS then, IDLE_POLL_MS otherwise. */
   working: boolean;
+  /** A compaction is being followed (use-chat-compact.ts): the timer asks every
+   *  POLL_MS, as while the session works, so its end is read when it comes. */
+  brisk?: boolean;
   /** The session has ended: a deck that no longer knows it cannot say more. */
   ended?: boolean;
   /** Changes when the session's prompt count or its status does (working,
@@ -230,7 +233,7 @@ function withRead(held: Held | null, session: string, provider: Provider, read: 
 
 export function useSessionTranscript(input: SessionTranscriptInput, deps: SessionTranscriptDeps = {}): ChatSource {
   const t = useT();
-  const { session: shownSession, provider = "claude", shown, working, change, ended, heard } = input;
+  const { session: shownSession, provider = "claude", shown, working, brisk = false, change, ended, heard } = input;
   // opencode and Copilot: the deck reads no transcript of theirs, so nothing
   // is ever asked for — every ask below waits on `session` — and Chat says so.
   const absent = shownSession !== null && isEventOnly(provider);
@@ -373,10 +376,10 @@ export function useSessionTranscript(input: SessionTranscriptInput, deps: Sessio
   // Again on a timer while the page is looked at, sooner while the session works.
   useEffect(() => {
     if (!shown || !session) return;
-    const every = working ? dep.current.pollMs ?? POLL_MS : dep.current.idlePollMs ?? IDLE_POLL_MS;
+    const every = working || brisk ? dep.current.pollMs ?? POLL_MS : dep.current.idlePollMs ?? IDLE_POLL_MS;
     const timer = setInterval(() => { if (visible()) ask(session, life.signal); }, every);
     return () => clearInterval(timer);
-  }, [shown, session, working, ask, life, visible]);
+  }, [shown, session, working, brisk, ask, life, visible]);
 
   // A page read cut short by hiding Chat or moving on is not still loading.
   useEffect(() => { setPaging("idle"); }, [life]);

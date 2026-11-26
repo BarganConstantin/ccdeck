@@ -1080,6 +1080,15 @@ function Inner() {
     if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
     focusSession(sessionId);
   }, [removedAgentIds, bringBack, focusSession, followSession, markLanded, workspaceRef, stage.enabled, openInPane]);
+  // SHOW ON BOARD, from Chat's ⋯ in a Workspace pane: the Board, and the
+  // session's card brought into view and landed on, as any jump to it there
+  // does. A removed session comes back first. The jump waits for the switch to
+  // be drawn: a pointer's crossfade runs its update a frame or two later.
+  const showOnBoard = useCallback((sessionId: string) => {
+    if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
+    switchView("board", lastInputWasKey() ? "key" : "pointer");
+    requestAnimationFrame(() => requestAnimationFrame(() => focusSession(sessionId)));
+  }, [removedAgentIds, bringBack, switchView, focusSession]);
   // Enter on a row, in Workspace: the session in the pane, the keys in it.
   const openSessionWithKeys = useCallback((sessionId: string) => {
     if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
@@ -1654,6 +1663,7 @@ function Inner() {
         stage={stage} stateRef={stateRef} canvasRef={canvasRef} now={now} palette={palette}
         asks={asks} waitingSessions={waitingSessions}
         onBoard={() => switchView("board", lastInputWasKey() ? "key" : "pointer")}
+        onShowOnBoard={showOnBoard}
       />
 
       <DialogPresence when={toolAuditView}>{view => <ToolAuditModal view={view} onClose={closeToolAudit} sessionLabel={toolAuditSessionLabel} onOpenSession={openToolAuditSession} />}</DialogPresence>
