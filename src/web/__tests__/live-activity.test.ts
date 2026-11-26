@@ -4,7 +4,7 @@
 // compaction read off its screen. The row's drawing is live-activity-row.test.ts.
 import { describe, expect, it } from "vitest";
 import { applyEvent, initialState, sweepStaleSessions, STALE_SESSION_MS, type GraphState } from "../reducer";
-import { backgroundAgents, chatLive, COMPACTION_MISSES, compactionAfter, liveKey, type CompactionSeen } from "../live-activity";
+import { backgroundAgents, chatLive, COMPACTION_MISSES, compactionAfter, liveKey, MENU_MISSES, menuAfter, type CompactionSeen, type MenuSeen } from "../live-activity";
 import { stageShowFor } from "../components/terminal/stage-board";
 import type { HookEnvelope, HookPayload } from "../types";
 
@@ -207,6 +207,39 @@ describe("a compaction, read off the screen", () => {
   });
 });
 
+describe("a menu only Term shows, read off the screen", () => {
+  const SAVE = ["Looks good — save it", "Discard and exit"];
+
+  it("begins at once with its choices", () => {
+    expect(menuAfter(null, SAVE)).toEqual({ options: SAVE, missed: 0 });
+  });
+
+  it("is the same object while the same choices are read again", () => {
+    const seen = menuAfter(null, SAVE)!;
+    expect(menuAfter(seen, [...SAVE])).toBe(seen);
+  });
+
+  it("holds through a frame without it, and ends after MENU_MISSES reads without it", () => {
+    let seen: MenuSeen | null = menuAfter(null, SAVE);
+    for (let i = 1; i < MENU_MISSES; i++) {
+      seen = menuAfter(seen, null);
+      expect(seen?.options).toEqual(SAVE);
+    }
+    // Seen again: the misses start over.
+    expect(menuAfter(seen, SAVE)).toEqual({ options: SAVE, missed: 0 });
+    expect(menuAfter(seen, null)).toBeNull();
+  });
+
+  it("is another menu at once when the choices change", () => {
+    const seen = menuAfter(null, SAVE);
+    expect(menuAfter(seen, ["Yes", "No"])).toEqual({ options: ["Yes", "No"], missed: 0 });
+  });
+
+  it("is nothing on a screen that never showed one", () => {
+    expect(menuAfter(null, null)).toBeNull();
+  });
+});
+
 describe("what Chat's live row says", () => {
   const agent = { id: "s::a", label: "Explore", since: 1 };
 
@@ -225,9 +258,18 @@ describe("what Chat's live row says", () => {
     expect(chatLive({ agents: [agent], compacting: { since: 7 }, working: false })).toEqual({ compacting: { since: 7 }, agents: [agent] });
   });
 
+  it("says a menu only Term shows, first, with its choices", () => {
+    expect(chatLive({ menu: ["Yes", "No"], working: false })).toEqual({ menu: { options: ["Yes", "No"] } });
+    expect(chatLive({ menu: ["Yes", "No"], agents: [agent], working: false })).toEqual({ menu: { options: ["Yes", "No"] }, agents: [agent] });
+    expect(chatLive({ menu: null, working: false })).toBeUndefined();
+    expect(chatLive({ menu: ["Yes", "No"], working: true })).toBeUndefined();
+  });
+
   it("is known by what it says, not by its clocks", () => {
     expect(liveKey(undefined)).toBe("");
     expect(liveKey({ compacting: { since: 1 } })).toBe(liveKey({ compacting: { since: 2 } }));
     expect(liveKey({ agents: [agent] })).not.toBe(liveKey({ agents: [agent, { ...agent, id: "s::b" }] }));
+    expect(liveKey({ menu: { options: ["Yes", "No"] } })).not.toBe(liveKey(undefined));
+    expect(liveKey({ menu: { options: ["Yes", "No"] } })).not.toBe(liveKey({ menu: { options: ["Save", "Discard"] } }));
   });
 });

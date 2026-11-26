@@ -1176,6 +1176,7 @@ const catalog: Catalog = {
   "board.chat.live.background.one": "En attente de {count} agent en arrière-plan",
   "board.chat.live.background.other": "En attente de {count} agents en arrière-plan",
   "board.chat.live.compacting": "Compactage de la conversation…",
+  "board.chat.live.menu": "{agent} attend un choix dans Term",
   "board.chat.live.unread.one": "{count} nouveau",
   "board.chat.live.unread.other": "{count} nouveaux",
   "board.chat.live.latestNew.one": "Derniers messages, {count} nouveau",

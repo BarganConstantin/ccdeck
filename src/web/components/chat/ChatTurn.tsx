@@ -127,21 +127,35 @@ function LiveMark() {
 }
 
 /** What the session still does once its turn is over (live-activity.ts), on a
- *  row under the turn's "Worked for…": the conversation being compacted, for
- *  how long, with no progress the agent does not give; and the background
- *  agents still running, counted, with each one's type, task and time a press
- *  away and the way to Term, which shows their output. A screen reader hears
- *  the words when they change, never the clocks. */
-export function LiveLine({ live, onShowTerm }: { live: ChatLive; onShowTerm?: () => void }) {
+ *  row under the turn's "Worked for…": a choice the agent waits on in Term
+ *  that Chat cannot show as a card, its choices as plain words (they are
+ *  picked in Term, not here) and the way there; the conversation being
+ *  compacted, for how long, with no progress the agent does not give; and the
+ *  background agents still running, counted, with each one's type, task and
+ *  time a press away and the way to Term, which shows their output. A screen
+ *  reader hears the words when they change, never the clocks. */
+export function LiveLine({ live, provider, onShowTerm }: { live: ChatLive; provider?: Provider; onShowTerm?: () => void }) {
   const t = useT();
   const id = useId();
   const [open, setOpen] = useState(false);
   const agents = live.agents ?? [];
+  const choices = live.menu?.options ?? [];
+  const menu = choices.length ? t("board.chat.live.menu", { agent: providerLabel(provider) }) : "";
   const compacting = t("board.chat.live.compacting");
   const waiting = agents.length ? t("board.chat.live.background", { count: agents.length }) : "";
-  const spoken = [live.compacting ? compacting : "", waiting].filter(Boolean).join(". ");
+  const spoken = [menu ? `${menu}: ${choices.join(", ")}` : "", live.compacting ? compacting : "", waiting].filter(Boolean).join(". ");
   return (
     <div className="chat-live">
+      {menu && (
+        <div className="chat-progress" data-state="waiting" data-live="menu">
+          <LiveMark />
+          <span className="chat-progress-text">{menu}</span>
+          {onShowTerm && <button type="button" className="chat-ask-term" onClick={onShowTerm}>{t("board.chat.showTerm")}</button>}
+          <ol className="chat-live-choices">
+            {choices.map((choice, i) => <li key={i} title={choice}>{choice}</li>)}
+          </ol>
+        </div>
+      )}
       {live.compacting && (
         <div className="chat-progress" data-state="working" data-live="compacting">
           <LiveMark />

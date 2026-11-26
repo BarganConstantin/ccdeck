@@ -90,7 +90,7 @@ import { askSteps, chatSteps, type AskStep } from "../../ask-keys";
 import { stopSteps } from "../../chat-stop";
 import { pendingFor, useChatProgress, waitsInChat, type ChatFacts, type ChatPending } from "../../chat-progress";
 import { useScreenStatus } from "../../use-screen-status";
-import { useLiveCompaction } from "../../use-live-compaction";
+import { useLiveScreen } from "../../use-live-compaction";
 import { saysCompacting } from "../../screen-status";
 import { COMPACT_COMMAND, COMPACT_SAID, compactBlocked, compactedSince, compactOffered, isCompactCommand, lastReply, sessionDetails } from "../../chat-actions";
 import { useCompactRun } from "../../use-chat-compact";
@@ -856,7 +856,18 @@ export default function TerminalStage(p: TerminalStageProps) {
   const chatCannotSend = session.subject !== key ? t("board.chat.connecting") : phase.kind === "live"
     ? phase.readOnly ? t("board.chat.readOnly") : undefined
     : t(phase.kind === "attaching" || phase.kind === "starting" ? "board.chat.connecting" : "board.chat.offline");
-  const chatUnavailable = chatCannotSend ?? (board?.state === "waiting" ? t("board.chat.waiting") : undefined);
+  // What the session's own screen shows once its turn is over, on Chat's live
+  // row (live-activity.ts): a compaction, and a choice the agent draws itself
+  // that the transcript does not hold. Read only while the working row's read
+  // (use-screen-status.ts, below) is off.
+  const liveScreen = useLiveScreen({
+    on: chatOn && status.state !== "working" && chatCannotSend === undefined && (chatProvider === "claude" || chatProvider === "codex"),
+    subject: key,
+    readScreen: session.readScreen,
+  });
+  // A message sent while a menu holds Term would land in the menu: its Enter
+  // picks the highlighted choice.
+  const chatUnavailable = chatCannotSend ?? (board?.state === "waiting" || liveScreen.menu ? t("board.chat.waiting") : undefined);
   // A question Claude Code asked (AskUserQuestion) is answered from its card
   // with the keys Term takes, each sent only once Term shows what it answers
   // (ask-keys.ts). The answer reads back from the transcript, as a reply does.
@@ -899,6 +910,10 @@ export default function TerminalStage(p: TerminalStageProps) {
     },
   });
   const promptCard = promptDecision && intentPress && intentPress.for === promptDecision.model.id ? { ...promptDecision, press: intentPress } : promptDecision;
+  // A card that answers the question wins: the menu on Term's screen is then
+  // that question's, and Chat already shows it with its real choices.
+  const cardAsks = promptCard !== undefined || waitsInChat(chatTurns);
+  const termMenu = cardAsks ? null : liveScreen.menu;
   const chatAsk: ChatAsk | undefined = chatSession === null ? undefined : {
     blocked: chatCannotSend,
     // An ended session asks nothing any more: its last question is not waiting.
@@ -929,15 +944,10 @@ export default function TerminalStage(p: TerminalStageProps) {
     subject: key,
     readScreen: session.readScreen,
   });
-  // What the session still does once its turn is over, on Chat's live row
-  // (live-activity.ts): its background agents, as the board's lifecycle has
-  // them, and a compaction its own screen shows. The screen is read for that
-  // only while the working row's read (above) is off.
-  const compactionSeen = useLiveCompaction({
-    on: chatOn && status.state !== "working" && chatCannotSend === undefined && (chatProvider === "claude" || chatProvider === "codex"),
-    subject: key,
-    readScreen: session.readScreen,
-  });
+  // A compaction the session's own screen shows once its turn is over: the
+  // same read as the menu (liveScreen, above), off while the working row's
+  // read is on.
+  const compactionSeen = liveScreen.compacting;
   // Over once the conversation has its /compact line, though the screen's
   // reads hold it a miss or two longer.
   const compaction = compactionSeen && !compactedSince(chatTurns, compactionSeen.since) ? compactionSeen : null;
@@ -954,7 +964,7 @@ export default function TerminalStage(p: TerminalStageProps) {
     tool: !!status.tool,
     heardAt: p.show.kind === "session" ? p.show.session.heardAt : undefined,
     connected: chatCannotSend === undefined,
-    asked: promptCard !== undefined || waitsInChat(chatTurns),
+    asked: cardAsks || termMenu !== null,
     compacting: compactingNow,
   };
   const chatProgress = useChatProgress(chatPending[chatDraftKey], chatFacts, next => setChatPending(all => {
@@ -963,9 +973,14 @@ export default function TerminalStage(p: TerminalStageProps) {
     delete rest[chatDraftKey];
     return rest;
   }));
+  // What the session still does once its turn is over, on Chat's live row
+  // (live-activity.ts): its background agents, as the board's lifecycle has
+  // them, and what its own screen shows (liveScreen, above): a compaction
+  // until the conversation has its /compact line, and a menu no card asks.
   const chatLiveNow = chatLive({
     agents: p.show.kind === "session" ? p.show.session.background : undefined,
     compacting: compaction,
+    menu: termMenu,
     working: chatProgress.activity?.state === "working",
   });
   // A message the session did not take goes back into an empty box (use-chat-returned.ts).

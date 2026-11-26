@@ -165,11 +165,15 @@ export function paneTabs(s: SplitState, id: string, focusedTarget: StageTarget |
 }
 
 /** The pane that holds `sessionId` in any of its tabs, and that tab, as kept
- *  (a launch's tab keeps its launch). Panes in tree order. */
-export function tabWith(s: SplitState, sessionId: string, focusedTarget: StageTarget | null, except?: string): { pane: string; target: StageTarget } | null {
+ *  (a launch's tab keeps its launch). Panes in tree order. `shows`, when
+ *  given, is the session a tab's id stands for now (a tab kept under a
+ *  session a /clear left behind shows the one its terminal went on as). */
+export function tabWith(
+  s: SplitState, sessionId: string, focusedTarget: StageTarget | null, except?: string, shows?: (tabId: string) => string,
+): { pane: string; target: StageTarget } | null {
   for (const id of paneIds(s.root)) {
     if (id === except) continue;
-    const t = paneTabs(s, id, focusedTarget).find(x => x.kind === "session" && x.id === sessionId);
+    const t = paneTabs(s, id, focusedTarget).find(x => x.kind === "session" && (x.id === sessionId || shows?.(x.id) === sessionId));
     if (t) return { pane: id, target: t };
   }
   return null;
@@ -191,9 +195,10 @@ export function sessionPaneLinks(s: SplitState, focusedTarget: StageTarget | nul
   return links;
 }
 
-/** The pane that holds `sessionId`, in any tab, other than `except`, or null. */
-export function paneWith(s: SplitState, sessionId: string, focusedTarget: StageTarget | null, except?: string): string | null {
-  return tabWith(s, sessionId, focusedTarget, except)?.pane ?? null;
+/** The pane that holds `sessionId`, in any tab, other than `except`, or null
+ *  (`shows` as tabWith's). */
+export function paneWith(s: SplitState, sessionId: string, focusedTarget: StageTarget | null, except?: string, shows?: (tabId: string) => string): string | null {
+  return tabWith(s, sessionId, focusedTarget, except, shows)?.pane ?? null;
 }
 
 /** The sessions open in the panes, every tab, in pane order. */

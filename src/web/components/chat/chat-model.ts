@@ -241,6 +241,9 @@ export interface ChatLive {
   compacting?: { since: number };
   /** Background agents still running, oldest first. */
   agents?: readonly ChatLiveAgent[];
+  /** A choice the agent draws on its own screen and nowhere Chat reads: its
+   *  rows' labels in order, said as text; it is answered in Term. */
+  menu?: { options: readonly string[] };
 }
 
 /** A background agent still running, as the board knows it. */
