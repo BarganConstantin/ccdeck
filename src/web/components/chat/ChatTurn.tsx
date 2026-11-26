@@ -400,7 +400,8 @@ const RESULT_KEYS: Record<AskSendResult, string> = {
 export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; ask?: ChatAsk }) {
   const t = useT();
   const id = useId();
-  const state = askState(turn);
+  // A question left open by a session that is over waits for nobody.
+  const state = turn.running && ask?.gone ? "unanswered" : askState(turn);
   const live = state === "waiting" ? ask : undefined;
   const [picks, setPicks] = useState<AskPick[]>(() => turn.questions.map(() => ({ options: [] })));
   // Your own words stay while an option is tried, as a draft would.
@@ -419,7 +420,13 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
   const reachable = turn.questions.every(answerable);
   // Once keys went, the same answer is never sent twice from here.
   const done = result === "sent" || result === "partial";
-  const locked = !live || sending || done || live.blocked !== undefined || !reachable;
+  const blocked = live?.blocked;
+  const locked = !live || sending || done || blocked !== undefined || !reachable;
+  // The options take a pick only where an answer can go from here: the stage
+  // can write to the session and the question is one Chat answers. Otherwise
+  // they are drawn as the read-only card draws them, never as choices that
+  // look ready and do nothing when clicked.
+  const pickable = !!live && blocked === undefined && reachable;
   const ready = !locked && picksComplete(turn.questions, picks);
   // Set aside, nothing was chosen: a pick made before it wears no mark.
   const answered = done && !chatting;
@@ -457,18 +464,20 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
   }
 
   // An answer chosen on an alert: the option is picked and sent by this card's
-  // own Send, once, and only on the question it was chosen for.
+  // own Send, once, and only on the question it was chosen for. A press that
+  // comes while the card cannot send waits for it, rather than being spent on
+  // a Send that does nothing.
   const pressedId = useRef(0);
   const press = live?.press;
   useEffect(() => {
-    if (!press || press.id === pressedId.current) return;
+    if (!press || press.id === pressedId.current || locked) return;
     if (press.for !== turn.questions.map(q => q.question).join("\n") || turn.questions.length !== 1 || turn.questions[0].multi) return;
     pressedId.current = press.id;
     const chosen: AskPick[] = [{ options: [press.index] }];
     setPicks(chosen);
     void send(chosen);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [press]);
+  }, [press, locked]);
 
   async function chat() {
     if (!live?.chat || !canChat) return;
@@ -506,7 +515,7 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
                   {option.description && <span className="chat-ask-option-note">{option.description}</span>}
                 </span>
               );
-              if (live) {
+              if (pickable) {
                 const on = pick.text === undefined && pick.options.includes(n);
                 return (
                   <li key={n} className="chat-ask-option chat-ask-choice" data-chosen={on || undefined}>
@@ -529,7 +538,7 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
                 </li>
               );
             })}
-            {live && takesText(question) && (
+            {pickable && takesText(question) && (
               <li className="chat-ask-option chat-ask-choice chat-ask-other" data-chosen={pick.text !== undefined || undefined}>
                 <label className="chat-ask-pick">
                   <input type="radio" name={name} checked={pick.text !== undefined} disabled={locked}
@@ -553,9 +562,10 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
     );
   });
 
-  // Blocked (connecting, offline, read only), the card only locks its options:
-  // the reply box under it is handed the same reason and shows it with Show
-  // Term, so the card does not say it a second time 150 px above.
+  // Blocked (connecting, offline, read only), the card says why beside its own
+  // Send, with Show Term: the question is where the eye is, and a card that
+  // waits with nothing to press and no word on it reads as broken. The reply
+  // box under it says the same for a message.
   // A failed "Chat about this" says what a failed answer says: part of it went,
   // or it could not go, with Show Term. When Term has no such row it says that,
   // and the answer is given there.
@@ -564,9 +574,9 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
       : chatting && result === "changed" ? "board.chat.ask.result.chatMissing"
       : RESULT_KEYS[result])
     : !reachable ? t("board.chat.ask.inTerm")
-    : "";
+    : blocked ?? "";
   const showTerm = live?.onShowTerm && !sending && result !== "sent"
-    && (result !== null || !reachable);
+    && (result !== null || !reachable || blocked !== undefined);
 
   return (
     <section ref={card} className="chat-ask" data-state={state} aria-label={t("board.chat.ask.title", { count: turn.questions.length })}>
@@ -578,7 +588,8 @@ export function AskCard({ turn, ask }: { turn: Extract<Turn, { kind: "ask" }>; a
         <form className="chat-ask-form" data-locked={locked || undefined} onSubmit={event => { event.preventDefault(); void send(); }}>
           {questions}
           <div className="chat-ask-actions">
-            <button className="btn primary chat-ask-send" type="submit" disabled={!ready}>{t("board.chat.ask.send")}</button>
+            {/* Nothing to pick, nothing to send: the way on is Show Term. */}
+            {pickable && <button className="btn primary chat-ask-send" type="submit" disabled={!ready}>{t("board.chat.ask.send")}</button>}
             <p id={`${id}-status`} ref={statusRef} tabIndex={-1} className="chat-ask-status" role="status" aria-live="polite"
               aria-atomic="true" data-result={result ?? undefined}>{message}</p>
             {showTerm && <button className="chat-ask-term" type="button" onClick={live.onShowTerm}>{t("board.chat.showTerm")}</button>}

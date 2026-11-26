@@ -169,21 +169,39 @@ describe("when the card cannot send, or the keys did not all go", () => {
   // CHANGED ON PURPOSE (browser QA): the card said why and offered Term, and the
   // reply box under it, handed the same reason, said it again with its own
   // Show Term. The card now only locks its options; the reply box says why.
-  it("a stage that cannot write locks the options, and leaves the reason and Term to the reply box", () => {
+  it("a stage that cannot write says why on the card, offers Term, and draws no choices to press", () => {
     const r = rig(waiting(DB), { blocked: "This session is read-only." });
-    expect(r.choices(0).every(el => el.props.disabled)).toBe(true);
-    expect(r.sendButton().props.disabled).toBe(true);
-    expect(textOf(r.status())).toBe("");
-    expect(r.term()).toBeNull();
-    expect(r.text()).not.toContain("This session is read-only.");
+    // Read-only rows, as the card draws them when it cannot answer: never
+    // radios that look ready and do nothing when clicked.
+    expect(r.choices(0)).toEqual([]);
+    expect(all(r.view.tree, el => el.props.className === "chat-ask-n").map(textOf)).toEqual(["1", "2", "3"]);
+    expect(all(r.view.tree, el => el.type === "button" && el.props.type === "submit")).toEqual([]);
+    expect(textOf(r.status())).toBe("This session is read-only.");
+    expect(r.term()).not.toBeNull();
     r.submit();
     expect(r.send).not.toHaveBeenCalled();
+  });
+
+  it("the same while it connects: the reason beside the card, nothing sent", () => {
+    const r = rig(waiting(DB), { blocked: "Connecting to the session…" });
+    expect(r.choices(0)).toEqual([]);
+    expect(textOf(r.status())).toBe("Connecting to the session…");
+    r.submit();
+    expect(r.send).not.toHaveBeenCalled();
+  });
+
+  it("a question left open by a session that ended waits for nobody: Not answered, nothing to press", () => {
+    const r = rig(waiting(DB), { gone: true });
+    expect(r.text()).toContain("Not answered");
+    expect(r.text()).not.toContain("Waiting for your answer");
+    expect(all(r.view.tree, el => el.type === "input" || el.type === "form")).toEqual([]);
   });
 
   it("a question that asks for typed text is answered in Term", () => {
     const r = rig(waiting(DB, NAME), {});
     expect(textOf(r.status())).toBe("This question asks for typed text. Answer it in Term.");
-    expect(r.choices(0).every(el => el.props.disabled)).toBe(true);
+    expect(r.choices(0)).toEqual([]);
+    expect(all(r.view.tree, el => el.type === "button" && el.props.type === "submit")).toEqual([]);
     expect(r.term()).not.toBeNull();
     r.submit();
     expect(r.send).not.toHaveBeenCalled();
