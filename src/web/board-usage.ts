@@ -175,6 +175,19 @@ export function boardScopeTitle(singleKeys: boolean): string {
 export const SESSION_SPEND_LABEL_MSG = "insights.board.sessionSpend";
 export const sessionSpendLabel = () => t(SESSION_SPEND_LABEL_MSG);
 
+/** That roll-up's figure, as the session's row in the Sessions list sums it
+ *  (SessionList buildRows): the session's root and every subagent of the
+ *  session still on the board. Chat's Session details says the same figure. */
+export function sessionSpend(
+  root: UsageBearing & { sessionId: string },
+  agents: Iterable<UsageBearing & { sessionId: string; kind: string }>,
+  now: number = Date.now(),
+): number {
+  let total = agentCost(root, now).total;
+  for (const a of agents) if (a.sessionId === root.sessionId && a.kind !== "root") total += agentCost(a, now).total;
+  return total;
+}
+
 // ── the usage panel's two tables, when ccusage has not answered ─────────────
 //
 // ccusage is optional (AGENTS_DECK_NO_INSTALL, or no npm at all), and without

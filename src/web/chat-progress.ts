@@ -26,10 +26,20 @@
 // the board can go on saying working after one; the conversation's own
 // "Interrupted" line, written after the turn's last step, says it ended.
 //
+// A /COMPACT IS TAKEN WHEN ITS LINE SHOWS. Claude Code says no prompt for it
+// and writes its line into the conversation only once it is over, so the
+// screen's "Compacting conversation…" (live-activity.ts) is the session taking
+// it. Chat's live row speaks for the compaction then, not the working row,
+// whose clock is a turn's.
+//
+// A message Chat's ⋯ sent (`action`), not one typed, is never put back into
+// the box when it is not taken (use-chat-returned.ts): the box is the person's.
+//
 // Imports no screen: this is the stage's half, and ChatView only draws.
 import { useEffect, useState } from "react";
 import type { ChatActivity, ChatOutgoing, ChatTurn } from "./components/chat/chat-model";
 import { clockShort } from "./elapsed-short";
+import { isCompactCommand } from "./chat-actions";
 
 /** How long a message the session is free to take may go untaken before Chat says so. */
 export const CONFIRM_MS = 10_000;
@@ -56,6 +66,8 @@ export interface ChatPending {
   takenAt?: number;
   /** The board said working after it was taken: the next rest ends its turn. */
   worked?: boolean;
+  /** Sent by an action of Chat's ⋯, not typed in the box. */
+  action?: boolean;
 }
 
 /** What the stage knows of the session shown, for its Chat. */
@@ -80,6 +92,8 @@ export interface ChatFacts {
   status?: string;
   /** When the turn at work began: the board's last prompt. */
   since?: number;
+  /** The screen shows the conversation being compacted (use-live-compaction.ts). */
+  compacting?: boolean;
 }
 
 /** What Chat draws now, and when that changes by itself. */
@@ -119,14 +133,18 @@ export function stoppedInChat(turns: readonly ChatTurn[]): boolean {
  *  does not end on that turn being stopped. */
 const atWork = (facts: Pick<ChatFacts, "turns" | "state">) => facts.state === "working" && !stoppedInChat(facts.turns);
 
-/** The record of a message the composer just sent. */
-export function pendingFor(text: string, facts: Pick<ChatFacts, "turns" | "prompts" | "state">, now: number): ChatPending {
-  return { text, since: now, prompts: facts.prompts, echoes: echoes(facts.turns, text), behind: atWork(facts) };
+/** The record of a message the composer, or an action of Chat's ⋯ (`action`), just sent. */
+export function pendingFor(text: string, facts: Pick<ChatFacts, "turns" | "prompts" | "state">, now: number, action = false): ChatPending {
+  const pending: ChatPending = { text, since: now, prompts: facts.prompts, echoes: echoes(facts.turns, text), behind: atWork(facts) };
+  if (action) pending.action = true;
+  return pending;
 }
 
-/** Whether the session has said it took the message. */
-export function wasTaken(pending: ChatPending, facts: Pick<ChatFacts, "turns" | "prompts">): boolean {
-  return pending.takenAt !== undefined || facts.prompts > pending.prompts || echoes(facts.turns, pending.text) > pending.echoes;
+/** Whether the session has said it took the message: a /compact, by
+ *  compacting. */
+export function wasTaken(pending: ChatPending, facts: Pick<ChatFacts, "turns" | "prompts" | "compacting">): boolean {
+  return pending.takenAt !== undefined || facts.prompts > pending.prompts || echoes(facts.turns, pending.text) > pending.echoes
+    || (facts.compacting === true && isCompactCommand(pending.text));
 }
 
 /** The last turn is a question or a plan still waiting: its own card asks it. */
@@ -157,16 +175,17 @@ export function chatShown(pending: ChatPending | undefined, facts: ChatFacts, no
   if (pending && !taken) {
     const due = pending.since + CONFIRM_MS;
     const late = !facts.connected || (!pending.behind && now >= due);
-    out.outgoing = { text: pending.text, state: late ? "unconfirmed" : "sending", ...(pending.behind && !late ? { queued: true } : {}) };
+    out.outgoing = { text: pending.text, state: late ? "unconfirmed" : "sending", ...(pending.behind && !late ? { queued: true } : {}), ...(pending.action ? { action: true } : {}) };
     if (!late && !pending.behind) out.next = due;
   } else if (pending && echoes(facts.turns, pending.text) <= pending.echoes
     && !(pending.takenAt !== undefined && now >= pending.takenAt + TAKEN_GRACE_MS)) {
     // Taken, and the conversation not read again since: drawn here meanwhile.
-    out.outgoing = { text: pending.text, state: "taken" };
+    out.outgoing = { text: pending.text, state: "taken", ...(pending.action ? { action: true } : {}) };
   }
   if (pending && taken && !pending.worked && pending.takenAt !== undefined) out.next = pending.takenAt + TAKEN_GRACE_MS;
-  // Taken, and the board has not said working yet: the session is on it.
-  const working = atWork(facts) || (taken && !pending?.worked);
+  // Taken, and the board has not said working yet: the session is on it. Not
+  // a /compact, which the board never says: the live row speaks for that.
+  const working = atWork(facts) || (taken && !pending?.worked && !isCompactCommand(pending?.text ?? ""));
   if (working) {
     const activity: ChatActivity = { state: "working" };
     if (facts.detail) activity.detail = facts.detail;
@@ -205,7 +224,7 @@ export function useChatProgress(
     const settled = settlePending(pending, facts, Date.now());
     if (settled !== pending) setPending(settled);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pending, facts.turns, facts.prompts, facts.state, now]);
+  }, [pending, facts.turns, facts.prompts, facts.state, facts.compacting, now]);
   // And Chat looks again when something gets late with no new fact to say so.
   useEffect(() => {
     if (shown.next === undefined) return;

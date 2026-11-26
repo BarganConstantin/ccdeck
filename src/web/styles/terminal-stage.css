@@ -171,6 +171,49 @@ button.btn.ts-end-act {
   /* Rename is already in More; its hidden pencil need not reserve room. */
   .ts-head:has(> .ts-compact-more) .ts-rename { display: none; }
 }
+/* In Chat the ⋯ is drawn at every width, its menu led by Chat's actions
+   (StageHeader PaneMore, ChatMenu.tsx); the controls after it stay wherever
+   the header has the room for them. */
+.ts-head > .ts-compact-more.ts-more.glyph-btn[data-chat] { display: inline-flex; }
+
+/* Chat's rows in that menu. 240 wide, so the reason under Compact takes two
+   lines at most. */
+.ap-pop.ts-act-pop { width: 240px; }
+/* Compact, and why it cannot go now under its word: the word dims as a
+   disabled row's does (an inoperable control, exempt from the text floor),
+   the reason is the menu's note at full contrast. Not pressable, so the
+   pointer finds no fill on it; the keyboard's focus keeps one. */
+.ap-menu-item.ts-act {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+  padding-block: 4px;
+}
+.ap-menu-item.ts-act[aria-disabled="true"] { cursor: default; }
+.ap-menu-item.ts-act[aria-disabled="true"] .ts-act-word { opacity: var(--dim-off); }
+.ap-menu-item.ts-act[aria-disabled="true"]:active { background: none; }
+@media (hover: hover) and (pointer: fine) {
+.ap-menu-item.ts-act[aria-disabled="true"]:hover:not(:focus-visible) { background: none; }
+}
+.ts-act-why {
+  font-size: calc(11px + var(--ui-text-increase, 0px));
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+/* Session details: a fold, its chevron turning as it opens, and its figures
+   under its word, in the note's type with figures that keep their width. */
+.ts-act-chevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--muted);
+  transition: transform var(--dur-fast) var(--ease);
+}
+.ts-act-fold[aria-expanded="true"] .ts-act-chevron { transform: rotate(90deg); }
+.ap-menu-item.ap-menu-note.ts-act-detail { padding-left: 30px; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) {
+  .ts-act-chevron { transition: none; }
+}
 /* The controls are the deck's header glyphs (.glyph-btn), as 24px squares at
    the control radius; ⌨ pressed — the keys in the pane — wears the accent. */
 .ts-tools { display: flex; align-items: center; gap: 2px; }
