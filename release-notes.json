@@ -1,4 +1,26 @@
 {
+  "4.4.4": [
+    {
+      "title": "🧘 Zen Mode: the Workspace panes alone, over the whole window",
+      "body": "A new Zen Mode button after Board | Workspace, and Toggle Zen Mode in Quick Open, hide the top bar, the stripes, the session list, the Inspector, the side column, the status bar and the banners, so the Workspace panes fill the window. The pane headers stay. Exit Zen Mode at the top right brings everything back as it was, with your splits, tabs, drafts and running terminals untouched. In Chromium-based browsers and the desktop app, Zen also goes full screen and keeps Esc for the terminal. In Firefox and Safari it fills the window instead. At 760 px and narrower the button is not shown, but Quick Open still works."
+    },
+    {
+      "title": "🧰 Session actions in Workspace Chat's ⋯ menu",
+      "body": "The ⋯ menu in a Chat pane's header now holds the actions you reached for in Term: Compact conversation (Claude Code), Copy last reply, Show on Board, Show Term, and Session details with the context fill and the session's spend. Compact sends /compact like a typed message, and the line under the box follows it until the conversation is compacted. While a turn works, a compaction runs or the session has ended, Compact is unavailable and says why. What you typed in the box is kept when you go to the Board and back. After a compaction, Chat and the Board no longer show a resting session as working."
+    },
+    {
+      "title": "🔄 Chat, Term and the session list stay together after /clear",
+      "body": "After /clear, Claude Code goes on in the same terminal as a new session. The Workspace pane now follows it, so Chat shows the same new conversation that Term draws, without a second tab. The session list moves its highlight and the pane number to the new session too, unless you had picked another session yourself. When Claude shows a choice menu in Term, Chat says Claude Code is waiting for a choice in Term, lists the choices, and holds what you send until the menu is gone."
+    },
+    {
+      "title": "🔓 New session can start Claude without permission checks",
+      "body": "New session has a Skip permission checks switch for Claude Code. When it is on, that one new session starts with --dangerously-skip-permissions, so Claude runs tools without asking for approval. The switch is off each time the dialog opens, and the permission mode you chose comes back when you turn it off. It works only from ccdeck's own page on this computer, not from a LAN viewer or a paired device, and never for Codex or a reopened session. If Claude Code refuses the flag, as it does when it runs as root or under settings that turn the flag off, the pane keeps its message."
+    },
+    {
+      "title": "🗂️ Folded Workspace tabs show only their own terminal",
+      "body": "When Workspace is too narrow for panes side by side, for example with the Inspector and Usage open, the panes fold into tabs. The terminal of a tab you were not looking at could still draw over the one you were. Each tab now shows only its own terminal, and the hidden ones stay connected at their size."
+    }
+  ],
   "4.4.3": [
     {
       "title": "🖼️ Paste a screenshot into Chat",
@@ -594,6 +616,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.4.4": "Zen Mode, session actions in Chat's ⋯ menu, Chat and Term together after /clear, and Skip permission checks",
     "4.4.3": "Paste screenshots into Chat, see background agents and older messages there, and Ctrl+click links in Term",
     "4.4.2": "Drag an open session onto a pane's edge to give it its own pane",
     "4.4.1": "Stop Claude in another terminal and continue it here, and Search shows the two Shift taps",
