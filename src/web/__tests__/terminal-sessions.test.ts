@@ -15,7 +15,7 @@ import { rmTempDir } from "./rm-temp-dir";
 import {
   AGENTS, DEAD_KEEP, KINDS, LAUNCH_MODELS, PANE_HISTORY, paneTerm, LAUNCH_PERMISSION_MODES, SESSION_OPTIONS, TerminalSessionError, agentArgv, launchOptionArgs, checkCwd, clampSize, deadDeckSessions,
   deckSessionName, findDeckSession, findLaunchedSession, isDeckSessionName, isLaunchKey, killDeckSession, labelDeckSession, launchCommand, launchSession, paneColours,
-  listDeckSessions, parseDeckPanes, pruneDeadDeckSessions, resizeWrapper, resolveAgentBin, staleDeadSessions,
+  listDeckSessions, parseDeckPanes, pruneDeadDeckSessions, resizeWrapper, resolveAgentBin, SKIP_PERMISSIONS_FLAG, staleDeadSessions,
 } from "../../server/terminal-sessions.mjs";
 // @ts-expect-error — plain .mjs server module, no types
 import { DECK_SOCKET } from "../../server/tmux.mjs";
@@ -110,6 +110,24 @@ describe("what a deck session runs", () => {
     expect(code(() => agentArgv({ agent: "claude", kind: "resume", sessionId: ID, options: { model: "opus" } })), "a reopen keeps what it had").toBe("bad-options");
     expect(LAUNCH_PERMISSION_MODES).not.toContain("bypassPermissions");
     expect(LAUNCH_MODELS).toEqual(["opus", "sonnet", "haiku"]);
+  });
+
+  it("skips Claude's permission checks with the one exact flag, for a new Claude that asked and nothing else", () => {
+    const code = (f: () => unknown) => { try { f(); } catch (err) { return (err as { code: string }).code; } return "accepted"; };
+    expect(SKIP_PERMISSIONS_FLAG).toBe("--dangerously-skip-permissions");
+    expect(agentArgv({ agent: "claude", sessionId: ID, ...bins, options: { skipPermissions: true } }))
+      .toEqual([bins.claudeBin, "--session-id", ID, "--dangerously-skip-permissions"]);
+    expect(agentArgv({ agent: "claude", sessionId: ID, ...bins, options: { model: "opus", skipPermissions: true, worktree: true } }), "the worktree stays last")
+      .toEqual([bins.claudeBin, "--session-id", ID, "--model", "opus", "--dangerously-skip-permissions", "--worktree"]);
+    for (const off of [{ skipPermissions: false }, { skipPermissions: null }, {}, null]) {
+      expect(agentArgv({ agent: "claude", sessionId: ID, ...bins, options: off as never }), JSON.stringify(off)).toEqual([bins.claudeBin, "--session-id", ID]);
+    }
+    for (const options of [{ skipPermissions: "true" }, { skipPermissions: 1 }, { skipPermissions: [true] }, { skipPermissions: true, permissionMode: "plan" }]) {
+      expect(code(() => agentArgv({ agent: "claude", sessionId: ID, options: options as never })), JSON.stringify(options)).toBe("bad-options");
+    }
+    expect(code(() => agentArgv({ agent: "codex", options: { skipPermissions: true } })), "Codex never takes it").toBe("bad-options");
+    expect(code(() => agentArgv({ agent: "claude", kind: "resume", sessionId: ID, options: { skipPermissions: true } })), "a reopen keeps what it had").toBe("bad-options");
+    expect(code(() => agentArgv({ agent: "claude", kind: "attach", sessionId: ID, options: { skipPermissions: true } })), "an attach starts nothing").toBe("bad-options");
   });
 
   it("refuses what the agents' CLIs do not have", () => {

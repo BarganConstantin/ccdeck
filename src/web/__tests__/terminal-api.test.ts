@@ -185,6 +185,19 @@ describe("the requests themselves", () => {
     expect(adopt.asked[0].body).toEqual({ sessionId: SESSION.sessionId, provider: "claude", cwd: SESSION.cwd, cols: 90, rows: 30 });
   });
 
+  it("sends Skip permission checks as the one boolean when it is on, and nothing of it otherwise", async () => {
+    const { fetchFn, asked } = answering(200, { ok: true, sessionId: "", name: "ccdeck-claude-1a2b3c4d", ticket: "tk" });
+    await launchTerminal({ agent: "claude", cwd: "/srv/app", launch: { skipPermissions: true } }, { fetchFn });
+    expect(asked[0].body).toEqual({ agent: "claude", cwd: "/srv/app", options: { skipPermissions: true } });
+    await launchTerminal({ agent: "claude", cwd: "/srv/app" }, { fetchFn });
+    expect(asked[1].body, "the next launch: no options key at all").toEqual({ agent: "claude", cwd: "/srv/app" });
+    const said = "The Command Panel's engine here cannot start Claude without permission checks yet. Nothing was started.";
+    expect(await launchTerminal({ agent: "claude", cwd: "/srv", launch: { skipPermissions: true } }, { fetchFn: answering(409, { ok: false, error: said, code: "skip-permissions-unsupported" }).fetchFn }),
+      "the deck's code is kept, so the stage says it and never asks about tmux")
+      .toEqual({ ok: false, status: 409, error: said, code: "skip-permissions-unsupported" });
+    expect(panelUnavailable("skip-permissions-unsupported"), "not a state the card checks again by itself").toBe(false);
+  });
+
   it("starts a launch or a reopen in the panel's colours when it has them", async () => {
     const { fetchFn, asked } = answering(200, { ok: true, sessionId: "", name: "ccdeck-codex-1a2b3c4d", ticket: "tk" });
     const colours = { fg: "#1f2328", bg: "#fafaf8" };

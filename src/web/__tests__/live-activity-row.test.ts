@@ -1,7 +1,8 @@
 // Chat's live row (ChatTurn.tsx LiveLine): what the session still does once
 // its turn is over. A compaction with its own clock and no made-up progress;
 // background agents counted, with each one's type, task and time a press
-// away and the way to Term; one sentence for a screen reader, never a clock.
+// away and the way to Term; a menu only Term shows, its choices as words and
+// the way there; one sentence for a screen reader, never a clock.
 // The facts behind it are live-activity.test.ts; ChatView keeping the turn's
 // "Worked for…" beside it is live-activity-view.test.ts.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -93,6 +94,55 @@ describe("a compaction", () => {
   });
 });
 
+describe("a menu only Term shows", () => {
+  const menu = { options: ["Looks good — save it", "Discard and exit"] };
+
+  it("says the agent waits for a choice in Term, still and in --warn as waiting is, with its choices as words", () => {
+    const view = mount(LiveLine, { live: { menu }, provider: "claude" });
+    const row = one(view.tree, el => el.props["data-live"] === "menu")!;
+    expect(row.props["data-state"]).toBe("waiting");
+    expect(textOf(byClass(row, "chat-progress-text"))).toBe("Claude Code is waiting for a choice in Term");
+    const choices = byClass(row, "chat-live-choices")!;
+    expect(choices.type).toBe("ol");
+    expect(all(choices, el => el.type === "li").map(li => textOf(li))).toEqual(menu.options);
+    // Words, not answers: nothing on the row picks a choice.
+    expect(all(choices, el => el.type === "button" || el.type === "input")).toEqual([]);
+  });
+
+  it("names the agent it is, and has the way to Term", () => {
+    const onShowTerm = vi.fn();
+    const view = mount(LiveLine, { live: { menu }, provider: "codex", onShowTerm });
+    const row = one(view.tree, el => el.props["data-live"] === "menu")!;
+    expect(textOf(byClass(row, "chat-progress-text"))).toBe("Codex is waiting for a choice in Term");
+    const term = byClass(row, "chat-ask-term")!;
+    expect(textOf(term)).toBe(t("board.chat.showTerm"));
+    (term.props.onClick as () => void)();
+    expect(onShowTerm).toHaveBeenCalledTimes(1);
+  });
+
+  it("goes first, over a compaction and the background agents", () => {
+    const view = mount(LiveLine, { live: { menu, compacting: { since: NOW }, agents: AGENTS } });
+    expect(all(view.tree, el => el.props["data-live"] !== undefined).map(el => el.props["data-live"])).toEqual(["menu", "compacting", "background"]);
+  });
+
+  it("is gone with the menu", () => {
+    const view = mount(LiveLine, { live: { menu, agents: AGENTS } });
+    view.rerender({ live: { agents: AGENTS } });
+    expect(one(view.tree, el => el.props["data-live"] === "menu")).toBeNull();
+  });
+
+  it("is said in each language's own words, the agent in place", () => {
+    const english = t("board.chat.live.menu", { agent: "Claude Code" });
+    for (const lang of ["de", "es", "fr", "ja", "ko", "pt-BR", "ro", "zh-CN", "zh-TW"] as const) {
+      setLanguage(lang);
+      const own = t("board.chat.live.menu", { agent: "Claude Code" });
+      expect(own, lang).not.toBe(english);
+      expect(own, lang).toContain("Claude Code");
+      expect(own, lang).toContain("Term");
+    }
+  });
+});
+
 describe("what a screen reader hears", () => {
   it("is the words, politely, once they change, and never a clock", () => {
     const view = mount(LiveLine, { live: { compacting: { since: NOW }, agents: AGENTS } });
@@ -101,5 +151,10 @@ describe("what a screen reader hears", () => {
     expect(textOf(said)).toBe("Compacting conversation…. Waiting for 2 background agents");
     view.rerender({ live: { agents: AGENTS.slice(1) } });
     expect(textOf(one(view.tree, el => el.props.role === "status"))).toBe("Waiting for 1 background agent");
+  });
+
+  it("is a menu's words with its choices", () => {
+    const view = mount(LiveLine, { live: { menu: { options: ["Yes", "No"] } }, provider: "claude" });
+    expect(textOf(one(view.tree, el => el.props.role === "status"))).toBe("Claude Code is waiting for a choice in Term: Yes, No");
   });
 });

@@ -59,8 +59,16 @@ export function clearStopFailure(root: AgentNodeData | undefined, now: number): 
 }
 
 /** A session beginning — or beginning again, after `/clear` or `--resume`. The
- *  one event that retracts the joined-late marker (#677). */
+ *  one event that retracts the joined-late marker (#677).
+ *
+ *  Not after a compaction. Claude Code says SessionStart with `source:
+ *  "compact"` once a /compact, or a compaction of its own, is over: the
+ *  session is then as it was, at work in the turn an automatic one came in,
+ *  or resting after a /compact. It used to read as at work until the next
+ *  idle notice, while its terminal showed the prompt waiting. A session the
+ *  board first hears of this way starts as any other does. */
 export function applySessionStart(state: GraphState, p: HookPayload, sessionId: string, now: number): void {
+  const compacted = p.source === "compact" && state.agents.has(sessionId);
   const root = ensureRoot(state, sessionId, now, false);
   // The one thing that clears the "joined late" marker, and the reason it
   // is cleared here rather than only seeded at creation: order independence
@@ -69,6 +77,7 @@ export function applySessionStart(state: GraphState, p: HookPayload, sessionId: 
   // replay — retracts the marker instead of leaving it standing on a
   // session whose beginning we did, in the end, receive (#677).
   root.synthetic = false;
+  if (compacted) { adoptCwd(root, p); adoptRootLabel(root, p); return; }
   root.state = "active";
   // A session that is starting is not a closed one, whatever an earlier
   // `SessionEnd` or a stale sweep concluded (#445). `/clear` is the case
@@ -98,8 +107,22 @@ export function applySessionStart(state: GraphState, p: HookPayload, sessionId: 
   // is also what makes this line order-independent, which is the property
   // the retraction above it exists to preserve.
   root.startedAt = Math.min(root.startedAt ?? now, now);
+  // A session that begins again is no longer the one a /clear left behind;
+  // one that begins on a /clear is where that terminal went on
+  // (cleared-session.ts pairs the two).
+  root.clearedAt = undefined;
+  if (p.source === "clear") root.clearBeganAt = now;
   adoptCwd(root, p);
   adoptRootLabel(root, p);
+}
+
+/** A `SessionEnd` that says why: on a `/clear`, Claude Code goes on in the
+ *  same terminal as a new session, and this one is marked as left there. A
+ *  mark, not an ending: the ending is applyTurnEnd's, with its guards. */
+export function applySessionEndReason(state: GraphState, p: HookPayload, sessionId: string, now: number): void {
+  if (p.reason !== "clear") return;
+  const root = state.agents.get(rootAgentId(sessionId));
+  if (root) root.clearedAt = now;
 }
 
 /** The human typing into the session: a new turn on the ROOT, with the prompt

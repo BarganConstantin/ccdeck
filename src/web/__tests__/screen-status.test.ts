@@ -2,7 +2,7 @@
 // (screen-status.ts) for Chat's working row: the spinner line over the input,
 // only while it says Esc interrupts, read from the bottom.
 import { describe, expect, it } from "vitest";
-import { MAX_STATUS, saysCompacting, screenSpinner, screenStatus } from "../screen-status";
+import { MAX_CHOICE, MAX_STATUS, saysCompacting, screenMenu, screenSpinner, screenStatus } from "../screen-status";
 
 const screen = (...lines: string[]) => lines.join("\n");
 
@@ -78,5 +78,86 @@ describe("a compaction's words", () => {
     expect(saysCompacting("Pondering…")).toBe(false);
     expect(saysCompacting("Compactingly…")).toBe(false);
     expect(saysCompacting("Not compacting")).toBe(false);
+  });
+});
+
+// A choice Claude Code draws itself that the transcript does not hold: Chat
+// says it waits in Term, with the choices as words (screenMenu).
+const SAVE_MENU = [
+  "⏺ Here is the agent I wrote for you: reviewer.md",
+  "",
+  "────────────────────────────────────────────────────────",
+  " Save this agent?",
+  "",
+  " ❯ 1. Looks good — save it",
+  "   2. Discard and exit",
+  "",
+  " Enter to confirm · Esc to cancel",
+].join("\n");
+
+describe("a menu at the foot of the screen", () => {
+  it("is read with its choices, in order", () => {
+    expect(screenMenu(SAVE_MENU)).toEqual(["Looks good — save it", "Discard and exit"]);
+  });
+
+  it("with the pointer on any row, inside a frame's sides, or Codex's pointer", () => {
+    expect(screenMenu(screen("│ Pick a model │", "│   1. Default │", "│ ❯ 2. Opus    │", "│   3. Haiku   │", "╰──────────────╯"))).toEqual(["Default", "Opus", "Haiku"]);
+    expect(screenMenu(screen("Allow this command?", "› 1. Yes, proceed", "  2. No, and tell Codex what to do differently", "", "Press enter to confirm or esc to cancel")))
+      .toEqual(["Yes, proceed", "No, and tell Codex what to do differently"]);
+  });
+
+  it("keeps its rows' words, not their notes, their boxes, or more than a label's length", () => {
+    const menu = screenMenu(screen(
+      " ❯ 1. [ ] Unit tests",
+      "      Run the fast suite first",
+      "   2. [x] Browser checks",
+      `   3. ${"a very long choice ".repeat(6)}`,
+      "",
+      " Enter to select · Esc to cancel",
+    ))!;
+    expect(menu.slice(0, 2)).toEqual(["Unit tests", "Browser checks"]);
+    expect(menu[2].length).toBeLessThanOrEqual(MAX_CHOICE);
+    expect(menu[2].endsWith("…")).toBe(true);
+  });
+});
+
+describe("what is not a menu", () => {
+  it("a numbered list the conversation printed: no row has the pointer", () => {
+    expect(screenMenu(screen(
+      "⏺ Three steps:",
+      "  1. Add the limiter",
+      "  2. Test it",
+      "  3. Ship it",
+      "",
+      "> ",
+      "  ? for shortcuts",
+    ))).toBeNull();
+  });
+
+  it("a menu scrolled away under newer output", () => {
+    expect(screenMenu(screen(
+      " ❯ 1. Looks good — save it",
+      "   2. Discard and exit",
+      "",
+      "⏺ Saved reviewer.md.",
+      "⏺ Bash(npm test)",
+      "  ⎿  12 passed",
+      "⏺ Done. The agent runs on every review.",
+      "  It reads the diff first.",
+      "",
+      "> ",
+      "  ? for shortcuts",
+    ))).toBeNull();
+  });
+
+  it("a list with the pointer on two rows, one row alone, or one not starting at 1", () => {
+    expect(screenMenu(screen("❯ 1. Yes", "❯ 2. No"))).toBeNull();
+    expect(screenMenu(screen("Continue?", "❯ 1. Yes", "", "Esc to cancel"))).toBeNull();
+    expect(screenMenu(screen("❯ 2. Yes", "  3. No"))).toBeNull();
+  });
+
+  it("an idle screen or none", () => {
+    expect(screenMenu(screen("⏺ Done.", "", "╭────╮", "│ >  │", "╰────╯", "  ? for shortcuts"))).toBeNull();
+    expect(screenMenu("")).toBeNull();
   });
 });

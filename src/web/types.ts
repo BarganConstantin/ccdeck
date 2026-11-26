@@ -530,6 +530,14 @@ export interface AgentNodeData {
    *  by it, so the card, the session list, `runningSessionCount` and the favicon
    *  show exactly what they showed before. */
   closedAt?: number;
+  /** Claude-only: when this session ended on a `/clear` (its `SessionEnd`
+   *  said `reason: "clear"`), until it begins again. Claude Code goes on in the
+   *  same terminal under a new id, which `clearBeganAt` marks; the pane follows
+   *  from one to the other (cleared-session.ts). */
+  clearedAt?: number;
+  /** Claude-only: when this session began on a `/clear` (its `SessionStart`
+   *  said `source: "clear"`). */
+  clearBeganAt?: number;
   /** When the newest turn-ending event this root has accepted said the turn
    *  ended — `Stop` or `SessionEnd`, whichever landed last — and the ONE field
    *  here that the next turn does not clear.
@@ -720,6 +728,12 @@ export interface HookPayload {
    *  "permission_prompt" or "idle_prompt". `message` beside it is the sentence
    *  CC would have printed in the terminal. */
   notification_type?: string;
+  /** Claude-only, on `SessionStart`: how it began ("startup", "resume",
+   *  "clear", "compact"). */
+  source?: string;
+  /** Claude-only, on `SessionEnd`: why it ended ("clear", "logout",
+   *  "prompt_input_exit", "other"…). */
+  reason?: string;
   prompt?: string;
   /** Stamped by hook.js when forwarding. Lets the reducer branch without
    *  re-sniffing payload shape. */

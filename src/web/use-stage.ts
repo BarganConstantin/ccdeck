@@ -42,6 +42,7 @@ import {
   type Dispatch, type MutableRefObject, type SetStateAction,
 } from "react";
 import { terminalSessionId } from "./canvas-session";
+import { afterClears, selectionAfterClear, type PaneShows } from "./cleared-session";
 import type { BlockedSession } from "./ambient-counts";
 import { boardRect } from "./board-rect";
 import { focusCanvasNode } from "./canvas-node-element";
@@ -413,7 +414,8 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     if (target.kind === "session") {
       const s = splitRef.current;
       const shown = workspaceRef.current && shellRef.current.phase !== "closed" ? shellRef.current.target : null;
-      const found = tabWith(s, target.id, shown);
+      const agents = stateRef.current.agents;
+      const found = tabWith(s, target.id, shown, undefined, id => terminalSessionId(agents, id));
       if (found) {
         if (found.pane !== s.focused) setSplit(focusSplit(s, found.pane, shown));
         target = found.target;
@@ -465,6 +467,13 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
    *  effect below, which selects the session once it is known. */
   const unheardRef = useRef<string | null>(null);
   const follow = useCallback((sessionId: string) => {
+    // A tab kept under a session a /clear left behind draws the session its
+    // terminal went on as (cleared-session.ts), and that one is what the
+    // stage moved to: a tab brought back, the neighbour a closed tab leaves on
+    // show, a reload's pane. Selected by its own id, the list lit the row of
+    // the session that ended. A /clear while the tab is on show is followed by
+    // the effect below (selectionAfterClear).
+    sessionId = afterClears(stateRef.current.agents, sessionId);
     if (stateRef.current.agents.has(sessionId)) {
       selectRef.current(sessionId, false, false);
       return;
@@ -672,7 +681,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     if (!workspaceRef.current) { openOn({ kind: "session", id: sessionId }, { focusPane: true }); follow(sessionId); return; }
     const s = splitRef.current;
     const shown = shellRef.current.phase !== "closed" ? shellRef.current.target : null;
-    if (paneWith(s, sessionId, shown)) { openOn({ kind: "session", id: sessionId }, { focusPane: true }); follow(sessionId); return; }
+    if (paneWith(s, sessionId, shown, undefined, id => terminalSessionId(stateRef.current.agents, id))) { openOn({ kind: "session", id: sessionId }, { focusPane: true }); follow(sessionId); return; }
     const at = opts.at ?? s.focused;
     if (paneTarget(s, at, shown).kind === "empty") {
       if (at !== s.focused) setSplit(focusSplit(s, at, shown));
@@ -709,7 +718,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     sessionId = terminalSessionId(stateRef.current.agents, sessionId);
     let s = splitRef.current;
     const shown = shellRef.current.phase !== "closed" ? shellRef.current.target : null;
-    if (!paneWith(s, sessionId, shown)) {
+    if (!paneWith(s, sessionId, shown, undefined, id => terminalSessionId(stateRef.current.agents, id))) {
       if (paneId !== s.focused) s = focusSplit(s, paneId, shown);
       if (how?.replace) s = replaceTab(s, paneId, how.replace, { kind: "session", id: sessionId });
       setSplit(s);
@@ -756,7 +765,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     sessionId = terminalSessionId(stateRef.current.agents, sessionId);
     const s = splitRef.current;
     const shown = shellRef.current.phase !== "closed" ? shellRef.current.target : null;
-    const has = tabWith(s, sessionId, shown);
+    const has = tabWith(s, sessionId, shown, undefined, id => terminalSessionId(stateRef.current.agents, id));
     if (!has || !paneIds(s.root).includes(at)) return null;
     const room = boxRef.current;
     const roomy = (next: SplitState) => !room || fits(next.root, room, paneMinRef.current);
@@ -765,7 +774,8 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
       const moved = movePane(s, has.pane, at, zone);
       return moved !== s && roomy(moved) ? { kind: "pane", state: moved, id: has.pane } : null;
     }
-    const out = splitOutTab(s, sessionId, at, zone, shown);
+    // The tab as kept: a /clear's tab keeps the id it was opened on.
+    const out = splitOutTab(s, has.target.kind === "session" ? has.target.id : sessionId, at, zone, shown);
     return out && roomy(out.state) ? { kind: "tab", state: out.state, id: out.id, target: out.target } : null;
   }, [enabledRef, workspaceRef, stateRef, splitRef, shellRef, boxRef, paneMinRef]);
 
@@ -1010,6 +1020,23 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     unheardRef.current = null;
     selectRef.current(t.id, false, false);
   });
+  // A /clear in the terminal of the tab on show: the tab stays, and the
+  // session it stands for is the new one (afterClears, the part of
+  // terminalSessionId that a /clear moves). The selection was the old one,
+  // which ended; it goes to the new one, once for each /clear, and never from
+  // a session the reader picked since (selectionAfterClear says when). Read
+  // in every render: App renders for every board change, the one that pairs
+  // the two ends of the /clear among them.
+  const tabOnShow = shell.phase === "closed" ? null : targetSession(shell.target);
+  const shownSession = tabOnShow === null ? null : afterClears(stateRef.current.agents, tabOnShow);
+  const paneShowsRef = useRef<PaneShows | null>(null);
+  useEffect(() => {
+    const before = paneShowsRef.current;
+    const now = tabOnShow === null || shownSession === null ? null : { tab: tabOnShow, session: shownSession };
+    paneShowsRef.current = now;
+    const to = selectionAfterClear(stateRef.current.agents, before, now, primarySelectedIdRef.current);
+    if (to !== null && stateRef.current.agents.has(to)) selectRef.current(to, false, false);
+  }, [tabOnShow, shownSession, stateRef, primarySelectedIdRef, selectRef]);
 
   // ── the keys ───────────────────────────────────────────────────────────────
   /** The keys back to the board: onto the socket's tile, as v3 does — or,

@@ -23,6 +23,7 @@ import { mount as mountComponent, flush } from "./fake-react";
 import { forgetTerminalTextStep, setTerminalTextStep, terminalTextStep } from "../terminal-text-size";
 import { MAX_MESSAGE_BYTES, connectTerminal, type TerminalConnection } from "../terminal-protocol";
 import { CLEAN_END_MIN_LIVE_MS } from "../components/terminal/stage-model";
+import { endView } from "../components/terminal/TerminalStage";
 import { adoptTerminal, launchTerminal, type ApiFailure, type NotAttachable, type SessionRef, type TerminalStatus, type Ticketed, type Launched } from "../terminal-api";
 import { askSteps, chatSteps, SUBMIT_WORDS } from "../ask-keys";
 import { IMAGE_TAKE_WAIT_MS } from "../chat-images";
@@ -46,6 +47,7 @@ import {
   RESTART_FAST_MS,
   RESTART_POLL_MS,
   RESIZE_SETTLE_MS,
+  SKIP_UNSUPPORTED_MSG,
   STOP_SLOW_MS,
   STREAM_QUIET_MS,
   TMUX_SETUP_GIVE_UP_MS,
@@ -2471,6 +2473,78 @@ describe("a session with no tmux, which says instead what xterm answers itself",
     r.terminal().parse();
     expect(r.terminal().versions.at(-1), "the new connection starts unknown again").toBeNull();
     expect(r.terminal().answers, "nothing from the old socket, nothing from a frame this bundle cannot read").toEqual([["decrqm-dec", "osc11"]]);
+  });
+});
+
+// Skip permission checks (New session): the launch carries the one option,
+// and when Claude Code refuses the flag — run as root, or bypass mode turned
+// off by an organization's managed settings — it says so and ends at once.
+// That ending is the launch's ordinary one: the pane keeps Claude's own words
+// under "Claude Code exited. This is its last frame.", with Start Claude Code again on
+// the reader's press, never by itself. An engine from before the option is
+// refused by the deck, and said in the language on show, never as tmux.
+describe("a new Claude that skips permission checks", () => {
+  const LAUNCH = { kind: "launch", agent: "claude", cwd: "/w", key: "skip-1", options: { skipPermissions: true } } as const;
+  /** Claude Code's own words when it will not skip permission checks as root. */
+  const AS_ROOT = "--dangerously-skip-permissions cannot be used with root/sudo privileges for security reasons\r\n";
+
+  it("is launched with the option New session turned on, and nothing else of it", async () => {
+    const { r, ctl } = rig();
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    ctl.show(LAUNCH);
+    await flush();
+    expect(r.launch).toHaveBeenCalledWith({ agent: "claude", cwd: "/w", key: "skip-1", size: { cols: 80, rows: 24 }, launch: { skipPermissions: true } });
+    ctl.dispose();
+  });
+
+  it("keeps Claude's own refusal on screen when it ends at once, and starts nothing by itself", async () => {
+    const again = vi.fn();
+    const { r, ctl } = rig({ onLaunchAgain: again });
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    ctl.show(LAUNCH);
+    await flush();
+    const s = r.sockets[0];
+    s.open();
+    s.text({ t: "hello", kind: "A", sizeOwner: "dock", readOnly: false });
+    s.text({ t: "reset", cols: 80, rows: 24 });
+    s.binary(enc(AS_ROOT));
+    r.terminal().parse();
+    s.text({ t: "exit", reason: "ended", exitStatus: 1, atOpen: true });
+    await flush();
+    const phase = r.last().phase;
+    expect(phase.kind, "an ending, not an error card over it").toBe("ended");
+    expect((phase as { clean?: boolean }).clean, "never a clean end, which would close the pane").toBeUndefined();
+    const log = r.terminal().log;
+    const said = log.lastIndexOf(`write ${JSON.stringify(AS_ROOT)}`);
+    expect(said, "Claude's words were drawn").toBeGreaterThanOrEqual(0);
+    expect(log.slice(said).includes("reset"), "and nothing cleared them after").toBe(false);
+    const show = { kind: "launch", agent: "claude", cwd: "/w", name: "w", hue: 0, key: "skip-1", options: { skipPermissions: true } } as const;
+    const end = endView(phase, show, { reopen: vi.fn(), attachAgain: vi.fn(), launchAgain: again });
+    expect(end).toMatchObject({ sentence: "Claude Code exited. This is its last frame.", action: "Start Claude Code again" });
+    await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+    expect(r.launch, "launched once").toHaveBeenCalledTimes(1);
+    expect(again, "Start Claude Code again waits for the press").not.toHaveBeenCalled();
+    ctl.dispose();
+  });
+
+  it("says an engine that cannot skip them yet in the language on show, never as tmux, and never launches again by itself", async () => {
+    const { r, ctl } = rig();
+    r.launch.mockImplementationOnce(req => launchTerminal(req as Parameters<typeof launchTerminal>[0], {
+      fetchFn: async () => ({
+        ok: false, status: 409,
+        json: async () => ({ ok: false, error: "The Command Panel's engine here cannot start Claude without permission checks yet. Nothing was started.", code: "skip-permissions-unsupported" }),
+      }) as unknown as Response,
+    }));
+    ctl.show(LAUNCH);
+    await flush();
+    await flush();
+    expect(r.last().phase).toEqual({ kind: "error", message: en[SKIP_UNSUPPORTED_MSG] });
+    expect(r.status, "a 409 the deck named is not tmux missing").not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(RECONNECT_GIVE_UP_MS);
+    expect(r.launch).toHaveBeenCalledTimes(1);
+    ctl.dispose();
   });
 });
 

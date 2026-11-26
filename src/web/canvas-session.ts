@@ -1,4 +1,5 @@
 import type { AgentNodeData } from "./types";
+import { afterClears } from "./cleared-session";
 
 /** Grouping is a view concern: never change a Codex thread's sessionId. */
 export function canvasSessions(agents: Iterable<AgentNodeData>): Map<string, string> {
@@ -9,10 +10,12 @@ export function canvasSessions(agents: Iterable<AgentNodeData>): Map<string, str
 }
 
 /** Native terminals belong to the main conversation. Child threads retain
- * their own IDs in the graph and tools, including when a saved pane names one. */
+ * their own IDs in the graph and tools, including when a saved pane names one.
+ * A Claude session a /clear left behind names the session its terminal went
+ * on as (cleared-session.ts), so Term and Chat show one conversation. */
 export function terminalSessionId(agents: ReadonlyMap<string, AgentNodeData>, id: string): string {
   const row = agents.get(id) ?? [...agents.values()].find(a => a.sessionId === id);
-  return row ? conversationOf(row, agents).sessionId : id;
+  return row ? afterClears(agents, conversationOf(row, agents).sessionId) : id;
 }
 
 

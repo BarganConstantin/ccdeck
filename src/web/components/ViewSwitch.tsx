@@ -15,6 +15,7 @@
 import type { MouseEvent } from "react";
 import type { View } from "../use-view";
 import { useT } from "../i18n";
+import { ZEN_HINT_MSG, ZEN_LABEL_MSG } from "../zen-mode";
 import { KitIcon } from "./kit-icons";
 
 // Keys, read with `t` where they are drawn.
@@ -48,5 +49,21 @@ export default function ViewSwitch({ view, onChange }: ViewSwitchProps) {
         <WorkspaceGlyph />{t(WORKSPACE_LABEL_MSG)}
       </button>
     </div>
+  );
+}
+
+/** Zen Mode, after the switch while Workspace has its panes (zen-mode.ts):
+ *  the panes alone, over the whole window. The bar's own control (.rail-btn),
+ *  with its word (the glyph alone under 1024px, zen-mode.css). A press leaves
+ *  the keyboard where it was, so a pane that had the keys keeps them. Never
+ *  drawn pressed: Zen takes the bar away, and its way out is Exit Zen Mode in
+ *  the corner. */
+export function ZenButton({ onEnter }: { onEnter(): void }) {
+  const t = useT();
+  return (
+    <button type="button" className="rail-btn zen-btn" aria-label={t(ZEN_LABEL_MSG)} title={t(ZEN_HINT_MSG)}
+      onMouseDown={e => e.preventDefault()} onClick={onEnter}>
+      <KitIcon name="zoom" className="glyph" /><span className="zen-word">{t(ZEN_LABEL_MSG)}</span>
+    </button>
   );
 }

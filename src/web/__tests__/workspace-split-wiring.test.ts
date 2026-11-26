@@ -9,6 +9,7 @@ import { beginDrag, currentDrag, endDrag, isOurDrag, PANE_DRAG, SESSION_DRAG } f
 import { sourceOf } from "./client-source";
 import { withoutComments } from "./tsx-scan";
 import { sheetParts, sheetText } from "./sheet-source";
+import { cascade, el, selects, type El } from "./sheet-cascade";
 import { en } from "../i18n/en";
 import ro from "../i18n/areas/board/ro";
 import de from "../i18n/areas/board/de";
@@ -182,9 +183,42 @@ describe("the sheet", () => {
   });
 
   it("hides a pane behind the strip without unmounting it, and marks the pane with the keys", () => {
-    expect(css).toContain(".wsp-pane[data-hidden] { visibility: hidden; }");
+    expect(css).toContain(".wsp-pane[data-hidden],\n.wsp-pane[data-hidden] * { visibility: hidden; pointer-events: none; }");
     expect(css).toContain(".stage-in[data-split] .wsp-pane[data-focused] .ts-head { background: color-mix(in srgb, var(--text) 5%, var(--panel)); }");
     expect(css).toContain(".stage-in[data-split] .wsp-pane:not([data-focused]) .ts-name { color: var(--text-secondary); }");
+  });
+
+  it("keeps a hidden pane's terminal out of sight and out of reach, not only the pane", () => {
+    // The terminal's host says `visibility: visible` of its own once a frame
+    // is drawn, or while one is held. Inheriting the pane's hidden was not
+    // enough: at a narrow window the terminal of a tab not on show was drawn
+    // over the pane on show. Read as the cascade gives it, so a heavier or
+    // later host rule fails here too.
+    const chain = (hidden: boolean, host: Record<string, string>, inside: El[] = []): El[] => [
+      el("div", ["app"], { attrs: { "data-view": "workspace" } }),
+      el("div", ["stage-in"], { attrs: { "data-split": "strip" } }),
+      el("div", ["wsp-pane"], { attrs: hidden ? { "data-pane": "p1", "data-hidden": "true", inert: "" } : { "data-pane": "p0" } }),
+      el("section", ["ts-stage"], { attrs: { "data-fill": "true" } }),
+      el("div", ["ts-body"], { attrs: { "data-frame": "true" } }),
+      el("div", ["ts-host"], { attrs: host }),
+      ...inside,
+    ];
+    const at = (c: El[], prop: string) => cascade(sel => selects(sel, c), prop, 1440);
+    const hosts = [{ "data-shown": "" }, { "data-held": "" }, { "data-shown": "", "data-after-hold": "" }];
+    for (const host of hosts) {
+      expect(at(chain(true, host), "visibility"), JSON.stringify(host)).toBe("hidden");
+      expect(at(chain(true, host), "pointer-events"), JSON.stringify(host)).toBe("none");
+      // The pane on show keeps its terminal in sight.
+      expect(at(chain(false, host), "visibility"), JSON.stringify(host)).toBe("visible");
+    }
+    // And what xterm draws in the host, and where its keys go.
+    for (const inner of [el("div", ["xterm-screen"]), el("textarea", ["xterm-helper-textarea"])]) {
+      const c = chain(true, { "data-shown": "" }, [el("div", ["terminal", "xterm"]), inner]);
+      expect(at(c, "visibility"), inner.classes[0]).toBe("hidden");
+      expect(at(c, "pointer-events"), inner.classes[0]).toBe("none");
+    }
+    // Hidden, never removed: the terminal keeps its size and its socket.
+    expect(css).not.toMatch(/\.wsp-pane\[data-hidden\][^{]*\{[^}]*display:\s*none/);
   });
 
   it("gives the line between panes a hold wider than its pixel, and the cursor that says which way", () => {

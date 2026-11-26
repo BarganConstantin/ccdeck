@@ -214,6 +214,8 @@ export interface ChatOutgoing {
   state: "sending" | "unconfirmed" | "taken";
   /** Sent while the session was at work: it waits for that turn to end. */
   queued?: boolean;
+  /** Sent by an action of the pane's ⋯ (Compact), not typed: never put back in the box. */
+  action?: boolean;
   /** The pictures sent with it, when there were any. */
   images?: number;
 }
@@ -239,6 +241,9 @@ export interface ChatLive {
   compacting?: { since: number };
   /** Background agents still running, oldest first. */
   agents?: readonly ChatLiveAgent[];
+  /** A choice the agent draws on its own screen and nowhere Chat reads: its
+   *  rows' labels in order, said as text; it is answered in Term. */
+  menu?: { options: readonly string[] };
 }
 
 /** A background agent still running, as the board knows it. */

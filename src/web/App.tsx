@@ -135,7 +135,8 @@ import { stageClaimsKeys, targetSession } from "./stage-shell";
 import { paneCount, paneSessions, sessionPaneLinks } from "./workspace-split";
 import { useFeatureUse } from "./feature-use";
 import { StageDockSlot, StageNavigatorSlot } from "./components/StageSlots";
-import ViewSwitch from "./components/ViewSwitch";
+import ViewSwitch, { ZenButton } from "./components/ViewSwitch";
+import { useZenMode } from "./zen-mode";
 import { EmptyInspector } from "./components/Inspector";
 import { readView, useView, type View } from "./use-view";
 import { useSideColumn, type SidePanel } from "./side-column";
@@ -969,12 +970,21 @@ function Inner() {
   const viewShortcutRef = useMirroredRef({ available: stage.workspaceOffered, toggle: toggleView });
   // What you have open is what you have seen: the rail's Done · unseen group
   // keeps only turns that ended while nobody was looking (session-seen.ts).
-  useMarkSeen(stateRef, [...selectedIds, stage.enabled && stage.shell.phase !== "closed" ? targetSession(stage.shell.target) : null], stateRef.current.revision);
+  // After a /clear the tab on the stage keeps the id it was opened on while
+  // the pane draws the session its terminal went on as (cleared-session.ts):
+  // that one is on screen, and its turns are seen as they end. The tab's own
+  // session stays watched too: it ended in that same terminal, at the /clear
+  // typed there, not while nobody was looking, and it has no turn to come.
+  const stageTab = stage.enabled && stage.shell.phase !== "closed" ? targetSession(stage.shell.target) : null;
+  const stageDraws = stageTab === null ? null : terminalSessionId(stateRef.current.agents, stageTab);
+  useMarkSeen(stateRef, [...selectedIds, stageTab, stageDraws], stateRef.current.revision);
   // The same sessions, for the rail's row model: they are seen the moment a turn
   // ends under them, not on the effect after, so they never pass through Done · unseen.
-  const watchingSessions = sessionsOf(stateRef.current, [...selectedIds, stage.enabled && stage.shell.phase !== "closed" ? targetSession(stage.shell.target) : null]);
+  const watchingSessions = sessionsOf(stateRef.current, [...selectedIds, stageTab, stageDraws]);
+  // Each pane's number, and the active mark, on the row of the session its
+  // tab draws: after a /clear, the new conversation's, not the ended one's.
   const openPanes = inWorkspace && stage.enabled && stage.shell.phase !== "closed"
-    ? sessionPaneLinks(stage.split, stage.shell.target, stage.arrangement?.order) : undefined;
+    ? sessionPaneLinks(stage.split, stage.shell.target, stage.arrangement?.order, id => terminalSessionId(stateRef.current.agents, id)) : undefined;
   // Finished sessions taking themselves off the board after the delay picked
   // in Settings › General — use-hide-finished.ts. After the stage, whose
   // session is kept as the selected card's is.
@@ -1080,6 +1090,15 @@ function Inner() {
     if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
     focusSession(sessionId);
   }, [removedAgentIds, bringBack, focusSession, followSession, markLanded, workspaceRef, stage.enabled, openInPane]);
+  // SHOW ON BOARD, from Chat's ⋯ in a Workspace pane: the Board, and the
+  // session's card brought into view and landed on, as any jump to it there
+  // does. A removed session comes back first. The jump waits for the switch to
+  // be drawn: a pointer's crossfade runs its update a frame or two later.
+  const showOnBoard = useCallback((sessionId: string) => {
+    if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
+    switchView("board", lastInputWasKey() ? "key" : "pointer");
+    requestAnimationFrame(() => requestAnimationFrame(() => focusSession(sessionId)));
+  }, [removedAgentIds, bringBack, switchView, focusSession]);
   // Enter on a row, in Workspace: the session in the pane, the keys in it.
   const openSessionWithKeys = useCallback((sessionId: string) => {
     if (removedAgentIds.has(sessionId)) bringBack([sessionId]);
@@ -1301,6 +1320,9 @@ function Inner() {
   }, [pickSession]);
   // Back from the pane, the phone is on Sessions again.
   const paneOpen = stage.enabled && stage.shell.phase !== "closed";
+  // Zen Mode: Workspace's panes alone, over the whole window (zen-mode.ts).
+  // Offered while Workspace has its panes, and over the moment it has not.
+  const zen = useZenMode(inWorkspace && paneOpen);
   const paneWasOpen = useRef(false);
   useEffect(() => {
     if (paneWasOpen.current && !paneOpen) {
@@ -1446,8 +1468,10 @@ function Inner() {
   return (
     // data-view exists only in Workspace, so with the Command Panel off the
     // root is the root it was; data-zoom folds the list and the Inspector
-    // (workspace.css); the switch between the views is view-switch.ts.
+    // (workspace.css); data-zen leaves the panes alone on screen (zen-mode.css);
+    // the switch between the views is view-switch.ts.
     <div ref={appRef} className="app" data-view={inWorkspace ? "workspace" : undefined} data-zoom={zoomPhase} data-side={side.on ? "" : undefined} data-right-col={rightCol ? "" : undefined}
+      data-zen={zen.on ? (zen.full ? "full" : "") : undefined}
       style={side.on ? { "--workspace-side-w": `${side.width}px` } as CSSProperties : undefined}>
       {/* Whether the deck has a session yet, for every part drawn below that
           stays out until it does (board-empty.ts). No element: the grid's
@@ -1505,6 +1529,8 @@ function Inner() {
               group: only where the Command Panel is on (use-view.ts), and never
               on a phone, where the Board is the whole of the deck. */}
           {!phone && stage.workspaceOffered && <ViewSwitch view={inWorkspace ? "workspace" : "board"} onChange={switchView} />}
+          {/* Zen Mode, beside the switch while Workspace has its panes. */}
+          {inWorkspace && paneOpen && <ZenButton onEnter={zen.enter} />}
           {/* Search, at the end of the bar (Settings is at the Panel bar's
               foot, Feedback in the corner after it). Who is waiting, by name,
               is the waiting pill's popover, and the selected session is named
@@ -1654,6 +1680,8 @@ function Inner() {
         stage={stage} stateRef={stateRef} canvasRef={canvasRef} now={now} palette={palette}
         asks={asks} waitingSessions={waitingSessions}
         onBoard={() => switchView("board", lastInputWasKey() ? "key" : "pointer")}
+        zen={zen.on ? { full: zen.full, exit: zen.exit } : null}
+        onShowOnBoard={showOnBoard}
       />
 
       <DialogPresence when={toolAuditView}>{view => <ToolAuditModal view={view} onClose={closeToolAudit} sessionLabel={toolAuditSessionLabel} onOpenSession={openToolAuditSession} />}</DialogPresence>
@@ -1673,6 +1701,7 @@ function Inner() {
           singleKeys, fit: handleFit, rearrange: handleRelayout, phone, paused, togglePause,
           clear: boardEmpty ? undefined : () => requestClear("button"),
           nextWaiting: blockedSessions(stateRef.current.agents.values()).length > 0 ? quickNextWaiting : undefined,
+          zen: inWorkspace && paneOpen ? { on: zen.on, toggle: zen.toggle } : undefined,
           start: quickStart(),
           keyHelp: () => setKeyHelpOpen(true), tour: openTour, theme: appearance.theme, setTheme,
         })} />

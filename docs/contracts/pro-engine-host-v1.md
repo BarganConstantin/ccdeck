@@ -382,6 +382,31 @@ deck's own record of whether its panel started that session
 
 Any other shape is the deck's own 500.
 
+### A launch's options
+
+A launch's body may carry `options`, New session's choices for a new Claude,
+each mapped to one Claude Code flag and to nothing else: `model` (`opus`,
+`sonnet`, `haiku`) to `--model`, `permissionMode` (`manual`, `auto`,
+`acceptEdits`, `plan`) to `--permission-mode`, `skipPermissions: true` to
+`--dangerously-skip-permissions`, and `worktree: true` to `--worktree`, last.
+`false` and absent pass nothing. Any other key or value, any of them for
+Codex or for anything but a new session (a resume, an attach), and
+`skipPermissions` beside a `permissionMode` are refused 400 `bad-options`;
+nothing is started.
+
+The deck asks `skipPermissions` before the engine does, and before it notes
+the start: a value that is not a boolean, one for Codex or an adopt, or one
+beside a `permissionMode` is its 400 `bad-options`, and one from anywhere but
+this machine's own page or a local client holding the deck's token is its 403
+`skip-permissions-local-only`. Only a launch that passed those reaches the
+engine. An engine that does not know the key answers it as any unknown
+option, 400 `bad-options` with `Those session options are not ones the deck
+knows.`; the deck answers that, for a launch that asked to skip permission
+checks, 409 `skip-permissions-unsupported`, which the page says in its own
+words. Claude Code itself refuses the flag as root and where an
+organization's managed settings turn bypass mode off: it prints why and ends,
+and the dead pane keeps those words like any other ending.
+
 ### Refusals
 
 When the engine cannot take a question, the route answers

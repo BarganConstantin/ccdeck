@@ -628,6 +628,18 @@ describe("the rows the deck offers", () => {
     expect(sourceOf("use-deck-shortcuts.ts")).toContain("stepWaiting(stateRef.current, waitingCursorRef, focusSession, e.shiftKey)");
   });
 
+  it("offer Toggle Zen Mode only while Workspace has its panes, saying which way a press goes", () => {
+    expect(byId(sources().items, "action:zen")).toBeUndefined();
+    const toggle = vi.fn();
+    const off = byId(sources({ zen: { on: false, toggle } }).items, "action:zen");
+    expect(off).toMatchObject({ section: "actions", title: "Toggle Zen Mode", subtitle: "Only the panes, over the whole window", tag: "Action", run: toggle });
+    expect(off?.keywords).toEqual(expect.arrayContaining(["zen", "full screen", "focus"]));
+    expect(off?.keyCap, "no key of its own: Quick Open is the way in from Zen").toBeUndefined();
+    expect(byId(sources({ zen: { on: true, toggle } }).items, "action:zen")?.subtitle).toBe("Exit Zen Mode");
+    // What App hands it: only in Workspace with a pane open, Zen's own toggle.
+    expect(sourceOf("App.tsx")).toContain("zen: inWorkspace && paneOpen ? { on: zen.on, toggle: zen.toggle } : undefined,");
+  });
+
   it("offer a new Claude and a new Codex in the focused folder only where the deck can start one", () => {
     expect(sources().items.filter(i => i.section === "start")).toEqual([]);
     const launch = vi.fn();

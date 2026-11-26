@@ -49,7 +49,7 @@ import type { AgentNodeData } from "../../types";
 import type { TerminalProvider } from "../../terminal-api";
 import { prefersReducedMotion } from "../../viewport-motion";
 import { tabStripMove } from "../../tablist-keys";
-import { MAX_PANES, paneIds, paneTabs, paneTarget, sameTab, tabKey, zoneAt, zoneRect, type DropZone, type Rect } from "../../workspace-split";
+import { MAX_PANES, cornerPane, paneIds, paneTabs, paneTarget, sameTab, tabKey, zoneAt, zoneRect, type DropZone, type Rect } from "../../workspace-split";
 import BoardNavigator from "../BoardNavigator";
 import { rowGlyphOf } from "../SessionList";
 import NewSessionPopover from "./NewSessionPopover";
@@ -60,6 +60,8 @@ import { closedAnnouncement } from "./stage-model";
 import TerminalStage, { stageName, type StageShow, type StageSplit } from "./TerminalStage";
 import type { PaneTabItem, PaneTabsView } from "./PaneTabs";
 import { WORKSPACE_PANE_ID } from "../../workspace-pane";
+import { ZEN_EXIT_MSG } from "../../zen-mode";
+import { CollapseGlyph } from "./stage-icons";
 
 // ---------------------------------------------------------------------------
 // The navigator, in the canvas.
@@ -106,6 +108,12 @@ export interface StageDockProps {
   waitingSessions: readonly BlockedSession[];
   /** WORKSPACE: ✕ on the empty pane leaves for the Board. */
   onBoard?(): void;
+  /** WORKSPACE in Zen Mode (zen-mode.ts): its way out, drawn in the top right
+   *  corner, and whether the page is in the full screen Zen asked for, which
+   *  ⤢ then leaves alone. Null or left out, no Zen. */
+  zen?: { full: boolean; exit(): void } | null;
+  /** WORKSPACE, Chat's Show on Board: the Board, with the session's card in view. */
+  onShowOnBoard?(sessionId: string): void;
 }
 
 /** React Flow's own element, the one a fold fades and the stage makes inert. */
@@ -158,6 +166,9 @@ interface SplitPaneProps {
   strip: boolean;
   /** A press or a focus inside a pane without the keys gives it them. */
   onFocusIn(): void;
+  /** Zen Mode: this pane's header reaches the top right corner, which Exit
+   *  Zen Mode stands in (zen-mode.css makes room for it). */
+  corner?: boolean;
   children: ReactNode;
 }
 
@@ -172,6 +183,7 @@ function SplitPane(p: SplitPaneProps) {
     "data-pane": p.id,
     "data-focused": (p.multi && p.focused) || undefined,
     "data-hidden": p.hidden || undefined,
+    "data-zen-corner": p.corner || undefined,
     "aria-hidden": p.hidden || undefined,
     ...inert,
     onPointerDownCapture: away ? p.onFocusIn : undefined,
@@ -447,6 +459,9 @@ export function StageDock(p: StageDockProps) {
   const arrangement = fill ? stage.arrangement ?? null : null;
   const multi = arrangement != null && arrangement.mode !== "one";
   const ids = multi && split ? [...paneIds(split.root)].sort(byPaneNumber) : [focusedId];
+  // Zen Mode: the pane under Exit Zen Mode (none under the strip, which holds
+  // the corner itself).
+  const zenCorner = p.zen ? (multi ? cornerPane(arrangement!) : focusedId) : null;
   const panes = ids.map(id => {
     const focused = id === focusedId;
     const target = focused ? shell.target : paneTarget(split!, id, null);
@@ -660,6 +675,7 @@ export function StageDock(p: StageDockProps) {
         onWantKeys={own ? stage.focusPane : () => stage.focusPaneId(id, { keys: true })}
         onNextAsk={p.asks.nextAsk}
         onOpenWaiting={id => stage.switchTo(id, { focusPane: true })}
+        onShowOnBoard={fill ? p.onShowOnBoard : undefined}
         onAnswerArrival={p.asks.nextAsk}
         // Workspace: ✕ closes the tab, and on the empty pane leaves for the
         // Board. The Board's ✕ closes the stage, as it did. The agent ending
@@ -667,6 +683,7 @@ export function StageDock(p: StageDockProps) {
         onClose={close}
         waiting={own && fill && ps.kind === "empty" ? waitingCardFor(p.waitingSessions, p.now) : null}
         onToggleExpand={stage.toggleExpand}
+        fullHeld={p.zen?.full === true}
         onFirstRunDone={stage.firstRunDone}
         onNewSession={(anchor, elsewhere) => { keysHere(); setNewWith(elsewhere ? { anchor, ...elsewhere } : null); stage.openPopover(anchor); }}
         // The folder-gone card's Choose folder…, with a folder chosen in the
@@ -792,11 +809,23 @@ export function StageDock(p: StageDockProps) {
             hidden={multi && arrangement!.mode === "strip" && !pane.focused}
             strip={multi && arrangement!.mode === "strip"}
             onFocusIn={() => stage.focusPaneId(pane.id)}
+            corner={pane.id === zenCorner}
           >
             {pane.tabs.map(tab => <LaunchWatch key={tab.key} target={tab.target} agents={agents} onFound={onFound} />)}
             {stageFor(pane)}
           </SplitPane>
         ))}
+        {/* Zen Mode's way out, in the top right corner over the pane header
+            that reaches it, which keeps its controls clear of it. Pressed, it
+            leaves the keys where they were, as ⤢ does. */}
+        {p.zen && (
+          <div className="zen-exit" style={arrangement?.mode === "strip" ? { height: arrangement.strip } : undefined}>
+            <button type="button" className="glyph-btn" aria-label={t(ZEN_EXIT_MSG)} title={t(ZEN_EXIT_MSG)}
+              onMouseDown={e => e.preventDefault()} onClick={p.zen.exit}>
+              <CollapseGlyph />
+            </button>
+          </div>
+        )}
         {fill && (
           <p className="wsp-note" role="status" aria-atomic="true" data-on={stage.splitNote ? true : undefined}>
             {stage.splitNote}
