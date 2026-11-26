@@ -80,6 +80,7 @@ import { readBody, readBytes, send } from "./http-io.mjs";
 import { panelProvenance, withProvenance } from "./panel-provenance.mjs";
 import { heldPrefs } from "./prefs-state.mjs";
 import { engineRefusal } from "./pro-engine-terminal.mjs";
+import { isAuthorizedMutation } from "./request-gates.mjs";
 import { checkFolder } from "./terminal-folder.mjs";
 import { codexReplaced, liveForOf } from "./codex-update.mjs";
 import { discoverProjects } from "./project-discovery.mjs";
@@ -401,9 +402,72 @@ export async function handleTerminalStopElsewhere(req, res, options) {
 /** POST /api/terminal/launch `{ agent, cwd, key? }` → `{ ok: true, sessionId,
  *  name, ticket }`. The key makes asking again safe: one agent per key. 409
  *  `folder-missing`, `folder-denied` or `folder-unreachable`, with the
- *  folder, when the folder is not one to start in (posted). */
+ *  folder, when the folder is not one to start in (posted). A launch asking
+ *  to skip Claude's permission checks is the deck's to allow first
+ *  (skipPermissionsRefusal). */
 export async function handleTerminalLaunch(req, res, options) {
   return posted(req, res, options, "launch");
+}
+
+/**
+ * SKIPPING CLAUDE'S PERMISSION CHECKS IS THE OWNER'S CHOICE, FOR ONE NEW
+ * CLAUDE. New session's switch sends `options.skipPermissions: true`, and
+ * whoever starts the agent (the engine, or the tests' JS backend) maps it to
+ * `--dangerously-skip-permissions` and to nothing else. The deck asks first,
+ * before it notes the start and before the engine is asked, because the
+ * engine is a separate program that may be older than this rule:
+ *
+ *   - a value that is not a boolean is not a question (400 `bad-options`);
+ *   - only a new Claude takes it: a Codex, a reopen (adopt) or a launch that
+ *     also names a permission mode is refused (400 `bad-options`);
+ *   - only this computer's own page, or a local client holding the deck's
+ *     token, may ask it (403 `skip-permissions-local-only`). The router has
+ *     already held every launch to that gate (request-gates.mjs
+ *     isAuthorizedMutation); it is asked again here, with the socket's peer,
+ *     as Settings › Claude Code asks it, so a request that reached this
+ *     handler some other way — a server bound wider, a paired device — can
+ *     never start an agent that stops asking.
+ *
+ * `false`, or no value at all, is an ordinary launch and is not looked at.
+ * Null when the launch may go on; otherwise `{ status, body }` to answer.
+ */
+export function skipPermissionsRefusal(req, method, question) {
+  const options = question?.options;
+  if (!options || typeof options !== "object" || Array.isArray(options)) return null;
+  const skip = options.skipPermissions;
+  if (skip === undefined || skip === null || skip === false) return null;
+  if (typeof skip !== "boolean") return { status: 400, body: { ok: false, error: UNKNOWN_OPTIONS, code: "bad-options" } };
+  if (method !== "launch" || question.agent !== "claude") {
+    return { status: 400, body: { ok: false, error: "Only a new Claude session can start without permission checks.", code: "bad-options" } };
+  }
+  if (options.permissionMode != null) {
+    return { status: 400, body: { ok: false, error: "A session that skips permission checks takes no other permission mode.", code: "bad-options" } };
+  }
+  if (!LOOPBACK.includes(req?.socket?.remoteAddress) || !isAuthorizedMutation(req)) {
+    return { status: 403, body: { ok: false, error: SKIP_LOCAL_ONLY, code: "skip-permissions-local-only" } };
+  }
+  return null;
+}
+
+/** What the deck and the JS backend answer for an option they do not know.
+ *  An engine older than `skipPermissions` answers a launch that asks it
+ *  this, which the deck says plainly (skipUnsupported). */
+const UNKNOWN_OPTIONS = "Those session options are not ones the deck knows.";
+/** A launch that skips permission checks, asked from anywhere but this
+ *  computer's own page or a local client holding the deck's token. */
+export const SKIP_LOCAL_ONLY = "A session that skips permission checks can be started from this computer only.";
+/** A launch that skips permission checks, refused by an engine that does not
+ *  know the option yet. Nothing was started; the page says it by its code. */
+export const SKIP_UNSUPPORTED = "The Command Panel's engine here cannot start Claude without permission checks yet. Nothing was started.";
+
+/** Whether the engine refused `question`, a launch that asked to skip
+ *  permission checks, because it does not know that option: its answer for
+ *  an option it does not know, which an engine from before the option gives. */
+function skipUnknownToEngine(method, question, said) {
+  if (method !== "launch" || question?.options?.skipPermissions !== true) return false;
+  const body = said?.body;
+  return said?.status === 400 && !!body && typeof body === "object" && body.ok === false
+    && body.error === UNKNOWN_OPTIONS && (body.code === undefined || body.code === "bad-options");
 }
 
 /** POST /api/terminal/folder `{ cwd }` → `{ ok: true, cwd }`, or `{ ok: false,
@@ -506,6 +570,12 @@ async function posted(req, res, options, method) {
   const d = terminalDeps(options);
   if (!d.enabled()) return notFound(res);
   const body = await jsonBody(req, res);
+  // Skipping Claude's permission checks before anything else is asked or
+  // noted: the deck's own rule, whichever engine runs the launch.
+  if (LAUNCHES.has(method) && !res.headersSent) {
+    const refused = skipPermissionsRefusal(req, method, body);
+    if (refused) return d.enabled() ? send(res, refused.status, refused.body) : notFound(res);
+  }
   // Only once the question is whole, with the switch still on, and only where
   // there is something to start an agent: a deck with no engine says that,
   // in the same bytes as every other route (pro-engine-routes-off.test.ts).
@@ -644,6 +714,11 @@ async function answer(d, req, res, method, question) {
   // And once more, now that the engine has answered: a question asked while on can be answered after the
   // switch-off, since the engine is stopped only once it has answered (command-panel-engine.mjs).
   if (!d.enabled()) return answeredAfterOff(res, method, said);
+  // An engine from before New session's Skip permission checks refuses the option as one it does not know.
+  // That is a state of this machine, said plainly by its code (409), not a malformed request: nothing ran.
+  if (skipUnknownToEngine(method, question, said)) {
+    return send(res, 409, { ok: false, error: SKIP_UNSUPPORTED, code: "skip-permissions-unsupported" });
+  }
   // The folder may have gone between the deck's question (posted) and the engine's own look at it: a drive
   // or a network folder disconnected in between. An engine that refused in words of its own is checked
   // against the folder once more, and a folder that is not one to start in is said as the deck says it,

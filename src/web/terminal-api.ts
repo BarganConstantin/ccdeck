@@ -243,11 +243,17 @@ export const HOSTS_REFUSALS = ["consent-outdated", "host-gone", "end-failed"] as
  *  (a disconnected drive or network folder). The failure carries the folder
  *  (`cwd`), so the stage can name it; never asked again by itself. */
 export const FOLDER_REFUSALS = ["folder-missing", "folder-denied", "folder-unreachable"] as const;
+/** The deck's refusal of a launch that asked to skip Claude's permission
+ *  checks, answered for an engine that does not know that option yet (HTTP
+ *  409, terminal-routes.mjs). Nothing was started; the stage says it in the
+ *  language on show, with Try again, and never asks about tmux for it. */
+export const LAUNCH_OPTION_REFUSALS = ["skip-permissions-unsupported"] as const;
 export type FolderRefusal = typeof FOLDER_REFUSALS[number];
 export type PanelUnavailable = typeof PANEL_UNAVAILABLE[number];
-export type PanelRefusal = PanelUnavailable | typeof PANEL_RECOVERING[number] | typeof PANEL_SAID_REFUSALS[number] | typeof HOSTS_REFUSALS[number] | FolderRefusal;
+export type PanelRefusal = PanelUnavailable | typeof PANEL_RECOVERING[number] | typeof PANEL_SAID_REFUSALS[number] | typeof HOSTS_REFUSALS[number] | FolderRefusal
+  | typeof LAUNCH_OPTION_REFUSALS[number];
 
-const REFUSALS: ReadonlySet<string> = new Set([...PANEL_UNAVAILABLE, ...PANEL_RECOVERING, ...PANEL_SAID_REFUSALS, ...HOSTS_REFUSALS, ...FOLDER_REFUSALS]);
+const REFUSALS: ReadonlySet<string> = new Set([...PANEL_UNAVAILABLE, ...PANEL_RECOVERING, ...PANEL_SAID_REFUSALS, ...HOSTS_REFUSALS, ...FOLDER_REFUSALS, ...LAUNCH_OPTION_REFUSALS]);
 
 /** Whether `code` is the deck saying the folder is not one to start in. */
 export const folderRefusal = (code?: string | null): code is FolderRefusal =>
@@ -297,10 +303,15 @@ export interface HostsEnded {
 
 /** What New session may ask of a new Claude: Claude Code's own flags, from
  *  the lists the deck's launcher accepts (terminal-sessions.mjs). Absent is
- *  the reader's own settings. */
+ *  the reader's own settings. `skipPermissions` is sent only as `true`, only
+ *  for the one launch the reader turned it on for, and never beside a
+ *  `permissionMode`: the deck starts that Claude with
+ *  `--dangerously-skip-permissions` (terminal-routes.mjs
+ *  skipPermissionsRefusal says who may ask it). */
 export interface LaunchOptions {
   model?: "opus" | "sonnet" | "haiku";
   permissionMode?: "auto" | "acceptEdits" | "plan";
+  skipPermissions?: true;
   worktree?: boolean;
 }
 

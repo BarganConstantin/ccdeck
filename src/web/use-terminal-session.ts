@@ -863,8 +863,14 @@ const failed = (f: ApiFailure, agent?: Provider, at?: { cwd: string; sessionId?:
   if (folderRefusal(f.code) && at && starts) return folderGone(f.code, f.cwd || at.cwd, { agent: starts, sessionId: at.sessionId });
   return panelUnavailable(f.code) ? { kind: "error", message: f.error, code: f.code, busy: false }
     : f.code === "agent-missing" && (agent === "claude" || agent === "codex") ? { kind: "error", message: f.error, missing: agent }
-      : { kind: "error", message: f.error };
+      : f.code === "skip-permissions-unsupported" ? { kind: "error", message: tr(SKIP_UNSUPPORTED_MSG) }
+        : { kind: "error", message: f.error };
 };
+
+/** A launch that asked to skip Claude's permission checks, refused by an
+ *  engine that does not know that option yet (terminal-api.ts
+ *  LAUNCH_OPTION_REFUSALS): said in the language on show. Nothing was started. */
+export const SKIP_UNSUPPORTED_MSG = "board.stage.skipUnsupported";
 
 /**
  * The card for an opencode or Copilot session. Each runs in a terminal of its
