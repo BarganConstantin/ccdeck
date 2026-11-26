@@ -10,8 +10,14 @@
   min-height: 0;
 }
 /* A pane that waits behind the strip keeps its terminal mounted and attached,
-   but nothing of it is seen, pressed or read. */
-.wsp-pane[data-hidden] { visibility: hidden; }
+   but nothing of it is seen, pressed or read: not the pane, and not anything
+   in it. The terminal's host says `visibility: visible` of its own once a
+   frame is drawn (.ts-host[data-shown] and [data-held], terminal-stage.css),
+   and a box's own value beats the one it would inherit, so a hidden pane's
+   terminal was drawn over the pane on show. At the host rules' weight this
+   one wins on order: this sheet loads after theirs. */
+.wsp-pane[data-hidden],
+.wsp-pane[data-hidden] * { visibility: hidden; pointer-events: none; }
 
 /* A pane's tabs, in its header in the one name's place, once it holds two:
    the strip's own tabs (.wsp-tab, below), a header row tall. The tab on show
