@@ -26,7 +26,8 @@
 // (StageBody) — the header and the keys bar are where focus lands when the
 // keys go back to the board, and from there j, k and n are the board's.
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type RefObject } from "react";
-import { terminalTarget, type LaunchOptions, type SessionRef, type TerminalProvider } from "../../terminal-api";
+import { saveChatImage, terminalTarget, type LaunchOptions, type SessionRef, type TerminalProvider } from "../../terminal-api";
+import { takesImages, type ChatImage } from "../../chat-images";
 import { terminalTheme } from "../../terminal-palette";
 import { releaseChordLabel } from "../../terminal-keys";
 import { platformName } from "../../platform";
@@ -37,6 +38,7 @@ import {
   useTerminalSession,
   type AskSendResult,
   type LaunchedSession,
+  type PromptSendResult,
   type SessionDeps,
   type StageSubject,
 } from "../../use-terminal-session";
@@ -80,6 +82,7 @@ import HostsDialog from "./HostsDialog";
 import { t as tNow, useT } from "../../i18n";
 import { ChatComposerSlot, useScreenFlags } from "../../use-screens";
 import { useChatReturned } from "../../use-chat-returned";
+import { draftFor, keepDraft } from "../../chat-drafts";
 import { fontSizeFor, stepTerminalText, useTerminalTextStep } from "../../terminal-text-size";
 import { chatSessionFor, useSessionTranscript } from "../../use-session-transcript";
 import { isEventOnly } from "../../../server/provider-ids.mjs";
@@ -88,6 +91,11 @@ import { stopSteps } from "../../chat-stop";
 import { pendingFor, useChatProgress, waitsInChat, type ChatFacts, type ChatPending } from "../../chat-progress";
 import { useScreenStatus } from "../../use-screen-status";
 import { useLiveCompaction } from "../../use-live-compaction";
+import { saysCompacting } from "../../screen-status";
+import { COMPACT_COMMAND, COMPACT_SAID, compactBlocked, compactedSince, compactOffered, isCompactCommand, lastReply, sessionDetails } from "../../chat-actions";
+import { useCompactRun } from "../../use-chat-compact";
+import { copyText } from "../../copy-text";
+import type { ChatMenuView } from "./ChatMenu";
 import { chatLive } from "../../live-activity";
 import { noteFeature, useFeatureUse } from "../../feature-use";
 import type { ChatAsk, ChatLiveAgent, ChatTurn } from "../chat/chat-model";
@@ -107,6 +115,7 @@ import type { PaneTabsView, TabsMenuOpen } from "./PaneTabs";
 
 /** One empty transcript for every render, so the card's words are not rebuilt for nothing. */
 const NO_TURNS: readonly ChatTurn[] = [];
+const NO_IMAGES: readonly ChatImage[] = [];
 
 /** What the pane says when an answer chosen on an alert was not sent. */
 const INTENT_NOTICE: Partial<Record<IntentOutcome["kind"], string>> = {
@@ -216,6 +225,9 @@ export interface StageSessionInfo {
   /** How full the session's context window is, the Inspector's two numbers
    *  (contextFill), for the header's chip. */
   contextUse?: { used: number; window: number } | null;
+  /** The session's spend, as its row in the Sessions list says it, for Chat's
+   *  Session details; none where it is not known or nothing was spent. */
+  spend?: number;
   /** The last line the board knew, shown while the pane attaches. */
   ghostLine?: string | null;
   /** Where the session runs, for the card shown when it cannot be attached. */
@@ -277,6 +289,9 @@ export interface TerminalStageProps {
    *  next ask: "Next ask" goes to the arrival the bar names first, which may
    *  be another session than the one this button says. */
   onOpenWaiting?(sessionId: string): void;
+  /** WORKSPACE, Chat's Show on Board: the Board, with this session's card
+   *  brought into view as a jump to it brings it. */
+  onShowOnBoard?(sessionId: string): void;
   onAnswerArrival?(): void;
   onClose(): void;
   onToggleExpand(): void;
@@ -536,18 +551,28 @@ export default function TerminalStage(p: TerminalStageProps) {
   useFeatureUse("terminal-pane", p.show.kind !== "empty");
   useFeatureUse("chat", chatOn);
   // Drafts belong to session IDs, so switching panes or Chat/Term cannot
-  // send one session's draft to another. They stay in this stage's memory.
-  const [chatDrafts, setChatDrafts] = useState<Record<string, string>>({});
+  // send one session's draft to another. They outlive the stage
+  // (chat-drafts.ts): the Board and back find them where they were.
+  const [, setDraftMoved] = useState(0);
+  const chatDraft = draftFor(chatDraftKey);
+  const putDraft = (at: string, text: string) => { keepDraft(at, text); setDraftMoved(n => n + 1); };
+  // And the pictures pasted beside a draft (chat-images.ts): in this page's
+  // memory only, until Send hands them to the deck.
+  const [chatImages, setChatImages] = useState<Record<string, ChatImage[]>>({});
   // A message sent from Chat until the session says it took it and its turn
   // is over (chat-progress.ts), held per session as the drafts are, so one
   // session's never shows on another.
   const [chatPending, setChatPending] = useState<Record<string, ChatPending>>({});
   const [chatSent, setChatSent] = useState(0);
+  // A compaction on screen, or one Chat follows to its end (below): the
+  // conversation is read as often as while a turn works, so its end is seen.
+  const [compactBrisk, setCompactBrisk] = useState(false);
   const chatSource = useSessionTranscript({
     session: chatSession,
     provider: chatProvider,
     shown: chatOn,
     working: p.show.kind === "session" && p.show.session.status.state === "working",
+    brisk: compactBrisk,
     ended: p.show.kind === "session" && p.show.session.status.state === "ended",
     change: p.show.kind === "session" ? `${p.show.session.promptCount ?? 0}:${p.show.session.status.state}:${chatSent}` : "",
     heard: p.show.kind === "session" ? p.show.session.heardAt : undefined,
@@ -904,6 +929,21 @@ export default function TerminalStage(p: TerminalStageProps) {
     subject: key,
     readScreen: session.readScreen,
   });
+  // What the session still does once its turn is over, on Chat's live row
+  // (live-activity.ts): its background agents, as the board's lifecycle has
+  // them, and a compaction its own screen shows. The screen is read for that
+  // only while the working row's read (above) is off.
+  const compactionSeen = useLiveCompaction({
+    on: chatOn && status.state !== "working" && chatCannotSend === undefined && (chatProvider === "claude" || chatProvider === "codex"),
+    subject: key,
+    readScreen: session.readScreen,
+  });
+  // Over once the conversation has its /compact line, though the screen's
+  // reads hold it a miss or two longer.
+  const compaction = compactionSeen && !compactedSince(chatTurns, compactionSeen.since) ? compactionSeen : null;
+  // Compacting now, by either read: by hand once the turn is over, or by
+  // itself in the middle of one.
+  const compactingNow = compaction !== null || (screenWords !== null && saysCompacting(screenWords));
   const chatFacts: ChatFacts = {
     turns: chatTurns,
     prompts: p.show.kind === "session" ? p.show.session.promptCount ?? 0 : 0,
@@ -915,6 +955,7 @@ export default function TerminalStage(p: TerminalStageProps) {
     heardAt: p.show.kind === "session" ? p.show.session.heardAt : undefined,
     connected: chatCannotSend === undefined,
     asked: promptCard !== undefined || waitsInChat(chatTurns),
+    compacting: compactingNow,
   };
   const chatProgress = useChatProgress(chatPending[chatDraftKey], chatFacts, next => setChatPending(all => {
     if (next) return { ...all, [chatDraftKey]: next };
@@ -922,23 +963,73 @@ export default function TerminalStage(p: TerminalStageProps) {
     delete rest[chatDraftKey];
     return rest;
   }));
-  // What the session still does once its turn is over, on Chat's live row
-  // (live-activity.ts): its background agents, as the board's lifecycle has
-  // them, and a compaction its own screen shows. The screen is read for that
-  // only while the working row's read (above) is off.
-  const compaction = useLiveCompaction({
-    on: chatOn && status.state !== "working" && chatCannotSend === undefined && (chatProvider === "claude" || chatProvider === "codex"),
-    subject: key,
-    readScreen: session.readScreen,
-  });
   const chatLiveNow = chatLive({
     agents: p.show.kind === "session" ? p.show.session.background : undefined,
     compacting: compaction,
     working: chatProgress.activity?.state === "working",
   });
   // A message the session did not take goes back into an empty box (use-chat-returned.ts).
-  const chatReturned = useChatReturned(chatDraftKey, chatProgress.outgoing, chatDrafts[chatDraftKey] ?? "",
-    text => setChatDrafts(drafts => ({ ...drafts, [chatDraftKey]: text })));
+  const chatReturned = useChatReturned(chatDraftKey, chatProgress.outgoing, chatDraft, text => putDraft(chatDraftKey, text));
+
+  // CHAT'S ⋯ (chat-actions.ts says what each is, and whose; ChatMenu.tsx draws
+  // them in the header's ⋯). Compact is Claude Code's /compact, sent as the box
+  // sends one typed there, and followed to its end, which is said under the
+  // box: a run per session, looked at while Chat shows it (use-chat-compact.ts).
+  const agentLabel = agentName(chatProvider);
+  const compactOn = chatSession !== null && !chatReadOnly && compactOffered(chatProvider);
+  const compact = useCompactRun({
+    session: chatDraftKey,
+    watching: chatOn && compactOn && chatCannotSend === undefined,
+    turns: chatTurns,
+    compacting: compactingNow,
+    untaken: chatProgress.outgoing?.state === "unconfirmed" && isCompactCommand(chatProgress.outgoing.text),
+    onEnd: (end, at) => {
+      const said = COMPACT_SAID[end];
+      if (said && at === chatDraftKey) setNotice(t(said));
+    },
+  });
+  const brisk = chatOn && (compactingNow || compact.running);
+  useEffect(() => { setCompactBrisk(brisk); }, [brisk]);
+  // Why Compact cannot go now: what keeps the box from sending, a compaction
+  // under way, or a turn at work (it would wait in Claude Code's queue).
+  const compactWhy = compactOn ? compactBlocked({
+    unavailable: chatUnavailable,
+    compacting: compactingNow || compact.running,
+    working: status.state === "working" || chatProgress.activity?.state === "working" || chatProgress.outgoing?.state === "sending",
+  }, t, agentLabel) : null;
+  // The one way a message leaves Chat: the box's Send and the menu's Compact.
+  // `action`: sent by a menu row, never put back into the box (use-chat-returned.ts).
+  const sendFromChat = (text: string, action = false): PromptSendResult => {
+    if (chatUnavailable) return "unavailable";
+    const result = session.sendPrompt(text, key);
+    if (result === "sent") {
+      setChatSent(sent => sent + 1);
+      noteFeature("chat-reply");
+      // On its way, not yet taken: Chat says so under the conversation.
+      setChatPending(all => ({ ...all, [chatDraftKey]: pendingFor(text, chatFacts, Date.now(), { action }) }));
+      // A /compact typed in the box is followed too, when it would go now.
+      if (compactOn && compactWhy === null && isCompactCommand(text)) compact.start();
+    }
+    return result;
+  };
+  const runCompact = () => {
+    if (compactWhy !== null || compact.running) return;
+    const result = sendFromChat(COMPACT_COMMAND, true);
+    setNotice(t(result === "sent" ? "board.chat.actions.compact.sent"
+      : result === "partial" ? "board.chat.composer.partial" : "board.chat.actions.compact.notSent"));
+  };
+  const lastWords = chatOn ? lastReply(chatTurns) : "";
+  const boardSession = p.show.kind === "session" ? p.show.session.ref.sessionId : null;
+  const chatMenu: ChatMenuView | null = chatOn ? {
+    ...(compactOn ? { compact: { blocked: compactWhy, run: runCompact } } : null),
+    ...(lastWords ? { copy: () => void copyText(lastWords).then(ok => setNotice(t(ok ? "board.chat.actions.copied" : "board.chat.actions.copyFailed"))) } : null),
+    ...(p.onShowOnBoard && boardSession ? { board: () => p.onShowOnBoard?.(boardSession) } : null),
+    term: () => showView("term"),
+    details: sessionDetails({
+      context: p.show.kind === "session" ? p.show.session.contextUse : null,
+      spend: p.show.kind === "session" ? p.show.session.spend : undefined,
+    }, t),
+  } : null;
 
   // RENAMING (internal #101): held here rather than in the header, which is
   // drawn by calling it; the facts are the session on stage, so a switch to
@@ -1179,25 +1270,37 @@ export default function TerminalStage(p: TerminalStageProps) {
 
   const composer = chatOn && chatSession !== null && !chatReadOnly ? <ChatComposerSlot
     key={chatDraftKey}
-    value={chatDrafts[chatDraftKey] ?? ""}
-    onChange={value => setChatDrafts(drafts => ({ ...drafts, [chatDraftKey]: value }))}
+    value={chatDraft}
+    onChange={value => putDraft(chatDraftKey, value)}
     unavailable={chatUnavailable}
     onShowTerm={() => showView("term")}
     session={chatDraftKey}
     turns={chatTurns}
     notTaken={chatReturned.text}
     provider={chatProvider}
-    onSend={text => {
+    images={chatImages[chatDraftKey] ?? NO_IMAGES}
+    onImagesChange={images => setChatImages(all => ({ ...all, [chatDraftKey]: images }))}
+    imagesInTerm={takesImages(chatProvider)}
+    // Each picture is kept by the deck first, then its path goes into the
+    // session as Term pastes a dropped file's (chat-images.ts). One the deck
+    // did not keep sends nothing at all: the draft and pictures stay.
+    onSendImages={takesImages(chatProvider) ? async (text, images) => {
       if (chatUnavailable) return "unavailable";
-      const result = session.sendPrompt(text, key);
+      const paths: string[] = [];
+      for (const image of images) {
+        const path = await saveChatImage(image.blob);
+        if (!path) return "images-failed";
+        paths.push(path);
+      }
+      const result = await session.sendPromptWithImages(text, paths, key);
       if (result === "sent") {
         setChatSent(sent => sent + 1);
         noteFeature("chat-reply");
-        // On its way, not yet taken: Chat says so under the conversation.
-        setChatPending(all => ({ ...all, [chatDraftKey]: pendingFor(text, chatFacts, Date.now()) }));
+        setChatPending(all => ({ ...all, [chatDraftKey]: pendingFor(text, chatFacts, Date.now(), { images: images.length }) }));
       }
       return result;
-    }}
+    } : undefined}
+    onSend={text => sendFromChat(text)}
     // Stop is Claude Code's Esc, offered while the board says it works and
     // sent only once Term shows "esc to interrupt" (chat-stop.ts).
     canStop={chatProvider === "claude" && chatCannotSend === undefined && board?.state === "working"}
@@ -1269,6 +1372,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         workspace={workspace ? (p.show.kind === "empty" ? "empty" : "pane") : undefined}
         context={p.show.kind === "session" ? p.show.session.contextUse : null}
         view={chatSession !== null ? { current: view, onChange: showView } : undefined}
+        chat={chatMenu}
         // Only while a terminal is on the stage to size: not on the empty
         // pane, a card that has none, or Chat.
         textSize={p.show.kind === "empty" || paneless(phase) || chatOn ? undefined : { step: textStep, onStep: stepTerminalText }}

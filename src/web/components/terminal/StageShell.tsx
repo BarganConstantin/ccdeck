@@ -112,6 +112,8 @@ export interface StageDockProps {
    *  corner, and whether the page is in the full screen Zen asked for, which
    *  ⤢ then leaves alone. Null or left out, no Zen. */
   zen?: { full: boolean; exit(): void } | null;
+  /** WORKSPACE, Chat's Show on Board: the Board, with the session's card in view. */
+  onShowOnBoard?(sessionId: string): void;
 }
 
 /** React Flow's own element, the one a fold fades and the stage makes inert. */
@@ -673,6 +675,7 @@ export function StageDock(p: StageDockProps) {
         onWantKeys={own ? stage.focusPane : () => stage.focusPaneId(id, { keys: true })}
         onNextAsk={p.asks.nextAsk}
         onOpenWaiting={id => stage.switchTo(id, { focusPane: true })}
+        onShowOnBoard={fill ? p.onShowOnBoard : undefined}
         onAnswerArrival={p.asks.nextAsk}
         // Workspace: ✕ closes the tab, and on the empty pane leaves for the
         // Board. The Board's ✕ closes the stage, as it did. The agent ending
