@@ -255,7 +255,13 @@ describe("the corner tab is gone", () => {
     expect(css).not.toMatch(/\.insp-corner|\.insp-show|data-insp-tab/);
     // The rightmost pane header is its own full width: 0 6px 0 12px, no extra 36.
     expect(decl(".ts-head", "padding")).toBe("0 6px 0 12px");
-    expect(css).not.toMatch(/\.ts-head \{[^}]*padding-right/);
+    // CHANGED ON PURPOSE (Zen Mode): one header makes room on its right, and
+    // only in Zen: the pane under Exit Zen Mode in the window's corner
+    // (zen-mode.css). Every other header ends at its own 6.
+    const padded = [...css.matchAll(/([^{}]*)\{([^}]*)\}/g)]
+      .filter(([, sel, body]) => /padding-right/.test(body) && sel.split(",").some(s => /\.ts-head$/.test(s.trim())))
+      .map(([, sel]) => sel.trim());
+    expect(padded).toEqual([".app[data-zen] .wsp-pane[data-zen-corner] .ts-head"]);
     expect(css).not.toContain("padding-right: calc(6px + 36px)");
   });
 });

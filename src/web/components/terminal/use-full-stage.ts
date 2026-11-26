@@ -6,12 +6,13 @@
 // leaves both; so does leaving full screen any other way — Esc held, F11 —
 // and so does the stage closing, since the full screen was for the session.
 // Only a full screen ⤢ asked for is ever left: one the reader made with F11
-// is theirs.
+// is theirs, and so is one Zen Mode asked for (zen-mode.ts): while the page
+// is held in it, ⤢ is only the width, and its label says so.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { canFullStage, enterFullStage, leaveFullStage } from "../../tab-keys";
 
 export interface FullStage {
-  /** ⤢ asks for full screen here. */
+  /** ⤢ asks for full screen here, now. */
   can: boolean;
   /** The deck is in the full screen ⤢ asked for. */
   full: boolean;
@@ -19,9 +20,12 @@ export interface FullStage {
   toggle(): void;
 }
 
-export function useFullStage(expanded: boolean, toggleExpand: () => void, canOverride?: boolean): FullStage {
+export function useFullStage(expanded: boolean, toggleExpand: () => void, canOverride?: boolean, held = false): FullStage {
   // Asked once: what the browser can do does not change under the page.
-  const [can] = useState(() => canOverride ?? canFullStage());
+  const [able] = useState(() => canOverride ?? canFullStage());
+  // `held`: the page is in another's full screen, which is not ⤢'s to ask
+  // for again nor to leave.
+  const can = able && !held;
   const [full, setFull] = useState(false);
   /** The page is in full screen because ⤢ put it there. */
   const ours = useRef(false);
@@ -33,7 +37,7 @@ export function useFullStage(expanded: boolean, toggleExpand: () => void, canOve
 
   useEffect(() => {
     alive.current = true;
-    if (!can) return () => { alive.current = false; };
+    if (!able) return () => { alive.current = false; };
     const changed = () => {
       if (document.fullscreenElement || !ours.current) return;
       ours.current = false;
@@ -51,7 +55,7 @@ export function useFullStage(expanded: boolean, toggleExpand: () => void, canOve
       leaveFullStage();
       if (expandedRef.current) toggleRef.current();
     };
-  }, [can]);
+  }, [able]);
 
   // The width went without ⤡ being pressed (the deck changed view, Board or
   // Workspace, and gave it back: use-stage.ts): the full screen ⤢ asked for

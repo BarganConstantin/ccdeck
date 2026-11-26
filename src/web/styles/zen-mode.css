@@ -1,0 +1,110 @@
+/* ---------------- Zen Mode ----------------
+   Workspace's panes alone, over the whole window (zen-mode.ts). Keyed on
+   `.app[data-zen]`, which App draws only while Workspace has its panes, so
+   with Zen off nothing below the button's rules matches.
+
+   THE SAME TREE, LAID OUT AGAIN. Nothing is unmounted. The chrome is hidden
+   where it stands, with visibility, so the list keeps its scroll and its
+   filter and nothing beside the panes reflows; the pane's cell and the stage
+   leave the grid for the whole window. use-stage.ts measures the cell
+   (.ws-cell), so the split is laid out again at its own ratios and every
+   terminal fits the box it gets. Leaving puts both back in the grid, in the
+   boxes they had. No motion: like the view switch by key, it is one frame.
+
+   `body` and the view in front, so these outrank Workspace's and Zoom's own
+   rules (workspace.css) whatever the order. After workspace-split.css, whose
+   strip it makes room in. */
+
+/* ── the button, after Board | Workspace ──────────────────────────────────── */
+/* The bar's control (.rail-btn: edgeless at rest, the neutral wash under the
+   pointer), as tall as the switch and Search beside it, a 14px glyph and the
+   word 6 after it. */
+.zen-btn {
+  flex: none;
+  box-sizing: border-box;
+  height: 28px;
+  gap: 6px;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+.zen-btn .glyph { width: 14px; height: 14px; }
+/* Where the bar's counts already give (641 to 1023, topbar.css), the word
+   leaves the bar and the glyph stays, a 28px square: its name and its title
+   still say it, as Search's do under 900. */
+@media (max-width: 1023px) {
+  .zen-btn { width: 28px; padding: 0; justify-content: center; }
+  .zen-btn .zen-word { display: none; }
+}
+/* Up to 760 even the glyph is more than the bar has: beside the widest end
+   group it would cut into the waiting pill (topbar-counts-641.test.ts). The
+   bar keeps its counts, and Quick Open's Toggle Zen Mode is the way in. */
+@media (max-width: 760px) {
+  .zen-btn { display: none; }
+}
+
+/* ── the chrome, out of sight and out of reach ───────────────────────────── */
+/* The top bar, the stripes, a banner, the list, the Inspector, the side
+   column, Usage and This machine wherever they are (docked or floating), and
+   the status bar with the keys bar in it. */
+body .app[data-view="workspace"][data-zen] > :is(.topbar, .edge-rail, .banner-strip, .left-column, .statusbar),
+body .app[data-view="workspace"][data-zen] :is(.detail, .ws-side, .usage-panel, .sysdetail) {
+  visibility: hidden;
+}
+
+/* ── the panes, over the whole window ────────────────────────────────────── */
+body .app[data-view="workspace"][data-zen] :is(.ws-cell, .stage-dock) {
+  position: fixed;
+  inset: 0;
+  width: auto;
+  height: auto;
+}
+/* Over the hidden panels (20, 21), under the popover layer (40), the alerts
+   and the dialogs. */
+body .app[data-view="workspace"][data-zen] .stage-dock { z-index: 25; }
+/* The window's edge is the pane's: no stroke against a stripe that is not
+   drawn. */
+body .app[data-view="workspace"][data-zen] .stage-dock .ts-stage { border-left: 0; }
+
+/* ── Exit Zen Mode, in the top right corner ──────────────────────────────── */
+/* No toolbar: the header's own 24px glyph button, centred on the header row
+   (on the strip's row under the strip, whose height StageShell.tsx sets), 6
+   in from the window's edge as a header's last control is, with a hairline
+   before it, so it reads as the window's and not as the pane's ✕. The pane
+   under it (data-zen-corner), or the strip, keeps its controls clear of it. */
+.app[data-zen] { --zen-exit-w: 37px; }
+.zen-exit {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 5;
+  box-sizing: border-box;
+  height: var(--pane-head-h);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 6px;
+}
+.zen-exit::before {
+  content: "";
+  width: 1px;
+  height: 16px;
+  background: var(--line);
+}
+.zen-exit .glyph-btn {
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  margin: 0;
+  border-radius: var(--r-ctl);
+  color: var(--muted);
+}
+.app[data-zen] .wsp-pane[data-zen-corner] .ts-head { padding-right: calc(6px + var(--zen-exit-w)); }
+.app[data-zen] .wsp-strip { padding-right: calc(4px + var(--zen-exit-w)); }
+
+/* The alerts' stack: under the corner's header row, with no bar or stripe
+   to stand clear of. */
+body .app[data-view="workspace"][data-zen] .ca-stack:not([data-anchored]) {
+  top: calc(var(--pane-head-h) + 12px);
+  right: 12px;
+}
