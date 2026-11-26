@@ -592,7 +592,7 @@ export function NewSessionForm({ projects, initialAgent = "claude", gone, window
               <span className="switch-knob" />
             </button>
           </label>
-          <label className="ns-worktree ns-skip">
+          <label className="ns-worktree">
             <span className="ns-skip-copy">
               <span className="ns-worktree-label" id={SKIP_ID}>{t(SKIP_PERMISSIONS_MSG)}</span>
               <span className="ns-skip-hint" id={SKIP_HINT_ID}>{t(SKIP_PERMISSIONS_HINT_MSG)}</span>
