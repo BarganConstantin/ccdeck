@@ -22,6 +22,7 @@
 // No React here: types from reactflow, and the same modules App.tsx was calling.
 import { type Edge, type Node } from "reactflow";
 import { canvasSessions } from "./canvas-session";
+import { closeSiblingGaps } from "./close-sibling-gaps";
 import { agentAriaLabel } from "./agent-copy";
 import { autoLayout, bubblePush, fillGapsWithNewSessions, joinSessions, laneSignature, separateOverlaps } from "./layout";
 import { footprint, NODE_W, sessionOfNode } from "./layout-geometry";
@@ -544,6 +545,7 @@ export function snapshotToFlow(
     }
   }
   const missing = nodes.filter(n => needsLayout(n.id, pinned, positions, provisional));
+  let closedUp: string[] = [];
   if (missing.length > 0 || sig !== lastLayoutSigRef.current) {
     if (missing.length > 0) {
       // Laid out afresh — after R, the first flow, or anything else that
@@ -587,6 +589,18 @@ export function snapshotToFlow(
         recordPlacement(n.id, noteSpot(n.id, rootId, root, measured), positions, provisional);
       }
     }
+    // A subagent that has left the board leaves its place in its parent's
+    // column empty, and the siblings under it close up into it — a coordinator
+    // that starts and stops many subagents kept the height of every finished
+    // one between its card and the ones still working. Not while a restored
+    // board is held still (#1333), not on the first flow, which has just laid
+    // every column out whole, and not under a card somebody is dragging.
+    if (!holding && !flowing && !dragging) {
+      closedUp = closeSiblingGaps(
+        nodes, positions, pinned, measured, lanes,
+        id => (isUnplaced(id, positions, provisional) ? undefined : positions.get(id)),
+      );
+    }
     separateOverlaps(nodes, positions, pinned, measured, lanes, holding ? restored : undefined);
     lastLayoutSigRef.current = sig;
   }
@@ -606,7 +620,8 @@ export function snapshotToFlow(
   const bubbled = bubblePush(nodes, positions, pinned, measured, prevSessionSize, !settled || dragging || flowing, lanes);
   // The first flow's moves travel the way a push does, the cards too young for
   // their own easing included.
-  const carried = beforeFlow ? [...new Set([...movedSessions(nodes, beforeFlow, positions), ...bubbled])] : bubbled;
+  const pushed = closedUp.length > 0 ? [...new Set([...bubbled, ...closedUp])] : bubbled;
+  const carried = beforeFlow ? [...new Set([...movedSessions(nodes, beforeFlow, positions), ...pushed])] : pushed;
   if (carried.length > 0) onBubble(carried);
   const liftMoved = placesBeforeLift !== null && placesBeforeLift !== placesKey(nodes, positions);
   if (flowing || carried.length > 0 || liftMoved) flow?.onMoved?.();
