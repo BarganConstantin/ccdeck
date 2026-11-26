@@ -14,7 +14,7 @@
 // through startServer's `terminal` option, beside the backend itself. terminal-target.test.ts and terminal-sessions.test.ts pin those
 // modules; terminal-socket-tmux.test.ts runs the whole path on real tmux.
 import { describe, it, expect, afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { request, type Server } from "node:http";
 import { EventEmitter } from "node:events";
 import { tmpdir } from "node:os";
@@ -931,6 +931,51 @@ describe("POST /api/terminal/codex-updated", () => {
     expect(cross.status).toBeGreaterThanOrEqual(401);
     expect(cross.status).toBeLessThanOrEqual(403);
     expect(codexAsked).toEqual([]);
+  });
+});
+
+describe("POST /api/terminal/image", () => {
+  // A picture pasted into Chat, handed over on Send: the deck keeps it in its
+  // own folder (chat-image.mjs, chat-image.test.ts) and answers the path for
+  // the page to paste into the session, as Term pastes a dropped file's.
+  const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
+  function postBytes(body: Buffer, headers: Record<string, string> = page()): Promise<{ status: number; body: any }> {
+    return new Promise((resolve_, reject) => {
+      const req = request({
+        host: "127.0.0.1", port, path: "/api/terminal/image", method: "POST",
+        headers: { ...headers, "content-type": "image/png", "content-length": String(body.length) },
+      }, res => {
+        let raw = "";
+        res.setEncoding("utf8");
+        res.on("data", c => { raw += c; });
+        res.on("end", () => { let parsed: any = null; try { parsed = JSON.parse(raw); } catch {} resolve_({ status: res.statusCode ?? 0, body: parsed }); });
+      });
+      req.on("error", reject);
+      req.end(body);
+    });
+  }
+
+  it("keeps the picture's own bytes in the deck's folder and answers where, asking tmux nothing", async () => {
+    const got = await postBytes(PNG);
+    expect(got.status).toBe(200);
+    expect(got.body.ok).toBe(true);
+    expect(got.body.path.startsWith(join(process.env.CCDECK_HOME!, "chat-images"))).toBe(true);
+    expect(got.body.path).toMatch(/[0-9a-f]{32}\.png$/);
+    expect(readFileSync(got.body.path).equals(PNG)).toBe(true);
+    expect(launches).toEqual([]);
+    expect(resolved).toEqual([]);
+    expect(lists).toEqual([]);
+  });
+
+  it("refuses bytes that are not a picture with 415, whatever the content type says", async () => {
+    expect(await postBytes(Buffer.from("#!/bin/sh\necho hi\n"))).toEqual({ status: 415, body: { ok: false, code: "not-image" } });
+  });
+
+  it("is a mutation: refused to a caller that presents nothing, or comes from another site", async () => {
+    expect((await postBytes(PNG, { host: `127.0.0.1:${port}` })).status).toBe(401);
+    const cross = await postBytes(PNG, { host: `127.0.0.1:${port}`, origin: "https://example.com", "sec-fetch-site": "cross-site" });
+    expect(cross.status).toBeGreaterThanOrEqual(401);
+    expect(cross.status).toBeLessThanOrEqual(403);
   });
 });
 

@@ -112,6 +112,8 @@ const ROUTES: [string, string, unknown?][] = [
   ["POST", "/api/terminal/folder", { cwd: "/tmp" }],
   // And the pane's question after a Codex exits: did it update itself?
   ["POST", "/api/terminal/codex-updated", { liveForMs: 60_000 }],
+  // A picture pasted into Chat, kept for its path: gone with the switch too.
+  ["POST", "/api/terminal/image", "\x89PNG\r\n\x1a\n"],
   // Stop there and resume here: its check and its stop are gone with the
   // switch too, before anything is looked up or signalled.
   ["POST", "/api/terminal/stop-elsewhere", { session: { sessionId: "0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f", provider: "claude", cwd: "/tmp" }, check: true }],
