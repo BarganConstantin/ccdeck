@@ -75,9 +75,10 @@ export function keepsPressFromProgram(press: LinkPress, { apple, overLink, progr
   return programHasMouse && overLink && isLinkGesture(press, apple);
 }
 
-/** What hovering a link shows: where it goes, and how to follow it. */
+/** What hovering a link shows: where it goes, and how to follow it. The
+ *  Control key goes by its name in the reader's language (Strg in German). */
 export function linkHint(uri: string, { apple }: { apple: boolean }): string {
-  return `${uri}\n${t("board.stage.linkOpen", { key: apple ? "⌘" : "Ctrl" })}`;
+  return `${uri}\n${t("board.stage.linkOpen", { key: apple ? "⌘" : t("board.stage.textKeyCtrl") })}`;
 }
 
 // The presses that have opened a tab, so one press never opens a second.

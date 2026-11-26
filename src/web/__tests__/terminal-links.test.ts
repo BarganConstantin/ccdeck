@@ -3,6 +3,7 @@
 // that has the mouse, and never through a browser dialog.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { isLinkGesture, keepsPressFromProgram, linkHint, linkToOpen, openLink } from "../terminal-links";
+import { resetLanguageForTest, setLanguage } from "../i18n";
 
 const linux = { apple: false };
 const mac = { apple: true };
@@ -124,5 +125,12 @@ describe("the hover hint", () => {
   it("names the address and the gesture for the keyboard in front of the reader", () => {
     expect(linkHint("https://gitlab.example.com/g/p/-/merge_requests/7", linux)).toBe("https://gitlab.example.com/g/p/-/merge_requests/7\nCtrl+click to open the link");
     expect(linkHint("https://example.com/", mac)).toBe("https://example.com/\n⌘+click to open the link");
+  });
+  it("calls the Control key by its name in the reader's language", () => {
+    try {
+      setLanguage("de");
+      expect(linkHint("https://example.com/", linux)).toBe("https://example.com/\nStrg+Klick öffnet den Link");
+      expect(linkHint("https://example.com/", mac)).toBe("https://example.com/\n⌘+Klick öffnet den Link");
+    } finally { setLanguage("en"); resetLanguageForTest(); }
   });
 });
