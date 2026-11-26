@@ -16,7 +16,7 @@ import {
   AgentGlyph, ChevronRightGlyph, DoneGlyph, FileGlyph, ImageGlyph, SearchGlyph, TodoActiveGlyph, TodoPendingGlyph, ToolTerminalGlyph,
 } from "./chat-icons";
 import { t as tNow, useT, type TFunction } from "../../i18n";
-import type { ChatActivity, ChatAsk, ChatOutgoing, ChatQuestion, ChatSince, ChatTodo, ChatTurn as Turn } from "./chat-model";
+import type { ChatActivity, ChatAsk, ChatLive, ChatOutgoing, ChatQuestion, ChatSince, ChatTodo, ChatTurn as Turn } from "./chat-model";
 import type { Provider } from "../../types";
 import ProviderAvatar from "../ProviderAvatar";
 import { providerLabel } from "../../provider-copy";
@@ -114,6 +114,65 @@ export function TurnClock({ since }: { since: number }) {
     return () => clearInterval(timer);
   }, []);
   return <span className="chat-progress-time">{clockShort(Math.max(0, Math.floor((now - since) / 1000)))}</span>;
+}
+
+/** The working mark, on a row of the live kind: it cycles while the work goes on. */
+function LiveMark() {
+  return (
+    <span className="chat-progress-mark" aria-hidden="true">
+      <span className="chat-progress-frames">{[...WORKING_FRAMES].map(frame => <span key={frame}>{frame}</span>)}</span>
+    </span>
+  );
+}
+
+/** What the session still does once its turn is over (live-activity.ts), on a
+ *  row under the turn's "Worked for…": the conversation being compacted, for
+ *  how long, with no progress the agent does not give; and the background
+ *  agents still running, counted, with each one's type, task and time a press
+ *  away and the way to Term, which shows their output. A screen reader hears
+ *  the words when they change, never the clocks. */
+export function LiveLine({ live, onShowTerm }: { live: ChatLive; onShowTerm?: () => void }) {
+  const t = useT();
+  const id = useId();
+  const [open, setOpen] = useState(false);
+  const agents = live.agents ?? [];
+  const compacting = t("board.chat.live.compacting");
+  const waiting = agents.length ? t("board.chat.live.background", { count: agents.length }) : "";
+  const spoken = [live.compacting ? compacting : "", waiting].filter(Boolean).join(". ");
+  return (
+    <div className="chat-live">
+      {live.compacting && (
+        <div className="chat-progress" data-state="working" data-live="compacting">
+          <LiveMark />
+          <span className="chat-progress-text">{compacting}</span>
+          <TurnClock since={live.compacting.since} />
+        </div>
+      )}
+      {agents.length > 0 && (
+        <div className="chat-progress" data-state="working" data-live="background">
+          <LiveMark />
+          <button type="button" className="chat-live-toggle" aria-expanded={open} aria-controls={open ? id : undefined}
+            onClick={() => setOpen(was => !was)}>
+            <span className="chat-progress-text">{waiting}</span>
+            <span className="chat-disclosure" aria-hidden="true"><ChevronRightGlyph /></span>
+          </button>
+          {open && (
+            <ul className="chat-live-agents" id={id}>
+              {agents.map(agent => (
+                <li key={agent.id} className="chat-live-agent">
+                  <span className="chat-live-agent-name">{agent.label}</span>
+                  {agent.task && <span className="chat-live-agent-task" title={agent.task}>{agent.task}</span>}
+                  <TurnClock since={agent.since} />
+                </li>
+              ))}
+              {onShowTerm && <li><button type="button" className="chat-ask-term" onClick={onShowTerm}>{t("board.chat.showTerm")}</button></li>}
+            </ul>
+          )}
+        </div>
+      )}
+      <p className="chat-sr" role="status" aria-live="polite" aria-atomic="true">{spoken}</p>
+    </div>
+  );
 }
 
 /** A slash command you ran, as you typed it ("/model opus"), and what it
