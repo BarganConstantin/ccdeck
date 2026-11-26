@@ -87,8 +87,10 @@ import { askSteps, chatSteps, type AskStep } from "../../ask-keys";
 import { stopSteps } from "../../chat-stop";
 import { pendingFor, useChatProgress, waitsInChat, type ChatFacts, type ChatPending } from "../../chat-progress";
 import { useScreenStatus } from "../../use-screen-status";
+import { useLiveCompaction } from "../../use-live-compaction";
+import { chatLive } from "../../live-activity";
 import { noteFeature, useFeatureUse } from "../../feature-use";
-import type { ChatAsk, ChatTurn } from "../chat/chat-model";
+import type { ChatAsk, ChatLiveAgent, ChatTurn } from "../chat/chat-model";
 import { usePromptDecision } from "../../use-prompt-decision";
 import { rememberedView, rememberView } from "../../chat-view-memory";
 import { useChatPaneLinks } from "../../use-chat-pane-links";
@@ -228,6 +230,9 @@ export interface StageSessionInfo {
   heardAt?: number;
   /** When its last turn began (its last prompt): Chat's working row counts from it. */
   turnStartedAt?: number;
+  /** Its background agents still running once its turn is over (live-activity.ts):
+   *  Chat's live row says them. */
+  background?: readonly ChatLiveAgent[];
   /** What the header's Rename needs (session-rename.ts renameFacts), for a
    *  session the board has; left out, the name is only drawn. */
   rename?: RenameFacts | null;
@@ -914,6 +919,20 @@ export default function TerminalStage(p: TerminalStageProps) {
     delete rest[chatDraftKey];
     return rest;
   }));
+  // What the session still does once its turn is over, on Chat's live row
+  // (live-activity.ts): its background agents, as the board's lifecycle has
+  // them, and a compaction its own screen shows. The screen is read for that
+  // only while the working row's read (above) is off.
+  const compaction = useLiveCompaction({
+    on: chatOn && status.state !== "working" && chatCannotSend === undefined && (chatProvider === "claude" || chatProvider === "codex"),
+    subject: key,
+    readScreen: session.readScreen,
+  });
+  const chatLiveNow = chatLive({
+    agents: p.show.kind === "session" ? p.show.session.background : undefined,
+    compacting: compaction,
+    working: chatProgress.activity?.state === "working",
+  });
   // A message the session did not take goes back into an empty box (use-chat-returned.ts).
   const chatReturned = useChatReturned(chatDraftKey, chatProgress.outgoing, chatDrafts[chatDraftKey] ?? "",
     text => setChatDrafts(drafts => ({ ...drafts, [chatDraftKey]: text })));
@@ -1288,7 +1307,7 @@ export default function TerminalStage(p: TerminalStageProps) {
         onOpenWaiting={openWaiting(p.waiting, p.onOpenWaiting)}
         screens={chatSession !== null ? {
           view, source: chatSource, provider: chatProvider, ask: chatAsk, decision: promptCard,
-          session: chatDraftKey, outgoing: chatReturned.outgoing, activity: chatProgress.activity, onShowTerm: () => showView("term"),
+          session: chatDraftKey, outgoing: chatReturned.outgoing, activity: chatProgress.activity, live: chatLiveNow, onShowTerm: () => showView("term"),
         } : undefined}
       />
       {/* Once, in Chat: alerts when a session needs you (notify-offer.ts). */}

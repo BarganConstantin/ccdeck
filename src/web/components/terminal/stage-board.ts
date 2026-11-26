@@ -27,6 +27,7 @@ import { faceSignal } from "../../node-face";
 import { shortAgo } from "../../relative-time";
 import { sessionHue } from "../../session-hue";
 import { renameFacts } from "../../session-rename";
+import { backgroundAgents } from "../../live-activity";
 import type { StageTarget } from "../../stage-shell";
 import type { AgentNodeData } from "../../types";
 import type { AsksView as RunView } from "../../use-asks";
@@ -85,6 +86,7 @@ export function boardFactsFor(root: AgentNodeData, subagents: readonly AgentNode
     active: root.state === "active",
     tool,
     subagentsLive: subagents.filter(s => s.state === "active").length,
+    background: backgroundAgents(root, subagents).length,
     lastTurnEndAt: root.lastTurnEndAt ?? null,
     // Nothing asked of it yet: a session the deck has just started, waiting
     // for its first prompt. A finished turn is something asked, even one a
@@ -156,6 +158,7 @@ export function stageShowFor(
   }
   const subs = subagentsOf(agents.values(), id);
   const facts = boardFactsFor(root, subs);
+  const background = backgroundAgents(root, subs);
   // The board's provider, opencode and Copilot included: the pane draws their
   // own card for those and asks the engine nothing (use-terminal-session.ts).
   const provider = root.provider ?? "claude";
@@ -181,6 +184,8 @@ export function stageShowFor(
       promptCount: typedPrompts(root.prompts).length,
       // When the turn now running began, as the Sessions list counts it: Chat's working row counts from it.
       turnStartedAt: root.prompts.at(-1)?.at ?? root.startedAt,
+      // Still running once its turn is over: Chat's live row (live-activity.ts).
+      ...(background.length ? { background } : {}),
       // Every event the board hears for the session moves it: Chat asks soon after.
       ...(root.lastEventAt != null ? { heardAt: root.lastEventAt } : {}),
       // While the pane attaches: what the face says the session is doing, or

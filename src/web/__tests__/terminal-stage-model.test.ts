@@ -77,6 +77,15 @@ describe("the header's sentence, from what the board knows", () => {
     expect(stageStatusFrom({ active: true, yourTurn: true, waiting: { since: NOW } }, NOW).phrase, "an alarm outranks it").toBe("waiting");
   });
 
+  it("says how many background agents still run once the turn is over, in place of when it ended", () => {
+    expect(stageStatusFrom({ active: true, yourTurn: true, lastTurnEndAt: NOW - 2 * MIN, background: 1 }, NOW))
+      .toEqual({ state: "idle", phrase: "your turn", arg: "1 background agent running" });
+    expect(stageStatusFrom({ active: false, lastTurnEndAt: NOW - 2 * MIN, background: 3 }, NOW))
+      .toEqual({ state: "idle", phrase: "idle", arg: "3 background agents running" });
+    expect(stageStatusFrom({ active: true, background: 2 }, NOW).state, "a turn at work is working").toBe("working");
+    expect(stageStatusFrom({ active: false, closedAt: NOW - 1000, background: 2 }, NOW).state).toBe("ended");
+  });
+
   it("calls a session that has been asked nothing ready, not working, while it still reads active from its start", () => {
     expect(stageStatusFrom({ active: true, fresh: true }, NOW).phrase).toBe("ready");
     expect(stageStatusFrom({ active: true, fresh: true, tool: { name: "Bash" } }, NOW).phrase, "an open call is work").toBe("working");
