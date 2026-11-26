@@ -969,12 +969,21 @@ function Inner() {
   const viewShortcutRef = useMirroredRef({ available: stage.workspaceOffered, toggle: toggleView });
   // What you have open is what you have seen: the rail's Done · unseen group
   // keeps only turns that ended while nobody was looking (session-seen.ts).
-  useMarkSeen(stateRef, [...selectedIds, stage.enabled && stage.shell.phase !== "closed" ? targetSession(stage.shell.target) : null], stateRef.current.revision);
+  // After a /clear the tab on the stage keeps the id it was opened on while
+  // the pane draws the session its terminal went on as (cleared-session.ts):
+  // that one is on screen, and its turns are seen as they end. The tab's own
+  // session stays watched too: it ended in that same terminal, at the /clear
+  // typed there, not while nobody was looking, and it has no turn to come.
+  const stageTab = stage.enabled && stage.shell.phase !== "closed" ? targetSession(stage.shell.target) : null;
+  const stageDraws = stageTab === null ? null : terminalSessionId(stateRef.current.agents, stageTab);
+  useMarkSeen(stateRef, [...selectedIds, stageTab, stageDraws], stateRef.current.revision);
   // The same sessions, for the rail's row model: they are seen the moment a turn
   // ends under them, not on the effect after, so they never pass through Done · unseen.
-  const watchingSessions = sessionsOf(stateRef.current, [...selectedIds, stage.enabled && stage.shell.phase !== "closed" ? targetSession(stage.shell.target) : null]);
+  const watchingSessions = sessionsOf(stateRef.current, [...selectedIds, stageTab, stageDraws]);
+  // Each pane's number, and the active mark, on the row of the session its
+  // tab draws: after a /clear, the new conversation's, not the ended one's.
   const openPanes = inWorkspace && stage.enabled && stage.shell.phase !== "closed"
-    ? sessionPaneLinks(stage.split, stage.shell.target, stage.arrangement?.order) : undefined;
+    ? sessionPaneLinks(stage.split, stage.shell.target, stage.arrangement?.order, id => terminalSessionId(stateRef.current.agents, id)) : undefined;
   // Finished sessions taking themselves off the board after the delay picked
   // in Settings › General — use-hide-finished.ts. After the stage, whose
   // session is kept as the selected card's is.
