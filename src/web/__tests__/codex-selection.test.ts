@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtemp, mkdir, readFile, readdir, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, realpath, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFile, spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { createServer } from 'node:net';
 import { promisify } from 'node:util';
 import { addCodexProfile, codexProfileId, codexSelectionPath, readCodexSelection, selectCodexProfile } from '../../server/codex-selection.mjs';
 import { configuredCodexHomes, codexProfileLaunchCommand, codexProfileSessionDirs, discoverCodexProfiles, readCodexProfileQuota, resolveCodexProfile } from '../../server/codex-profiles.mjs';
@@ -15,6 +17,22 @@ async function fixture() {
   await mkdir(original); await mkdir(alternate);
   const options = { store, env: { CODEX_HOME: original, CCDECK_CODEX_HOMES: JSON.stringify([alternate]) } };
   return { root, original, alternate, store, options };
+}
+// A separate process takes the registry lock and is killed while holding it.
+async function killOwnerHoldingLock(options: object, id: string) {
+  const moduleUrl = new URL('../../server/codex-selection.mjs', import.meta.url).href;
+  const child = spawn(process.execPath, ['--input-type=module', '-e',
+    `import {selectCodexProfile} from ${JSON.stringify(moduleUrl)};
+     await selectCodexProfile(${JSON.stringify({ id, expectedRevision: 1, operationId: 'killed' })}, {
+       ...${JSON.stringify(options)}, writeFileAtomic: async () => { process.stdout.write('held\\n'); await new Promise(() => {setInterval(() => {}, 1000);}); }
+     });`], { stdio: ['ignore', 'pipe', 'pipe'] });
+  await new Promise<void>((resolve, reject) => {
+    child.stdout.once('data', () => resolve());
+    child.once('error', reject);
+    child.once('exit', () => reject(Error('owner exited before taking the lock')));
+  });
+  const exited = new Promise<void>(resolve => child.once('close', () => resolve()));
+  child.kill('SIGKILL'); await exited;
 }
 
 describe('machine-local Codex selection', () => {
@@ -125,19 +143,7 @@ describe('machine-local Codex selection', () => {
   it('recovers a killed lock owner without losing the last committed selection', async () => {
     const { options, original, alternate, store } = await fixture();
     await selectCodexProfile({ id: await codexProfileId(original), expectedRevision: 0, operationId: 'initial' }, options);
-    const moduleUrl = new URL('../../server/codex-selection.mjs', import.meta.url).href;
-    const child = spawn(process.execPath, ['--input-type=module', '-e',
-      `import {selectCodexProfile} from ${JSON.stringify(moduleUrl)};
-       await selectCodexProfile(${JSON.stringify({ id: await codexProfileId(alternate), expectedRevision: 1, operationId: 'killed' })}, {
-         ...${JSON.stringify(options)}, writeFileAtomic: async () => { process.stdout.write('held\\n'); await new Promise(() => {setInterval(() => {}, 1000);}); }
-       });`], { stdio: ['ignore', 'pipe', 'pipe'] });
-    await new Promise<void>((resolve, reject) => {
-      child.stdout.once('data', () => resolve());
-      child.once('error', reject);
-      child.once('exit', () => reject(Error('owner exited before taking the lock')));
-    });
-    const exited = new Promise<void>(resolve => child.once('close', () => resolve()));
-    child.kill('SIGKILL'); await exited;
+    await killOwnerHoldingLock(options, await codexProfileId(alternate));
     expect((await readCodexSelection(options)).revision).toBe(1);
     // Two reclaimers contend for the same dead owner's lock. Only one can
     // apply revision 1; neither may remove a freshly acquired live lock.
@@ -149,6 +155,28 @@ describe('machine-local Codex selection', () => {
     expect(results.find(r => r.status === 'rejected')).toMatchObject({ reason: { code: 'selection_conflict' } });
     expect((await readCodexSelection(options)).revision).toBe(2);
     expect(await readdir(store)).not.toContain('codex-accounts.lock');
+  });
+
+  // Linux hands out ports 32768-60999 to ordinary connections, which covers
+  // the port the recovery step used to listen on there.
+  it.skipIf(process.platform !== 'linux')('recovers a killed lock owner while an unrelated listener holds the old recovery port', async () => {
+    const { options, original, alternate, store } = await fixture();
+    await selectCodexProfile({ id: await codexProfileId(original), expectedRevision: 0, operationId: 'initial' }, options);
+    await killOwnerHoldingLock(options, await codexProfileId(alternate));
+    const port = 32768 + createHash('sha256').update(await realpath(store)).digest().readUInt16BE(0) % 16384;
+    const unrelated = createServer(socket => socket.destroy());
+    const listening = await new Promise<boolean>(resolve => {
+      unrelated.once('error', () => resolve(false));
+      unrelated.listen({ host: '127.0.0.1', port }, () => resolve(true));
+    });
+    try {
+      const started = Date.now();
+      expect(await selectCodexProfile({ id: await codexProfileId(alternate), expectedRevision: 1, operationId: 'after-crash' }, options)).toMatchObject({ home: alternate, revision: 2 });
+      expect(Date.now() - started).toBeLessThan(2000);
+      expect(await readdir(store)).not.toContain('codex-accounts.lock');
+    } finally {
+      if (listening) await new Promise(resolve => unrelated.close(resolve));
+    }
   });
 
   it('never steals a live owner lock based on old timestamps', async () => {
