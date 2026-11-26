@@ -231,10 +231,12 @@ describe("what is drawn with the flags off", () => {
   // for a supported session.
   // CHANGED ON PURPOSE (the composer takes back a message not taken): the
   // message on its way is drawn unless it is back in the box (use-chat-returned.ts).
+  // CHANGED ON PURPOSE (Chat says what runs after the turn): the stage also
+  // hands the live row, background agents and a compaction (live-activity.ts).
   it("the stage hands Chat only for a supported session with the flag effective, and the Decision card only in Chat", () => {
     const stage = code("components/terminal/TerminalStage.tsx");
     expect(stage).toContain('chatSessionFor(screenFlags.chat, chatRef)');
-    expect(stage).toContain("screens={chatSession !== null ? {\n          view, source: chatSource, provider: chatProvider, ask: chatAsk, decision: promptCard,\n          session: chatDraftKey, outgoing: chatReturned.outgoing, activity: chatProgress.activity, onShowTerm: () => showView(\"term\"),\n        } : undefined}");
+    expect(stage).toContain("screens={chatSession !== null ? {\n          view, source: chatSource, provider: chatProvider, ask: chatAsk, decision: promptCard,\n          session: chatDraftKey, outgoing: chatReturned.outgoing, activity: chatProgress.activity, live: chatLiveNow, onShowTerm: () => showView(\"term\"),\n        } : undefined}");
     expect(stage).toContain("const chatAsk: ChatAsk | undefined = chatSession === null ? undefined : {");
     expect(stage).toContain("view={chatSession !== null ? { current: view, onChange: showView } : undefined}");
     expect(stage).toContain('on: chatOn && chatProvider === "claude" && screenFlags.decision && chatCannotSend === undefined,');
