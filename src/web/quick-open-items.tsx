@@ -19,6 +19,7 @@ import { t } from "./i18n";
 import SettingsSectionGlyph from "./components/SettingsSectionGlyph";
 import { ArrangeGlyph, ClearGlyph, ClockGlyph, FitGlyph, TourGlyph } from "./components/rail-glyphs";
 import { KitIcon } from "./components/kit-icons";
+import { ZEN_EXIT_MSG, ZEN_HINT_MSG, ZEN_TOGGLE_MSG } from "./zen-mode";
 
 /** Words that find a door without being in its name. */
 const DOOR_WORDS: Record<string, readonly string[]> = {
@@ -141,6 +142,9 @@ export interface QuickOpenSources {
   /** N's move, to the session that has waited longest (then the next one).
    *  Absent while nobody waits, when N does nothing either. */
   nextWaiting?: () => void;
+  /** Zen Mode, on or off (zen-mode.ts). Absent where it is not offered:
+   *  anywhere but Workspace with its panes. */
+  zen?: { on: boolean; toggle: () => void };
   /** Starting Claude or Codex in a folder, as the New session popover's Start
    *  does. Absent where the deck has no way to start one (the Command Panel is
    *  off) or no folder to start it in. */
@@ -201,6 +205,13 @@ export function quickOpenItems(src: QuickOpenSources): QuickItem[] {
     items.push({ id: "action:next-waiting", section: "actions", title: t("board.quick.action.nextWaiting"), subtitle: t("board.quick.action.nextWaitingHint"),
       keywords: ["waiting", "needs you", "next", "blocked", "queue"], tag: t("board.quick.tag.action"), verb: t("board.quick.verb.goSession"),
       keyCap: key("n"), glyph: <ClockGlyph />, run: src.nextWaiting });
+  }
+  // Zen Mode, in Workspace: one command both ways. Its line says which way
+  // Enter goes now.
+  if (src.zen) {
+    items.push({ id: "action:zen", section: "actions", title: t(ZEN_TOGGLE_MSG), subtitle: t(src.zen.on ? ZEN_EXIT_MSG : ZEN_HINT_MSG),
+      keywords: ["zen", "focus", "full screen", "fullscreen", "distraction free", "hide panels"], tag: t("board.quick.tag.action"),
+      verb: t("board.quick.verb.run"), glyph: <KitIcon name="zoom" className="glyph" />, run: src.zen.toggle });
   }
   if (!src.phone) {
     items.push(

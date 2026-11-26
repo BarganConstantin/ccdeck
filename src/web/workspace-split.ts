@@ -366,6 +366,19 @@ export function arrange(s: SplitState, box: { w: number; h: number }, min: MinSi
   return { mode: "strip", why, rects: new Map(ids.map(id => [id, below])), dividers: [], order, strip: STRIP_H };
 }
 
+/** The pane whose header reaches the cell's top right corner, where Zen
+ *  Mode's Exit sits (zen-mode.ts): of the panes along the top, the one that
+ *  ends furthest right. Under the strip, the strip has that corner (null). */
+export function cornerPane(a: Pick<Arrangement, "mode" | "rects">): string | null {
+  if (a.mode === "strip") return null;
+  let best: { id: string; top: number; right: number } | null = null;
+  for (const [id, r] of a.rects) {
+    const right = r.x + r.w;
+    if (!best || r.y < best.top || (r.y === best.top && right > best.right)) best = { id, top: r.y, right };
+  }
+  return best?.id ?? null;
+}
+
 /** The ratio a divider moved to `at` (a page coordinate along its direction)
  *  gives, kept off both sides' minimum. */
 export function ratioAt(d: Pick<Divider, "start" | "length" | "minA" | "minB">, at: number): number {

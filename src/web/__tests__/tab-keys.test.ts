@@ -305,6 +305,30 @@ describe("⤢ and ⤡ (useFullStage)", () => {
     expect(s.expanded, "the stage reopens at its own width").toBe(false);
   });
 
+  it("is only the width while the page is held in Zen Mode's full screen, and never leaves it", async () => {
+    const page = stubPage();
+    let expanded = false;
+    let held = true;
+    const toggleExpand = vi.fn(() => { expanded = !expanded; m.rerender({ expanded }); });
+    let fs: ReturnType<typeof useFullStage> | null = null;
+    const Probe = (p: { expanded: boolean }) => { fs = useFullStage(p.expanded, toggleExpand, true, held); return null; };
+    const m = mount(Probe, { expanded });
+    expect(fs!.can, "⤢'s label says the width, not full screen").toBe(false);
+    fs!.toggle();
+    await flush();
+    expect(expanded).toBe(true);
+    expect(page.requestFullscreen).not.toHaveBeenCalled();
+    page.userLeavesFullScreen(); // Zen's full screen ends: not ⤢'s to follow
+    expect(expanded, "the width stays with ⤢").toBe(true);
+    fs!.toggle();
+    expect(expanded).toBe(false);
+    expect(page.exitFullscreen).not.toHaveBeenCalled();
+    // Zen gone: ⤢ is full screen again.
+    held = false;
+    m.rerender({ expanded });
+    expect(fs!.can).toBe(true);
+  });
+
   it("lets go of a full screen that arrives after ⤡ was already pressed", async () => {
     const s = await stage(true);
     s.fs.toggle();
