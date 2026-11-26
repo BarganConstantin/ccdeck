@@ -731,6 +731,8 @@ const catalog: Catalog = {
   "board.stage.paneCloseLabel": "Bereich schließen",
   "board.stage.split.full": "Höchstens vier Bereiche: Die Sitzung wurde als Tab in diesem Bereich geöffnet",
   "board.stage.split.noRoom": "Kein Platz für einen weiteren Bereich: Die Sitzung wurde als Tab in diesem Bereich geöffnet",
+  "board.stage.split.fullTab": "Höchstens vier Bereiche: {name} öffnet sich hier als Tab",
+  "board.stage.split.noRoomTab": "Kein Platz für einen weiteren Bereich: {name} öffnet sich hier als Tab",
   "board.stage.tabs.label": "In diesem Bereich geöffnete Sitzungen",
   "board.stage.tabs.all": "Alle Tabs in diesem Bereich ({count})",
   "board.stage.tabs.close": "{name} schließen",

@@ -751,6 +751,8 @@ const catalog: Catalog = {
   "board.stage.paneCloseLabel": "Închide zona",
   "board.stage.split.full": "Cel mult patru zone: s-a deschis ca filă în această zonă",
   "board.stage.split.noRoom": "Nu mai e loc pentru încă o zonă aici: s-a deschis ca filă în această zonă",
+  "board.stage.split.fullTab": "Cel mult patru zone: {name} se deschide aici ca filă",
+  "board.stage.split.noRoomTab": "Nu mai e loc pentru încă o zonă: {name} se deschide aici ca filă",
   "board.stage.tabs.label": "Sesiunile deschise în această zonă",
   "board.stage.tabs.all": "Toate filele din această zonă ({count})",
   "board.stage.tabs.close": "Închide {name}",

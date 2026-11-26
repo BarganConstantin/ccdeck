@@ -731,6 +731,8 @@ const catalog: Catalog = {
   "board.stage.paneCloseLabel": "Fechar o painel",
   "board.stage.split.full": "No máximo quatro painéis: abriu como aba neste painel",
   "board.stage.split.noRoom": "Não há espaço para outro painel aqui: abriu como aba neste painel",
+  "board.stage.split.fullTab": "No máximo quatro painéis: {name} abre aqui como aba",
+  "board.stage.split.noRoomTab": "Não há espaço para outro painel: {name} abre aqui como aba",
   "board.stage.tabs.label": "Sessões abertas neste painel",
   "board.stage.tabs.all": "Todas as abas deste painel ({count})",
   "board.stage.tabs.close": "Fechar {name}",

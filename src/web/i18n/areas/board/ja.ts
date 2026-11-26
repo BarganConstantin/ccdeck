@@ -731,6 +731,8 @@ const catalog: Catalog = {
   "board.stage.paneCloseLabel": "ペインを閉じる",
   "board.stage.split.full": "ペインは最大4つです。このペインのタブとして開きました",
   "board.stage.split.noRoom": "ここには別のペインを置く余裕がありません。このペインのタブとして開きました",
+  "board.stage.split.fullTab": "ペインは最大4つです。{name} はここにタブとして開きます",
+  "board.stage.split.noRoomTab": "別のペインを置く余裕がありません。{name} はここにタブとして開きます",
   "board.stage.tabs.label": "このペインで開いているセッション",
   "board.stage.tabs.all": "このペインのすべてのタブ ({count})",
   "board.stage.tabs.close": "「{name}」を閉じる",

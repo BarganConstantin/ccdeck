@@ -219,7 +219,7 @@ interface TabView {
 }
 
 /** What a drag over the Workspace would do, and where it lights up. */
-interface DropView { pane: string; zone: DropZone; rect: Rect; label: string; already: boolean }
+interface DropView { pane: string; zone: DropZone; rect: Rect; label: string; already: boolean; move?: boolean }
 
 export function StageDock(p: StageDockProps) {
   const { stage, stateRef, canvasRef } = p;
@@ -488,32 +488,49 @@ export function StageDock(p: StageDockProps) {
   const dropAt = (x: number, y: number): DropView | null => {
     const dragged = currentDrag();
     if (!dragged || !split) return null;
-    // A session already in a pane, in any of its tabs: that tab comes back,
-    // with the keys, whichever pane it is dropped on.
+    const whole: Rect = { x: 0, y: 0, w: inRef.current?.clientWidth ?? 0, h: inRef.current?.clientHeight ?? 0 };
+    const rectOf = (id: string): Rect | undefined => (multi ? arrangement!.rects.get(id) : whole);
+    // The pane under the pointer, among those drawn whole.
+    const over = panes
+      .filter(x2 => !(multi && arrangement!.mode === "strip" && !x2.focused))
+      .map(pane => ({ pane, r: rectOf(pane.id) }))
+      .find((o): o is { pane: typeof panes[number]; r: Rect } => !!o.r && x >= o.r.x && y >= o.r.y && x <= o.r.x + o.r.w && y <= o.r.y + o.r.h);
+    const moveKey = (zone: DropZone) => (zone === "here" ? "board.stage.split.moveSwap" : zone === "top" ? "board.stage.split.moveAbove" : zone === "bottom" ? "board.stage.split.moveBelow" : "board.stage.split.moveBeside");
     if (dragged.kind === "session") {
       const has = panes.find(x2 => x2.tabs.some(tab => tab.target?.kind === "session" && tab.target.id === dragged.id));
       if (has) {
-        const r = multi ? arrangement!.rects.get(has.id) : null;
-        const box = r ?? { x: 0, y: 0, w: inRef.current?.clientWidth ?? 0, h: inRef.current?.clientHeight ?? 0 };
-        return { pane: has.id, zone: "here", rect: box, label: t("board.stage.split.already"), already: true };
+        // INTERNAL #168: a session already open, on a pane's edge, moves
+        // there: out of its pane's tabs into a new pane, or, its pane's only
+        // tab, that pane itself. Anywhere else, or with no room for it, its
+        // tab comes back with the keys, never a second one.
+        if (over && over.pane.show.kind !== "empty") {
+          const edge = zoneAt(over.r, x, y, true);
+          if (edge !== "here" && stage.sessionMove && stage.sessionMove(dragged.id, over.pane.id, edge)) {
+            return { pane: over.pane.id, zone: edge, rect: zoneRect(over.r, edge), label: t(moveKey(edge), { name: dragged.name }), already: false, move: true };
+          }
+        }
+        return { pane: has.id, zone: "here", rect: rectOf(has.id) ?? whole, label: t("board.stage.split.already"), already: true };
       }
     }
-    const shown = panes.filter(x2 => !(multi && arrangement!.mode === "strip" && !x2.focused));
-    for (const pane of shown) {
-      const r = multi ? arrangement!.rects.get(pane.id) : { x: 0, y: 0, w: inRef.current?.clientWidth ?? 0, h: inRef.current?.clientHeight ?? 0 };
-      if (!r || x < r.x || y < r.y || x > r.x + r.w || y > r.y + r.h) continue;
-      if (dragged.kind === "pane" && dragged.id === pane.id) return null;
-      const canSplit = dragged.kind === "pane" || (paneIds(split.root).length < MAX_PANES && pane.show.kind !== "empty");
-      // An edge with no room for another pane of 40 × 8 is the pane's Here:
-      // the session opens there as a tab (use-stage.ts openBeside).
-      const edge = zoneAt(r, x, y, canSplit);
-      const zone = edge !== "here" && dragged.kind === "session" && stage.roomBeside && !stage.roomBeside(pane.id, edge) ? "here" : edge;
-      const key = dragged.kind === "pane"
-        ? (zone === "here" ? "board.stage.split.moveSwap" : zone === "top" ? "board.stage.split.moveAbove" : zone === "bottom" ? "board.stage.split.moveBelow" : "board.stage.split.moveBeside")
-        : (zone === "here" ? "board.stage.split.showHere" : zone === "top" ? "board.stage.split.openAbove" : zone === "bottom" ? "board.stage.split.openBelow" : "board.stage.split.openBeside");
-      return { pane: pane.id, zone, rect: zoneRect(r, zone), label: t(key, { name: dragged.name }), already: false };
+    if (!over) return null;
+    const { pane, r } = over;
+    if (dragged.kind === "pane") {
+      if (dragged.id === pane.id) return null;
+      const zone = zoneAt(r, x, y, true);
+      return { pane: pane.id, zone, rect: zoneRect(r, zone), label: t(moveKey(zone), { name: dragged.name }), already: false };
     }
-    return null;
+    // A session not open yet: an edge opens it in a new pane there. The
+    // middle, or an empty pane, shows it here; an edge with no room for one
+    // more pane (four open, or none of 40 × 8 left) opens it as a tab here,
+    // and says why before the drop (use-stage.ts openBeside).
+    const edge = zoneAt(r, x, y, pane.show.kind !== "empty");
+    if (edge === "here") return { pane: pane.id, zone: "here", rect: r, label: t("board.stage.split.showHere", { name: dragged.name }), already: false };
+    const full = paneIds(split.root).length >= MAX_PANES;
+    if (full || (stage.roomBeside && !stage.roomBeside(pane.id, edge))) {
+      return { pane: pane.id, zone: "here", rect: r, label: t(full ? "board.stage.split.fullTab" : "board.stage.split.noRoomTab", { name: dragged.name }), already: false };
+    }
+    const key = edge === "top" ? "board.stage.split.openAbove" : edge === "bottom" ? "board.stage.split.openBelow" : "board.stage.split.openBeside";
+    return { pane: pane.id, zone: edge, rect: zoneRect(r, edge), label: t(key, { name: dragged.name }), already: false };
   };
   const point = (e: DragEvent<HTMLElement>) => {
     const box = inRef.current?.getBoundingClientRect();
@@ -543,8 +560,11 @@ export function StageDock(p: StageDockProps) {
     setDrop(null);
     endDrag();
     if (!view || !dragged) return;
+    // An open session's move that the panes no longer allow (they changed
+    // under the pointer) brings its tab back instead.
+    if (dragged.kind === "session" && view.move && view.zone !== "here" && stage.moveSessionTo(dragged.id, view.pane, view.zone)) return;
     if (dragged.kind === "pane") stage.movePaneTo(dragged.id, view.pane, view.zone);
-    else if (view.already) stage.dropHere(view.pane, dragged.id);
+    else if (view.already || view.move) stage.dropHere(view.pane, dragged.id);
     else if (view.zone === "here") stage.dropHere(view.pane, dragged.id);
     else stage.openBeside(dragged.id, { at: view.pane, zone: view.zone });
   }

@@ -7,7 +7,7 @@ import {
   MAX_PANES, MAX_TABS, SPLIT_KEY, closeTab, emptyPaneTabs, fits, focusSplit, heldLaunches, insertPane, layoutSplit,
   loadSplit, minExtent, movePane, paneCount, paneIds, paneSessions, paneTabs, paneTarget, paneWith, parseSplit,
   promoteLaunch, pruneSplit, ratioAt, readingOrder, removePane, replaceTab, sameTab, saveSplit, serializeSplit,
-  sessionPaneLinks, setRatio, singleSplit, tabKey, tabWith, withFocusedTarget, zoneAt, zoneRect, type SplitState,
+  sessionPaneLinks, setRatio, singleSplit, splitOutTab, tabKey, tabWith, withFocusedTarget, zoneAt, zoneRect, type SplitState,
 } from "../workspace-split";
 
 const S = (id: string): StageTarget => ({ kind: "session", id });
@@ -445,5 +445,53 @@ describe("a pane holds tabs", () => {
     expect(paneIds(pruned.root)).toEqual(["p0"]);
     expect(pruned.tabs.p0).toEqual([S("s1"), S("s4")]);
     expect(pruned.targets.p0).toEqual(S("s4"));
+  });
+});
+
+describe("an open session dragged onto a pane's edge leaves its tabs for a pane there (internal #168)", () => {
+  /** One pane, two tabs: s1 behind, s2 on show with the keys. */
+  const oneWithTwo = () => withFocusedTarget(withFocusedTarget(singleSplit(), S("s1")), S("s2"));
+
+  it("takes a tab behind out of its pane into a new pane beside: the same tab, never a second one", () => {
+    const out = splitOutTab(oneWithTwo(), "s1", "p0", "right", S("s2"))!;
+    expect(out.from).toBe("p0");
+    expect(out.target).toEqual(S("s1"));
+    expect(paneIds(out.state.root)).toEqual(["p0", out.id]);
+    expect(paneTabs(out.state, "p0", null)).toEqual([S("s2")]);
+    expect(paneTabs(out.state, out.id, null)).toEqual([S("s1")]);
+    expect(paneSessions(out.state, null)).toEqual(["s2", "s1"]);
+  });
+
+  it("takes the tab on show out too: the pane it leaves shows its neighbour", () => {
+    const out = splitOutTab(oneWithTwo(), "s2", "p0", "bottom", S("s2"))!;
+    expect(paneTarget(out.state, "p0", null)).toEqual(S("s1"));
+    expect(paneTabs(out.state, "p0", null)).toEqual([S("s1")]);
+    expect(paneTabs(out.state, out.id, null)).toEqual([S("s2")]);
+    expect(out.state.root).toMatchObject({ kind: "split", dir: "col" });
+  });
+
+  it("writes back what the pane in focus shows before it moves a tab", () => {
+    // The shell shows s3 in p0; the split's own entry still names s2.
+    const out = splitOutTab(oneWithTwo(), "s1", "p0", "left", S("s3"))!;
+    expect(paneTabs(out.state, "p0", null)).toEqual([S("s2"), S("s3")]);
+    expect(paneTarget(out.state, "p0", null)).toEqual(S("s3"));
+  });
+
+  it("goes beside another pane: the pane it left keeps its other tabs", () => {
+    const s = withFocusedTarget(two(), S("s3"));
+    expect(paneTabs(s, "p0", null)).toEqual([S("s1"), S("s3")]);
+    const out = splitOutTab(s, "s1", "p1", "bottom", S("s3"))!;
+    expect(paneIds(out.state.root)).toEqual(["p0", "p1", out.id]);
+    expect(paneTabs(out.state, "p0", null)).toEqual([S("s3")]);
+    expect(paneTabs(out.state, "p1", null)).toEqual([S("s2")]);
+    expect(paneTabs(out.state, out.id, null)).toEqual([S("s1")]);
+  });
+
+  it("is no split for a pane's only tab, a session in no tab, or a fifth pane", () => {
+    expect(splitOutTab(two(), "s2", "p0", "right", S("s1")), "its pane's only tab: that pane moves instead").toBeNull();
+    expect(splitOutTab(oneWithTwo(), "s9", "p0", "right", S("s2"))).toBeNull();
+    const g = withFocusedTarget(grid(), S("s5"));
+    expect(paneTabs(g, "p0", null)).toEqual([S("s1"), S("s5")]);
+    expect(splitOutTab(g, "s1", "p1", "right", S("s5"))).toBeNull();
   });
 });
