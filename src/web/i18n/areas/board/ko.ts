@@ -731,6 +731,8 @@ const catalog: Catalog = {
   "board.stage.paneCloseLabel": "창 닫기",
   "board.stage.split.full": "창은 최대 4개입니다. 이 창의 탭으로 열었습니다",
   "board.stage.split.noRoom": "여기에는 창을 더 둘 공간이 없습니다. 이 창의 탭으로 열었습니다",
+  "board.stage.split.fullTab": "창은 최대 4개입니다. {name}은(는) 여기에 탭으로 열립니다",
+  "board.stage.split.noRoomTab": "창을 더 둘 공간이 없습니다. {name}은(는) 여기에 탭으로 열립니다",
   "board.stage.tabs.label": "이 창에 열린 세션",
   "board.stage.tabs.all": "이 창의 모든 탭 ({count})",
   "board.stage.tabs.close": "{name} 닫기",

@@ -1,4 +1,10 @@
 {
+  "4.4.2": [
+    {
+      "title": "🧩 Drag an open session onto a pane's edge to give it its own pane",
+      "body": "A session you clicked open stays as a tab in its pane. Drag it from the session list onto the edge of a pane and it now moves there: its tab leaves into a new pane on that side, or its whole pane moves when it was the only tab. The terminal or chat is the same one, nothing starts twice. That way you can lay out up to four terminals or chats side by side by dragging. Dropped in the middle of a pane, it brings its tab forward as before. When the stage already has four panes, or that edge has no room, the drop now says the session opens as a tab here, instead of drawing a split that did not happen."
+    }
+  ],
   "4.4.1": [
     {
       "title": "🛑 Stop Claude in the other terminal and continue it here",
@@ -566,6 +572,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.4.2": "Drag an open session onto a pane's edge to give it its own pane",
     "4.4.1": "Stop Claude in another terminal and continue it here, and Search shows the two Shift taps",
     "4.4.0": "Chat goes live: the work behind each answer, a terminal-like reply box, answer keys, and alerts you can answer",
     "4.3.16": "Close a Workspace tab from the × that shows when you hover it",

@@ -70,9 +70,14 @@ import { t } from "./i18n";
 import { refuseSave, setSettingsFailure } from "./settings-failure";
 import {
   MIN_PANE_COLS, MIN_PANE_ROWS, adjacentPane, arrange, closeTab as closeTabIn, emptyPaneTabs, fits, focusSplit, heldLaunches, insertPane, loadSplit,
-  movePane, paneCount, paneIds, paneTabs, paneTarget, paneWith, promoteLaunch, removePane, replaceTab, sameTab, saveSplit, setRatio, singleSplit, tabWith,
-  withFocusedTarget, type Arrangement, type DropZone, type EdgeZone, type SplitState,
+  movePane, paneCount, paneIds, paneTabs, paneTarget, paneWith, promoteLaunch, removePane, replaceTab, sameTab, saveSplit, setRatio, singleSplit, splitOutTab,
+  tabWith, withFocusedTarget, type Arrangement, type DropZone, type EdgeZone, type SplitState,
 } from "./workspace-split";
+
+/** An open session's drop on a pane's edge, worked out before it is made. */
+type SessionMove =
+  | { kind: "pane"; state: SplitState; id: string }
+  | { kind: "tab"; state: SplitState; id: string; target: StageTarget };
 import { readView, workspaceOffered, writeView, type View } from "./use-view";
 
 /** The lazy chunk's one door: the navigator, the stage and everything they
@@ -741,6 +746,52 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     setSplit(movePane(splitRef.current, id, to, zone));
   }, [splitRef, setSplit]);
 
+  /** What a session already open does when it is dragged from the list onto
+   *  pane `at`'s edge (internal #168). It leaves its pane's tabs for a new pane
+   *  there ("tab"), or, as its pane's only tab, that pane moves there ("pane",
+   *  the same terminal). Null when it cannot: four panes, no room for one more
+   *  of 40 × 8, or its own single pane. The drop then only brings its tab back. */
+  const planSessionMove = useCallback((sessionId: string, at: string, zone: EdgeZone): SessionMove | null => {
+    if (!enabledRef.current || !workspaceRef.current) return null;
+    sessionId = terminalSessionId(stateRef.current.agents, sessionId);
+    const s = splitRef.current;
+    const shown = shellRef.current.phase !== "closed" ? shellRef.current.target : null;
+    const has = tabWith(s, sessionId, shown);
+    if (!has || !paneIds(s.root).includes(at)) return null;
+    const room = boxRef.current;
+    const roomy = (next: SplitState) => !room || fits(next.root, room, paneMinRef.current);
+    if (paneTabs(s, has.pane, shown).length < 2) {
+      if (has.pane === at) return null;
+      const moved = movePane(s, has.pane, at, zone);
+      return moved !== s && roomy(moved) ? { kind: "pane", state: moved, id: has.pane } : null;
+    }
+    const out = splitOutTab(s, sessionId, at, zone, shown);
+    return out && roomy(out.state) ? { kind: "tab", state: out.state, id: out.id, target: out.target } : null;
+  }, [enabledRef, workspaceRef, stateRef, splitRef, shellRef, boxRef, paneMinRef]);
+
+  /** The drop the pane's overlay names before it is made: "tab", "pane" or null. */
+  const sessionMove = useCallback((sessionId: string, at: string, zone: EdgeZone): SessionMove["kind"] | null =>
+    planSessionMove(sessionId, at, zone)?.kind ?? null, [planSessionMove]);
+
+  /** The drop itself, with the keys to the session where it lands. False when
+   *  the panes changed under the pointer and it no longer can. */
+  const moveSessionTo = useCallback((sessionId: string, at: string, zone: EdgeZone): boolean => {
+    const plan = planSessionMove(sessionId, at, zone);
+    if (!plan) return false;
+    if (plan.kind === "pane") {
+      setSplit(plan.state);
+      focusPaneId(plan.id, { keys: true });
+      return true;
+    }
+    // Zoom folds the list the session came from: the split gives it back.
+    setExpanded(false);
+    // The pane it left keeps what it shows now; the shell's target goes with the session.
+    setSplit(focusSplit(plan.state, plan.id, null));
+    openOn(plan.target, { focusPane: true });
+    if (plan.target.kind === "session") follow(plan.target.id);
+    return true;
+  }, [planSessionMove, setSplit, focusPaneId, openOn, follow]);
+
   /** A divider moved, or double-clicked back to halves. */
   const setSplitRatio = useCallback((path: string, ratio: number) => {
     setSplit(setRatio(splitRef.current, path, ratio));
@@ -1389,7 +1440,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     focusPane, release, takeTypeAhead, holdsTypeAhead, close, closed, failed, giveRightBack, reveal, revealed, announce,
     openPopover, newSessionFrom, closePopover, onCols, onColsReset, toggleExpand, unzoom, firstRunDone, onCell, onBarH, onHeadH,
     split, arrangement, paneMin, geometryFor, requestFor, focusPaneId, focusPaneAt, focusPaneDirection, openBeside, dropHere, movePaneTo, closePane,
-    activateTab, closeTab, roomBeside, setSplitRatio, toggleMax, showAll, splitNote: splitNote?.text ?? null,
+    activateTab, closeTab, roomBeside, sessionMove, moveSessionTo, setSplitRatio, toggleMax, showAll, splitNote: splitNote?.text ?? null,
   };
 }
 

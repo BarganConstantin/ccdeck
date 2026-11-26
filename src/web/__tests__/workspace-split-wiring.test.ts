@@ -110,7 +110,13 @@ describe("where the list and the panes are wired", () => {
     expect(shell).toContain('if (dragged.kind === "pane") stage.movePaneTo(dragged.id, view.pane, view.zone);');
     // CHANGED ON PURPOSE (pane tabs): already in a pane, in any tab, that tab
     // comes back (dropHere finds it, never a second one).
-    expect(shell).toContain("else if (view.already) stage.dropHere(view.pane, dragged.id);");
+    expect(shell).toContain("else if (view.already || view.move) stage.dropHere(view.pane, dragged.id);");
+    // INTERNAL #168: on a pane's edge, an open session moves there (out of its
+    // tabs, or its lone pane), as the overlay said; else its tab comes back.
+    expect(shell).toContain('if (edge !== "here" && stage.sessionMove && stage.sessionMove(dragged.id, over.pane.id, edge)) {');
+    expect(shell).toContain('if (dragged.kind === "session" && view.move && view.zone !== "here" && stage.moveSessionTo(dragged.id, view.pane, view.zone)) return;');
+    // With no room for another pane, the overlay says the session opens as a tab.
+    expect(shell).toContain('label: t(full ? "board.stage.split.fullTab" : "board.stage.split.noRoomTab", { name: dragged.name })');
     expect(shell).toContain('const has = panes.find(x2 => x2.tabs.some(tab => tab.target?.kind === "session" && tab.target.id === dragged.id));');
     expect(shell).toContain('else if (view.zone === "here") stage.dropHere(view.pane, dragged.id);');
     expect(shell).toContain("else stage.openBeside(dragged.id, { at: view.pane, zone: view.zone });");
@@ -189,7 +195,7 @@ describe("the sheet", () => {
 });
 
 describe("the words, in every language", () => {
-  const KEYS = ["full", "noRoom", "maximize", "restore", "strip", "divider", "showAll", "narrow", "narrowHint", "already", "showHere", "openBeside", "openAbove", "openBelow", "moveSwap", "moveBeside", "moveAbove", "moveBelow"]
+  const KEYS = ["full", "noRoom", "fullTab", "noRoomTab", "maximize", "restore", "strip", "divider", "showAll", "narrow", "narrowHint", "already", "showHere", "openBeside", "openAbove", "openBelow", "moveSwap", "moveBeside", "moveAbove", "moveBelow"]
     .map(k => `board.stage.split.${k}`)
     .concat(["board.stage.tabs.label", "board.stage.tabs.all", "board.keys.firstWorkspaceTab"]);
   const langs: Record<string, Record<string, string>> = { ro, de, fr, es, "pt-BR": ptBR, ja, ko, "zh-CN": zhCN, "zh-TW": zhTW };
