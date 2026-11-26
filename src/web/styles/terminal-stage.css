@@ -210,7 +210,7 @@ button.btn.ts-end-act {
   transition: transform var(--dur-fast) var(--ease);
 }
 .ts-act-fold[aria-expanded="true"] .ts-act-chevron { transform: rotate(90deg); }
-.ap-menu-item.ap-menu-note.ts-act-detail { padding-left: 30px; font-variant-numeric: tabular-nums; }
+.ap-menu-item.ap-menu-note.ts-act-detail { padding-left: 32px; font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) {
   .ts-act-chevron { transition: none; }
 }
