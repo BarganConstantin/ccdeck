@@ -1,4 +1,14 @@
 {
+  "4.4.5": [
+    {
+      "title": "🧲 A coordinator's subagents close up beside it on the Board",
+      "body": "When a session starts many subagents one after another and some of them finish, the ones still working now move up beside the session's card, into the room the finished ones left, with the Board's usual motion. Before, they stayed at the foot of a tall empty column, far from the card they belong to. A card you dragged stays where you put it, and nothing moves into another session's place."
+    },
+    {
+      "title": "🏷️ A subagent's report no longer titles its session's card",
+      "body": "When a subagent working in the background reports back, Claude Code hands the report to the session that started it the way a typed message arrives. The session's card, its note and the session list showed it as raw markup, such as `<agent-message from=\"…\">`. They now keep showing what you last asked, and the prompt count counts only what you typed. Messages from teammates and from other sessions are read the same way."
+    }
+  ],
   "4.4.4": [
     {
       "title": "🧘 Zen Mode: the Workspace panes alone, over the whole window",
@@ -616,6 +626,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.4.5": "Subagents close up beside their coordinator, and a subagent's report no longer titles its session's card",
     "4.4.4": "Zen Mode, session actions in Chat's ⋯ menu, Chat and Term together after /clear, and Skip permission checks",
     "4.4.3": "Paste screenshots into Chat, see background agents and older messages there, and Ctrl+click links in Term",
     "4.4.2": "Drag an open session onto a pane's edge to give it its own pane",
