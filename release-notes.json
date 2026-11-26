@@ -18,7 +18,7 @@
     },
     {
       "title": "🔔 Answer a waiting session from its alert",
-      "body": "When a session you are not looking at starts waiting on you, a small card shows in the corner with its choices: **Allow once** or **Deny** for a permission prompt, the options of a short question, or **Open in Chat**. Up to three show at once, with the rest in the waiting queue. Browser notifications get **Allow once** and **Open in Chat** buttons where the browser allows it, and in the desktop app a click on a notification or a tray row opens that session in Chat. Every answer is checked against what the session is asking before it is sent."
+      "body": "When a session you are not looking at starts waiting on you, a small card shows beside its row in the Sessions list, or in the corner when the list is folded, with its choices: **Allow once** or **Deny** for a permission prompt, the options of a short question, or **Open in Chat**. Up to three show at once, with the rest in the waiting queue. Browser notifications get **Allow once** and **Open in Chat** buttons where the browser allows it, and in the desktop app a click on a notification or a tray row opens that session in Chat. Every answer is checked against what the session is asking before it is sent."
     },
     {
       "title": "🔀 Each session keeps Chat or Term, and a key turns the pane",
