@@ -1967,6 +1967,75 @@ describe("Workspace: a pane holds tabs", () => {
     expect(t.now().stage.splitNote).toBe(en["board.stage.split.noRoom"]);
   });
 
+  // INTERNAL #168: since a click keeps a session as a tab, a drag of it onto
+  // an edge only ever brought its tab back: four panes could not be made.
+  it("takes an open session dragged onto a pane's edge out of its tabs into a new pane there, with the keys", () => {
+    const t = inWorkspace();
+    t.now().stage.openInPane("s2", { focusPane: true });
+    expect(tabs(t)).toEqual([["s1", "s2"]]);
+    const [only] = panes(t);
+    // s1, a tab behind s2: the overlay names the move, the drop makes it.
+    expect(t.now().stage.sessionMove("s1", only!, "right")).toBe("tab");
+    expect(t.now().stage.moveSessionTo("s1", only!, "right")).toBe(true);
+    expect(tabs(t)).toEqual([["s2"], ["s1"]]);
+    expect(t.now().stage.split.focused, "the keys go with it").toBe(panes(t)[1]);
+    expect(t.now().stage.shell.target).toEqual(S("s1"));
+    // The tab on show, dragged out: the pane it leaves shows its neighbour.
+    t.now().stage.openInPane("s3", { focusPane: true });
+    expect(tabs(t)).toEqual([["s2"], ["s1", "s3"]]);
+    const [left] = panes(t);
+    expect(t.now().stage.moveSessionTo("s3", left!, "bottom")).toBe(true);
+    expect(tabs(t)).toEqual([["s2"], ["s3"], ["s1"]]);
+    expect(shows(t)).toEqual(["s2", "s3", "s1"]);
+    expect(t.now().stage.shell.target).toEqual(S("s3"));
+    // And a fourth: every session in one tab, none twice, none ended.
+    t.now().stage.openInPane("s4", { focusPane: true });
+    expect(t.now().stage.moveSessionTo("s4", panes(t)[2]!, "bottom")).toBe(true);
+    expect(panes(t)).toHaveLength(4);
+    expect(tabs(t).flat().sort()).toEqual(["s1", "s2", "s3", "s4"]);
+    for (const id of ["s1", "s2", "s3", "s4"]) expect(t.agents.has(id)).toBe(true);
+  });
+
+  it("moves the whole pane, the same terminal, when the session dragged is its pane's only tab", () => {
+    const t = twoColumns();
+    const [left, right] = panes(t);
+    expect(t.now().stage.sessionMove("s1", right!, "bottom")).toBe("pane");
+    expect(t.now().stage.moveSessionTo("s1", right!, "bottom")).toBe(true);
+    expect(panes(t), "the same pane ids, so the same terminals").toEqual([right, left]);
+    expect(shows(t)).toEqual(["s2", "s1"]);
+    expect(t.now().stage.split.focused).toBe(left);
+    expect(t.now().stage.shell.target).toEqual(S("s1"));
+  });
+
+  it("only brings the tab back when the open session cannot move: its own lone pane, four panes, no room", () => {
+    const t = twoColumns();
+    const [left] = panes(t);
+    expect(t.now().stage.sessionMove("s1", left!, "right"), "its own lone pane").toBeNull();
+    expect(t.now().stage.moveSessionTo("s1", left!, "right")).toBe(false);
+    expect(tabs(t)).toEqual([["s1"], ["s2"]]);
+    for (const id of ["s3", "s4"]) t.now().stage.openBeside(id);
+    t.now().stage.openInPane("s5", { focusPane: true });
+    expect(panes(t)).toHaveLength(4);
+    const before = tabs(t);
+    expect(t.now().stage.sessionMove("s5", left!, "right"), "a fifth pane").toBeNull();
+    expect(t.now().stage.moveSessionTo("s5", left!, "right")).toBe(false);
+    expect(tabs(t)).toEqual(before);
+  });
+
+  it("with no room for another pane, an open session dragged onto an edge stays in its tab", () => {
+    const t = setup({ view: "workspace", agents: six, selected: "s1" });
+    const min = t.now().stage.paneMin;
+    page.canvas.clientWidth = page.canvas.box.w = 2 * min.w;
+    page.canvas.clientHeight = page.canvas.box.h = 2 * min.h;
+    t.turnOn();
+    t.now().stage.switchTo("s1", { focusPane: true });
+    t.now().stage.openInPane("s2", { focusPane: true });
+    const at = t.now().stage.split.focused;
+    expect(t.now().stage.sessionMove("s1", at, "right"), "no room for a pane of 40 × 8").toBeNull();
+    expect(t.now().stage.moveSessionTo("s1", at, "right")).toBe(false);
+    expect(tabs(t)).toEqual([["s1", "s2"]]);
+  });
+
   it("keeps the tabs through a reload, the pane in focus on what it showed", () => {
     const first = twoColumns();
     first.now().stage.openInPane("s3", { focusPane: true });

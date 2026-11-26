@@ -731,6 +731,8 @@ const catalog: Catalog = {
   "board.stage.paneCloseLabel": "Cerrar el panel",
   "board.stage.split.full": "Cuatro paneles como máximo: se abrió como pestaña en este panel",
   "board.stage.split.noRoom": "No hay sitio para otro panel aquí: se abrió como pestaña en este panel",
+  "board.stage.split.fullTab": "Cuatro paneles como máximo: {name} se abre aquí como pestaña",
+  "board.stage.split.noRoomTab": "No hay sitio para otro panel: {name} se abre aquí como pestaña",
   "board.stage.tabs.label": "Sesiones abiertas en este panel",
   "board.stage.tabs.all": "Todas las pestañas de este panel ({count})",
   "board.stage.tabs.close": "Cerrar {name}",

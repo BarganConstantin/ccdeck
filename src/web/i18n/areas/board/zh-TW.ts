@@ -731,6 +731,8 @@ const catalog: Catalog = {
   "board.stage.paneCloseLabel": "關閉窗格",
   "board.stage.split.full": "最多四個窗格：已作為分頁在此窗格中開啟",
   "board.stage.split.noRoom": "這裡沒有空間再放一個窗格：已作為分頁在此窗格中開啟",
+  "board.stage.split.fullTab": "最多四個窗格：{name} 將作為分頁在此開啟",
+  "board.stage.split.noRoomTab": "沒有空間再放一個窗格：{name} 將作為分頁在此開啟",
   "board.stage.tabs.label": "此窗格中開啟的工作階段",
   "board.stage.tabs.all": "此窗格中的所有分頁（{count}）",
   "board.stage.tabs.close": "關閉「{name}」",

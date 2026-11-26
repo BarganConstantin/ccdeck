@@ -468,6 +468,22 @@ export function movePane(s: SplitState, id: string, to: string, zone: DropZone):
   return { ...s, root: replaceLeaf(without, to, leaf => cut(leaf, zone, { kind: "leaf", id })), max: null };
 }
 
+/** A session's tab dragged from the list onto a pane's edge (internal #168):
+ *  its pane keeps its other tabs, and a new pane beside `at` holds it, the
+ *  same tab, never a second one. What the pane in focus shows is written
+ *  back first, so the result needs no shell target. Null when the session is
+ *  in no tab, is its pane's only tab (that pane moves instead: movePane), or
+ *  four panes are open. */
+export function splitOutTab(s: SplitState, sessionId: string, at: string, zone: EdgeZone, focusedTarget: StageTarget | null): { state: SplitState; id: string; from: string; target: StageTarget } | null {
+  const base = focusedTarget ? withFocusedTarget(s, focusedTarget) : s;
+  const has = tabWith(base, sessionId, null);
+  if (!has) return null;
+  const left = closeTab(base, has.pane, has.target, null);
+  if (!left) return null;
+  const added = insertPane(left.state, at, zone, has.target);
+  return added ? { state: added.state, id: added.id, from: has.pane, target: has.target } : null;
+}
+
 function setAt(node: SplitNode, path: string, f: (n: Extract<SplitNode, { kind: "split" }>) => SplitNode): SplitNode {
   if (node.kind === "leaf") return node;
   if (!path) return f(node);

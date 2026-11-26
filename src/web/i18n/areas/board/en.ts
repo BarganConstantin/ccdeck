@@ -731,6 +731,8 @@ const catalog: Catalog = {
   "board.stage.paneCloseLabel": "Close the pane",
   "board.stage.split.full": "Four panes at most: it opened as a tab in this pane",
   "board.stage.split.noRoom": "No room for another pane here: it opened as a tab in this pane",
+  "board.stage.split.fullTab": "Four panes at most: {name} opens as a tab here",
+  "board.stage.split.noRoomTab": "No room for another pane: {name} opens as a tab here",
   "board.stage.tabs.label": "Sessions open in this pane",
   "board.stage.tabs.all": "All tabs in this pane ({count})",
   "board.stage.tabs.close": "Close {name}",

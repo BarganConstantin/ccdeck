@@ -731,6 +731,8 @@ const catalog: Catalog = {
   "board.stage.paneCloseLabel": "Fermer le volet",
   "board.stage.split.full": "Quatre volets au plus : la session s'est ouverte dans un onglet de ce volet",
   "board.stage.split.noRoom": "Pas de place pour un autre volet ici : la session s'est ouverte dans un onglet de ce volet",
+  "board.stage.split.fullTab": "Quatre volets au plus : {name} s'ouvre ici dans un onglet",
+  "board.stage.split.noRoomTab": "Pas de place pour un autre volet : {name} s'ouvre ici dans un onglet",
   "board.stage.tabs.label": "Sessions ouvertes dans ce volet",
   "board.stage.tabs.all": "Tous les onglets de ce volet ({count})",
   "board.stage.tabs.close": "Fermer {name}",
