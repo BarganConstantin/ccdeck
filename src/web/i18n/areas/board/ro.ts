@@ -585,6 +585,7 @@ const catalog: Catalog = {
   "board.stage.copied": "Copiat",
   "board.stage.copyCommand": "Copiază comanda",
   "board.stage.copy": "Copiază",
+  "board.stage.linkOpen": "{key}+clic pentru a deschide linkul",
   "board.stage.waitingOnYou": "{name} te așteaptă",
   "board.stage.open": "Deschide {name}",
   "board.stage.emptyBoard": "Apasă o sesiune de pe tablă ca să o urmărești aici sau pornește una nouă.",

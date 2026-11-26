@@ -565,6 +565,7 @@ const catalog: Catalog = {
   "board.stage.copied": "已复制",
   "board.stage.copyCommand": "复制命令",
   "board.stage.copy": "复制",
+  "board.stage.linkOpen": "{key}+单击以打开链接",
   "board.stage.waitingOnYou": "{name} 正在等您",
   "board.stage.open": "打开 {name}",
   "board.stage.emptyBoard": "点击看板上的会话即可在这里查看，或新建一个。",

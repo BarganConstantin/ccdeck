@@ -565,6 +565,7 @@ const catalog: Catalog = {
   "board.stage.copied": "복사됨",
   "board.stage.copyCommand": "명령어 복사",
   "board.stage.copy": "복사",
+  "board.stage.linkOpen": "{key}+클릭하여 링크 열기",
   "board.stage.waitingOnYou": "{name}이(가) 사용자를 기다리고 있습니다",
   "board.stage.open": "{name} 열기",
   "board.stage.emptyBoard": "보드에서 세션을 클릭하면 여기서 볼 수 있습니다. 새 세션을 시작할 수도 있습니다.",

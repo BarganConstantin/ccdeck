@@ -565,6 +565,7 @@ const catalog: Catalog = {
   "board.stage.copied": "Kopiert",
   "board.stage.copyCommand": "Befehl kopieren",
   "board.stage.copy": "Kopieren",
+  "board.stage.linkOpen": "{key}+Klick öffnet den Link",
   "board.stage.waitingOnYou": "{name} wartet auf dich",
   "board.stage.open": "{name} öffnen",
   "board.stage.emptyBoard": "Klicke auf dem Canvas auf eine Sitzung, um sie hier zu beobachten, oder starte eine neue.",
