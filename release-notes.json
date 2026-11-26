@@ -1,4 +1,14 @@
 {
+  "4.4.1": [
+    {
+      "title": "🛑 Stop Claude in the other terminal and continue it here",
+      "body": "When a Claude session is still open in another terminal, its card now leads with **Stop there and resume here**. Press it and the card asks you to confirm: it names the session and says what is lost there, such as the turn in progress, a question waiting for you, or words typed and not sent. Confirm, and ccdeck asks that Claude to exit, as `/exit` would, then continues the same conversation here, in the same folder and with the same account. ccdeck stops only the one Claude that holds this session and never closes the terminal app. When it cannot tell which Claude that is, the card says why, and **Resume here after exit** works as before. Not offered on Windows."
+    },
+    {
+      "title": "🔍 The Search field shows the two Shift taps",
+      "body": "The Search field in the top bar now shows **Shift ×2** instead of Ctrl+K or ⌘K, because two quick taps on Shift open Quick Open from everywhere, a terminal included, where the chord goes to the session. Ctrl+K and ⌘K still work where they did: the field's hover hint names them, and the keyboard shortcuts sheet lists both ways in."
+    }
+  ],
   "4.4.0": [
     {
       "title": "💬 Chat shows the work behind each answer",
@@ -556,6 +566,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.4.1": "Stop Claude in another terminal and continue it here, and Search shows the two Shift taps",
     "4.4.0": "Chat goes live: the work behind each answer, a terminal-like reply box, answer keys, and alerts you can answer",
     "4.3.16": "Close a Workspace tab from the × that shows when you hover it",
     "4.3.15": "Workspace tabs you can close from their list, Resume here after exit, and Codex starting after a deleted folder",
