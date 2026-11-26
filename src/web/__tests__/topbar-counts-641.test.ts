@@ -12,7 +12,7 @@
 // and again from 900, where Search widens to 200, to 960 in Portuguese.
 //
 // Now the counts give first, whole and from their end: done, then working,
-// never the waiting pill. From 641 to 679 the name goes too while the chip is
+// never the waiting pill. From 641 to 689 the name goes too while the chip is
 // drawn. What is pinned here is both rules, where they hold, and the
 // arithmetic that says the bar holds the mark, the name where it is drawn and
 // the widest two-digit count beside the widest end group measured in the ten
@@ -38,9 +38,10 @@ const CHIP_WORDS_PX = 80;
 /** Board | Workspace at its widest, in Japanese, measured 196.0 (169.8 in
  *  English). Drawn only while the Command Panel is on; the budget assumes it. */
 const VIEW_SWITCH_PX = 196;
-/** Search under 900px: its glyph and the chord's Kbd ("Ctrl+K"), measured 85.8.
- *  From 900 the sheet declares its width. */
-const SEARCH_COMPACT_PX = 86;
+/** Search under 900px: its glyph and its Kbd ("Shift ×2", the two Shift taps),
+ *  measured 99.0; with the chord's "Ctrl+K" it was 85.8. From 900 the sheet
+ *  declares its width. */
+const SEARCH_COMPACT_PX = 99;
 
 const bar = el("header", ["topbar"]);
 const readout = el("div", ["readout"]);
@@ -159,12 +160,15 @@ describe("the counts from 641 to 1023px", () => {
   });
 });
 
-describe("the name from 641 to 679px while the version chip is drawn", () => {
-  it("goes in the same rule as under 390, and nowhere from 680 up", () => {
+describe("the name from 641 to 689px while the version chip is drawn", () => {
+  // CHANGED ON PURPOSE (two Shift taps in the field): the band ran to 679;
+  // Search under 900 is 13 wider with "Shift ×2" in place of "Ctrl+K", and the
+  // arithmetic below now needs the name gone to 689.
+  it("goes in the same rule as under 390, and nowhere from 690 up", () => {
     expect(nameRules).toHaveLength(1);
     const [rule] = nameRules;
-    for (const w of [641, 660, 679]) expect(mediaApplies(rule.media, w), `at ${w}px`).toBe(true);
-    for (const w of [680, 700, 760, 900, 1023, 1024, 1440]) expect(mediaApplies(rule.media, w), `at ${w}px`).toBe(false);
+    for (const w of [641, 660, 679, 689]) expect(mediaApplies(rule.media, w), `at ${w}px`).toBe(true);
+    for (const w of [690, 700, 760, 900, 1023, 1024, 1440]) expect(mediaApplies(rule.media, w), `at ${w}px`).toBe(false);
   });
 
   it("holds the mark, the name where it is drawn and the widest count whole at every width from 641 to 1023", () => {

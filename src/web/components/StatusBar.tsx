@@ -20,6 +20,7 @@ import { useBoardEmpty } from "../board-empty";
 import { isCanvasNodeElement } from "../canvas-node-element";
 import { useLearnedKeys } from "../key-learning";
 import { platformName } from "../platform";
+import { SHIFT_TAPS_CAP } from "../quick-open";
 import { withKey } from "../single-key-shortcuts";
 import { statusViewFor, unlearnedView, type StatusHint } from "../status-hints";
 import { PANE_NAME_ATTR, paneFocusChordLabel, paneNameOf, TERMINAL_PANEL_SELECTOR } from "../terminal-keys";
@@ -133,7 +134,7 @@ export default memo(function StatusBar({ stageOpen, zoomedOut, splitPanes = fals
         )}
       </div>
       {pane != null && <span className="statusbar-hint" title={t("board.keys.shiftCommandsTip")}>
-        <Kbd>Shift ×2</Kbd>
+        <Kbd>{SHIFT_TAPS_CAP}</Kbd>
         {t("board.keys.shiftCommands")}
       </span>}
       {splitPanes && pane != null && <span className="statusbar-hint">

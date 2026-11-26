@@ -404,6 +404,12 @@ export function quickOpenAnswers({ dialogOpen, inPopover }: { dialogOpen: boolea
  *  tap's release to the second's press. */
 export const SHIFT_TAP_MS = 350;
 
+/** The two taps as a key cap, the same on every platform and in every place
+ *  that names them: the Keys sheet, the status bar in a pane, and Search's
+ *  field in the top bar, which shows them rather than the chord because they
+ *  open it from everywhere the chord does and from the terminal too. */
+export const SHIFT_TAPS_CAP = "Shift ×2";
+
 /** What the counter reads off a keydown. Structural, so a test can hand it a
  *  plain object. */
 export interface ShiftTapKey {

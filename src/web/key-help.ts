@@ -31,6 +31,7 @@
 // against, not a pretty spelling, because the test that keeps this table
 // complete has to compare like with like.
 import type { IntegrationKind } from "./integrations/types";
+import { SHIFT_TAPS_CAP } from "./quick-open";
 import { isCharacterKey } from "./single-key-shortcuts";
 import { t } from "./i18n";
 import { CHAT_VIEW_CAP, CHAT_VIEW_MAC_CAP, PANE_FOCUS_CAP, paneFocusMacCap } from "./terminal-keys";
@@ -176,7 +177,7 @@ export const KEY_HELP: readonly KeyHelpGroup[] = [
       // Its other way in, from anywhere the chord answers and from the
       // terminal too: Shift tapped twice on its own (quick-open.ts,
       // shiftTaps). No letter, so it stays with the single keys off.
-      { cap: "Shift ×2", get action() { return t("settings.key.quickShift"); }, binds: ["Shift"], chord: true },
+      { cap: SHIFT_TAPS_CAP, get action() { return t("settings.key.quickShift"); }, binds: ["Shift"], chord: true },
       { cap: "U", get action() { return t("settings.key.usage"); }, binds: ["u", "U"] },
       { cap: "S", get action() { return t("settings.key.sessions"); }, binds: ["s", "S"] },
       // The list's own key (internal #101), on the row that has focus, in
@@ -240,7 +241,7 @@ export const TERMINAL_GROUP: KeyHelpGroup = {
   id: "terminal",
   get title() { return t("settings.key.group.terminal"); },
   rows: [
-    { cap: "Shift ×2", get action() { return t("board.keys.shiftCommandsTip"); }, binds: ["Shift"], chord: true },
+    { cap: SHIFT_TAPS_CAP, get action() { return t("board.keys.shiftCommandsTip"); }, binds: ["Shift"], chord: true },
     { cap: "Esc", get action() { return t("settings.key.paneEsc"); }, binds: ["Escape"] },
     { cap: "Ctrl + Shift + X", macCap: "⌃ ⇧ X", get action() { return t("settings.key.release"); }, binds: ["x", "X"], chord: true },
     { cap: "Ctrl + =", macCap: "⌘ =", get action() { return t("settings.key.textLarger"); }, binds: ["=", "+"], chord: true },

@@ -92,13 +92,17 @@ export interface RailItem {
    *  the way into it (rail-items.tsx). */
   group?: string;
   /** How the top bar draws this door where it is not a word button: a field
-   *  holding `fieldText` and the chord (Search), or a bare 28x28 icon button
+   *  holding `fieldText` and a key cap (Search), or a bare 28x28 icon button
    *  (Feedback, V4's Figma). Looks only, on the same button with the same name
    *  and the same hint; the stripes and the dock ignore it. */
   barLook?: "field" | "icon";
   /** The sentence a field shows, and so its name (WCAG 2.5.3, label in name)
    *  and its hint's. */
   fieldText?: string;
+  /** The cap at a field's end, where it is not the door's own key: Search
+   *  shows its two Shift taps there, and its hint and aria-keyshortcuts keep
+   *  the chord, so the field and its hover name both ways in. */
+  fieldKey?: string;
 }
 
 /** The key a control may name right now: its own, unless it is a single
@@ -250,7 +254,7 @@ function RailButton({ item: given, index, tabbable, onFocusIndex, hint, variant,
       {item.glyph}
       {fieldText != null ? <>
         <span className="rail-field-text">{fieldText}</span>
-        {item.key && <Kbd>{item.key.cap}</Kbd>}
+        {(item.fieldKey ?? item.key?.cap) && <Kbd>{item.fieldKey ?? item.key!.cap}</Kbd>}
       </> : stripeWord != null ? <span className="rail-word">{stripeWord}</span>
         : variant !== "stripe" && !iconOnly && <span className="rail-word">{variant === "dock" ? item.short : item.label}</span>}
       {item.badge != null && item.badge > 0 && <span className="rail-badge" aria-hidden>{item.badge}</span>}
