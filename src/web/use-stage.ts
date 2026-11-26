@@ -413,7 +413,8 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     if (target.kind === "session") {
       const s = splitRef.current;
       const shown = workspaceRef.current && shellRef.current.phase !== "closed" ? shellRef.current.target : null;
-      const found = tabWith(s, target.id, shown);
+      const agents = stateRef.current.agents;
+      const found = tabWith(s, target.id, shown, undefined, id => terminalSessionId(agents, id));
       if (found) {
         if (found.pane !== s.focused) setSplit(focusSplit(s, found.pane, shown));
         target = found.target;
@@ -672,7 +673,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     if (!workspaceRef.current) { openOn({ kind: "session", id: sessionId }, { focusPane: true }); follow(sessionId); return; }
     const s = splitRef.current;
     const shown = shellRef.current.phase !== "closed" ? shellRef.current.target : null;
-    if (paneWith(s, sessionId, shown)) { openOn({ kind: "session", id: sessionId }, { focusPane: true }); follow(sessionId); return; }
+    if (paneWith(s, sessionId, shown, undefined, id => terminalSessionId(stateRef.current.agents, id))) { openOn({ kind: "session", id: sessionId }, { focusPane: true }); follow(sessionId); return; }
     const at = opts.at ?? s.focused;
     if (paneTarget(s, at, shown).kind === "empty") {
       if (at !== s.focused) setSplit(focusSplit(s, at, shown));
@@ -709,7 +710,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     sessionId = terminalSessionId(stateRef.current.agents, sessionId);
     let s = splitRef.current;
     const shown = shellRef.current.phase !== "closed" ? shellRef.current.target : null;
-    if (!paneWith(s, sessionId, shown)) {
+    if (!paneWith(s, sessionId, shown, undefined, id => terminalSessionId(stateRef.current.agents, id))) {
       if (paneId !== s.focused) s = focusSplit(s, paneId, shown);
       if (how?.replace) s = replaceTab(s, paneId, how.replace, { kind: "session", id: sessionId });
       setSplit(s);
@@ -756,7 +757,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     sessionId = terminalSessionId(stateRef.current.agents, sessionId);
     const s = splitRef.current;
     const shown = shellRef.current.phase !== "closed" ? shellRef.current.target : null;
-    const has = tabWith(s, sessionId, shown);
+    const has = tabWith(s, sessionId, shown, undefined, id => terminalSessionId(stateRef.current.agents, id));
     if (!has || !paneIds(s.root).includes(at)) return null;
     const room = boxRef.current;
     const roomy = (next: SplitState) => !room || fits(next.root, room, paneMinRef.current);
@@ -765,7 +766,8 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
       const moved = movePane(s, has.pane, at, zone);
       return moved !== s && roomy(moved) ? { kind: "pane", state: moved, id: has.pane } : null;
     }
-    const out = splitOutTab(s, sessionId, at, zone, shown);
+    // The tab as kept: a /clear's tab keeps the id it was opened on.
+    const out = splitOutTab(s, has.target.kind === "session" ? has.target.id : sessionId, at, zone, shown);
     return out && roomy(out.state) ? { kind: "tab", state: out.state, id: out.id, target: out.target } : null;
   }, [enabledRef, workspaceRef, stateRef, splitRef, shellRef, boxRef, paneMinRef]);
 

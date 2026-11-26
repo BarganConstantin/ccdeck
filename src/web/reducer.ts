@@ -27,7 +27,7 @@ import { initialState, rootAgentId, subagentIdFor, type GraphState } from "./gra
 import { explicitSubagentKey, noteKeyedSubagent, resolveOwner } from "./agent-attribution";
 import { adoptParkedEnrichment, parkEnrichment } from "./parked-enrichment";
 import { adoptPanelLaunch } from "./panel-launch";
-import { applySessionStart, applyTurnEnd, applyUserPromptSubmit, clearStopFailure, noteSessionHeard } from "./session-lifecycle";
+import { applySessionEndReason, applySessionStart, applyTurnEnd, applyUserPromptSubmit, clearStopFailure, noteSessionHeard } from "./session-lifecycle";
 import { stopFailureOf } from "../server/stop-failure.mjs";
 import { payloadProvider } from "../server/provider-ids.mjs";
 import { applySubagentStart, applySubagentStop } from "./subagent-lifecycle";
@@ -223,7 +223,10 @@ export function applyEvent(state: GraphState, env: HookEnvelope): GraphState {
     // records why (stop-failure.mjs), a Stop that the turn finished.
     case "Stop":
     case "StopFailure": applyTurnEnd(state, name, sessionId, now, { stopFailure: stopFailureOf(p, now) }); break;
-    case "SessionEnd": applyTurnEnd(state, name, sessionId, now); break;
+    case "SessionEnd":
+      applyTurnEnd(state, name, sessionId, now);
+      applySessionEndReason(state, p, sessionId, now);
+      break;
     case "Notification": applyNotification(state, p, sessionId, now); break;
   }
 

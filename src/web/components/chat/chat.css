@@ -228,6 +228,10 @@
 .chat-live-agent { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .chat-live-agent-name { flex: none; font-weight: 500; color: var(--text-secondary); }
 .chat-live-agent-task { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+/* The choices of a menu only Term shows: words to read, numbered as Term
+   numbers them, each cut to its line; they are picked in Term. */
+.chat-live-choices { flex: 1 0 100%; min-width: 0; margin: 0; padding: 0 0 0 22px; list-style: decimal inside; color: var(--muted); }
+.chat-live-choices > li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .chat-error { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--bg-soft); font-size: calc(12px + var(--ui-text-increase, 0px)); line-height: 1.5; color: var(--text); }
 .chat-error > span { min-width: 0; overflow-wrap: anywhere; }

@@ -25,6 +25,12 @@
 // The line comes and goes between frames, so it ends only after
 // COMPACTION_MISSES reads in a row without it, or at once when the spinner
 // says something else. Done, failed or cancelled, the line goes.
+//
+// A CHOICE ONLY TERM SHOWS IS THE SCREEN'S TOO. A selection menu the agent
+// draws itself, which no card in Chat asks (screen-status.ts screenMenu), is
+// said on the row with its choices as words, and answered in Term. It holds
+// through a frame without it and ends after MENU_MISSES reads in a row
+// without it, as the compaction does.
 import type { ChatLive, ChatLiveAgent } from "./components/chat/chat-model";
 import { saysCompacting, type ScreenSpinner } from "./screen-status";
 import type { AgentNodeData } from "./types";
@@ -72,19 +78,49 @@ export function compactionAfter(prev: CompactionSeen | null, spinner: ScreenSpin
   return missed >= COMPACTION_MISSES ? null : { since: prev.since, missed };
 }
 
+/** How many reads in a row without the menu end it. */
+export const MENU_MISSES = 2;
+
+/** A menu seen on the screen: its choices, and how many reads have missed it since. */
+export interface MenuSeen {
+  options: readonly string[];
+  missed: number;
+}
+
+const sameOptions = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((o, i) => o === b[i]);
+
+/**
+ * The menu after one read of the screen: `options` are the choices it found
+ * (null for none, or no screen to read). The same object when nothing moved,
+ * so a read that changes nothing redraws nothing; another menu is new at once.
+ */
+export function menuAfter(prev: MenuSeen | null, options: readonly string[] | null): MenuSeen | null {
+  if (options) {
+    if (prev && sameOptions(prev.options, options)) return prev.missed ? { options: prev.options, missed: 0 } : prev;
+    return { options, missed: 0 };
+  }
+  if (!prev) return null;
+  const missed = prev.missed + 1;
+  return missed >= MENU_MISSES ? null : { options: prev.options, missed };
+}
+
 /** What Chat's live row says, or undefined when there is nothing. Nothing
  *  while Chat's working row is drawn: it speaks for the turn, and already
- *  says "Compacting conversation…" when the screen does. */
-export function chatLive(o: { agents?: readonly ChatLiveAgent[]; compacting?: { since: number } | null; working: boolean }): ChatLive | undefined {
+ *  says "Compacting conversation…" when the screen does. A menu is the
+ *  stage's to hand in only when no card in Chat asks the question. */
+export function chatLive(o: {
+  agents?: readonly ChatLiveAgent[]; compacting?: { since: number } | null; menu?: readonly string[] | null; working: boolean;
+}): ChatLive | undefined {
   if (o.working) return undefined;
   const live: ChatLive = {};
+  if (o.menu?.length) live.menu = { options: o.menu };
   if (o.compacting) live.compacting = { since: o.compacting.since };
   if (o.agents?.length) live.agents = o.agents;
-  return live.compacting || live.agents ? live : undefined;
+  return live.menu || live.compacting || live.agents ? live : undefined;
 }
 
 /** What identifies the live row as drawn: what it says, not its clocks. */
 export function liveKey(live: ChatLive | undefined): string {
   if (!live) return "";
-  return `${live.compacting ? "c" : ""}|${live.agents?.map(a => a.id).join(",") ?? ""}`;
+  return `${live.compacting ? "c" : ""}|${live.agents?.map(a => a.id).join(",") ?? ""}|${live.menu?.options.join("\n") ?? ""}`;
 }
