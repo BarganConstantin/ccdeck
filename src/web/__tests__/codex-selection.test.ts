@@ -158,14 +158,17 @@ describe('machine-local Codex selection', () => {
   });
 
   // Linux hands out ports 32768-60999 to ordinary connections, which covers
-  // the port the recovery step used to listen on there.
-  it.skipIf(process.platform !== 'linux')('recovers a killed lock owner while an unrelated listener holds the old recovery port', async () => {
+  // the port the recovery step used to listen on there; on Linux an unrelated
+  // listener holds it. macOS and Windows hand out 49152-65535, so the recovery
+  // step still listens on that port there, and the case asserts the recovery
+  // alone, as on every leg.
+  it('recovers a killed lock owner while an unrelated listener holds the old recovery port', async () => {
     const { options, original, alternate, store } = await fixture();
     await selectCodexProfile({ id: await codexProfileId(original), expectedRevision: 0, operationId: 'initial' }, options);
     await killOwnerHoldingLock(options, await codexProfileId(alternate));
     const port = 32768 + createHash('sha256').update(await realpath(store)).digest().readUInt16BE(0) % 16384;
     const unrelated = createServer(socket => socket.destroy());
-    const listening = await new Promise<boolean>(resolve => {
+    const listening = process.platform === 'linux' && await new Promise<boolean>(resolve => {
       unrelated.once('error', () => resolve(false));
       unrelated.listen({ host: '127.0.0.1', port }, () => resolve(true));
     });
