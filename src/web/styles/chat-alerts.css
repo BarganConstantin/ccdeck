@@ -6,7 +6,9 @@
    only. A card is --panel with the --warn edge the Decision card waits in,
    and answers with the deck's own buttons. Arrives in --dur-base (opacity,
    6px down, --enter-scale), leaves in --dur-exit; under reduced motion both
-   are fades. */
+   are fades. Beside its Needs you row (data-anchored, the place in --ca-left,
+   --ca-top and --ca-width) the stack opens toward the right, its row's card points at
+   the row from --ca-notch down, and a card arrives 6px from the left. */
 
 .ca-stack {
   position: fixed;
@@ -51,6 +53,35 @@
   animation: ca-leave var(--dur-exit) var(--ease) forwards;
 }
 @keyframes ca-arrive { from { opacity: 0; transform: translateY(-6px) scale(var(--enter-scale)); } }
+
+/* Beside the row: the same stack, read from its left edge. It follows the row
+   when the list sorts or scrolls. */
+.ca-stack[data-anchored] {
+  top: var(--ca-top);
+  left: var(--ca-left);
+  right: auto;
+  width: var(--ca-width);
+  align-items: flex-start;
+  transition: top var(--dur-base) var(--ease);
+}
+.ca-stack[data-anchored] .ca-card { position: relative; transform-origin: left center; }
+.ca-stack[data-anchored] .ca-card:not([data-leaving]) { animation: ca-arrive-side var(--dur-base) var(--ease); }
+/* The point toward the row: a square turned on its corner, the card's own
+   --panel and --warn edge, half of it under the card's border. */
+.ca-stack[data-notch] .ca-card[data-anchor]::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: calc(var(--ca-notch) - 5px);
+  width: 9px;
+  height: 9px;
+  background: var(--panel);
+  border-left: 1px solid var(--warn);
+  border-bottom: 1px solid var(--warn);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+@keyframes ca-arrive-side { from { opacity: 0; transform: translateX(-6px) scale(var(--enter-scale)); } }
 @keyframes ca-leave { to { opacity: 0; transform: scale(var(--exit-scale)); } }
 
 .ca-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -107,6 +138,8 @@ button.btn.ca-offer-on { --ctl-h: 24px; padding: 0 8px; font-size: calc(12px + v
 @media (prefers-reduced-motion: reduce) {
   .ca-card { animation: ca-fade-in var(--dur-base) var(--ease); }
   .ca-card[data-leaving] { animation: ca-fade-out var(--dur-exit) var(--ease) forwards; }
+  .ca-stack[data-anchored] { transition: none; }
+  .ca-stack[data-anchored] .ca-card:not([data-leaving]) { animation: ca-fade-in var(--dur-base) var(--ease); }
   .ca-offer { animation: ca-fade-in var(--dur-base) var(--ease); }
 }
 @keyframes ca-fade-in { from { opacity: 0; } }

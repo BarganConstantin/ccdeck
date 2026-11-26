@@ -150,24 +150,32 @@ export function cutAt(blocks: ConversationBlock[], at: number | undefined): Conv
 /** The stage's way to answer a question, steady from one render to the next.
  *  The stage makes it anew each time it draws (each key typed in the composer),
  *  and the block that holds a waiting question would be drawn again with it;
- *  each call goes to the newest one the stage handed over. */
-function useSteadyAsk(ask: ChatAsk | undefined): ChatAsk | undefined {
+ *  each call goes to the newest one the stage handed over. Every field the
+ *  stage sets is carried: a field left out here never reaches the card (an
+ *  alert's press once stopped at this line, and its answer went nowhere). */
+export function useSteadyAsk(ask: ChatAsk | undefined): ChatAsk | undefined {
   const newest = useRef(ask);
   newest.current = ask;
   const has = ask !== undefined;
   const blocked = ask?.blocked;
+  const gone = ask?.gone === true;
   const chat = ask?.chat !== undefined;
   const term = ask?.onShowTerm !== undefined;
+  // A press is a new object for each answer chosen on an alert, the same one
+  // from draw to draw until the next: the card runs it once, by its id.
+  const press = ask?.press;
   return useMemo(() => {
     if (!has) return undefined;
     const steady: ChatAsk = {
       send: (questions, picks) => newest.current ? newest.current.send(questions, picks) : Promise.resolve("unavailable"),
     };
     if (blocked !== undefined) steady.blocked = blocked;
+    if (gone) steady.gone = true;
     if (chat) steady.chat = questions => newest.current?.chat ? newest.current.chat(questions) : Promise.resolve("unavailable");
     if (term) steady.onShowTerm = () => newest.current?.onShowTerm?.();
+    if (press) steady.press = press;
     return steady;
-  }, [has, blocked, chat, term]);
+  }, [has, blocked, gone, chat, term, press]);
 }
 
 /** What identifies the last turn: its kind and what it says, and a tool row's,

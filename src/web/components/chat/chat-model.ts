@@ -177,8 +177,11 @@ export interface ChatQuestion {
 
 /** How Chat answers a waiting question: the stage's, handed down to the card. */
 export interface ChatAsk {
-  /** Why an answer cannot go from here right now; none when it can. */
+  /** Why an answer cannot go from here right now; none when it can. The card
+   *  says it beside its own Send, with Show Term. */
   blocked?: string;
+  /** The session is over: a question it left open waits for nobody now. */
+  gone?: boolean;
   /** Sends the picks as the keys a person would press, once Term shows the question. */
   send(questions: ChatQuestion[], picks: AskPick[]): Promise<AskSendResult>;
   /** Picks the prompt's "Chat about this" the same way: its keys, once Term
