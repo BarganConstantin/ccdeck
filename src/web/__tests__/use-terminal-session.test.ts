@@ -2148,8 +2148,17 @@ describe("keys, paste and the pane's size", () => {
     expect(mount).toContain("new UnicodeGraphemesAddon()");
     expect(mount, "Unicode 11 widths split 👍🏽 and 👨‍👩‍👧 where tmux and Claude Code do not").not.toMatch(/Unicode11Addon|activeVersion = "11"/);
     expect(mount).toMatch(/leaveRepliesToTmux\(term\.parser\)/);
-    expect(mount).toMatch(/linkHandler: \{ activate: follow, allowNonHttpProtocols: false \}/);
-    expect(mount).toContain("new WebLinksAddon(follow)");
+    expect(mount).toMatch(/linkHandler: \{ activate: follow, hover, leave, allowNonHttpProtocols: false \}/);
+    expect(mount).toContain("new WebLinksAddon(follow, { hover, leave, urlRegex: URL_IN_OUTPUT })");
+    // A link opens here whether or not the program has the mouse; the press
+    // on one is kept from the program, on the screen, where xterm's link
+    // detection has already seen it, so it never reaches xterm's report.
+    expect(mount).toMatch(/const follow = \(e: MouseEvent, uri: string\) => \{ openLink\(e, uri, \{ apple \}\); \};/);
+    expect(mount).toMatch(/screenElement = term\.element\?\.querySelector<HTMLElement>\("\.xterm-screen"\)/);
+    expect(mount).toMatch(/if \(!keepsPressFromProgram\(e, \{ apple, overLink: overLink !== null, programHasMouse: programHasMouse\(\) \}\)\) return;\s*e\.preventDefault\(\);\s*e\.stopPropagation\(\);\s*term\.focus\(\);/);
+    expect(mount).toContain('screenElement?.addEventListener("mousedown", onLinkPress);');
+    expect(mount).toContain('screenElement?.removeEventListener("mousedown", onLinkPress);');
+    expect(mount.indexOf('screenElement?.addEventListener("mousedown", onLinkPress);'), "after xterm's own listeners are in place").toBeGreaterThan(mount.indexOf("term.open(host);"));
     expect(mount).toContain("macOptionClickForcesSelection: true");
     expect(mount).toMatch(/term\.scrollToBottom\(\);\s*events\.onPaste\(text\)/);
     expect(mount).toMatch(/replies\.dispose\(\)/);
