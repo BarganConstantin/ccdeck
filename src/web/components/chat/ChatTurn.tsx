@@ -25,6 +25,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { answerable, MAX_ASK_TEXT, offersChat, picksComplete, type AskPick } from "../../ask-keys";
 import type { AskSendResult } from "../../use-terminal-session";
 import { copyText } from "../../copy-text";
+import { replyText } from "../../chat-actions";
 import { CopyGlyph } from "../terminal/stage-icons";
 import { CODEX_TOOL_LABEL } from "../../tool-taxonomy";
 import DiffBlock, { DiffCounts } from "./ChatDiff";
@@ -64,7 +65,8 @@ export function OutgoingMessage({ outgoing, provider, onShowTerm }: { outgoing: 
   return (
     <div className="chat-you" data-outgoing={outgoing.state}>
       <span className="chat-author">{t("board.chat.you")}</span>
-      <p className="chat-you-text">{outgoing.text.replace(/\r\n?/g, "\n")}</p>
+      {(outgoing.text || !outgoing.images) && <p className="chat-you-text">{outgoing.text.replace(/\r\n?/g, "\n")}</p>}
+      {outgoing.images ? <span className="chat-you-images"><span className="chat-you-images-mark"><ImageGlyph /></span>{t("board.chat.images", { count: outgoing.images })}</span> : null}
       {outgoing.state !== "taken" && (
         <p className="chat-you-state">
           <span>{late ? t("board.chat.progress.unconfirmed", { agent: providerLabel(provider) })
@@ -125,21 +127,35 @@ function LiveMark() {
 }
 
 /** What the session still does once its turn is over (live-activity.ts), on a
- *  row under the turn's "Worked for…": the conversation being compacted, for
- *  how long, with no progress the agent does not give; and the background
- *  agents still running, counted, with each one's type, task and time a press
- *  away and the way to Term, which shows their output. A screen reader hears
- *  the words when they change, never the clocks. */
-export function LiveLine({ live, onShowTerm }: { live: ChatLive; onShowTerm?: () => void }) {
+ *  row under the turn's "Worked for…": a choice the agent waits on in Term
+ *  that Chat cannot show as a card, its choices as plain words (they are
+ *  picked in Term, not here) and the way there; the conversation being
+ *  compacted, for how long, with no progress the agent does not give; and the
+ *  background agents still running, counted, with each one's type, task and
+ *  time a press away and the way to Term, which shows their output. A screen
+ *  reader hears the words when they change, never the clocks. */
+export function LiveLine({ live, provider, onShowTerm }: { live: ChatLive; provider?: Provider; onShowTerm?: () => void }) {
   const t = useT();
   const id = useId();
   const [open, setOpen] = useState(false);
   const agents = live.agents ?? [];
+  const choices = live.menu?.options ?? [];
+  const menu = choices.length ? t("board.chat.live.menu", { agent: providerLabel(provider) }) : "";
   const compacting = t("board.chat.live.compacting");
   const waiting = agents.length ? t("board.chat.live.background", { count: agents.length }) : "";
-  const spoken = [live.compacting ? compacting : "", waiting].filter(Boolean).join(". ");
+  const spoken = [menu ? `${menu}: ${choices.join(", ")}` : "", live.compacting ? compacting : "", waiting].filter(Boolean).join(". ");
   return (
     <div className="chat-live">
+      {menu && (
+        <div className="chat-progress" data-state="waiting" data-live="menu">
+          <LiveMark />
+          <span className="chat-progress-text">{menu}</span>
+          {onShowTerm && <button type="button" className="chat-ask-term" onClick={onShowTerm}>{t("board.chat.showTerm")}</button>}
+          <ol className="chat-live-choices">
+            {choices.map((choice, i) => <li key={i} title={choice}>{choice}</li>)}
+          </ol>
+        </div>
+      )}
       {live.compacting && (
         <div className="chat-progress" data-state="working" data-live="compacting">
           <LiveMark />
@@ -366,7 +382,8 @@ export function AssistantBlock({ turns, provider = "claude", ask, todoAt, time }
   const author = providerLabel(provider);
   const t = useT();
   const [copied, setCopied] = useState(false);
-  const answer = turns.filter((turn): turn is Extract<Turn, { kind: "assistant" }> => turn.kind === "assistant").map(turn => turn.text).join("\n\n");
+  // What the ⋯'s Copy last reply takes too (chat-actions.ts).
+  const answer = replyText(turns);
   useEffect(() => setCopied(false), [answer]);
   // Tool calls run together into one disclosure, and an earlier task list
   // joins them where its TodoWrite call sat. A run with no call in it is drawn

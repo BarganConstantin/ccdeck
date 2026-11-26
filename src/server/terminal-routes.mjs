@@ -13,6 +13,7 @@
 //   POST /api/terminal/hosts/end  end the sessions on one older host, as reviewed
 //   POST /api/terminal/folder     can an agent start in this folder? (the deck answers)
 //   POST /api/terminal/codex-updated  did the Codex that just ended update itself? (the deck answers)
+//   POST /api/terminal/image      keep a picture pasted into Chat, for its path (the deck answers)
 //
 // And the engine's own install, which the page offers where the engine is not
 // here (engine-install.mjs), under the same switch and the same gates:
@@ -82,6 +83,7 @@ import { heldPrefs } from "./prefs-state.mjs";
 import { engineRefusal } from "./pro-engine-terminal.mjs";
 import { isAuthorizedMutation } from "./request-gates.mjs";
 import { checkFolder } from "./terminal-folder.mjs";
+import { CHAT_IMAGE_MAX_BYTES, saveChatImage } from "./chat-image.mjs";
 import { codexReplaced, liveForOf } from "./codex-update.mjs";
 import { discoverProjects } from "./project-discovery.mjs";
 import { STOP_PLATFORMS, STOP_TOKEN, checkStop, stopHolder } from "./stop-elsewhere.mjs";
@@ -524,6 +526,29 @@ export async function handleTerminalCodexUpdated(req, res, options) {
   if (liveForMs === null) return send(res, 400, { ok: false, code: "bad-request" });
   const updated = await (d.codexReplaced ?? codexReplaced)(liveForMs);
   return send(res, 200, { ok: true, updated: updated === true });
+}
+
+/** POST /api/terminal/image, a picture's bytes as the body → `{ ok: true,
+ *  path }`: where the deck kept it (chat-image.mjs), for Chat to paste that
+ *  path into the session as Term pastes a dropped file's. A body that is not a
+ *  PNG, a JPEG, a GIF or a WebP is 415 `not-image`, one over the cap 413
+ *  `too-large`, and a folder the deck could not write 500 `failed`. Answered
+ *  here, by the deck, behind the folder check's switch and gates: a deck with
+ *  no engine has no pane to paste into, and says so in the same bytes. */
+export async function handleTerminalImage(req, res, options) {
+  const d = terminalDeps(options);
+  if (!d.enabled()) return notFound(res);
+  let bytes;
+  try { bytes = await readBytes(req, res, CHAT_IMAGE_MAX_BYTES, { ok: false, code: "too-large" }); } catch { return; } // answered 413 already
+  if (!d.enabled()) return notFound(res);
+  if (!d.jsBackend && d.engine?.enabled !== true) {
+    const { status, body } = engineRefusal("not-installed");
+    return send(res, status, body);
+  }
+  const saved = await (d.saveChatImage ?? saveChatImage)(bytes);
+  if (saved?.ok === true && typeof saved.path === "string") return send(res, 200, { ok: true, path: saved.path });
+  const code = saved?.code === "not-image" || saved?.code === "too-large" ? saved.code : "failed";
+  return send(res, code === "not-image" ? 415 : code === "too-large" ? 413 : 500, { ok: false, code });
 }
 
 /** GET /api/terminal/engine → `{ ok: true, engine }`: the engine's install

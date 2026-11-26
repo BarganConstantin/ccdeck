@@ -76,6 +76,9 @@ export const CODEX_UPDATED_ROUTE = "/api/terminal/codex-updated";
  *  terminal outside the deck (stop-elsewhere.mjs). The deck answers it
  *  itself, from this machine only, behind the same switch and gates. */
 export const STOP_ELSEWHERE_ROUTE = "/api/terminal/stop-elsewhere";
+/** A picture pasted into Chat, kept by the deck for its path (chat-image.mjs).
+ *  The deck answers it itself, behind the same switch and gates. */
+export const CHAT_IMAGE_ROUTE = "/api/terminal/image";
 
 export interface ProjectWorktree { projectCwd: string; projectName: string; branch?: string }
 export interface DiscoveredProject { cwd: string; name: string; worktree?: ProjectWorktree }
@@ -577,6 +580,23 @@ export async function codexUpdated(liveForMs: number, options: ApiOptions = {}):
     return isObject(body) && body.ok === true && body.updated === true;
   } catch {
     return false;
+  }
+}
+
+/** Hand the deck a picture pasted into Chat, on Send: the path it kept it at,
+ *  for the session to be pointed at, or null when it did not keep it. The
+ *  bytes go as the body, the picture's own; the deck reads what they are from
+ *  them. Never throws. */
+export async function saveChatImage(image: Blob, options: ApiOptions = {}): Promise<string | null> {
+  const fetchFn = options.fetchFn ?? ((input: string, req?: RequestInit) => fetch(input, req));
+  try {
+    const init: RequestInit = { method: "POST", headers: { "Content-Type": image.type || "application/octet-stream" }, body: image };
+    const res = await fetchFn(CHAT_IMAGE_ROUTE, options.signal ? { ...init, signal: options.signal } : init);
+    if (!res.ok) return null;
+    const body: unknown = await res.json().catch(() => null);
+    return isObject(body) && body.ok === true && typeof body.path === "string" && body.path ? body.path : null;
+  } catch {
+    return null;
   }
 }
 

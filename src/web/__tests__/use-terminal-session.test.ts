@@ -26,6 +26,7 @@ import { CLEAN_END_MIN_LIVE_MS } from "../components/terminal/stage-model";
 import { endView } from "../components/terminal/TerminalStage";
 import { adoptTerminal, launchTerminal, type ApiFailure, type NotAttachable, type SessionRef, type TerminalStatus, type Ticketed, type Launched } from "../terminal-api";
 import { askSteps, chatSteps, SUBMIT_WORDS } from "../ask-keys";
+import { IMAGE_TAKE_WAIT_MS } from "../chat-images";
 import type { ChatQuestion } from "../components/chat/chat-model";
 import {
   ACK_EVERY_BYTES,
@@ -1969,6 +1970,106 @@ describe("answering Claude Code's question from Chat (sendAsk)", () => {
     expect(await done).toBe("partial");
     expect(later.s.sent).toEqual([enc("1")]);
     later.ctl.dispose();
+  });
+});
+
+describe("sending a Chat prompt with pictures (sendPromptWithImages)", () => {
+  const SHOT = "/home/u/.local/share/ccdeck/chat-images/0123456789abcdef0123456789abcdef.png";
+  const SECOND = "/home/u/.local/share/ccdeck/chat-images/fedcba9876543210fedcba9876543210.jpg";
+  const INPUT = "> [Image #1] earlier\n\n╭────────╮\n│ >      │\n╰────────╯";
+
+  async function imagesRig({ windows = false, screen = INPUT as string | null } = {}) {
+    const { r, ctl } = rig({ windows });
+    let connection: TerminalConnection;
+    const connect = r.deps.connect;
+    r.deps.connect = options => (connection = connect(options));
+    ctl.mount(HOST, { theme: THEME, fontFamily: "monospace" });
+    await flush();
+    const s = await attach(r, ctl);
+    const view = { text: screen ?? "" };
+    if (screen !== null) Object.assign(r.terminal(), { screen: () => view.text });
+    s.sent.length = 0;
+    return { r, ctl, s, view, connection: connection! };
+  }
+  const poll = async (r: Rig, ms = ASK_SCREEN_POLL_MS) => { r.clock.now += ms; await vi.advanceTimersByTimeAsync(ms); };
+  const paste = (text: string) => JSON.stringify({ t: "paste", text });
+
+  it("pastes each picture as Term pastes a dropped file, the next only once the program took it, then the words and Enter", async () => {
+    const { r, ctl, s, view } = await imagesRig();
+    const done = ctl.sendPromptWithImages("what differs?", [SHOT, SECOND], REF_SUBJECT);
+    await flush();
+    expect(s.sent, "the first path, and nothing until the screen shows it taken").toEqual([paste(`'${SHOT}' `)]);
+    await poll(r);
+    expect(s.sent).toHaveLength(1);
+    view.text = INPUT.replace("│ >      │", "│ > [Image #2] │");
+    await poll(r);
+    expect(s.sent).toEqual([paste(`'${SHOT}' `), paste(`'${SECOND}' `)]);
+    view.text = INPUT.replace("│ >      │", "│ > [Image #2] [Image #3] │");
+    await poll(r);
+    expect(await done).toBe("sent");
+    expect(s.sent).toEqual([paste(`'${SHOT}' `), paste(`'${SECOND}' `), paste("what differs?"), enc("\r")]);
+    ctl.dispose();
+  });
+
+  it("a program that kept the path as words has it on screen: that is taken too", async () => {
+    const { r, ctl, s, view } = await imagesRig();
+    const done = ctl.sendPromptWithImages("", [SHOT], REF_SUBJECT);
+    await flush();
+    view.text = `${INPUT}\n> '${SHOT.slice(0, 40)}\n${SHOT.slice(40)}'`;
+    await poll(r);
+    expect(await done).toBe("sent");
+    expect(s.sent, "a picture alone: no words, then Enter").toEqual([paste(`'${SHOT}' `), enc("\r")]);
+    ctl.dispose();
+  });
+
+  it("a picture the screen never shows taken is partial: no words and no Enter after it", async () => {
+    const { r, ctl, s } = await imagesRig();
+    const done = ctl.sendPromptWithImages("words", [SHOT, SECOND], REF_SUBJECT);
+    await flush();
+    await poll(r, IMAGE_TAKE_WAIT_MS + ASK_SCREEN_POLL_MS);
+    expect(await done).toBe("partial");
+    expect(s.sent).toEqual([paste(`'${SHOT}' `)]);
+    ctl.dispose();
+  });
+
+  it("quotes for the Windows session host as Term's drop does there", async () => {
+    const path = "C:\\Users\\o'neil\\AppData\\Local\\ccdeck\\Data\\chat-images\\0123456789abcdef0123456789abcdef.png";
+    const { r, ctl, s, view } = await imagesRig({ windows: true });
+    const done = ctl.sendPromptWithImages("x", [path], REF_SUBJECT);
+    await flush();
+    expect(s.sent).toEqual([paste(`'${path.replace("'", "''")}' `)]);
+    view.text = INPUT.replace("│ >      │", "│ > [Image #2] │");
+    await poll(r);
+    expect(await done).toBe("sent");
+    ctl.dispose();
+  });
+
+  it("refuses with nothing sent: another session, no screen to read, a path that cannot be pasted, too much text", async () => {
+    const other = await imagesRig();
+    expect(await other.ctl.sendPromptWithImages("x", [SHOT], OTHER_SUBJECT)).toBe("unavailable");
+    expect(await other.ctl.sendPromptWithImages("x", ["relative.png"], REF_SUBJECT)).toBe("unavailable");
+    expect(await other.ctl.sendPromptWithImages("x".repeat(MAX_MESSAGE_BYTES), [SHOT], REF_SUBJECT)).toBe("too-large");
+    expect(await other.ctl.sendPromptWithImages("  ", [], REF_SUBJECT)).toBe("empty");
+    expect(other.s.sent).toEqual([]);
+    other.ctl.dispose();
+    const blind = await imagesRig({ screen: null });
+    expect(await blind.ctl.sendPromptWithImages("x", [SHOT], REF_SUBJECT)).toBe("unavailable");
+    expect(blind.s.sent).toEqual([]);
+    blind.ctl.dispose();
+    const { ctl } = rig();
+    expect(await ctl.sendPromptWithImages("x", [SHOT], REF_SUBJECT)).toBe("unavailable");
+    ctl.dispose();
+  });
+
+  it("the pane switched to another session while the program reads the picture: nothing more goes", async () => {
+    const { r, ctl, s } = await imagesRig();
+    const done = ctl.sendPromptWithImages("words", [SHOT], REF_SUBJECT);
+    await flush();
+    ctl.show({ kind: "session", ref: OTHER });
+    await poll(r);
+    expect(await done).toBe("partial");
+    expect(s.sent).toEqual([paste(`'${SHOT}' `)]);
+    ctl.dispose();
   });
 });
 

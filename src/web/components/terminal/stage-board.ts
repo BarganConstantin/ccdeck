@@ -28,6 +28,8 @@ import { shortAgo } from "../../relative-time";
 import { sessionHue } from "../../session-hue";
 import { renameFacts } from "../../session-rename";
 import { backgroundAgents } from "../../live-activity";
+import { sessionSpend } from "../../board-usage";
+import { isEventOnly } from "../../../server/provider-ids.mjs";
 import type { StageTarget } from "../../stage-shell";
 import type { AgentNodeData } from "../../types";
 import type { AsksView as RunView } from "../../use-asks";
@@ -101,6 +103,13 @@ export function boardFactsFor(root: AgentNodeData, subagents: readonly AgentNode
 export function contextUseOf(root: AgentNodeData): { used: number; window: number } {
   const { used, limit } = contextFill(root);
   return { used, window: limit };
+}
+
+/** The session's spend for the stage, or nothing when there is none to say. */
+function spendOf(agents: ReadonlyMap<string, AgentNodeData>, root: AgentNodeData): { spend?: number } {
+  if (isEventOnly(root.provider)) return {};
+  const spend = sessionSpend(root, agents.values());
+  return spend > 0 ? { spend } : {};
 }
 
 /** How much of a task follows a shared title on stage before it is cut. */
@@ -181,6 +190,10 @@ export function stageShowFor(
       status: stageStatusFrom(facts, now),
       // The Inspector's Context tab reads the same two numbers (contextFill).
       contextUse: contextUseOf(root),
+      // The session's spend, as its row in the Sessions list sums it: Chat's
+      // Session details. None where the deck has no tokens to price (opencode,
+      // Copilot) or nothing was spent yet: never a zero.
+      ...spendOf(agents, root),
       promptCount: typedPrompts(root.prompts).length,
       // When the turn now running began, as the Sessions list counts it: Chat's working row counts from it.
       turnStartedAt: root.prompts.at(-1)?.at ?? root.startedAt,

@@ -165,11 +165,15 @@ export function paneTabs(s: SplitState, id: string, focusedTarget: StageTarget |
 }
 
 /** The pane that holds `sessionId` in any of its tabs, and that tab, as kept
- *  (a launch's tab keeps its launch). Panes in tree order. */
-export function tabWith(s: SplitState, sessionId: string, focusedTarget: StageTarget | null, except?: string): { pane: string; target: StageTarget } | null {
+ *  (a launch's tab keeps its launch). Panes in tree order. `shows`, when
+ *  given, is the session a tab's id stands for now (a tab kept under a
+ *  session a /clear left behind shows the one its terminal went on as). */
+export function tabWith(
+  s: SplitState, sessionId: string, focusedTarget: StageTarget | null, except?: string, shows?: (tabId: string) => string,
+): { pane: string; target: StageTarget } | null {
   for (const id of paneIds(s.root)) {
     if (id === except) continue;
-    const t = paneTabs(s, id, focusedTarget).find(x => x.kind === "session" && x.id === sessionId);
+    const t = paneTabs(s, id, focusedTarget).find(x => x.kind === "session" && (x.id === sessionId || shows?.(x.id) === sessionId));
     if (t) return { pane: id, target: t };
   }
   return null;
@@ -191,9 +195,10 @@ export function sessionPaneLinks(s: SplitState, focusedTarget: StageTarget | nul
   return links;
 }
 
-/** The pane that holds `sessionId`, in any tab, other than `except`, or null. */
-export function paneWith(s: SplitState, sessionId: string, focusedTarget: StageTarget | null, except?: string): string | null {
-  return tabWith(s, sessionId, focusedTarget, except)?.pane ?? null;
+/** The pane that holds `sessionId`, in any tab, other than `except`, or null
+ *  (`shows` as tabWith's). */
+export function paneWith(s: SplitState, sessionId: string, focusedTarget: StageTarget | null, except?: string, shows?: (tabId: string) => string): string | null {
+  return tabWith(s, sessionId, focusedTarget, except, shows)?.pane ?? null;
 }
 
 /** The sessions open in the panes, every tab, in pane order. */
@@ -359,6 +364,19 @@ export function arrange(s: SplitState, box: { w: number; h: number }, min: MinSi
   if (!why) return { mode: "split", why: null, rects: split.panes, dividers: split.dividers, order, strip: 0 };
   const below: Rect = { x: 0, y: STRIP_H, w: full.w, h: Math.max(0, full.h - STRIP_H) };
   return { mode: "strip", why, rects: new Map(ids.map(id => [id, below])), dividers: [], order, strip: STRIP_H };
+}
+
+/** The pane whose header reaches the cell's top right corner, where Zen
+ *  Mode's Exit sits (zen-mode.ts): of the panes along the top, the one that
+ *  ends furthest right. Under the strip, the strip has that corner (null). */
+export function cornerPane(a: Pick<Arrangement, "mode" | "rects">): string | null {
+  if (a.mode === "strip") return null;
+  let best: { id: string; top: number; right: number } | null = null;
+  for (const [id, r] of a.rects) {
+    const right = r.x + r.w;
+    if (!best || r.y < best.top || (r.y === best.top && right > best.right)) best = { id, top: r.y, right };
+  }
+  return best?.id ?? null;
 }
 
 /** The ratio a divider moved to `at` (a page coordinate along its direction)

@@ -12,6 +12,7 @@ import type { ChatActivity, ChatOutgoing, ChatTurn } from "../components/chat/ch
 import { CONFIRM_MS } from "../chat-progress";
 import type { StagePhase } from "../components/terminal/stage-model";
 import { stopSteps } from "../chat-stop";
+import { forgetDraftsForTest } from "../chat-drafts";
 
 const held = vi.hoisted(() => ({
   subject: "session:a", phase: { kind: "live", sizeOwner: "dock", readOnly: false } as StagePhase,
@@ -46,6 +47,9 @@ beforeEach(() => {
   held.sendAsk.mockReset().mockResolvedValue("sent");
   held.focus.mockClear(); held.release.mockClear();
   held.turns = [];
+  // CHANGED ON PURPOSE (Chat's ⋯): drafts outlive a stage now (chat-drafts.ts),
+  // so each case starts with the empty boxes a reload gives.
+  forgetDraftsForTest();
 });
 function props(id = "a", waiting = false, state: "idle" | "waiting" | "working" = waiting ? "waiting" : "idle", provider = "claude"): TerminalStageProps {
   return {

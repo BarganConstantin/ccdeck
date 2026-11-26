@@ -398,7 +398,7 @@ export default function ChatView({ source, provider, decision, ask, session, out
   const mine = outgoing ? <OutgoingMessage key="mine" outgoing={outgoing} provider={provider} onShowTerm={onShowTerm} /> : null;
   const doing = activity ? <ActivityLine key="doing" activity={activity} provider={provider} onShowTerm={onShowTerm} /> : null;
   // Keyed by the session, so an agent list opened in one is not open in the next.
-  const still = after ? <LiveLine key={`live:${session ?? ""}`} live={after} onShowTerm={onShowTerm} /> : null;
+  const still = after ? <LiveLine key={`live:${session ?? ""}`} live={after} provider={provider} onShowTerm={onShowTerm} /> : null;
   // Each answer ends on how long it took, once it is over: the last one only
   // while the session is not at work on it or waiting on you.
   const times = useMemo(() => blockTimes(blocks), [blocks]);

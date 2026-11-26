@@ -1,8 +1,10 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
+import { addImages, focusAfterImage, MAX_CHAT_IMAGE_BYTES, MAX_CHAT_IMAGES, pastedImages, removeImage, type ChatImage, type ImageRefusal } from "../../chat-images";
 import { useT } from "../../i18n";
 import { providerLabel } from "../../provider-copy";
 import type { Provider } from "../../types";
 import type { AskSendResult, PromptSendResult } from "../../use-terminal-session";
+import { KitIcon } from "../kit-icons";
 import type { ChatTurn } from "./chat-model";
 import { ToolTerminalGlyph } from "./chat-icons";
 import { historyMove, opensInTerm, readHistory, rememberSent, slashItems, slashQuery, usedCommands, withSent } from "./chat-compose";
@@ -26,7 +28,22 @@ export interface ChatComposerProps {
    *  is still that text, the line under it says why. */
   notTaken?: string;
   provider?: Provider;
+  /** Pictures pasted into the box, held by the owner as the draft is (chat-images.ts). */
+  images?: readonly ChatImage[];
+  onImagesChange?(images: ChatImage[]): void;
+  /** Sends the draft with its pictures. Without it this session takes no
+   *  picture from Chat, and a pasted one is not added. */
+  onSendImages?(text: string, images: readonly ChatImage[]): Promise<ChatSendResult>;
+  /** Term takes a pasted picture for this session (its Ctrl+V): where Chat
+   *  cannot, the line under the box says to paste it there. */
+  imagesInTerm?: boolean;
 }
+
+/** How a send went: the terminal's answer, or the pictures not kept by the deck, so nothing went. */
+export type ChatSendResult = PromptSendResult | "images-failed";
+
+/** Why the last paste added no picture, or added fewer than it carried. */
+type ImageNote = ImageRefusal | "unsupported";
 
 /** How long "Stop sent." stays in the status line. */
 export const STOP_SENT_MS = 2500;
@@ -34,15 +51,26 @@ export const STOP_SENT_MS = 2500;
 const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 const NO_TURNS: readonly ChatTurn[] = [];
+const NO_IMAGES: readonly ChatImage[] = [];
 
 export default function ChatComposer({
   value, onChange, onSend, unavailable, onShowTerm, canStop, onStop, session, turns = NO_TURNS, notTaken, provider,
+  images = NO_IMAGES, onImagesChange, onSendImages, imagesInTerm,
 }: ChatComposerProps) {
   const t = useT();
   const id = useId();
   const textarea = useRef<HTMLTextAreaElement | null>(null);
   const composing = useRef(false);
-  const [feedback, setFeedback] = useState<{ result: PromptSendResult; draft: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ result: ChatSendResult; draft: string } | null>(null);
+  // A send with pictures waits for the deck and the program: one at a time,
+  // the box held as it is until it is over.
+  const sendBusy = useRef(false);
+  const [sending, setSending] = useState(false);
+  const [imageNote, setImageNote] = useState<ImageNote | null>(null);
+  // Each picture's thumbnail, drawn from its own bytes in memory.
+  const [thumbs, setThumbs] = useState<ReadonlyMap<Blob, string>>(() => new Map());
+  const removeButtons = useRef(new Map<number, HTMLButtonElement>());
+  const [focusNext, setFocusNext] = useState<number | "draft" | null>(null);
   // A stop in flight, held in a ref as well so a second press before the
   // next render asks for nothing; and how the last one went.
   const stopBusy = useRef(false);
@@ -59,10 +87,28 @@ export default function ChatComposer({
   const [focused, setFocused] = useState(false);
   const blocked = unavailable !== undefined;
   const empty = !value.trim();
-  const disabled = blocked || empty;
+  const pictures = images.length > 0;
+  // Never `sending`: a press does not disable the control it came from
+  // (panel-press.ts); a second one is refused by sendBusy instead.
+  const disabled = blocked || (empty && !pictures);
   const result = feedback?.draft === value ? feedback.result : null;
-  // With nothing typed while Claude Code works, the one button stops it.
-  const stopShown = !!(canStop && onStop) && (empty || stopping);
+  // With nothing typed or pasted while Claude Code works, the one button stops it.
+  const stopShown = !!(canStop && onStop) && ((empty && !pictures) || stopping);
+
+  useEffect(() => {
+    if (typeof URL === "undefined" || typeof URL.createObjectURL !== "function") return;
+    const made = new Map<Blob, string>();
+    for (const image of images) made.set(image.blob, URL.createObjectURL(image.blob));
+    setThumbs(made);
+    return () => { for (const url of made.values()) URL.revokeObjectURL(url); };
+  }, [images]);
+
+  // The focus after a picture is removed: the next one's button, or the box.
+  useBeforePaint(() => {
+    if (focusNext === null) return;
+    (focusNext === "draft" ? textarea.current : removeButtons.current.get(focusNext))?.focus({ preventScroll: true });
+    setFocusNext(null);
+  }, [focusNext]);
 
   useEffect(() => { setHistory(session ? readHistory(session) : []); }, [session]);
 
@@ -138,6 +184,30 @@ export default function ChatComposer({
     onChange(next);
   }
 
+  // A paste that carries pictures adds them; its words are the textarea's,
+  // as any paste's. One with no words is the box's alone.
+  function onPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const files = pastedImages(event.clipboardData);
+    if (!files.length) return;
+    const words = event.clipboardData?.getData("text/plain") ?? "";
+    if (!words) event.preventDefault();
+    if (sending) return;
+    setFeedback(null);
+    setStopped(null);
+    if (!onSendImages || !onImagesChange) { setImageNote("unsupported"); return; }
+    const added = addImages(images, files);
+    setImageNote(added.refused);
+    if (added.images.length !== images.length) onImagesChange(added.images);
+  }
+
+  function remove(image: ChatImage) {
+    if (sending || !onImagesChange) return;
+    setFocusNext(focusAfterImage(images, image.id) ?? "draft");
+    setFeedback(null);
+    setImageNote(null);
+    onImagesChange(removeImage(images, image.id));
+  }
+
   function complete(at: number) {
     const item = items[at];
     if (!item) return;
@@ -146,7 +216,9 @@ export default function ChatComposer({
   }
 
   function send() {
-    if (disabled || composing.current) return;
+    if (disabled || composing.current || sendBusy.current) return;
+    setImageNote(null);
+    if (pictures) { void sendWithImages(); return; }
     let outcome: PromptSendResult;
     const text = value;
     try { outcome = onSend(text); }
@@ -160,6 +232,34 @@ export default function ChatComposer({
     setFeedback({ result: outcome, draft: outcome === "sent" ? "" : text });
     textarea.current?.focus({ preventScroll: true });
     // Claude Code answers these with a dialog only Term draws: Term it is.
+    if (outcome === "sent" && opensInTerm(text)) onShowTerm?.();
+  }
+
+  // The draft and its pictures, together. Until the answer the box is held:
+  // the words and pictures sent are the ones that come back on a failure.
+  async function sendWithImages() {
+    if (sendBusy.current) return;
+    if (!onSendImages) { setImageNote("unsupported"); return; }
+    const text = value;
+    const sent = images;
+    sendBusy.current = true;
+    setSending(true);
+    setFeedback(null);
+    setStopped(null);
+    setImageNote(null);
+    let outcome: ChatSendResult;
+    try { outcome = await onSendImages(text, sent); }
+    catch { outcome = "unavailable"; }
+    sendBusy.current = false;
+    setSending(false);
+    if (outcome === "sent") {
+      browse.current = null;
+      setHistory(session ? rememberSent(session, text) : previous => withSent(previous, text));
+      onChange("");
+      onImagesChange?.([]);
+    }
+    setFeedback({ result: outcome, draft: outcome === "sent" ? "" : text });
+    textarea.current?.focus({ preventScroll: true });
     if (outcome === "sent" && opensInTerm(text)) onShowTerm?.();
   }
 
@@ -245,17 +345,26 @@ export default function ChatComposer({
   // session did not take is back in the box, and says so while it is.
   const stopFailed = stopped === "unavailable" || stopped === "partial";
   const returned = notTaken !== undefined && notTaken !== "" && value === notTaken && result === null && !stopped;
+  const agent = providerLabel(provider);
   const message = stopped === "sent" ? t("board.chat.stop.sent")
     : stopped === "changed" ? t("board.chat.stop.nothing")
     : stopFailed ? t("board.chat.stop.failed")
+    : sending ? t("board.chat.progress.sending")
+    : imageNote === "unsupported" ? t(imagesInTerm ? "board.chat.compose.image.useTerm" : "board.chat.compose.image.unsupported", { agent })
+    : imageNote === "type" ? t("board.chat.compose.image.type")
+    : imageNote === "size" ? t("board.chat.compose.image.size", { mb: MAX_CHAT_IMAGE_BYTES / (1024 * 1024) })
+    : imageNote === "count" ? t("board.chat.compose.image.count", { max: MAX_CHAT_IMAGES })
+    : result === "images-failed" ? t("board.chat.compose.image.failed")
     : result === "sent" ? ""
     : result === "partial" ? t("board.chat.composer.partial")
     : result === "too-large" ? t("board.chat.composer.tooLarge")
     : result === "empty" ? t("board.chat.composer.empty")
     : result === "unavailable" ? t("board.chat.composer.unavailable")
-    : returned ? t("board.chat.compose.returned", { agent: providerLabel(provider) })
+    : returned ? t("board.chat.compose.returned", { agent })
     : blocked ? unavailable || t("board.chat.cannotType") : "";
-  const showTerm = onShowTerm && (blocked || returned || result === "partial" || result === "unavailable" || stopFailed);
+  const showTerm = onShowTerm && (blocked || returned || result === "partial" || result === "unavailable" || stopFailed
+    || (imageNote === "unsupported" && imagesInTerm === true));
+  const statusResult = stopped ? `stop-${stopped}` : sending ? "sending" : imageNote ? `image-${imageNote}` : result ?? (returned ? "not-taken" : undefined);
 
   return (
     <form className="chat-composer" onSubmit={event => { event.preventDefault(); send(); }}>
@@ -277,6 +386,32 @@ export default function ChatComposer({
           </ul>
         )}
         <div className="chat-composer-input">
+          {pictures && (
+            <ul className="chat-images" role="list" aria-label={t("board.chat.compose.image.list")}>
+              {images.map((image, i) => {
+                const thumb = thumbs.get(image.blob);
+                return (
+                  <li key={image.id} className="chat-image">
+                    {thumb
+                      ? <img className="chat-image-thumb" src={thumb} alt={t("board.chat.compose.image.alt", { n: i + 1 })} />
+                      : <span className="chat-image-thumb" role="img" aria-label={t("board.chat.compose.image.alt", { n: i + 1 })} />}
+                    <button
+                      ref={button => {
+                        if (button) removeButtons.current.set(image.id, button);
+                        else removeButtons.current.delete(image.id);
+                      }}
+                      type="button"
+                      className="chat-image-remove"
+                      aria-disabled={sending || undefined}
+                      aria-label={t("board.chat.compose.image.remove", { n: i + 1 })}
+                      title={t("board.chat.compose.image.remove", { n: i + 1 })}
+                      onClick={() => remove(image)}
+                    ><KitIcon name="close" /></button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
           <textarea
             ref={textarea}
             id={`${id}-draft`}
@@ -288,7 +423,10 @@ export default function ChatComposer({
             aria-autocomplete="list"
             aria-controls={listOpen ? listId : undefined}
             aria-activedescendant={listOpen ? optionId(activeAt) : undefined}
+            aria-busy={sending || undefined}
+            readOnly={sending || undefined}
             onChange={event => change(event.currentTarget.value)}
+            onPaste={onPaste}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             onCompositionStart={() => { composing.current = true; }}
@@ -300,13 +438,13 @@ export default function ChatComposer({
               title={t("board.chat.stop.title")} aria-label={t("board.chat.stop.title")}
               onClick={() => { void stop(); }}>{t("board.chat.stop")}</button>
           ) : (
-            <button className="btn primary chat-composer-send" type="submit" disabled={disabled}>{t("board.chat.composer.send")}</button>
+            <button className="btn primary chat-composer-send" type="submit" disabled={disabled} aria-busy={sending || undefined}>{t("board.chat.composer.send")}</button>
           )}
         </div>
         <span id={`${id}-hint`} className="vis-hidden">{t("board.chat.composer.hint")} {t("board.chat.compose.hint")}</span>
         <div className="chat-composer-meta">
           <p id={`${id}-status`} className="chat-composer-status" role="status" aria-live="polite" aria-atomic="true"
-            data-result={stopped ? `stop-${stopped}` : result ?? (returned ? "not-taken" : undefined)}>{message}</p>
+            data-result={statusResult}>{message}</p>
           {showTerm && <button className="chat-composer-term" type="button" onClick={onShowTerm}>{t("board.chat.showTerm")}</button>}
         </div>
       </div>
