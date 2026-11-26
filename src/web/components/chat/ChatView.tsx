@@ -38,6 +38,11 @@
 // its way, the session's work is the turn before it, so that line goes first.
 // A screen reader hears each change of state once, in words, never the clock
 // or the tool that ticks beside them; a switch to another session says nothing.
+//
+// AFTER THE TURN, what the session still does has a row of its own, last
+// (live-activity.ts): background agents still running, or the conversation
+// being compacted. The turn's "Worked for…" stays above it, since that turn
+// is over; the row is the session's, not the turn's.
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import IntegrationSkeleton from "../IntegrationSkeleton";
 import { KitIcon } from "../kit-icons";
@@ -47,10 +52,11 @@ import { providerLabel } from "../../provider-copy";
 import { stoppedInChat } from "../../chat-progress";
 import { prefersReducedMotion } from "../../viewport-motion";
 import DecisionCard, { type DecisionCardProps } from "../decision/DecisionCard";
-import type { ChatActivity, ChatAsk, ChatOutgoing, ChatSource, ChatTurn, ConversationBlock } from "./chat-model";
+import type { ChatActivity, ChatAsk, ChatLive, ChatOutgoing, ChatSource, ChatTurn, ConversationBlock } from "./chat-model";
 import { conversationBlocks } from "./chat-model";
 import { blockTimes } from "./chat-rich";
-import { ActivityLine, OutgoingMessage, SinceDivider } from "./ChatTurn";
+import { ActivityLine, LiveLine, OutgoingMessage, SinceDivider } from "./ChatTurn";
+import { liveKey } from "../../live-activity";
 import { MemoAssistantBlock, MemoRecordLine, MemoYourCommand, MemoYourMessage } from "./chat-blocks";
 import { alignTurns, turnInterner } from "../../chat-turn-align";
 import "./chat.css";
@@ -69,6 +75,8 @@ export interface ChatViewProps {
   outgoing?: ChatOutgoing;
   /** What the session is doing, under the last line. */
   activity?: ChatActivity;
+  /** What it still does once its turn is over, on a row of its own after that. */
+  live?: ChatLive;
   /** The way to Term, for a message not taken or a session gone quiet. */
   onShowTerm?(): void;
 }
@@ -198,7 +206,7 @@ export function tailKey(turn: ChatTurn | undefined): string {
  *  where there is no layout to wait for (rendering to a string). */
 const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
-export default function ChatView({ source, provider, decision, ask, session, outgoing, activity, onShowTerm }: ChatViewProps) {
+export default function ChatView({ source, provider, decision, ask, session, outgoing, activity, live: after, onShowTerm }: ChatViewProps) {
   const t = useT();
   const scroller = useRef<HTMLDivElement | null>(null);
   const column = useRef<HTMLDivElement | null>(null);
@@ -237,7 +245,7 @@ export default function ChatView({ source, provider, decision, ask, session, out
   if (since !== undefined) for (let i = 0; i < blocks.length && blocks[i].index <= since; i++) sinceAt = i;
   const cue = progressCue(outgoing, activity);
   // The message on its way and the session's state are the last lines too.
-  const tail = `${source.state === "ready" ? tailKey(source.turns[source.turns.length - 1]) : ""}|${cue}|${outgoing?.state ?? ""}|${outgoing?.text ?? ""}`;
+  const tail = `${source.state === "ready" ? tailKey(source.turns[source.turns.length - 1]) : ""}|${cue}|${outgoing?.state ?? ""}|${outgoing?.text ?? ""}|${liveKey(after)}`;
   // What the live region says: one sentence per change of state in this session.
   const [said, setSaid] = useState("");
   const cueWas = useRef(cue);
@@ -324,6 +332,8 @@ export default function ChatView({ source, provider, decision, ask, session, out
   // Keyed, so the two trade places without being drawn anew (and arriving again).
   const mine = outgoing ? <OutgoingMessage key="mine" outgoing={outgoing} provider={provider} onShowTerm={onShowTerm} /> : null;
   const doing = activity ? <ActivityLine key="doing" activity={activity} provider={provider} onShowTerm={onShowTerm} /> : null;
+  // Keyed by the session, so an agent list opened in one is not open in the next.
+  const still = after ? <LiveLine key={`live:${session ?? ""}`} live={after} onShowTerm={onShowTerm} /> : null;
   // Each answer ends on how long it took, once it is over: the last one only
   // while the session is not at work on it or waiting on you.
   const times = useMemo(() => blockTimes(blocks), [blocks]);
@@ -396,7 +406,7 @@ export default function ChatView({ source, provider, decision, ask, session, out
               </Fragment>
             </>
           )}
-          {(source.state === "ready" || source.state === "error") && (outgoing && outgoing.state !== "taken" ? [doing, mine] : [mine, doing])}
+          {(source.state === "ready" || source.state === "error") && (outgoing && outgoing.state !== "taken" ? [doing, mine, still] : [mine, doing, still])}
         </div>
       </div>
       {!following && source.state === "ready" && source.turns.length > 0 && (

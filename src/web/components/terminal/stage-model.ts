@@ -259,6 +259,9 @@ export interface BoardFacts {
   tool?: { name: string; subject?: string | null; startedAt?: number } | null;
   /** How many subagents are running, for a turn whose own call is a Task. */
   subagentsLive?: number;
+  /** How many of them run in the background once the turn is over
+   *  (live-activity.ts): a session at its prompt says so after its state. */
+  background?: number;
   lastTurnEndAt?: number | null;
   /** A session the deck just started that has had no prompt yet. */
   fresh?: boolean;
@@ -298,6 +301,7 @@ export function stageStatusFrom(facts: BoardFacts, now: number): StageStatus {
   }
   if (facts.yourTurn && !facts.tool) {
     if (facts.fresh) return { state: "ready", phrase: t("board.stage.phrase.ready"), arg: t("board.stage.phrase.firstPrompt") };
+    if (facts.background) return { state: "idle", phrase: t("board.list.yourTurn"), arg: backgroundWords(facts.background) };
     const ago = facts.lastTurnEndAt != null ? shortAgo(now - facts.lastTurnEndAt) : null;
     return { state: "idle", phrase: t("board.list.yourTurn"), ...(ago ? { arg: lastTurnWords(ago) } : {}) };
   }
@@ -316,10 +320,17 @@ export function stageStatusFrom(facts: BoardFacts, now: number): StageStatus {
     return out;
   }
   if (facts.fresh) return { state: "ready", phrase: t("board.stage.phrase.ready"), arg: t("board.stage.phrase.firstPrompt") };
+  // Its turn is over and work it started goes on: that, rather than how long ago it ended.
+  if (facts.background) return { state: "idle", phrase: t("board.stage.phrase.idle"), arg: backgroundWords(facts.background) };
   if (facts.lastTurnEndAt != null) {
     return { state: "idle", phrase: t("board.stage.phrase.idle"), arg: lastTurnWords(shortAgo(now - facts.lastTurnEndAt)) };
   }
   return { state: "idle", phrase: t("board.stage.phrase.idle") };
+}
+
+/** "2 background agents running". */
+function backgroundWords(count: number): string {
+  return t("board.stage.backgroundAgents", { count });
 }
 
 /** "last turn 4m", or "last turn just now". */
