@@ -1,4 +1,26 @@
 {
+  "4.4.3": [
+    {
+      "title": "🖼️ Paste a screenshot into Chat",
+      "body": "Paste a picture into the message box in Workspace Chat and it now shows as a small preview beside your words, with × to remove it. Nothing leaves the page until you press Send. Then ccdeck hands each picture to the agent the way Term does with a dropped file, waits until the agent shows it, such as [Image #1], and sends your words after it. PNG, JPEG, GIF and WebP pictures up to 20 MB work. If a picture cannot be handed over, nothing is sent and your words and pictures stay in the box. An agent that takes no pictures from Chat says so and points you to Term."
+    },
+    {
+      "title": "⏳ Chat shows background agents and compaction after a turn",
+      "body": "When Claude ends its turn but still waits for background agents, Workspace Chat used to show only \"Worked for…\", so the session looked idle while Term said otherwise. Now a live line under the last turn says, for example, \"Waiting for 2 background agents\". Press it to see each agent's type, task and running time, with a way to Term. While Claude compacts the conversation, the line says \"Compacting conversation…\" with its own clock. The pane header adds the count as well, such as \"Claude Code finished · 2 background agents running\"."
+    },
+    {
+      "title": "📜 Chat loads older messages as you scroll up",
+      "body": "In Workspace Chat, older messages now come by themselves as you near the top of the conversation, instead of waiting for you to press Load older messages for every page. The line you are reading stays where it is while they arrive, even in the middle of a scroll. While a page loads, the top says Loading older messages…. If a page cannot be read, it says so and waits until you press it to try again. The button stays there for the keyboard and screen readers."
+    },
+    {
+      "title": "🔗 Ctrl+click opens links in Workspace terminals",
+      "body": "A link in a Workspace terminal, such as a pull request address Claude printed, now opens in a new browser tab on Ctrl+click (⌘+click on a Mac), also while Claude uses the mouse. Before, the click went to Claude and no tab opened. Hovering a link shows its address and the gesture. A plain click, a drag or a selection works as before. A link followed by a Chinese or Japanese full stop or a curly quote no longer takes that mark into the address."
+    },
+    {
+      "title": "🔑 Codex account switches no longer stay busy after ccdeck stopped mid-switch",
+      "body": "On Linux, if ccdeck stopped while it was switching Codex accounts, every later switch could fail as busy for as long as an unrelated program happened to use one particular network port. ccdeck now clears the unfinished switch on its own, and the next switch goes through."
+    }
+  ],
   "4.4.2": [
     {
       "title": "🧩 Drag an open session onto a pane's edge to give it its own pane",
@@ -572,6 +594,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.4.3": "Paste screenshots into Chat, see background agents and older messages there, and Ctrl+click links in Term",
     "4.4.2": "Drag an open session onto a pane's edge to give it its own pane",
     "4.4.1": "Stop Claude in another terminal and continue it here, and Search shows the two Shift taps",
     "4.4.0": "Chat goes live: the work behind each answer, a terminal-like reply box, answer keys, and alerts you can answer",
