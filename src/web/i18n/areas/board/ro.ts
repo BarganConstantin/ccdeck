@@ -1220,6 +1220,7 @@ const catalog: Catalog = {
   "board.chat.live.background.few": "Se așteaptă {count} agenți în fundal",
   "board.chat.live.background.other": "Se așteaptă {count} de agenți în fundal",
   "board.chat.live.compacting": "Se compactează conversația…",
+  "board.chat.live.menu": "{agent} așteaptă o alegere în Term",
   "board.chat.live.unread.one": "{count} nou",
   "board.chat.live.unread.few": "{count} noi",
   "board.chat.live.unread.other": "{count} noi",

@@ -1172,6 +1172,7 @@ const catalog: Catalog = {
   "board.chat.live.background.one": "Esperando a {count} agente en segundo plano",
   "board.chat.live.background.other": "Esperando a {count} agentes en segundo plano",
   "board.chat.live.compacting": "Compactando la conversación…",
+  "board.chat.live.menu": "{agent} espera una elección en Term",
   "board.chat.live.unread.one": "{count} nuevo",
   "board.chat.live.unread.other": "{count} nuevos",
   "board.chat.live.latestNew.one": "Últimos mensajes, {count} nuevo",

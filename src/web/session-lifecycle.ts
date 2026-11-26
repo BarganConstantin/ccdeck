@@ -107,8 +107,22 @@ export function applySessionStart(state: GraphState, p: HookPayload, sessionId: 
   // is also what makes this line order-independent, which is the property
   // the retraction above it exists to preserve.
   root.startedAt = Math.min(root.startedAt ?? now, now);
+  // A session that begins again is no longer the one a /clear left behind;
+  // one that begins on a /clear is where that terminal went on
+  // (cleared-session.ts pairs the two).
+  root.clearedAt = undefined;
+  if (p.source === "clear") root.clearBeganAt = now;
   adoptCwd(root, p);
   adoptRootLabel(root, p);
+}
+
+/** A `SessionEnd` that says why: on a `/clear`, Claude Code goes on in the
+ *  same terminal as a new session, and this one is marked as left there. A
+ *  mark, not an ending: the ending is applyTurnEnd's, with its guards. */
+export function applySessionEndReason(state: GraphState, p: HookPayload, sessionId: string, now: number): void {
+  if (p.reason !== "clear") return;
+  const root = state.agents.get(rootAgentId(sessionId));
+  if (root) root.clearedAt = now;
 }
 
 /** The human typing into the session: a new turn on the ROOT, with the prompt
