@@ -7,16 +7,23 @@
 // and opens the session in Chat, where the prompt's own card presses it once
 // the words on screen are checked; anything else waits for the reader there.
 //
+// BY ITS ROW. With the Sessions list on screen the stack sits just right of
+// the first card's row (its Needs you row), level with it, and that card
+// points at it; the session's name stays on the card. With no row to sit by
+// (the list folded or covered, the row scrolled away, a window too narrow
+// for the stack beside it) the stack keeps to the corner under the top bar.
+//
 // QUIET BY DESIGN. Three cards at most, then "+N more", which opens the
 // waiting queue under the top bar's count (the list of everybody waiting).
 // A card goes when its session stops waiting, when the session is shown in
 // Chat, or when × or Esc dismisses it. Nothing takes the focus on arrival;
 // each card's buttons are in the tab order, Esc inside a card dismisses it,
 // and a polite live region says who asks and what.
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import type { AlertChoice, AlertModel } from "../../alert-model";
 import { useT } from "../../i18n";
 import { KitIcon } from "../kit-icons";
+import { railRowId } from "../RailParts";
 import { AlertMark } from "../StateMark";
 
 /** How many cards are drawn; the rest are counted. */
@@ -37,6 +44,66 @@ export interface AlertStackProps {
   onDismiss(alert: AlertModel): void;
   /** "+N more": the waiting queue. */
   onMore(): void;
+}
+
+/** The room between a row and the stack beside it, and kept to the window's edge. */
+export const ANCHOR_GAP = 8;
+export const ANCHOR_EDGE = 12;
+/** The stack's width, as in the corner; beside a row it may narrow to the least
+ *  that still holds a card's answers, and below that it keeps to the corner. */
+export const ANCHOR_WIDTH = 320;
+export const ANCHOR_MIN_WIDTH = 240;
+/** How near a card's corners the point toward its row may come. */
+const NOTCH_INSET = 14;
+
+export interface AnchorBox { left: number; top: number; right: number; bottom: number }
+/** The stack beside a row: its corner and width, and how far down the row's card its point sits. */
+export interface AnchorPlace { left: number; top: number; width: number; notch: number | null }
+
+/** The stack's height, and where the row's own card is in it. */
+export interface StackBox { height: number; cardTop: number; cardHeight: number }
+
+/** Where the stack goes beside `row`, or null when it does not fit there and
+ *  keeps to the corner. `view.right` is where the free page ends (the right
+ *  stripe's edge). The row's card is level with the row, moved up only as far
+ *  as the window's bottom needs; the point toward the row is drawn only when
+ *  the row's middle falls on that card. */
+export function placeBeside(row: AnchorBox, stack: StackBox, view: { right: number; height: number }): AnchorPlace | null {
+  const left = Math.round(row.right + ANCHOR_GAP);
+  const width = Math.min(ANCHOR_WIDTH, Math.floor(view.right - ANCHOR_EDGE - left));
+  if (width < ANCHOR_MIN_WIDTH) return null;
+  const lowest = Math.max(ANCHOR_EDGE, view.height - stack.height - ANCHOR_EDGE);
+  const top = Math.round(Math.min(Math.max(row.top - stack.cardTop, ANCHOR_EDGE), lowest));
+  const mid = Math.round((row.top + row.bottom) / 2 - top - stack.cardTop);
+  const notch = mid >= NOTCH_INSET && mid <= stack.cardHeight - NOTCH_INSET ? mid : null;
+  return { left, top, width, notch };
+}
+
+const samePlace = (a: AnchorPlace | null, b: AnchorPlace | null) =>
+  a === b || (!!a && !!b && a.left === b.left && a.top === b.top && a.width === b.width && a.notch === b.notch);
+
+/** Where the free page ends on the right: the right stripe's left edge, as
+ *  the stack in the corner keeps clear of it; the window's edge where no
+ *  stripe is drawn (a phone). Read off the stripe's box, never its style. */
+function freeRight(): number {
+  const stripe = document.querySelector(".edge-rail-right")?.getBoundingClientRect();
+  return stripe && stripe.width > 0 ? stripe.left : window.innerWidth;
+}
+
+/** The session's row in the Sessions list, while it is drawn and seen: a row
+ *  of a folded list, scrolled out of its list or under a sheet is not. */
+function rowBox(sessionId: string): AnchorBox | null {
+  if (typeof document === "undefined") return null;
+  const el = document.getElementById(railRowId(sessionId));
+  if (!el) return null;
+  const box = el.getBoundingClientRect();
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  if (box.width === 0 || box.height === 0 || box.bottom <= 0 || box.top >= vh || box.right <= 0 || box.left >= vw) return null;
+  const x = Math.min(Math.max(box.left + 12, 0), vw - 1);
+  const y = Math.min(Math.max((box.top + box.bottom) / 2, 0), vh - 1);
+  const hit = typeof document.elementFromPoint === "function" ? document.elementFromPoint(x, y) : el;
+  return hit && el.contains(hit) ? box : null;
 }
 
 /** One drawn card: the alert, and whether it is on its way out. */
@@ -74,6 +141,41 @@ export default function AlertStack(p: AlertStackProps) {
   }, [key]);
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
+  // Beside the first card's row while there is one to sit by. The rows move
+  // (the list scrolls, folds, sorts a newcomer into Needs you), so the place is
+  // read again on a scroll, a resize and twice a second while cards are up.
+  const stack = useRef<HTMLElement>(null);
+  const [place, setPlace] = useState<AnchorPlace | null>(null);
+  const anchorId = drawn.find(d => !d.leaving)?.alert.sessionId ?? null;
+  useLayoutEffect(() => {
+    if (!anchorId || typeof document === "undefined") { setPlace(null); return; }
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      const el = stack.current;
+      const card = el?.querySelector<HTMLElement>(".ca-card[data-anchor]");
+      const row = el && card ? rowBox(anchorId) : null;
+      const next = el && card && row
+        ? placeBeside(row, { height: el.offsetHeight, cardTop: card.offsetTop, cardHeight: card.offsetHeight }, { right: freeRight(), height: window.innerHeight })
+        : null;
+      setPlace(prev => (samePlace(prev, next) ? prev : next));
+    };
+    const soon = () => { if (!frame) frame = requestAnimationFrame(measure); };
+    measure();
+    window.addEventListener("resize", soon);
+    document.addEventListener("scroll", soon, true);
+    const every = window.setInterval(soon, 500);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", soon);
+      document.removeEventListener("scroll", soon, true);
+      window.clearInterval(every);
+    };
+  }, [anchorId, drawn.length]);
+  const placed = place
+    ? ({ "--ca-left": `${place.left}px`, "--ca-top": `${place.top}px`, "--ca-width": `${place.width}px`, ...(place.notch !== null ? { "--ca-notch": `${place.notch}px` } : null) } as CSSProperties)
+    : undefined;
+
   const onKey = (alert: AlertModel) => (e: KeyboardEvent<HTMLElement>) => {
     if (e.key !== "Escape") return;
     e.preventDefault();
@@ -87,7 +189,8 @@ export default function AlertStack(p: AlertStackProps) {
   };
 
   return (
-    <section className="ca-stack" aria-label={t("board.chat.alert.region")} data-empty={drawn.length === 0 || undefined}>
+    <section ref={stack} className="ca-stack" aria-label={t("board.chat.alert.region")} data-empty={drawn.length === 0 || undefined}
+      data-anchored={place ? "" : undefined} data-notch={place?.notch != null ? "" : undefined} style={placed}>
       {drawn.length > 0 && (
         <ol className="ca-list">
           {drawn.map(({ alert, leaving }) => {
@@ -98,6 +201,7 @@ export default function AlertStack(p: AlertStackProps) {
                 className="ca-card"
                 data-kind={alert.kind}
                 data-leaving={leaving || undefined}
+                data-anchor={alert.sessionId === anchorId || undefined}
                 onKeyDown={leaving ? undefined : onKey(alert)}
                 aria-hidden={leaving || undefined}
               >
