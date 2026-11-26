@@ -827,6 +827,8 @@ export default function TerminalStage(p: TerminalStageProps) {
   const promptCard = promptDecision && intentPress && intentPress.for === promptDecision.model.id ? { ...promptDecision, press: intentPress } : promptDecision;
   const chatAsk: ChatAsk | undefined = chatSession === null ? undefined : {
     blocked: chatCannotSend,
+    // An ended session asks nothing any more: its last question is not waiting.
+    ...(phase.kind === "ended" ? { gone: true } : null),
     onShowTerm: () => showView("term"),
     send: (questions, picks) => answerAsk(askSteps(questions, picks)),
     chat: questions => answerAsk(chatSteps(questions)),
