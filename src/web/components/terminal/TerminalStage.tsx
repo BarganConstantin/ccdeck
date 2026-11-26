@@ -280,6 +280,9 @@ export interface TerminalStageProps {
   onAnswerArrival?(): void;
   onClose(): void;
   onToggleExpand(): void;
+  /** The page is in a full screen ⤢ did not ask for (Zen Mode's): ⤢ is only
+   *  the width then, and never leaves it. */
+  fullHeld?: boolean;
   onFirstRunDone(): void;
   /** Open the New session popover, hung off the control with this id.
    *  `elsewhere`: the folder-gone card's Choose folder… where the desktop
@@ -958,7 +961,7 @@ export default function TerminalStage(p: TerminalStageProps) {
   useEffect(() => { const me = keysToken.current; return () => paneHoldsKeys(me, false); }, []);
 
   // ⤢: full screen too, where that is what hands the pane Ctrl+W (tab-keys.ts).
-  const fullStage = useFullStage(p.expanded, p.onToggleExpand);
+  const fullStage = useFullStage(p.expanded, p.onToggleExpand, undefined, p.fullHeld === true);
   // And in a tab, leaving asks first while the keys are the pane's — Ctrl+W
   // closes the deck before the page sees it. A leave called off is answered
   // with how to give the session those keys (leave-guard.ts).

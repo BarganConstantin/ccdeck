@@ -51,6 +51,7 @@ const tbEnd = [bar, el("div", ["tb-end"])];
 const chip = [...tbEnd, el("span", ["chip-slot"]), el("span", ["v-group"]), el("button", ["v", "stale"])];
 const search = [...tbEnd, el("div", ["actions"]), el("div", ["utility-run"]), el("button", ["rail-btn", "rail-btn-bar", "rail-btn-field"])];
 const corner = [bar, el("div", ["tb-corner"])];
+const zen = [...tbEnd, el("button", ["rail-btn", "zen-btn"])];
 
 const px = (v: string | null | undefined): number => {
   if (v == null || v === "0") return 0;
@@ -95,7 +96,17 @@ function endAt(width: number): number {
   const declaredSearch = at(search, "width", width);
   const searchW = declaredSearch === "auto" ? SEARCH_COMPACT_PX : px(declaredSearch);
   for (const n of [gap, chipW, searchW]) expect(Number.isFinite(n), `the end group at ${width}px`).toBe(true);
-  return chipW + gap + VIEW_SWITCH_PX + gap + searchW;
+  return chipW + gap + VIEW_SWITCH_PX + gap + zenAt(width) + searchW;
+}
+
+/** Zen Mode's button after the switch, and its gap, where the sheet draws it
+ *  (zen-mode.css): drawn only in Workspace, which the budget assumes as it
+ *  assumes the switch. Under 1024 it is its glyph alone, a declared square. */
+function zenAt(width: number): number {
+  if (at(zen, "display", width) === "none") return 0;
+  const w = px(at(zen, "width", width));
+  expect(Number.isFinite(w), `Zen Mode's width at ${width}px`).toBe(true);
+  return w + px(at(tbEnd, "gap", width));
 }
 
 /** The readout's room at `width`: the bar less its paddings, its two gaps, the
@@ -157,6 +168,19 @@ describe("the counts from 641 to 1023px", () => {
     const block = readouts.slice(readouts.indexOf('<div className="counts">'), readouts.indexOf("<StatusStrip"));
     expect(block.indexOf("<WaitingStat")).toBeGreaterThan(-1);
     expect(block.indexOf("<WaitingStat")).toBeLessThan(block.indexOf("<CountPill"));
+  });
+});
+
+describe("Zen Mode's button in the narrow bar", () => {
+  // Its glyph alone (28) and a gap still cut the waiting pill up to 725 with
+  // the widest end group; the button leaves the bar there, Quick Open keeps
+  // the command, and the arithmetic below holds with it wherever it is drawn.
+  it("is the glyph alone, 28px, from 761 to 1023, and not drawn up to 760", () => {
+    for (const w of [641, 700, 725, 760]) expect(at(zen, "display", w), `at ${w}px`).toBe("none");
+    for (const w of [761, 900, 1023]) {
+      expect(at(zen, "display", w), `at ${w}px`).toBe("inline-flex");
+      expect(at(zen, "width", w), `at ${w}px`).toBe("28px");
+    }
   });
 });
 
