@@ -222,9 +222,12 @@
 @media (hover: hover) and (pointer: fine) {
 .chat-retry:hover { text-decoration: underline; }
 }
-/* Older messages, on request: Retry's quiet link, centred over the conversation. */
-.chat-older { align-self: center; margin: 0; }
+/* Older messages: Retry's quiet link, centred over the conversation. They come
+   by themselves as the reader nears it; while a page is read it is the Loader
+   and its words, in the button's colour. */
+.chat-older { align-self: center; margin: 0; display: inline-flex; align-items: center; gap: 8px; }
 .chat-older[aria-busy] { color: var(--text-secondary); cursor: progress; }
+.chat-older .loader { color: currentColor; }
 
 /* A question the assistant asked (AskUserQuestion): a card as wide as its
    prose. It waits in --warn, as the Decision card does, and goes neutral once
