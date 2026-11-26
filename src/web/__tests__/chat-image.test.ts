@@ -23,7 +23,6 @@ const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16]);
 const GIF = Buffer.from("GIF89a\x01\x00\x01\x00", "latin1");
 const WEBP = Buffer.concat([Buffer.from("RIFF"), Buffer.from([1, 0, 0, 0]), Buffer.from("WEBPVP8 ")]);
-const POSIX = process.platform !== "win32";
 
 describe("what the deck takes as a picture", () => {
   it("knows PNG, JPEG, GIF and WebP by their first bytes", () => {
@@ -56,7 +55,7 @@ describe("keeping a picture", () => {
     expect(readFileSync(two.path).equals(JPEG)).toBe(true);
   });
 
-  it.skipIf(!POSIX)("in a folder only this user reads, each file the same", async () => {
+  it.skipIf(process.platform === "win32")("in a folder only this user reads, each file the same", async () => {
     const dir = fresh();
     const saved = await saveChatImage(GIF, { dir });
     expect(statSync(dir).mode & 0o777).toBe(0o700);
