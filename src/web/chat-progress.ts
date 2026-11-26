@@ -44,6 +44,8 @@ export const QUIET_MS = 120_000;
 export interface ChatPending {
   /** What was sent, as typed. */
   text: string;
+  /** The pictures sent with it, when there were any. */
+  images?: number;
   /** From when it counts as late: when it went, or when the turn it waited behind ended. */
   since: number;
   /** The board's prompt count when it went. */
@@ -120,8 +122,8 @@ export function stoppedInChat(turns: readonly ChatTurn[]): boolean {
 const atWork = (facts: Pick<ChatFacts, "turns" | "state">) => facts.state === "working" && !stoppedInChat(facts.turns);
 
 /** The record of a message the composer just sent. */
-export function pendingFor(text: string, facts: Pick<ChatFacts, "turns" | "prompts" | "state">, now: number): ChatPending {
-  return { text, since: now, prompts: facts.prompts, echoes: echoes(facts.turns, text), behind: atWork(facts) };
+export function pendingFor(text: string, facts: Pick<ChatFacts, "turns" | "prompts" | "state">, now: number, images = 0): ChatPending {
+  return { text, ...(images > 0 ? { images } : {}), since: now, prompts: facts.prompts, echoes: echoes(facts.turns, text), behind: atWork(facts) };
 }
 
 /** Whether the session has said it took the message. */
@@ -157,12 +159,12 @@ export function chatShown(pending: ChatPending | undefined, facts: ChatFacts, no
   if (pending && !taken) {
     const due = pending.since + CONFIRM_MS;
     const late = !facts.connected || (!pending.behind && now >= due);
-    out.outgoing = { text: pending.text, state: late ? "unconfirmed" : "sending", ...(pending.behind && !late ? { queued: true } : {}) };
+    out.outgoing = { text: pending.text, state: late ? "unconfirmed" : "sending", ...(pending.behind && !late ? { queued: true } : {}), ...(pending.images ? { images: pending.images } : {}) };
     if (!late && !pending.behind) out.next = due;
   } else if (pending && echoes(facts.turns, pending.text) <= pending.echoes
     && !(pending.takenAt !== undefined && now >= pending.takenAt + TAKEN_GRACE_MS)) {
     // Taken, and the conversation not read again since: drawn here meanwhile.
-    out.outgoing = { text: pending.text, state: "taken" };
+    out.outgoing = { text: pending.text, state: "taken", ...(pending.images ? { images: pending.images } : {}) };
   }
   if (pending && taken && !pending.worked && pending.takenAt !== undefined) out.next = pending.takenAt + TAKEN_GRACE_MS;
   // Taken, and the board has not said working yet: the session is on it.

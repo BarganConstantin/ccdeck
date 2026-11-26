@@ -214,6 +214,8 @@ export interface ChatOutgoing {
   state: "sending" | "unconfirmed" | "taken";
   /** Sent while the session was at work: it waits for that turn to end. */
   queued?: boolean;
+  /** The pictures sent with it, when there were any. */
+  images?: number;
 }
 
 /** What the session is doing, said under the conversation's last line. */
