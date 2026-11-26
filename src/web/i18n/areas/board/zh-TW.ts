@@ -565,6 +565,7 @@ const catalog: Catalog = {
   "board.stage.copied": "已複製",
   "board.stage.copyCommand": "複製指令",
   "board.stage.copy": "複製",
+  "board.stage.linkOpen": "{key}+按一下以開啟連結",
   "board.stage.waitingOnYou": "{name} 正在等您",
   "board.stage.open": "開啟 {name}",
   "board.stage.emptyBoard": "點選畫布上的工作階段即可在此觀看，或啟動新的工作階段。",
