@@ -565,6 +565,7 @@ const catalog: Catalog = {
   "board.stage.copied": "Copié",
   "board.stage.copyCommand": "Copier la commande",
   "board.stage.copy": "Copier",
+  "board.stage.linkOpen": "{key}+clic pour ouvrir le lien",
   "board.stage.waitingOnYou": "{name} vous attend",
   "board.stage.open": "Ouvrir {name}",
   "board.stage.emptyBoard": "Cliquez sur une session du tableau pour la suivre ici, ou lancez-en une nouvelle.",

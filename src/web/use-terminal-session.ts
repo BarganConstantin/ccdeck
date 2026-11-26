@@ -70,7 +70,7 @@ import { codexTerminalSurfaces } from "./codex-terminal-surfaces";
 import type { Cell } from "./stage-geometry";
 import { terminalKeyInput, terminalKeyOutcome, type TerminalKey } from "./terminal-keys";
 import { stepTerminalText, textSizeChord } from "./terminal-text-size";
-import { openLink } from "./terminal-links";
+import { URL_IN_OUTPUT, keepsPressFromProgram, linkHint, openLink } from "./terminal-links";
 import { copyText } from "./copy-text";
 import { leaveRepliesToTmux } from "./terminal-replies";
 import { isApplePlatform, platformName } from "./platform";
@@ -336,7 +336,8 @@ function copySelection(term: { hasSelection(): boolean; getSelection(): string; 
  * (`viewAnswers`).
  *
  * LINKS NEED CTRL (Cmd on a Mac), and never a browser dialog
- * (terminal-links.ts), for OSC 8 links and plain URLs alike.
+ * (terminal-links.ts), for OSC 8 links and plain URLs alike, and open here
+ * even while the program has the mouse.
  */
 export const mountXterm: MountTerminal = async (host, init, events) => {
   const [{ Terminal }, { UnicodeGraphemesAddon }, { WebLinksAddon }] = await Promise.all([
@@ -348,9 +349,21 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
   ]);
   const apple = isApplePlatform(platformName());
   // Read when a link is pressed, so a program that turns the mouse on later
-  // keeps its clicks (terminal-links.ts).
+  // gets its other clicks (terminal-links.ts).
   let programHasMouse = () => false;
-  const follow = (e: MouseEvent, uri: string) => openLink(e, uri, { apple, programHasMouse: programHasMouse() });
+  // The link under the pointer, as xterm's hover and leave report it for both
+  // kinds; while one is, the screen's tooltip names it and the gesture.
+  let overLink: string | null = null;
+  let screenElement: HTMLElement | null = null;
+  const hover = (_e: MouseEvent, uri: string) => {
+    overLink = uri;
+    screenElement?.setAttribute("title", linkHint(uri, { apple }));
+  };
+  const leave = () => {
+    overLink = null;
+    screenElement?.removeAttribute("title");
+  };
+  const follow = (e: MouseEvent, uri: string) => { openLink(e, uri, { apple }); };
   const term = new Terminal({
     cols: init.cols,
     rows: init.rows,
@@ -378,14 +391,14 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
     // The stage announces what changed, once, through the deck's own regions.
     screenReaderMode: false,
     // OSC 8 links, without xterm's confirm() and only with Ctrl/Cmd held.
-    linkHandler: { activate: follow, allowNonHttpProtocols: false },
+    linkHandler: { activate: follow, hover, leave, allowNonHttpProtocols: false },
     // Option-drag selects on a Mac while the program has the mouse, as Shift
     // does elsewhere; without it a Mac has no way to select there at all.
     macOptionClickForcesSelection: true,
   });
   // Activates "15-graphemes" itself.
   term.loadAddon(new UnicodeGraphemesAddon());
-  term.loadAddon(new WebLinksAddon(follow));
+  term.loadAddon(new WebLinksAddon(follow, { hover, leave, urlRegex: URL_IN_OUTPUT }));
   programHasMouse = () => term.modes.mouseTrackingMode !== "none";
   // With no application mouse tracking, an alternate screen has no local
   // scrollback. xterm otherwise fabricates Up/Down key presses for its wheel,
@@ -399,6 +412,20 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
   });
   const replies = leaveRepliesToTmux(term.parser);
   term.open(host);
+  // The gesture on a link is the link's alone while the program has the mouse
+  // (terminal-links.ts). xterm's link detection listens on the screen and has
+  // seen the press by now, so it still opens the link on the release; stopped
+  // here, the press never reaches the listener on xterm's element that
+  // reports it to the program. That listener also takes the keys, so this
+  // does.
+  screenElement = term.element?.querySelector<HTMLElement>(".xterm-screen") ?? null;
+  const onLinkPress = (e: MouseEvent) => {
+    if (!keepsPressFromProgram(e, { apple, overLink: overLink !== null, programHasMouse: programHasMouse() })) return;
+    e.preventDefault();
+    e.stopPropagation();
+    term.focus();
+  };
+  screenElement?.addEventListener("mousedown", onLinkPress);
   // A form field with neither id nor name is flagged by the browser's issues
   // panel on every open; the pane's input is named for what it is.
   term.textarea?.setAttribute("name", "terminal-input");
@@ -536,6 +563,7 @@ export const mountXterm: MountTerminal = async (host, init, events) => {
       host.removeEventListener("dragover", onDragOver, true);
       host.removeEventListener("drop", onDrop, true);
       host.removeEventListener("mousedown", onMouseDown, true);
+      screenElement?.removeEventListener("mousedown", onLinkPress);
       textarea?.removeEventListener("focus", onFocus);
       textarea?.removeEventListener("blur", onBlur);
       for (const d of disposables) d.dispose();
