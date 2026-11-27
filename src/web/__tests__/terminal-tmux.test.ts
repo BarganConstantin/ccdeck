@@ -536,7 +536,8 @@ describe("arguments tmux would otherwise reinterpret", () => {
     expect(paneArgv(inFolderArgv("/w", ["claude"])), "five words: tmux execs it directly").toEqual(inFolderArgv("/w", ["claude"]));
   });
 
-  it("moves into the folder only where the pane did not start there, then runs the agent as itself", () => {
+  // A POSIX shell runs it inside a tmux pane; Windows has neither, and its sessions never take this path.
+  it.skipIf(process.platform === "win32")("moves into the folder only where the pane did not start there, then runs the agent as itself", () => {
     const base = mkdtempSync(join(tmpdir(), "cct-in-folder-"));
     try {
       const project = join(base, "p r ș;");
