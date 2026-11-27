@@ -296,6 +296,8 @@ describe("a percentage width under a horizontal margin", () => {
       // its rule is scoped rather than bare.
       // Quota history SVG fills its grid track without outer margins.
       "pl-name", "qh-chart", "radio-daily", "radio-filter-option", "radio-filter-trigger", "radio-map-canvas",
+      // History buttons occupy their whole list row with no outer margin.
+      "session-history-row",
       "tool-bursts-svg", "tr-event-bottom", "tr-event-top", "tr-message", "tr-search",
       // Tool activity's Where the time went: a lane, one button across its row
       // of the ring's legend, and a part, one button across its list row. No

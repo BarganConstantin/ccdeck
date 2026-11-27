@@ -7,8 +7,8 @@
 }
 .session-history .modal-head { flex: none; }
 .session-history-heading { display: flex; align-items: center; gap: 8px; }
-.session-history-heading > .glyph { color: var(--text-secondary); }
-.session-history-heading h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.session-history-heading > .glyph { color: var(--muted); }
+.session-history-heading h2 { margin: 0; font-size: 13px; font-weight: 600; }
 .session-history-filters {
   flex: none;
   display: grid;
@@ -22,11 +22,11 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-inline: 9px;
+  padding-inline: 8px;
   min-height: var(--ctl-h);
   border: 1px solid var(--ctl-edge);
   border-radius: var(--r-ctl);
-  color: var(--text-secondary);
+  color: var(--muted);
   background: var(--ctl-fill);
 }
 .session-history-search:focus-within { border-color: var(--accent); }
@@ -34,23 +34,23 @@
   width: 100%;
   min-width: 0;
   padding: 5px 0;
-  outline: none;
+  outline-offset: -2px;
   border: 0;
   background: transparent;
   color: var(--text);
   font: inherit;
 }
-.session-history-search input::placeholder { color: var(--text-secondary); opacity: 1; }
+.session-history-search input::placeholder { color: var(--muted); opacity: 1; }
 .session-history-providers { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: var(--r-ctl); }
 .session-history-filter {
   border: 1px solid transparent;
   border-radius: var(--r-tag);
-  padding: 4px 9px;
+  padding: 4px 8px;
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--text);
   font: inherit;
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 
 .session-history-filter[aria-pressed="true"] { color: var(--text); background: var(--ctl-fill); border-color: var(--ctl-edge); }
@@ -65,7 +65,7 @@
   grid-template-columns: 20px minmax(0, 1fr) minmax(0, auto) 14px;
   align-items: center;
   gap: 10px;
-  padding: 7px 8px;
+  padding: 8px;
   text-align: start;
   color: var(--text);
   font: inherit;
@@ -73,7 +73,7 @@
   border: 0;
   border-radius: var(--r-ctl);
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease);
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
   animation: session-history-arrive var(--dur-xfade) var(--ease) both;
 }
 .session-history-row:focus-visible { outline-offset: -2px; }
@@ -82,7 +82,8 @@
 .session-history-identity { min-width: 0; display: grid; gap: 3px; }
 .session-history-name { font-weight: 600; }
 .session-history-identity > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.session-history-path, .session-history-date, .session-history-note { color: var(--text-secondary); font-size: 12px; }
+.session-history-path, .session-history-date { color: var(--muted); font-size: 12px; }
+.session-history-note { color: var(--text-secondary); font-size: 12px; }
 .session-history-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .session-history-open { color: var(--muted); opacity: .66; transition: transform var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease); }
 .session-history-row:focus-visible .session-history-open { opacity: 1; transform: translateX(2px); }
@@ -94,17 +95,22 @@
 @keyframes session-history-loading { to { opacity: .46; } }
 @keyframes session-history-arrive { from { opacity: 0; } to { opacity: 1; } }
 @media (max-width: 440px) {
-  .session-history-filters { grid-template-columns: 1fr; gap: 7px; }
+  .session-history-filters { grid-template-columns: 1fr; gap: 8px; }
   .session-history-providers { justify-self: start; }
   .session-history-row { gap: 6px; }
   .session-history-date { font-size: 11px; }
 }
 @media (hover: hover) and (pointer: fine) {
-  .session-history-filter:hover { color: var(--text); }
+  .session-history-filter:hover { background: var(--ctl-fill); }
   .session-history-row:not(:disabled):hover { background: var(--ctl-fill); }
   .session-history-row:hover .session-history-open { opacity: 1; transform: translateX(2px); }
 }
+.session-history-filter:active:not(:focus-visible),
+.session-history-row:active:not(:disabled):not(:focus-visible) { transform: scale(var(--press)); }
 @media (prefers-reduced-motion: reduce) {
+  .session-history-filter:active:not(:focus-visible),
+  .session-history-row:active:not(:disabled):not(:focus-visible),
+  .session-history-row:focus-visible .session-history-open { transform: none; }
   .session-history-skeleton span { animation: none; }
   .session-history-open { transition: opacity var(--dur-fast) var(--ease); }
 }
