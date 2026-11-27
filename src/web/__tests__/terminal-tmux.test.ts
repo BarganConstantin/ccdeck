@@ -13,12 +13,13 @@
 // expanded as a format (and `#(...)` would run), and a client with no UTF-8
 // locale prints every non-ASCII character as `_`.
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmTempDir } from "./rm-temp-dir";
 import {
-  DECK_SOCKET, LEGACY_SCOPE_ARGS, MIN_TMUX_VERSION, SCOPE_ARGS, cgroupPath, deckServerHoldsOlder, findTmux, ownTmuxWanted, paneArgv,
+  DECK_SOCKET, LEGACY_SCOPE_ARGS, MIN_TMUX_VERSION, SCOPE_ARGS, cgroupPath, deckServerHoldsOlder, findTmux, IN_FOLDER, inFolderArgv, ownTmuxWanted, paneArgv,
   parseTmuxVersion, resetServerScope, resetTmuxCache, runTmux, serverScope, tmuxArg, tmuxCandidates, tmuxCommand, tmuxEnv,
   tmuxFormatLiteral, tmuxHasNoServer, tmuxInstallLine, tmuxSequence,
 } from "../../server/tmux.mjs";
@@ -525,6 +526,27 @@ describe("arguments tmux would otherwise reinterpret", () => {
   it("runs a one-word command through /bin/sh's exec rather than the user's shell", () => {
     expect(paneArgv(["/Volumes/My Disk/bin/codex"])).toEqual(["/bin/sh", "-c", 'exec "$0"', "/Volumes/My Disk/bin/codex"]);
     expect(paneArgv(["claude", "--resume", "x"]), "two or more words are exec'd by tmux directly").toEqual(["claude", "--resume", "x"]);
+  });
+
+  it("hands the folder to /bin/sh as an argument, never inside its script", () => {
+    const odd = "/w/p #{x} $(rm -rf ~) \"q\";";
+    expect(inFolderArgv(odd, ["/Volumes/My Disk/bin/codex"])).toEqual(["/bin/sh", "-c", IN_FOLDER, odd, "/Volumes/My Disk/bin/codex"]);
+    expect(IN_FOLDER).not.toContain("/w/");
+    expect(IN_FOLDER, "the agent replaces the shell: the pane's pid is the agent's").toMatch(/exec "\$@"$/);
+    expect(paneArgv(inFolderArgv("/w", ["claude"])), "five words: tmux execs it directly").toEqual(inFolderArgv("/w", ["claude"]));
+  });
+
+  it("moves into the folder only where the pane did not start there, then runs the agent as itself", () => {
+    const base = mkdtempSync(join(tmpdir(), "cct-in-folder-"));
+    try {
+      const project = join(base, "p r ș;");
+      mkdirSync(project);
+      const run = (cwd: string) => execFileSync("/bin/sh", ["-c", IN_FOLDER, project, "/bin/sh", "-c", 'printf "%s|%s" "$(pwd -P)" "$1"', "sh", "a b"], { cwd, encoding: "utf8" });
+      expect(run(project), "already there: no output of its own").toBe(`${realpathSync(project)}|a b`);
+      expect(run(base), "elsewhere: moved, its own complaint cleared first").toBe(`\x1b[H\x1b[2J\x1b[3J${realpathSync(project)}|a b`);
+    } finally {
+      rmTempDir(base);
+    }
   });
 });
 

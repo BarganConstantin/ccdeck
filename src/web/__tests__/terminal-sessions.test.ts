@@ -18,7 +18,7 @@ import {
   listDeckSessions, parseDeckPanes, pruneDeadDeckSessions, resizeWrapper, resolveAgentBin, SKIP_PERMISSIONS_FLAG, staleDeadSessions,
 } from "../../server/terminal-sessions.mjs";
 // @ts-expect-error — plain .mjs server module, no types
-import { DECK_SOCKET } from "../../server/tmux.mjs";
+import { DECK_SOCKET, IN_FOLDER } from "../../server/tmux.mjs";
 
 const ID = "5f0c2a9e-3b1d-4c7e-9a2f-8d6e1b0c4a73";
 const ID2 = "0b7e4d21-6f3a-4e58-b9c0-1a2d3e4f5a6b";
@@ -325,7 +325,8 @@ describe("launching a session", () => {
     expect(socket, "the product's own server unless told otherwise").toBe(DECK_SOCKET);
     expect(opts.env, "the deck's environment; runTmux scrubs it").toBe(env);
     const cmd = args.slice(args.indexOf("--") + 1, args.indexOf(";", args.indexOf("--")));
-    expect(cmd, "the resolved binary, told the id it returned").toEqual([process.execPath, "--session-id", out.sessionId]);
+    expect(cmd.slice(0, 4), "started in its folder by the pane itself").toEqual(["/bin/sh", "-c", IN_FOLDER, PROJECT]);
+    expect(cmd.slice(4), "the resolved binary, told the id it returned").toEqual([process.execPath, "--session-id", out.sessionId]);
     expect(args).toContain(out.name);
   });
 

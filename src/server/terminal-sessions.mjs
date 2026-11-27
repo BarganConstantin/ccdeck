@@ -30,7 +30,7 @@ import { pathLookup } from "./exec-spec.mjs";
 import { adminClaudeBin } from "./claude-identity.mjs";
 import { codexBin } from "./codex-update.mjs";
 import {
-  DECK_SOCKET, findTmux, paneArgv, runTmux, serverScope, tmuxFormatLiteral, tmuxHasNoServer, tmuxSequence,
+  DECK_SOCKET, findTmux, inFolderArgv, paneArgv, runTmux, serverScope, tmuxFormatLiteral, tmuxHasNoServer, tmuxSequence,
 } from "./tmux.mjs";
 
 /** The agents the deck can launch. */
@@ -489,7 +489,8 @@ export async function launchSession({
 
   for (let attempt = 0; ; attempt++) {
     const name = deckSessionName({ agent, kind, sessionId: id });
-    const args = launchCommand({ name, cwd: dir, ...size, argv: command, sessionId: id, agent, kind, term: paneTerm({ env }), colours, launchKey });
+    // In its folder even on a server that cannot read its own (inFolderArgv).
+    const args = launchCommand({ name, cwd: dir, ...size, argv: inFolderArgv(dir, command), sessionId: id, agent, kind, term: paneTerm({ env }), colours, launchKey });
     let r = await run(bin, socket, args, outside ? { env, scope: outside } : { env });
     if (outside && !r.ok && SYSTEMD_REFUSED.test(r.stderr)) {
       outside = null;
