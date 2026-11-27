@@ -1,4 +1,10 @@
 {
+  "4.4.6": [
+    {
+      "title": "Local Network access on macOS",
+      "body": "The macOS app now has its own launcher identifier for Local Network privacy. This prevents other Electron apps from sharing that identifier with ccdeck. If macOS asks for access again after updating, choose Allow to discover and connect to nearby decks."
+    }
+  ],
   "4.4.5": [
     {
       "title": "🧲 A coordinator's subagents close up beside it on the Board",
