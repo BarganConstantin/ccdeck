@@ -18,7 +18,7 @@ export const SESSION_DRAG = "application/x-ccdeck-session";
 export const PANE_DRAG = "application/x-ccdeck-pane";
 
 export type Dragged =
-  | { kind: "session"; id: string; name: string }
+  | { kind: "session"; id: string; name: string; fromTab?: boolean }
   | { kind: "pane"; id: string; name: string };
 
 let current: Dragged | null = null;

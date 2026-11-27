@@ -49,7 +49,7 @@
 // before, from the last), and the menu stays open, with its chevron, for the
 // next close, even once the strip has room for every tab; shut then, the
 // chevron goes and the keyboard it was handed lands on the strip.
-import { useEffect, useId, useLayoutEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type WheelEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type DragEvent, type FocusEvent, type KeyboardEvent, type WheelEvent } from "react";
 import { useT } from "../../i18n";
 import { menuMove } from "../../menu-keys";
 import { isBrowserChord } from "../../shortcuts";
@@ -67,6 +67,7 @@ export interface PaneTabItem {
   id: string;
   /** The session's name, as the rail and the board name it. */
   name: string;
+  sessionId?: string;
   status: StageStatus;
   /** The mark its row wears in the Sessions list (SessionList.tsx
    *  rowGlyphOf), for a session the board knows; else the header's. */
@@ -83,6 +84,7 @@ export interface PaneTabsView {
   /** A tab shown: by Space on the strip (`keys` false, the keyboard stays on
    *  the strip), or by a press or Enter (the keyboard goes into its
    *  terminal). */
+  onDragTab?(e: DragEvent<HTMLElement>, sessionId: string, name: string): void;
   onSelect(key: string, how: { keys: boolean }): void;
   /** A tab closed: from the strip by Delete (`keys`), a middle press or the
    *  tab's own ×, or its row's × or Delete in the strip's menu (`keys` and
@@ -299,7 +301,7 @@ export function StripTab({ x, w, stop, view, closeName, onRename }: {
   w: PaneTabWords;
   /** The strip's one tab stop (stripStop). */
   stop: string | null;
-  view: Pick<PaneTabsView, "onSelect" | "onClose">;
+  view: Pick<PaneTabsView, "onSelect" | "onClose" | "onDragTab">;
   /** "Close <name>": the ×'s name and tooltip. */
   closeName: string;
   onRename?: () => void;
@@ -317,6 +319,12 @@ export function StripTab({ x, w, stop, view, closeName, onRename }: {
         tabIndex={x.key === stop ? 0 : -1}
         data-on={x.on || undefined}
         title={w.word ? `${x.name} · ${w.sentence}` : x.name}
+        draggable={!!x.sessionId && !!view.onDragTab}
+        onDragStart={e => {
+          if (!x.sessionId || !view.onDragTab) return;
+          e.stopPropagation();
+          view.onDragTab(e, x.sessionId, x.name);
+        }}
         onClick={() => view.onSelect(x.key, { keys: true })}
         // A middle press closes the tab, and is never the browser's
         // scroll-by-dragging that a middle press starts elsewhere.

@@ -7,7 +7,7 @@ import {
   MAX_PANES, MAX_TABS, SPLIT_KEY, closeTab, emptyPaneTabs, fits, focusSplit, heldLaunches, insertPane, layoutSplit,
   loadSplit, minExtent, movePane, paneCount, paneIds, paneSessions, paneTabs, paneTarget, paneWith, parseSplit,
   promoteLaunch, pruneSplit, ratioAt, readingOrder, removePane, replaceTab, sameTab, saveSplit, serializeSplit,
-  sessionPaneLinks, setRatio, singleSplit, splitOutTab, tabKey, tabWith, withFocusedTarget, zoneAt, zoneRect, type SplitState,
+  moveTabIntoPane, sessionPaneLinks, setRatio, singleSplit, splitOutTab, tabKey, tabWith, withFocusedTarget, zoneAt, zoneRect, type SplitState,
 } from "../workspace-split";
 
 const S = (id: string): StageTarget => ({ kind: "session", id });
@@ -451,6 +451,16 @@ describe("a pane holds tabs", () => {
 describe("an open session dragged onto a pane's edge leaves its tabs for a pane there (internal #168)", () => {
   /** One pane, two tabs: s1 behind, s2 on show with the keys. */
   const oneWithTwo = () => withFocusedTarget(withFocusedTarget(singleSplit(), S("s1")), S("s2"));
+
+  it("moves only the selected tab into an existing pane", () => {
+    const original = insertPane(oneWithTwo(), "p0", "right", S("s3"))!;
+    const moved = moveTabIntoPane(original.state, "p0", original.id, S("s2"), S("s2"))!;
+    expect(moved.root).toBe(original.state.root);
+    expect(moved.focused).toBe(original.id);
+    expect(paneTabs(moved, "p0", null)).toEqual([S("s1")]);
+    expect(paneTabs(moved, original.id, null)).toEqual([S("s3"), S("s2")]);
+    expect(moved.targets[original.id]).toEqual(S("s2"));
+  });
 
   it("takes a tab behind out of its pane into a new pane beside: the same tab, never a second one", () => {
     const out = splitOutTab(oneWithTwo(), "s1", "p0", "right", S("s2"))!;
