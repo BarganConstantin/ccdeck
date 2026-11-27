@@ -196,7 +196,6 @@ export const GATES = [
   // POSIX mode to read; the folder's place and the files' names are checked on
   // every leg by the same file's other cases.
   { file: "chat-image.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
-  { file: "session-history.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   { file: "codex-auth-rename-retry.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   { file: "codex-auth-temp-collision.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 3 },
   // The desktop launcher fixture is a POSIX shell; Windows exercises its PowerShell launcher in the same suite.

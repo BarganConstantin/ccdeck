@@ -261,7 +261,7 @@ const catalog: Catalog = {
   "board.history.retry": "Încearcă din nou",
   "board.history.empty": "Nu am găsit sesiuni salvate care să corespundă.",
   "board.history.more": "Încarcă sesiuni mai vechi",
-  "board.history.limited": "Rezultatele provin dintr-o scanare locală limitată.",
+  "board.history.limited": "Este posibil ca unele sesiuni mai vechi să nu apară.",
   "board.list.title": "Sesiuni",
   "board.list.waitingCount": "{n} în așteptare",
   "board.list.liveCount": "{n} active",

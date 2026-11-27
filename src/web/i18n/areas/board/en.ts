@@ -249,7 +249,7 @@ const catalog: Catalog = {
   "board.history.retry": "Try again",
   "board.history.empty": "No matching saved sessions.",
   "board.history.more": "Load older sessions",
-  "board.history.limited": "Showing results from the bounded local scan.",
+  "board.history.limited": "Some older sessions may not appear.",
   "board.list.title": "Sessions",
   "board.list.waitingCount": "{n} waiting",
   "board.list.liveCount": "{n} live",

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdir, mkdtemp, realpath, rm, symlink, utimes, writeFile } from "node:fs/promises";
+import { link, mkdir, mkdtemp, realpath, rm, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { canResumeSavedSession, createSessionHistoryReader, handleSessionHistory } from "../../server/session-history.mjs";
@@ -72,10 +72,10 @@ describe("provider session history", () => {
     expect(await canResumeSavedSession(request(), ref, opts)).toBe(false);
   });
 
-  it.skipIf(process.platform === "win32")("ignores a transcript symlink", async () => {
+  it("ignores multiply linked transcripts", async () => {
     const f = await fixture();
-    await symlink(f.claude, join(f.claudeRoot, "-repo", `${CODEX}.jsonl`));
-    expect((await f.read()).rows.map(row => row.id)).toEqual([CLAUDE, CODEX]);
+    await link(f.claude, join(f.claudeRoot, "-repo", `${CODEX}.jsonl`));
+    expect((await f.read()).rows.map(row => row.id)).toEqual([CODEX]);
   });
 
   it("preserves provider and folder in the workspace for a session the board never saw", () => {

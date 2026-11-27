@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useT, currentLanguage } from "../i18n";
 import { sessionHistory, type SavedSession, type SessionHistoryPage } from "../session-history";
@@ -8,7 +8,6 @@ import { KitIcon } from "./kit-icons";
 import { Dialog, DialogClose } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import type { TerminalProvider } from "../terminal-api";
-import "../styles/session-history.css";
 
 const PROVIDERS = ["all", "claude", "codex"] as const;
 const PLACEHOLDERS = [0, 1, 2, 3, 4];
@@ -20,10 +19,9 @@ export default function SessionHistoryDialog({ onClose, onOpen }: {
   onOpen(session: SavedSession): void;
 }) {
   const t = useT();
-  const titleId = useId();
   const search = useRef<HTMLInputElement>(null);
-  const dialog = useModalDismiss(onClose, { focusRef: search });
-  const scrim = useScrimDismiss(onClose);
+  const dialogRef = useModalDismiss(onClose, { focusRef: search });
+  const scrimPress = useScrimDismiss(onClose);
   const [query, setQuery] = useState("");
   const [provider, setProvider] = useState<TerminalProvider | "all">("all");
   const [offset, setOffset] = useState(0);
@@ -58,9 +56,9 @@ export default function SessionHistoryDialog({ onClose, onOpen }: {
   }
 
   return createPortal(
-    <Dialog dialogRef={dialog} scrim={scrim} className="session-history" labelledBy={titleId}>
+    <Dialog dialogRef={dialogRef} scrim={scrimPress} className="session-history" labelledBy="session-history-title">
       <header className="modal-head">
-        <div className="session-history-heading"><ClockGlyph /><h2 id={titleId}>{t("board.history.title")}</h2></div>
+        <div className="session-history-heading"><ClockGlyph /><h2 id="session-history-title">{t("board.history.title")}</h2></div>
         <div className="modal-actions"><DialogClose onClick={onClose} label={t("board.history.close")} /></div>
       </header>
       <div className="session-history-filters">
@@ -71,7 +69,7 @@ export default function SessionHistoryDialog({ onClose, onOpen }: {
         </div>
         <div className="session-history-providers" role="group" aria-label={t("board.history.provider")}>
           {PROVIDERS.map(key => (
-            <button key={key} type="button" aria-pressed={provider === key}
+            <button key={key} type="button" className="session-history-filter" aria-pressed={provider === key}
               onClick={() => { if (provider !== key) { change(); setProvider(key); } }}>
               {key === "all" ? t("board.history.all") : key === "claude" ? "Claude" : "Codex"}
             </button>

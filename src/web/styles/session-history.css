@@ -42,7 +42,7 @@
 }
 .session-history-search input::placeholder { color: var(--text-secondary); opacity: 1; }
 .session-history-providers { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: var(--r-ctl); }
-.session-history-providers button {
+.session-history-filter {
   border: 1px solid transparent;
   border-radius: var(--r-tag);
   padding: 4px 9px;
@@ -52,8 +52,8 @@
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
-.session-history-providers button:hover { color: var(--text); }
-.session-history-providers button[aria-pressed="true"] { color: var(--text); background: var(--ctl-fill); border-color: var(--ctl-edge); }
+
+.session-history-filter[aria-pressed="true"] { color: var(--text); background: var(--ctl-fill); border-color: var(--ctl-edge); }
 .session-history-body { flex: 1; min-height: 0; overflow: auto; padding: 4px 12px 12px; }
 .session-history-body > :is(p, div[role="status"]) { margin: 14px 8px; color: var(--text-secondary); }
 .session-history-list { list-style: none; padding: 0; margin: 0; }
@@ -74,10 +74,10 @@
   border-radius: var(--r-ctl);
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease);
-  animation: session-history-arrive 160ms var(--ease) both;
+  animation: session-history-arrive var(--dur-xfade) var(--ease) both;
 }
 .session-history-row:focus-visible { outline-offset: -2px; }
-.session-history-row:not(:disabled):is(:hover, :focus-visible) { background: var(--ctl-fill); }
+.session-history-row:not(:disabled):focus-visible { background: var(--ctl-fill); }
 .session-history-row:disabled { cursor: default; }
 .session-history-identity { min-width: 0; display: grid; gap: 3px; }
 .session-history-name { font-weight: 600; }
@@ -85,11 +85,11 @@
 .session-history-path, .session-history-date, .session-history-note { color: var(--text-secondary); font-size: 12px; }
 .session-history-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .session-history-open { color: var(--muted); opacity: .66; transition: transform var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease); }
-.session-history-row:is(:hover, :focus-visible) .session-history-open { opacity: 1; transform: translateX(2px); }
+.session-history-row:focus-visible .session-history-open { opacity: 1; transform: translateX(2px); }
 .session-history-footer { flex: none; display: flex; justify-content: center; border-top: 1px solid var(--line-soft); padding: 8px; }
-.session-history-skeleton { padding-inline: 8px; animation: session-history-arrive 160ms var(--ease) 180ms both; }
+.session-history-skeleton { padding-inline: 8px; animation: session-history-arrive var(--dur-xfade) var(--ease) var(--delay-loader) both; }
 .session-history-skeleton > div { min-height: 54px; display: grid; grid-template-columns: 20px minmax(50px, 30%) 52px; align-items: center; gap: 10px; border-bottom: 1px solid var(--line-soft); }
-.session-history-skeleton span { height: 10px; border-radius: var(--r-tag); background: var(--ctl-fill); animation: session-history-loading 900ms ease-in-out infinite alternate; }
+.session-history-skeleton span { height: 10px; border-radius: var(--r-tag); background: var(--ctl-fill); animation: session-history-loading var(--pulse-live) infinite alternate; }
 .session-history-skeleton span:first-child { height: 18px; }
 @keyframes session-history-loading { to { opacity: .46; } }
 @keyframes session-history-arrive { from { opacity: 0; } to { opacity: 1; } }
@@ -99,7 +99,15 @@
   .session-history-row { gap: 6px; }
   .session-history-date { font-size: 11px; }
 }
+@media (hover: hover) and (pointer: fine) {
+  .session-history-filter:hover { color: var(--text); }
+  .session-history-row:not(:disabled):hover { background: var(--ctl-fill); }
+  .session-history-row:hover .session-history-open { opacity: 1; transform: translateX(2px); }
+}
 @media (prefers-reduced-motion: reduce) {
   .session-history-skeleton span { animation: none; }
-  .session-history-row:is(:hover, :focus-visible) .session-history-open { transform: none; }
+  .session-history-open { transition: opacity var(--dur-fast) var(--ease); }
+}
+@media (prefers-reduced-motion: reduce) and (hover: hover) and (pointer: fine) {
+  .session-history-row:hover .session-history-open { transform: none; }
 }
