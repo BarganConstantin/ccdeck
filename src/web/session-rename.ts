@@ -104,12 +104,22 @@ export async function saveSessionName(
   send: typeof fetch = fetch,
 ): Promise<SaveResult> {
   try {
-    const res = await send("/api/session-name", {
+    const write = (syncProvider: boolean) => send("/api/session-name", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: facts.provider, sessionId: facts.sessionId, name, syncProvider: true }),
+      body: JSON.stringify({ provider: facts.provider, sessionId: facts.sessionId, name, syncProvider }),
     });
-    const body = await res.json().catch(() => null) as { ok?: unknown; name?: unknown } | null;
+    const read = async (response: Response) =>
+      await response.json().catch(() => null) as { ok?: unknown; name?: unknown; reason?: unknown } | null;
+
+    let res = await write(true);
+    let body = await read(res);
+    // The server rejects native rename before writing the deck name. A
+    // session without a writable Claude transcript can still have a deck name.
+    if (facts.provider === "claude" && name !== null && res.status === 409 && body?.reason === "provider_name_not_saved") {
+      res = await write(false);
+      body = await read(res);
+    }
     if (!res.ok || !body || body.ok !== true) return { ok: false };
     return { ok: true, name: typeof body.name === "string" ? body.name : null };
   } catch {

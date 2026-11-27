@@ -191,6 +191,21 @@ describe("the save itself", () => {
     expect(JSON.parse(String(sent!.init.body))).toEqual({ provider: "codex", sessionId: SID, name: "Ship it", syncProvider: true });
   });
 
+  it("keeps a Claude deck name when the native transcript cannot be renamed", async () => {
+    const requests: unknown[] = [];
+    const send = (async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body));
+      requests.push(body);
+      return body.syncProvider
+        ? new Response(JSON.stringify({ ok: false, reason: "provider_name_not_saved" }), { status: 409 })
+        : new Response(JSON.stringify({ ok: true, name: body.name }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const claude = { ...facts, provider: "claude" as const };
+    await expect(saveSessionName(claude, "Developer", send)).resolves.toEqual({ ok: true, name: "Developer" });
+    const payload = { ...claude, name: "Developer" };
+    expect(requests).toEqual([{ ...payload, syncProvider: true }, { ...payload, syncProvider: false }]);
+  });
+
   it("answers a clear as null", async () => {
     await expect(saveSessionName(facts, null, reply(200, { ok: true, name: null }))).resolves.toEqual({ ok: true, name: null });
   });
