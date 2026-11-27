@@ -15,8 +15,9 @@ import { ContextView } from "../components/ContextModal";
 import { INSPECTOR_TAB_KEY } from "../inspector-tab";
 import { applyEvent, initialState, type GraphState } from "../reducer";
 import {
-  CATEGORY_KEYS, SINCE_FLOOR, categorySlug, isContextSnapshot, mcpGroups, mcpToolCount, mergeSnapshot, snapshotLayout,
+  CATEGORY_KEYS, SINCE_FLOOR, categorySlug, isContextSnapshot, mcpGroups, mcpToolCount, mergeSnapshot, snapTokens, snapshotLayout,
 } from "../context-snapshot";
+import { contextFill } from "../context-figure";
 import { en } from "../i18n/en";
 import type { AgentNodeData, ContextBreakdown, ContextSnapshot, HookEnvelope, HookPayload } from "../types";
 import { sheetText } from "./sheet-source";
@@ -170,6 +171,28 @@ describe("the rows of the breakdown", () => {
     expect(mcpToolCount(snapshot({ more: { mcpTools: { count: 5, tokens: 900 } } }))).toBe(60);
   });
 
+  it("prints a count as /context does: a decimal only under 10k and past 1M, never a trailing .0", () => {
+    const cases: Array<[number, string]> = [
+      [0, "0"], [850, "850"], [999, "999"], [1000, "1k"], [3140, "3.1k"], [5000, "5k"], [9949, "9.9k"], [9950, "10k"],
+      [10_000, "10k"], [35_700, "36k"], [600_000, "600k"], [999_499, "999k"], [999_500, "1M"], [1_000_000, "1M"], [1_240_000, "1.2M"],
+    ];
+    for (const [n, want] of cases) expect(snapTokens(n), String(n)).toBe(want);
+    expect(snapTokens(Number.NaN)).toBe("0");
+    expect(snapTokens(-5)).toBe("0");
+  });
+
+  it("gives the window figure everywhere /context's window and count, once the session has one", () => {
+    const base = { usage: NO_USAGE, model: "claude-opus-4-7", contextWindow: 200_000 } as unknown as AgentNodeData;
+    // No snapshot: the deck's own estimate over the model's window, as before.
+    expect(contextFill({ ...base, context: ctx({ currentContextTokens: 50_000 }) })).toMatchObject({ used: 50_000, limit: 200_000 });
+    // A snapshot: its window, and its count until the session has grown past it.
+    expect(contextFill({ ...base, context: ctx({ currentContextTokens: 110_000, snapshot: snapshot() }) })).toMatchObject({ used: 113_600, limit: 600_000 });
+    expect(contextFill({ ...base, context: ctx({ currentContextTokens: 128_200, snapshot: snapshot() }) })).toMatchObject({ used: 128_200, limit: 600_000 });
+    // Only Claude Code has /context: a Codex session handed one keeps its own figure.
+    expect(contextFill({ ...base, provider: "codex", context: ctx({ currentContextTokens: 50_000, snapshot: snapshot() }) } as AgentNodeData))
+      .toMatchObject({ used: 50_000, limit: 200_000 });
+  });
+
   it("names every category Claude Code writes in the reader's language", () => {
     const names = [
       "Messages", "Memory files", "System tools", "System tools (deferred)", "System prompt", "Skills", "Custom agents",
@@ -211,10 +234,12 @@ const texts = (html: string, cls: string) =>
   [...html.matchAll(new RegExp(`<[a-z]+ class="${cls}"[^>]*>([\\s\\S]*?)</(?:span|p|li)>`, "g"))].map(m => m[1].replace(/<[^>]+>/g, ""));
 
 describe("the Context tab with a snapshot", () => {
-  it("heads the breakdown with the share used and used / window, and draws one bar of the used categories", () => {
-    const out = tab(A({ context: ctx({ snapshot: snapshot() }) }));
-    expect(out).toContain('<span class="ctx-snap-used">19% used</span>');
-    expect(out).toContain(">113.6k / 600.0k</span>");
+  it("heads the tab with /context's own window and count, once, and draws one bar of the used categories", () => {
+    // The model id says 200k; /context said 600k, and the head says what the bar draws.
+    const out = tab(A({ contextWindow: undefined, context: ctx({ snapshot: snapshot() }) }));
+    expect(out).toContain('<span class="insp-fig">114k / 600k · 19%</span>');
+    // The Inspector's head is the figure: the breakdown does not print it a second time.
+    expect(out).not.toContain("ctx-snap-head");
     expect(out).toMatch(/<div class="ctx-snap-bar" role="img" aria-label="What fills the context window">/);
     const tones = [...out.matchAll(/class="ctx-snap-seg" data-tone="([a-z]+)"/g)].map(m => m[1]);
     // Free space is the bar's own track; deferred categories are not in the window.
@@ -230,7 +255,8 @@ describe("the Context tab with a snapshot", () => {
       "Messages", "Memory files", "System tools", "Skills", "System prompt", "Custom agents", "MCP server instructions",
       "Autocompact buffer", "Free space", "MCP tools (deferred)", "System tools (deferred)",
     ]);
-    expect(texts(out, "ctx-snap-tok")).toEqual(["35.7k", "26.9k", "16.1k", "10.0k", "5.0k", "3.6k", "1.7k", "33.0k", "453.4k", "66.9k", "26.4k"]);
+    // As /context prints them: a decimal only under 10k, never a trailing ".0".
+    expect(texts(out, "ctx-snap-tok")).toEqual(["36k", "27k", "16k", "10k", "5k", "3.6k", "1.7k", "33k", "453k", "67k", "26k"]);
     expect(texts(out, "ctx-snap-pct")).toEqual(["5.9%", "4.5%", "2.7%", "1.7%", "0.8%", "0.6%", "0.3%", "5.5%", "75.6%", "—", "—"]);
     expect(out).toMatch(/<ul class="ctx-snap-rows ctx-snap-deferred">/);
     expect(out).toContain('title="Deferred: loaded into the window only when used">—</span>');
@@ -240,9 +266,9 @@ describe("the Context tab with a snapshot", () => {
     const out = tab(A({ context: ctx({ currentContextTokens: 128_200, snapshot: snapshot() }) }));
     expect(texts(out, "ctx-snap-name")).toContain("Since then");
     const at = texts(out, "ctx-snap-name").indexOf("Since then");
-    expect(texts(out, "ctx-snap-tok")[at]).toBe("14.6k");
+    expect(texts(out, "ctx-snap-tok")[at]).toBe("15k");
     expect(texts(out, "ctx-snap-pct")[at]).toBe("2.4%");
-    expect(out).toContain('<span class="ctx-snap-used">21% used</span>');
+    expect(out).toContain('<span class="insp-fig">128k / 600k · 21%</span>');
     expect(out).toMatch(/class="ctx-snap-seg" data-tone="since"/);
     // Not there when it has not grown.
     expect(tab(A({ context: ctx({ snapshot: snapshot() }) }))).not.toContain("Since then");
@@ -255,12 +281,15 @@ describe("the Context tab with a snapshot", () => {
     expect(lists).toEqual([["MCP tools", "55"], ["Memory files", "2"], ["Custom agents", "10"], ["Skills", "41"]]);
     expect(out).not.toMatch(/<details[^>]* open/);
     // The MCP tools by server: the server, its tool count and its loaded tokens, then its tools.
-    expect(out).toContain('<li class="ctx-snap-group"><span class="ctx-snap-item">github</span><span class="ctx-snap-meta">42 tools</span>');
+    // A server with some tools loaded and the rest deferred says so, and its
+    // figure's title says what all of it would cost.
+    expect(out).toContain('<li class="ctx-snap-group"><span class="ctx-snap-item">github</span><span class="ctx-snap-meta">2 of 42 loaded</span><span class="ctx-md-size" title="32k if all were loaded">2k</span>');
+    expect(out).toContain('<span class="ctx-snap-item">figma</span><span class="ctx-snap-meta">1 tool</span><span class="ctx-md-size" title="2,400">2.4k</span>');
     expect(out).toContain('<li class="ctx-snap-sub"><span class="ctx-snap-item">mcp__github__create_issue</span>');
     // A server with nothing loaded says what it would cost, and takes no tokens.
     expect(out).toMatch(/<span class="ctx-snap-item">slack<\/span><span class="ctx-snap-meta">12 tools<\/span><span class="ctx-md-size" title="8.4k if all were loaded">—<\/span>/);
     // Memory files by path, the folder above kept; agents and skills with their source.
-    expect(out).toMatch(/<li title="Project"><span class="path-text ctx-md-path"[^>]*>[\s\S]*?CLAUDE\.md<\/span><\/span><span class="ctx-md-size" title="14,500">14\.5k<\/span>/);
+    expect(out).toMatch(/<li title="Project"><span class="path-text ctx-md-path"[^>]*>[\s\S]*?CLAUDE\.md<\/span><\/span><span class="ctx-md-size" title="14,500">15k<\/span>/);
     expect(out).toContain('<span class="ctx-snap-item">code-reviewer</span><span class="ctx-snap-meta">Project</span>');
     expect(out).toContain('<li class="ctx-snap-more"><span class="ctx-snap-item">and 8 more</span><span class="ctx-md-size" title="1,600">1.6k</span></li>');
     expect(out).toContain('<li class="ctx-snap-more"><span class="ctx-snap-item">and 40 more</span>');
@@ -285,10 +314,15 @@ describe("the Context tab with a snapshot", () => {
     for (const word of ["Cumulative usage", "Transcript composition", "CLAUDE.md files in scope"]) expect(out).toContain(word);
   });
 
-  it("is the modal's body too", () => {
+  it("is the modal's body too, with the figure over its bar and no transcript line above it", () => {
     const out = renderToStaticMarkup(createElement(ContextView, { agent: A({ context: ctx({ snapshot: snapshot() }) }), meta: true }));
     expect(out).toContain('<span class="ctx-snap-used">19% used</span>');
+    expect(out).toContain(">114k / 600k</span>");
     expect(out).not.toContain("ctx-window-pct");
+    // "Estimated from the transcript." would contradict the foot's "From /context".
+    expect(out).not.toContain("ctx-approx");
+    const without = renderToStaticMarkup(createElement(ContextView, { agent: A({ context: ctx() }), meta: true }));
+    expect(without).toContain('<p class="ctx-approx">');
   });
 });
 

@@ -615,6 +615,7 @@ const catalog: Catalog = {
   "insights.context.snap.tools.few": "{n} unelte",
   "insights.context.snap.tools.other": "{n} de unelte",
   "insights.context.snap.notLoaded": "{tokens} dacă ar fi încărcate toate",
+  "insights.context.snap.loadedOf": "{loaded} din {n} încărcate",
   "insights.tool.inflight": "în curs…",
   "insights.tool.released": "Conținuturile complete ale acestui apel au fost eliberate pentru a limita memoria folosită — doar previzualizările de mai jos mai sunt păstrate.",
   "insights.tool.response": "Răspuns",

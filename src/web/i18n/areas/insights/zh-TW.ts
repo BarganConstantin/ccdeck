@@ -595,6 +595,7 @@ const catalog: Catalog = {
   "insights.context.snap.tools.one": "{n} 個工具",
   "insights.context.snap.tools.other": "{n} 個工具",
   "insights.context.snap.notLoaded": "全部載入時為 {tokens}",
+  "insights.context.snap.loadedOf": "已載入 {loaded}/{n}",
   "insights.tool.inflight": "執行中…",
   "insights.tool.released": "為了控制記憶體使用量，此呼叫的完整內容已釋放——目前只保留下方的預覽。",
   "insights.tool.response": "回應",

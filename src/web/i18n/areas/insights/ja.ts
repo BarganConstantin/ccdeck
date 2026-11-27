@@ -595,6 +595,7 @@ const catalog: Catalog = {
   "insights.context.snap.tools.one": "{n}ツール",
   "insights.context.snap.tools.other": "{n}ツール",
   "insights.context.snap.notLoaded": "すべて読み込んだ場合 {tokens}",
+  "insights.context.snap.loadedOf": "{n} 件中 {loaded} 件を読み込み済み",
   "insights.tool.inflight": "実行中…",
   "insights.tool.released": "メモリを抑えるため、この呼び出しの完全なデータは解放されました。下のプレビューだけが残っています。",
   "insights.tool.response": "レスポンス",

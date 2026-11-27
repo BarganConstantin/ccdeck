@@ -1126,6 +1126,9 @@
 .ctx-snap-list[open] .ctx-snap-items { margin-block-start: 6px; padding-block-start: 4px; border-top: 1px solid var(--line); }
 .ctx-snap-items li { gap: 8px; }
 .ctx-snap-items .ctx-md-path { flex: 1 1 auto; }
+/* One width for every figure, end-aligned, so a server's "42 tools" and a
+   tool's figure line up on the same edge however wide the number is. */
+.ctx-snap-items .ctx-md-size { min-width: 4em; text-align: end; }
 /* A list's names read like the memory files' paths beside them, in --muted;
    an MCP server heads its tools in --text. */
 .ctx-snap-item { flex: 1 1 auto; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

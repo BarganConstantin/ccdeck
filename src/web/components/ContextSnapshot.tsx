@@ -10,9 +10,8 @@ import type { ReactNode } from "react";
 import { currentLanguage, useT } from "../i18n";
 import { formatPercent } from "../i18n/format";
 import {
-  CATEGORY_KEYS, categorySlug, listCount, mcpGroups, mcpToolCount, snapshotLayout, snapshotTime, type SnapRow,
+  CATEGORY_KEYS, categorySlug, listCount, mcpGroups, mcpToolCount, snapTokens, snapshotLayout, snapshotTime, type SnapRow,
 } from "../context-snapshot";
-import { fmtTokens } from "../token-format";
 import { shortAgo } from "../relative-time";
 import { useNow } from "../use-now";
 import type { ContextSnapshot, ContextSnapshotMore } from "../types";
@@ -28,12 +27,15 @@ function pct1(n: number): string {
   } catch { return `${n.toFixed(1)}%`; }
 }
 
-export default function ContextSnapshotView({ snapshot, currentUsed, cwd }: {
+export default function ContextSnapshotView({ snapshot, currentUsed, cwd, head = true }: {
   snapshot: ContextSnapshot;
   /** The tab's own estimate of what the session holds now; what it holds past
    *  the snapshot is drawn as "Since then". */
   currentUsed: number;
   cwd?: string;
+  /** The "22% used · 130k / 600k" line over the bar. The Inspector leaves it
+   *  out: its head prints the same figure (contextFill reads the snapshot). */
+  head?: boolean;
 }) {
   const t = useT();
   // The foot says how old the snapshot is; half a minute is as fine as
@@ -51,10 +53,12 @@ export default function ContextSnapshotView({ snapshot, currentUsed, cwd }: {
 
   return (
     <section className="ctx-window-row ctx-snap">
-      <div className="ctx-snap-head">
-        <span className="ctx-snap-used">{t("insights.context.snap.used", { pct: formatPercent(Math.round(layout.pct)) })}</span>
-        <span className="ctx-snap-total" title={`${fmtN(layout.used)} / ${fmtN(layout.max)}`}>{`${fmtTokens(layout.used)} / ${fmtTokens(layout.max)}`}</span>
-      </div>
+      {head && (
+        <div className="ctx-snap-head">
+          <span className="ctx-snap-used">{t("insights.context.snap.used", { pct: formatPercent(Math.round(layout.pct)) })}</span>
+          <span className="ctx-snap-total" title={`${fmtN(layout.used)} / ${fmtN(layout.max)}`}>{`${snapTokens(layout.used)} / ${snapTokens(layout.max)}`}</span>
+        </div>
+      )}
       <div className="ctx-snap-bar" role="img" aria-label={t("insights.context.snap.bar")}>
         {layout.rows.filter(r => r.tone !== "free").map(r => (
           <span
@@ -62,7 +66,7 @@ export default function ContextSnapshotView({ snapshot, currentUsed, cwd }: {
             className="ctx-snap-seg"
             data-tone={r.tone}
             style={{ width: `${Math.min(100, (r.tokens / layout.max) * 100).toFixed(2)}%` }}
-            title={`${name(r)}: ${fmtTokens(r.tokens)}`}
+            title={`${name(r)}: ${snapTokens(r.tokens)}`}
           />
         ))}
       </div>
@@ -89,7 +93,7 @@ function Row({ row, label, title, pctTitle }: { row: SnapRow; label: string; tit
     <li className="ctx-snap-row" title={title}>
       <span className="ctx-snap-key" data-tone={row.tone} aria-hidden="true" />
       <span className="ctx-snap-name">{label}</span>
-      <span className="ctx-snap-tok" title={fmtN(row.tokens)}>{fmtTokens(row.tokens)}</span>
+      <span className="ctx-snap-tok" title={fmtN(row.tokens)}>{snapTokens(row.tokens)}</span>
       <span className="ctx-snap-pct" title={pctTitle}>{row.pct === null ? "—" : pct1(row.pct)}</span>
     </li>
   );
@@ -112,15 +116,19 @@ function Lists({ snapshot, cwd }: { snapshot: ContextSnapshot; cwd?: string }) {
           {groups.flatMap(g => [
             <li key={`s:${g.server}`} className="ctx-snap-group">
               <span className="ctx-snap-item">{g.server}</span>
-              <span className="ctx-snap-meta">{t("insights.context.snap.tools", { count: g.tools.length + g.deferred, n: g.tools.length + g.deferred })}</span>
+              {/* A server with some tools loaded and the rest deferred says
+                  so, "3 of 42 loaded": its figure is the three, not the 42. */}
+              <span className="ctx-snap-meta">{g.tools.length > 0 && g.deferred > 0
+                ? t("insights.context.snap.loadedOf", { loaded: fmtN(g.tools.length), n: fmtN(g.tools.length + g.deferred) })
+                : t("insights.context.snap.tools", { count: g.tools.length + g.deferred, n: g.tools.length + g.deferred })}</span>
               {g.tools.length > 0
-                ? <span className="ctx-md-size" title={fmtN(g.tokens)}>{fmtTokens(g.tokens)}</span>
-                : <span className="ctx-md-size" title={t("insights.context.snap.notLoaded", { tokens: fmtTokens(g.deferredTokens) })}>{"—"}</span>}
+                ? <span className="ctx-md-size" title={g.deferred > 0 ? t("insights.context.snap.notLoaded", { tokens: snapTokens(g.tokens + g.deferredTokens) }) : fmtN(g.tokens)}>{snapTokens(g.tokens)}</span>
+                : <span className="ctx-md-size" title={t("insights.context.snap.notLoaded", { tokens: snapTokens(g.deferredTokens) })}>{"—"}</span>}
             </li>,
             ...g.tools.map(tool => (
               <li key={`t:${g.server}:${tool.name}`} className="ctx-snap-sub">
                 <span className="ctx-snap-item">{tool.name}</span>
-                <span className="ctx-md-size" title={fmtN(tool.tokens)}>{fmtTokens(tool.tokens)}</span>
+                <span className="ctx-md-size" title={fmtN(tool.tokens)}>{snapTokens(tool.tokens)}</span>
               </li>
             )),
           ])}
@@ -133,7 +141,7 @@ function Lists({ snapshot, cwd }: { snapshot: ContextSnapshot; cwd?: string }) {
           {memory.map(m => (
             <li key={`${m.type}:${m.path}`} title={m.type}>
               <PathText className="ctx-md-path" path={m.path} cwd={cwd} keep={2} />
-              <span className="ctx-md-size" title={fmtN(m.tokens)}>{fmtTokens(m.tokens)}</span>
+              <span className="ctx-md-size" title={fmtN(m.tokens)}>{snapTokens(m.tokens)}</span>
             </li>
           ))}
           <More more={more.memory} />
@@ -145,7 +153,7 @@ function Lists({ snapshot, cwd }: { snapshot: ContextSnapshot; cwd?: string }) {
             <li key={`${a.source}:${a.type}`}>
               <span className="ctx-snap-item">{a.type}</span>
               <span className="ctx-snap-meta">{a.source}</span>
-              <span className="ctx-md-size" title={fmtN(a.tokens)}>{fmtTokens(a.tokens)}</span>
+              <span className="ctx-md-size" title={fmtN(a.tokens)}>{snapTokens(a.tokens)}</span>
             </li>
           ))}
           <More more={more.agents} />
@@ -157,7 +165,7 @@ function Lists({ snapshot, cwd }: { snapshot: ContextSnapshot; cwd?: string }) {
             <li key={`${s.source}:${s.name}`}>
               <span className="ctx-snap-item">{s.name}</span>
               <span className="ctx-snap-meta">{s.source}</span>
-              <span className="ctx-md-size" title={fmtN(s.tokens)}>{fmtTokens(s.tokens)}</span>
+              <span className="ctx-md-size" title={fmtN(s.tokens)}>{snapTokens(s.tokens)}</span>
             </li>
           ))}
           <More more={more.skills} />
@@ -187,7 +195,7 @@ function More({ more }: { more?: ContextSnapshotMore }) {
   return (
     <li className="ctx-snap-more">
       <span className="ctx-snap-item">{t("insights.context.snap.more", { count: more.count, n: fmtN(more.count) })}</span>
-      <span className="ctx-md-size" title={fmtN(more.tokens)}>{fmtTokens(more.tokens)}</span>
+      <span className="ctx-md-size" title={fmtN(more.tokens)}>{snapTokens(more.tokens)}</span>
     </li>
   );
 }

@@ -596,6 +596,7 @@ const catalog: Catalog = {
   "insights.context.snap.tools.one": "{n} ferramenta",
   "insights.context.snap.tools.other": "{n} ferramentas",
   "insights.context.snap.notLoaded": "{tokens} se todas fossem carregadas",
+  "insights.context.snap.loadedOf": "{loaded} de {n} carregadas",
   "insights.tool.inflight": "em andamento…",
   "insights.tool.released": "Os payloads completos desta chamada foram liberados para limitar a memória — só as prévias abaixo ainda estão guardadas.",
   "insights.tool.response": "Resposta",

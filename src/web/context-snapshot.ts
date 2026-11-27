@@ -6,7 +6,7 @@
 // Pure, so the suite can pin the arithmetic without a DOM: what the reducer
 // keeps, which rows the bar draws and in what order, and what "Since then"
 // adds on top of the snapshot.
-import type { ContextSnapshot } from "./types";
+import type { AgentNodeData, ContextSnapshot } from "./types";
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
@@ -106,6 +106,34 @@ const TONES: Readonly<Record<string, SnapTone>> = {
  *  dozen tokens past its own snapshot; a real turn adds far more than this. */
 export const SINCE_FLOOR = 1000;
 
+/** What the session holds by the snapshot's count: /context's own figure, plus
+ *  what the transcript says the session added since, once that is past
+ *  SINCE_FLOOR. The Context tab's bar and the window figure everywhere else
+ *  (contextFill) both read it, so they print one number. */
+export function snapshotUsed(snap: ContextSnapshot, currentUsed: number): number {
+  const grown = Number.isFinite(currentUsed) ? currentUsed - snap.used : 0;
+  return snap.used + (grown >= SINCE_FLOOR ? grown : 0);
+}
+
+/** The session's /context snapshot, when it has one: only Claude Code has
+ *  /context, so another provider's session never shows one. */
+export function liveSnapshot(agent: Pick<AgentNodeData, "provider" | "context">): ContextSnapshot | null {
+  if ((agent.provider ?? "claude") !== "claude") return null;
+  return agent.context?.snapshot ?? null;
+}
+
+/** A token count as /context prints it: "850", "3.1k", "86k", "1M", "1.2M".
+ *  A decimal only under ten thousand and past a million, and never a trailing
+ *  ".0", so "600k" and "10k" read as the window figure above them does. */
+export function snapTokens(n: number): string {
+  const v = Math.max(0, Math.round(Number.isFinite(n) ? n : 0));
+  const one = (x: number): string => String(Math.round(x * 10) / 10);
+  if (v < 1000) return String(v);
+  if (v < 9_950) return `${one(v / 1000)}k`;
+  if (v < 999_500) return `${Math.round(v / 1000)}k`;
+  return `${one(v / 1_000_000)}M`;
+}
+
 const share = (tokens: number, max: number): number => Math.round((tokens / max) * 1000) / 10;
 
 /**
@@ -116,9 +144,8 @@ const share = (tokens: number, max: number): number => Math.round((tokens / max)
  */
 export function snapshotLayout(snap: ContextSnapshot, currentUsed: number): SnapLayout {
   const max = snap.max;
-  const grown = Number.isFinite(currentUsed) ? currentUsed - snap.used : 0;
-  const since = grown >= SINCE_FLOOR ? grown : 0;
-  const used = snap.used + since;
+  const used = snapshotUsed(snap, currentUsed);
+  const since = used - snap.used;
   const categories = Array.isArray(snap.categories) ? snap.categories : [];
   const row = (c: ContextSnapshot["categories"][number]): SnapRow => {
     const id = categorySlug(c.name);

@@ -27,6 +27,7 @@ import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import PathText from "./PathText";
 import ContextSnapshotView from "./ContextSnapshot";
+import { liveSnapshot } from "../context-snapshot";
 import { isEventOnly } from "../../server/provider-ids.mjs";
 import { providerLabel } from "../provider-copy";
 
@@ -183,7 +184,7 @@ export function ContextView({ agent, meta = false }: {
   // Claude Code's own breakdown from the session's newest /context, which
   // takes the meter's place when there is one. Only Claude Code has /context.
   const claude = (agent.provider ?? "claude") === "claude";
-  const snapshot = claude ? ctx?.snapshot ?? null : null;
+  const snapshot = liveSnapshot(agent);
 
   const files = ctx?.memoryFiles ?? [];
   const memoryList = files.length > 0 ? (
@@ -204,8 +205,10 @@ export function ContextView({ agent, meta = false }: {
     <div className="ctx-view" data-inspector={!meta || undefined}>
         {/* V4's first line: what kind of number the window figure is. The panel
             leaves it for its head. */}
-        {meta && <p className="ctx-approx">{capitalFirst(copy.subtitle)}</p>}
-        {snapshot ? <ContextSnapshotView snapshot={snapshot} currentUsed={current} cwd={agent.cwd} /> : (
+        {/* Not over /context's breakdown: its foot says where the numbers
+            came from, and "estimated from the transcript" would contradict it. */}
+        {meta && !snapshot && <p className="ctx-approx">{capitalFirst(copy.subtitle)}</p>}
+        {snapshot ? <ContextSnapshotView snapshot={snapshot} currentUsed={ctx?.currentContextTokens ?? 0} cwd={agent.cwd} head={meta} /> : (
         <section className="ctx-window-row">
           {meta && (
             <div className="ctx-window-top">

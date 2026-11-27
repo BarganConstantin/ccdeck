@@ -595,6 +595,7 @@ const catalog: Catalog = {
   "insights.context.snap.tools.one": "도구 {n}개",
   "insights.context.snap.tools.other": "도구 {n}개",
   "insights.context.snap.notLoaded": "모두 로드하면 {tokens}",
+  "insights.context.snap.loadedOf": "{n}개 중 {loaded}개 로드됨",
   "insights.tool.inflight": "진행 중…",
   "insights.tool.released": "메모리를 제한하기 위해 이 호출의 전체 페이로드는 해제되었습니다. 아래 미리보기만 남아 있습니다.",
   "insights.tool.response": "응답",
