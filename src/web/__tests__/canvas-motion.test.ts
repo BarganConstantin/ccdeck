@@ -593,6 +593,11 @@ const EXEMPT: string[] = [
   // lifting to --text under the pointer; a row scaled on press would slide
   // "Details" and its count out from under the pointer.
   ".detail-more > summary", ".ctx-files-toggle",
+  // CHANGED ON PURPOSE (memory file viewer): a memory file's row in the Context tab is the
+  // same kind of full-width reading row: it answers with the hover fill and
+  // opens the file in a dialog, and a row scaled on press would slide the
+  // file's name and size out from under the pointer.
+  ".ctx-md-open",
   // CHANGED ON PURPOSE (#2591): New session's "Session options" row is the
   // same kind of full-width disclosure row: it answers by opening and its
   // chevron turning, and a row scaled on press would slide its summary out

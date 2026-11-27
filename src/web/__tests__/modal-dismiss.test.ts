@@ -217,6 +217,9 @@ describe("the modals themselves", () => {
       // What stands in for Usage history or Browser Watch when its chunk did
       // not arrive, joining the loop below like the dialogs it replaces.
       "LazyDialog.tsx",
+      // A memory file read from the Context tab, joining the loop below
+      // like the rest.
+      "MemoryFileDialog.tsx",
       // #712's release notes, named here for the same reason.
       // #738's whole-candidate process list, named here for the same reason as
       // the four above.
