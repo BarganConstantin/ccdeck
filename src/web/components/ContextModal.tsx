@@ -181,8 +181,8 @@ export function ContextView({ agent, meta = false }: {
   // answer at a Codex session (#399).
   const copy = contextCopy(agent.provider);
   // Claude Code's own breakdown from the session's newest /context, which
-  // takes the meter's place when there is one. Codex has no /context.
-  const claude = agent.provider !== "codex";
+  // takes the meter's place when there is one. Only Claude Code has /context.
+  const claude = (agent.provider ?? "claude") === "claude";
   const snapshot = claude ? ctx?.snapshot ?? null : null;
 
   const files = ctx?.memoryFiles ?? [];

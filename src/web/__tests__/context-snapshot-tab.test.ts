@@ -308,6 +308,13 @@ describe("the Context tab without a snapshot", () => {
     const sub = tab(A({ id: "c1", kind: "subagent", parentId: "s", context: ctx() }));
     expect(sub).not.toContain("ctx-snap-hint");
   });
+
+  it("says nothing of /context to an opencode or Copilot session either: only Claude Code has it", () => {
+    for (const provider of ["opencode", "copilot"] as const) {
+      const out = tab(A({ provider, context: ctx({ snapshot: snapshot() }) }));
+      expect(out, provider).not.toMatch(/ctx-snap|\/context/);
+    }
+  });
 });
 
 describe("how the breakdown is drawn", () => {
