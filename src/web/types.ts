@@ -232,6 +232,39 @@ export interface ContextBreakdown {
    *  the two the session's own CLI loads, and ContextModal titles the section
    *  from `provider` rather than asserting one name at both. */
   memoryFiles: Array<{ path: string; bytes: number }>;
+  /** Claude Code's own breakdown of the window from the session's newest
+   *  `/context`, as src/server/context-snapshot.mjs reads it off the
+   *  transcript. Absent when the session never ran it; on a ContextObserved,
+   *  absent means "nothing new" and null means a /clear or /compact dropped it. */
+  snapshot?: ContextSnapshot | null;
+}
+
+/** One row of a /context list: what it is, and its tokens. */
+export interface ContextSnapshotMore { count: number; tokens: number }
+
+/** What `/context` said fills the window, in Claude Code's own words and
+ *  numbers. Category names are Claude Code's ("Messages", "System tools",
+ *  "MCP tools (deferred)"); free space and the compact buffer are kept apart
+ *  from them. Each list is the one /context printed, ten rows and an "and N
+ *  more" in `more` when it was bounded. */
+export interface ContextSnapshot {
+  /** When the transcript line was written, as an ISO time. */
+  at: string;
+  model: string;
+  used: number;
+  max: number;
+  pct: number;
+  /** /context said its token count is an estimate. */
+  estimated: boolean;
+  categories: Array<{ name: string; tokens: number; pct: number; deferred: boolean }>;
+  free: number;
+  buffer: { name: string; tokens: number } | null;
+  mcpTools: Array<{ name: string; server: string; tokens: number }>;
+  mcpServers: Array<{ server: string; tools: number; tokens: number }>;
+  agents: Array<{ type: string; source: string; tokens: number }>;
+  memory: Array<{ type: string; path: string; tokens: number }>;
+  skills: Array<{ name: string; source: string; tokens: number }>;
+  more: Partial<Record<"mcpTools" | "mcpServers" | "agents" | "memory" | "skills", ContextSnapshotMore>>;
 }
 
 export interface AgentNodeData {

@@ -6,7 +6,9 @@
 // which it is rather than rendering the same layout over two different degrees
 // of certainty. For Claude Code this is an approximation: the real `/context`
 // view is not exposed to a hook, so the counts come from a regex scan of the
-// transcript JSONL on the server. For Codex the occupancy and the window are the
+// transcript JSONL on the server — until the session runs `/context`, whose
+// own breakdown lands in the transcript and leads the view from then on
+// (ContextSnapshot.tsx). For Codex the occupancy and the window are the
 // CLI's own numbers, stated on every `token_count` record and exact — while the
 // composition counts are not available at all, because there is no transcript to
 // scan and the rollout watcher skips a session's history when it attaches. That
@@ -24,6 +26,7 @@ import { agentCost } from "../usage-models";
 import { Dialog } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import PathText from "./PathText";
+import ContextSnapshotView from "./ContextSnapshot";
 import { isEventOnly } from "../../server/provider-ids.mjs";
 import { providerLabel } from "../provider-copy";
 
@@ -177,6 +180,10 @@ export function ContextView({ agent, meta = false }: {
   // directory or a provider reads it from here rather than asserting Claude's
   // answer at a Codex session (#399).
   const copy = contextCopy(agent.provider);
+  // Claude Code's own breakdown from the session's newest /context, which
+  // takes the meter's place when there is one. Codex has no /context.
+  const claude = agent.provider !== "codex";
+  const snapshot = claude ? ctx?.snapshot ?? null : null;
 
   const files = ctx?.memoryFiles ?? [];
   const memoryList = files.length > 0 ? (
@@ -198,6 +205,7 @@ export function ContextView({ agent, meta = false }: {
         {/* V4's first line: what kind of number the window figure is. The panel
             leaves it for its head. */}
         {meta && <p className="ctx-approx">{capitalFirst(copy.subtitle)}</p>}
+        {snapshot ? <ContextSnapshotView snapshot={snapshot} currentUsed={current} cwd={agent.cwd} /> : (
         <section className="ctx-window-row">
           {meta && (
             <div className="ctx-window-top">
@@ -221,7 +229,12 @@ export function ContextView({ agent, meta = false }: {
           ) : (
             <p className="ctx-window-note">{copy.subtitle}</p>
           )}
+          {/* The one line that says the breakdown exists, on a session that
+              could have one: Claude's, and the session itself rather than a
+              subagent inside it. */}
+          {claude && agent.kind !== "subagent" && <p className="ctx-window-note ctx-snap-hint">{t("insights.context.snap.hint")}</p>}
         </section>
+        )}
 
         <section className="ctx-usage">
         <h3 className="ctx-section-title">{t("insights.context.cumulative")}</h3>

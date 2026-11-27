@@ -19,6 +19,7 @@ import {
   applyUsageObserved, stampSessionFacts,
 } from "./transcript-events";
 import type { HookPayload } from "./types";
+import { isContextSnapshot, snapshotTime } from "./context-snapshot";
 
 /** The most sessions a page holds values for before their cards exist, the
  *  one heard from longest ago going first: more than the 200 cards a board
@@ -51,7 +52,8 @@ const validActivity = (a: unknown): a is Loose =>
 /** Two payloads of one kind for one session, as the one payload that leaves a
  *  card where the two in a row would have: the appliers' own reading of each
  *  field (transcript-events.ts) — what a payload leaves out, or holds nothing
- *  usable in, says nothing; a context merges key by key and subagent models by
+ *  usable in, says nothing; a context merges key by key (its /context snapshot
+ *  dropped by null and replaced only by a newer one) and subagent models by
  *  subagent; a title that repeats the name goes; an activity line never goes
  *  backwards; a job of `null` is gone; a usage total replaces the last whole.
  *  The server folds what the ring evicts by the same rules
@@ -76,6 +78,11 @@ export function foldEnrichment(prev: HookPayload | undefined, next: HookPayload)
       if (!isObject(next.context)) { keep("context"); break; }
       const ctx: Loose = isObject(prev.context) ? { ...prev.context } : {};
       for (const [k, v] of Object.entries(next.context)) if (typeof v === "number" || Array.isArray(v)) ctx[k] = v;
+      // The /context snapshot, by applyContextObserved's rule: null drops it,
+      // a newer one replaces it, an older one or none says nothing.
+      const snap = (next.context as Loose).snapshot;
+      if (snap === null) ctx.snapshot = null;
+      else if (isContextSnapshot(snap) && !(isContextSnapshot(ctx.snapshot) && snapshotTime(snap) < snapshotTime(ctx.snapshot))) ctx.snapshot = snap;
       out.context = ctx;
       break;
     }

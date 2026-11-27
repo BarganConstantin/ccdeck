@@ -18,6 +18,8 @@ import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 // Claude Code's "※ recap:" line — see session-recap.mjs.
 import { foldRecapLine } from "./session-recap.mjs";
+// The breakdown Claude Code's /context writes — see context-snapshot.mjs.
+import { foldContextSnapshotLine } from "./context-snapshot.mjs";
 // The bounded, cursor-moving chunk read every pass below goes through — see
 // jsonl-chunks.mjs.
 import { readAppendedLines } from "./jsonl-chunks.mjs";
@@ -358,6 +360,7 @@ function newTranscriptState() {
     agentName: null,    // newest "agent-name" entry, the session's short name
     customTitle: null,  // newest "custom-title" entry, the name the user gave it
     recap: null,        // newest "away_summary" no later turn retired — session-recap.mjs
+    contextSnapshot: null, // newest /context breakdown no /clear or /compact dropped — context-snapshot.mjs
     usage: newUsageTotals(),
     // The same totals, split by the model that produced them (#686). The flat
     // bucket above stays the whole-transcript sum and is what every token count
@@ -439,6 +442,9 @@ function foldTranscriptLine(state, line) {
   // The recap rides the same pass for the same reason, and costs the ordinary
   // line two substring tests. See session-recap.mjs.
   foldRecapLine(state, line);
+  // And the /context breakdown, for the same reason and at the same price: a
+  // line is parsed only when it carries the heading or a reset marker.
+  foldContextSnapshotLine(state, line);
   // Parsed once, and only when the line mentions a model: no other line can
   // change the model, and every assistant line names its model, so the usage
   // and context folds read the record off this same parse.
