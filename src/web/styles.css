@@ -45,6 +45,7 @@
 @import "./styles/terminal-stage.css";           /* the terminal stage: header, terminal, keys bar, divider, New session */
 @import "./styles/stage-shell.css";              /* where the stage and the navigator sit in the canvas's cell */
 @import "./styles/tool-bursts.css";              /* floating tool bursts */
+@import "./styles/session-history.css";           /* saved session history dialog */
 @import "./styles/session-list.css";             /* the session list */
 @import "./styles/session-rename.css";           /* naming a session in place: header, list row, Inspector */
 @import "./styles/phone-board.css";              /* a phone's Board: the stack of session cards */

@@ -42,7 +42,7 @@ import {
 import { leaveHoldMs, playGroupOpen, useRailFlip, useRailMembership } from "../rail-motion";
 import { prefersReducedMotion } from "../viewport-motion";
 import { compactRowContexts, lastTypedPrompt, railGlyph, runningTool, sessionNames, startedHover, twinClocks, type RailGlyphKind, type TwinClock } from "../rail-row-copy";
-import { PauseGlyph } from "./rail-glyphs";
+import { ClockGlyph, PauseGlyph } from "./rail-glyphs";
 import { CloseGlyph, FoldBody, GroupHead, HiddenLine, MoreLine, PlusGlyph, RailRow, railRowId, type FoldMode, type RowAct, type RowPin } from "./RailParts";
 import HideUndo from "./HideUndo";
 import { canHideRow, focusAfterLeaving } from "../list-hidden";
@@ -342,6 +342,7 @@ interface Props {
    *  (use-stage.ts newSessionFrom), given the button as the popover's anchor.
    *  Absent where that launch does not exist, and the Plus with it. */
   onNewSession?: (anchor: HTMLElement) => void;
+  onOpenHistory?: () => void;
   /** The phone's "Can't reach your computer" card, drawn inside the panel under
    *  its header so the list can never cover it. Absent when the link is up. */
   offline?: ReactNode;
@@ -359,7 +360,7 @@ interface Props {
 interface Ghost { row: Row; group: RailSection; after: string | null; until: number }
 interface Entry { id: string; row: Row; ghost: boolean }
 
-export default function SessionList({ state, now, historyReady = true, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, openPanes, onOpenKeys, onOpenBeside, onNewSession, offline = null, emptyNotice = null, edge = null }: Props) {
+export default function SessionList({ state, now, historyReady = true, selectedIds, onSelect, onClose, removedIds, onBringBackAll, leaving = false, landed = null, watching, openPanes, onOpenKeys, onOpenBeside, onNewSession, onOpenHistory, offline = null, emptyNotice = null, edge = null }: Props) {
   const t = useT();
   const singleKeys = useSingleKeyShortcuts();
   // `state.revision`, not `state.lastSeq`: the prop is `stateRef.current` and
@@ -842,6 +843,10 @@ export default function SessionList({ state, now, historyReady = true, selectedI
             waiting and live chips used to. */}
         <h2 ref={heading} tabIndex={-1}>{t("board.list.title")} {historyReady && <span className="sl-count">{listed.length}</span>}</h2>
         <div className="sl-header-end">
+          {onOpenHistory && (
+            <button type="button" className="sl-icon-btn" aria-haspopup="dialog"
+              onClick={onOpenHistory} title={t("board.history.title")} aria-label={t("board.history.title")}><ClockGlyph /></button>
+          )}
           {/* New session, V4's Plus: the launch the Command Panel's navigator
               already has (its popover hangs off this button's id). Drawn only
               where that launch exists. */}

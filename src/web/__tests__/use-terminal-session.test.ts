@@ -381,6 +381,28 @@ describe("opening a session: write before reveal", () => {
     expect(r.sockets, "no socket for a session that has no pane").toHaveLength(0);
   });
 
+  it("resumes a saved conversation only after checking that it is closed", async () => {
+    const { r, ctl } = rig();
+    const resumeSaved = vi.fn().mockReturnValueOnce(true).mockReturnValue(false);
+    const ref = { ...REF, saved: true as const };
+    r.open.mockResolvedValueOnce({ ok: false, target: { kind: "gone", label: "ended", adoptable: true } });
+    ctl.show({ kind: "session", ref, resumeSaved });
+    await flush();
+    expect(r.open.mock.invocationCallOrder[0]).toBeLessThan(r.adopt.mock.invocationCallOrder[0]!);
+    expect(r.adopt).toHaveBeenCalledTimes(1);
+    expect(r.adopt.mock.calls[0]?.[0]).toEqual(ref);
+  });
+
+  it("never auto-adopts a saved conversation held by another terminal", async () => {
+    const { r, ctl } = rig();
+    r.open.mockResolvedValueOnce({ ok: false, target: { kind: "C", label: "held", adoptable: true } });
+    ctl.show({ kind: "session", ref: { ...REF, saved: true }, resumeSaved: () => true });
+    await flush();
+    expect(r.adopt).not.toHaveBeenCalled();
+    expect(r.last().phase).toMatchObject({ kind: "not-attachable", stillRunning: true });
+    ctl.dispose();
+  });
+
   it("says tmux is missing as a fact, with its install line, and keeps saying it while it checks again", async () => {
     const { r, ctl } = rig();
     r.open.mockResolvedValue({ ok: false, target: { kind: "unsupported", label: "The terminal runs on tmux…", reason: "missing" } });

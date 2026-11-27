@@ -274,6 +274,8 @@ type Press = [selector: string, scale: string, prop: "transform" | "scale"];
  *  it is the spec for what a pressable control does rather than a record of
  *  which ones had been got to. */
 const PRESSES: Press[] = [
+  [".session-history-filter:active:not(:focus-visible)", "0.97", "transform"],
+  [".session-history-row:active:not(:disabled):not(:focus-visible)", "0.97", "transform"],
   [".up-session-open:active", "0.97", "transform"],
   [".su-id summary:active", "0.97", "transform"],
   [".empty-hero .empty-help summary:active", "0.97", "transform"],

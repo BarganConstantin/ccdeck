@@ -226,6 +226,7 @@ describe("the modals themselves", () => {
       // #738's section history, named here for the same reason as the four
       // above: this is how it joins the loop below.
       "SectionHistoryModal.tsx",
+      "SessionHistoryDialog.tsx",
       "SessionSummary.tsx",
       "SessionUsageModal.tsx",
       // Settings, behind the gear and Cmd/Ctrl+, — the one home of the deck's

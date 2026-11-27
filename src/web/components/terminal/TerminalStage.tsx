@@ -250,7 +250,7 @@ export interface StageSessionInfo {
 /** What the stage is asked to show. */
 export type StageShow =
   | { kind: "empty" }
-  | { kind: "session"; session: StageSessionInfo; launch?: string }
+  | { kind: "session"; session: StageSessionInfo; launch?: string; resumeSaved?: () => boolean }
   | { kind: "launch"; agent: TerminalProvider; cwd: string; name: string; hue: number; key: string; options?: LaunchOptions };
 
 export interface TerminalStageProps {
@@ -375,7 +375,7 @@ export interface StageSplit {
 export function subjectOf(show: StageShow): StageSubject {
   switch (show.kind) {
     case "empty": return { kind: "empty" };
-    case "session": return { kind: "session", ref: show.session.ref, ...(show.launch ? { launch: show.launch } : {}) };
+    case "session": return { kind: "session", ref: show.session.ref, ...(show.launch ? { launch: show.launch } : {}), ...(show.resumeSaved ? { resumeSaved: show.resumeSaved } : {}) };
     case "launch": return { kind: "launch", agent: show.agent, cwd: show.cwd, key: show.key, ...(show.options ? { options: show.options } : {}) };
   }
 }

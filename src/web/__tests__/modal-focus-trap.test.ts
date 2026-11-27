@@ -313,7 +313,7 @@ describe("the deck's ten overlays", () => {
     // Quota history (#2121) shares the same trap and named close focus.
     // The thirtieth is a connected tracker's panel (#2178).
     // Explore integrations joins the same focus and dismissal contract.
-    expect(MODALS.length).toBe(33);
+    expect(MODALS.length).toBe(34);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {
@@ -410,6 +410,7 @@ describe("the deck's ten overlays", () => {
       // The share picker names its own first stop because the control that
       // matters is the one that makes the bundle, and the dialog's first
       // tabbable is a checkbox in a list that opens fully ticked.
+      "SessionHistoryDialog.tsx",
       "SessionSummary.tsx", "SessionUsageModal.tsx",
       // Settings names the tab of the section it opened at: the nav is what it
       // is walked by, and a door that opened it at Sounds lands the reader on
