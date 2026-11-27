@@ -524,6 +524,9 @@ export function StageDock(p: StageDockProps) {
             return { pane: over.pane.id, zone: edge, rect: zoneRect(over.r, edge), label: t(moveKey(edge), { name: dragged.name }), already: false, move: true };
           }
         }
+        if (dragged.fromTab && over && over.pane.id !== has.id && stage.sessionMove(dragged.id, over.pane.id, "here")) {
+          return { pane: over.pane.id, zone: "here", rect: over.r, label: t("board.stage.split.showHere", { name: dragged.name }), already: false, move: true };
+        }
         return { pane: has.id, zone: "here", rect: rectOf(has.id) ?? whole, label: t("board.stage.split.already"), already: true };
       }
     }
@@ -577,7 +580,7 @@ export function StageDock(p: StageDockProps) {
     if (!view || !dragged) return;
     // An open session's move that the panes no longer allow (they changed
     // under the pointer) brings its tab back instead.
-    if (dragged.kind === "session" && view.move && view.zone !== "here" && stage.moveSessionTo(dragged.id, view.pane, view.zone)) return;
+    if (dragged.kind === "session" && view.move && stage.moveSessionTo(dragged.id, view.pane, view.zone)) return;
     if (dragged.kind === "pane") stage.movePaneTo(dragged.id, view.pane, view.zone);
     else if (view.already || view.move) stage.dropHere(view.pane, dragged.id);
     else if (view.zone === "here") stage.dropHere(view.pane, dragged.id);
@@ -627,11 +630,13 @@ export function StageDock(p: StageDockProps) {
         key: x.key,
         id: paneTabId(id, x.key),
         name: x.name,
+        sessionId: x.target?.kind === "session" ? x.target.id : undefined,
         status: x.show.kind === "session" ? x.show.session.status : { state: x.show.kind === "launch" ? "starting" : "none", phrase: "" },
         ...(markOf(x.show) ? { mark: markOf(x.show)! } : null),
         on: x.on,
         panel,
       })),
+      onDragTab: (e, id, name) => beginDrag(e, { kind: "session", id, name, fromTab: true }),
       onSelect: (key, how) => {
         const to = strip.find(x => x.key === key);
         if (!to?.target) return;
