@@ -14,6 +14,7 @@ import { rootAgentId, subagentIdFor, type GraphState } from "./graph-state";
 import { EFFORT_LEVEL_RE } from "./payload-effort";
 import { usageByModelFromWire, usageFromWire } from "./usage-wire";
 import type { BackgroundJob, ContextBreakdown, HookPayload } from "./types";
+import { mergeSnapshot } from "./context-snapshot";
 
 /** A breakdown that asserts nothing, for a root that has not been told anything
  *  about its context yet.
@@ -166,7 +167,12 @@ export function applyModelObserved(state: GraphState, p: HookPayload, sessionId:
  *  and that zeroed every count the previous pass had established.
  *
  *  An absent key therefore means "this producer has nothing to say about it",
- *  never "it is zero". A producer that means zero sends the number zero. */
+ *  never "it is zero". A producer that means zero sends the number zero.
+ *
+ *  The /context snapshot follows the same rule with one word more, because the
+ *  server sends it only when it changes: absent keeps it, a snapshot replaces
+ *  it unless it is older, and null — a /clear or /compact after it — drops it
+ *  (mergeSnapshot, context-snapshot.ts). */
 export function applyContextObserved(state: GraphState, p: HookPayload, sessionId: string): void {
   const ctx = (p.context ?? null) as Record<string, unknown> | null;
   if (ctx) {
@@ -182,6 +188,7 @@ export function applyContextObserved(state: GraphState, p: HookPayload, sessionI
       const files = Array.isArray(ctx.memoryFiles) ? ctx.memoryFiles
         : Array.isArray(ctx.claudeMdFiles) ? ctx.claudeMdFiles
         : null;
+      const snapshot = mergeSnapshot(prev.snapshot, ctx.snapshot);
       root.context = {
         msgsUser: num("msgsUser", prev.msgsUser),
         msgsAssistant: num("msgsAssistant", prev.msgsAssistant),
@@ -190,6 +197,7 @@ export function applyContextObserved(state: GraphState, p: HookPayload, sessionI
         systemReminders: num("systemReminders", prev.systemReminders),
         currentContextTokens: num("currentContextTokens", prev.currentContextTokens),
         memoryFiles: (files ?? prev.memoryFiles) as Array<{ path: string; bytes: number }>,
+        ...(snapshot ? { snapshot } : {}),
       };
     }
   }

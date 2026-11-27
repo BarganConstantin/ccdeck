@@ -465,7 +465,7 @@ describe("Tool call", () => {
 
 describe("Context breakdown", () => {
   it("opens with the approximation line at 12/16 muted, in the body, and no subtitle in the header", () => {
-    expect(context).toContain('{meta && <p className="ctx-approx">{capitalFirst(copy.subtitle)}</p>}');
+    expect(context).toContain('{meta && !snapshot && <p className="ctx-approx">{capitalFirst(copy.subtitle)}</p>}');
     expect(context).not.toContain("ctx-modal-sub");
     expect(px(decl(".ctx-approx", "font-size"))).toBe(12);
     expect(decl(".ctx-approx", "color")).toBe("var(--muted)");

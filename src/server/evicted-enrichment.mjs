@@ -70,6 +70,12 @@ const STAMPED = [
 ];
 
 const JOB_STATES = new Set(["working", "blocked", "done", "failed", "stopped"]);
+/** A /context snapshot the page can draw, and when it was taken, for "the
+ *  newer one wins" (an undated one sorts first) — isContextSnapshot and
+ *  snapshotTime in src/web/context-snapshot.ts, which the page folds by. */
+const validSnapshot = s => isObject(s) && Number.isFinite(s.used) && s.used >= 0
+  && Number.isFinite(s.max) && s.max > 0 && Array.isArray(s.categories);
+const snapshotTime = s => { const at = typeof s?.at === "string" ? Date.parse(s.at) : NaN; return Number.isFinite(at) ? at : -Infinity; };
 const validActivity = a => isObject(a) && typeof a.text === "string" && a.text.trim() !== "" && Number.isFinite(a.at);
 
 /**
@@ -82,6 +88,7 @@ const validActivity = a => isObject(a) && typeof a.text === "string" && a.text.t
  *   - the stamped facts, a ModelObserved's model and a SessionNamed's two
  *     names count only when they hold a value;
  *   - a context breakdown merges key by key, and subagent models by subagent;
+ *     its /context snapshot is dropped by null and replaced only by a newer one;
  *   - a SessionNamed title that repeats the name is dropped, as the card drops it;
  *   - an activity line never goes backwards in time;
  *   - a job of `null` is the job gone, and one the reducer would refuse says nothing;
@@ -108,6 +115,11 @@ export function foldEnrichment(prev, next) {
       if (!isObject(next.context)) { keep("context"); break; }
       const ctx = isObject(prev.context) ? { ...prev.context } : {};
       for (const [k, v] of Object.entries(next.context)) if (typeof v === "number" || Array.isArray(v)) ctx[k] = v;
+      // The /context snapshot: null drops it, a newer one replaces it, an
+      // older one or none says nothing (applyContextObserved).
+      const snap = next.context.snapshot;
+      if (snap === null) ctx.snapshot = null;
+      else if (validSnapshot(snap) && !(validSnapshot(ctx.snapshot) && snapshotTime(snap) < snapshotTime(ctx.snapshot))) ctx.snapshot = snap;
       out.context = ctx;
       break;
     }

@@ -302,10 +302,12 @@ function ContextTab({ agent }: { agent: AgentNodeData }) {
         figure={isEventOnly(agent.provider) ? null : contextFigure(used, limit)}
       />
       {/* Figma's treemap and its legend need a token count per category (tool
-          results, files read, system prompt…), which the deck does not have: it
-          counts messages and tool calls, not the tokens in them. Neither is
-          drawn, and neither of Figma's two notes is true of what is shown, so
-          the one note is the modal's, under the meter. */}
+          results, files read, system prompt…), which the deck's own scan does
+          not have: it counts messages and tool calls, not the tokens in them.
+          Neither is drawn. The one place those counts exist is Claude Code's
+          own /context, and once the session has run it the body leads with
+          that breakdown (ContextSnapshot.tsx); until then, the modal's note
+          under the meter, and a line saying how to get it. */}
       <ContextView agent={agent} />
     </>
   );

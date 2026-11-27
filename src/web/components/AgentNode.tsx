@@ -172,19 +172,22 @@ export function AgentCard({ data, handles = false }: { data: CardData; handles?:
   // percent: in the head it was a second circle beside the state mark, two
   // circles with two meanings. It stays when the squeeze drops the
   // token figure, so the warning tones never leave the card.
+  // The ring draws contextFill's figure, the Inspector's and the Term chip's:
+  // after a /context, Claude Code's own window and count.
+  const fill = contextFill(data);
   const ring: React.ReactElement | false = hasContextSignal && !!data.onOpenContext && (
     <ContextDonut
       key="context"
-      currentContextTokens={currentContextTokens}
+      currentContextTokens={fill.used}
       modelId={data.model}
-      contextWindow={data.contextWindow}
+      contextWindow={fill.limit}
       onClick={() => data.onOpenContext!(data.sessionId)}
     />
   );
   const footKey = [
     cost ? `${cost.kind}:${cost.kind === "spent" ? fmtCost(cost.total) + (cost.floor ? "+" : "") : ""}` : "",
     toolKinds.join(","), inflight, fmtTokens(tokenTotal), data.childCount, data.synthetic ? 1 : 0,
-    ring ? Math.round(contextFill(data).pct) : "",
+    ring ? Math.round(fill.pct) : "",
     data.model ? modelChipText(data.model, data.effort) : "",
   ].join("|");
   useBeforePaint(() => { setFootNotch(0); }, [footKey]);
