@@ -567,14 +567,30 @@ describe("the Mac signing, around the engine", () => {
       installEngine(root, ENGINE, "1.2.3");
       const appOutDir = temp();
       const app = appWithEngine(root, appOutDir);
+      const launcherDir = join(app, "Contents", "MacOS");
+      mkdirSync(launcherDir, { recursive: true });
+      const launcher = Buffer.alloc(56);
+      launcher.writeUInt32LE(0xfeedfacf, 0);
+      launcher.writeUInt32LE(1, 16);
+      launcher.writeUInt32LE(24, 20);
+      launcher.writeUInt32LE(0x1b, 32);
+      launcher.writeUInt32LE(24, 36);
+      Buffer.from("4c4c440455553144a1bbe84c80723e6f", "hex").copy(launcher, 40);
+      writeFileSync(join(launcherDir, "ccdeck"), launcher);
       const context = { electronPlatformName: "darwin", appOutDir, packager: { appInfo: { productFilename: "ccdeck", id: "dev.ccdeck.app" } } };
       return { root, app, context };
     };
 
-    it("asks rcodesign to sign with the exclude, then finds the engine unchanged", async () => {
+    it("signs the app-specific launcher UUID and verifies the engine stays unchanged", async () => {
       const { root, app, context } = begin();
       const calls: [string, string[]][] = [];
-      await signMac(context, { root, run: (file: string, args: string[]) => { calls.push([file, args]); } });
+      await signMac(context, { root, run: (file: string, args: string[]) => {
+        calls.push([file, args]);
+        if (file === "rcodesign-stand-in") {
+          const launcher = readFileSync(join(app, "Contents", "MacOS", "ccdeck"));
+          expect(launcher.subarray(40).toString("hex")).toBe("2f33b863a6dc55648776a4c3758847a0");
+        }
+      } });
       expect(calls.map(([file]) => file)).toEqual(["csreq", "rcodesign-stand-in"]);
       const [, args] = calls[1];
       expect(args).toEqual(signMac.rcodesignArgs({

@@ -27,12 +27,50 @@
 // With no certificate the app is left ad-hoc signed and the build says so.
 const { execFileSync } = require("node:child_process");
 const { createHash, X509Certificate } = require("node:crypto");
-const { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } = require("node:fs");
+const { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } = require("node:fs");
 const { homedir, tmpdir } = require("node:os");
 const { join, resolve } = require("node:path");
 
 const APP_ID = "dev.ccdeck.app";
 const ROOT = resolve(__dirname, "../..");
+const DNS_NAMESPACE = Buffer.from("6ba7b8109dad11d180b400c04fd430c8", "hex");
+
+/** Electron ships the same launcher UUID to every app on a given build.
+ * macOS Local Network privacy also looks up apps by that UUID (Apple TN3179).
+ * Give each bundle its own deterministic UUID before signing the launcher.
+ * Distribution builds are separate, thin x64 and arm64 Mach-O files. */
+function setLauncherUUID(path, appId) {
+  const image = readFileSync(path);
+  const headerSize = 32;
+  if (image.length < headerSize || image.readUInt32LE(0) !== 0xfeedfacf) {
+    throw new Error("ccdeck: expected a thin 64-bit macOS launcher");
+  }
+  const count = image.readUInt32LE(16);
+  const commandsEnd = headerSize + image.readUInt32LE(20);
+  let uuidAt;
+  let offset = headerSize;
+  if (commandsEnd > image.length) throw new Error("ccdeck: truncated macOS launcher load commands");
+  for (let i = 0; i < count; i++) {
+    if (offset + 8 > commandsEnd) throw new Error("ccdeck: truncated macOS launcher load command");
+    const command = image.readUInt32LE(offset);
+    const size = image.readUInt32LE(offset + 4);
+    if (size < 8 || offset + size > commandsEnd) throw new Error("ccdeck: invalid macOS launcher load command");
+    if (command === 0x1b) { // LC_UUID
+      if (size !== 24 || uuidAt !== undefined) throw new Error("ccdeck: invalid macOS launcher UUID command");
+      uuidAt = offset + 8;
+    }
+    offset += size;
+  }
+  if (uuidAt === undefined) throw new Error("ccdeck: macOS launcher has no UUID");
+  const stock = image.subarray(uuidAt, uuidAt + 16).toString("hex").replace(
+    /^(........)(....)(....)(....)(............)$/, "$1-$2-$3-$4-$5",
+  );
+  const uuid = createHash("sha1").update(DNS_NAMESPACE).update(`${appId}:${stock}`).digest().subarray(0, 16);
+  uuid[6] = (uuid[6] & 0x0f) | 0x50; // UUID v5
+  uuid[8] = (uuid[8] & 0x3f) | 0x80; // RFC variant
+  uuid.copy(image, uuidAt);
+  writeFileSync(path, image);
+}
 
 /** What rcodesign must not sign: the Command Panel's engine package, copied
  *  into the app by scripts/deck-runtime.cjs. The engine's own signed manifest
@@ -145,6 +183,7 @@ module.exports = async function signMac(context, { run = execFileSync, root = RO
     // is not signed with a requirement it can never satisfy.
     const appId = context.packager.appInfo.id || APP_ID;
     run("csreq", ["-r", `=${requirementFor(readFileSync(certPath, "utf8"), appId)}`, "-b", req]);
+    setLauncherUUID(join(app, "Contents", "MacOS", context.packager.appInfo.productFilename), appId);
     run(process.env.RCODESIGN || "rcodesign", rcodesignArgs({ certPath, keyPath, requirements: req, app }), { stdio: "inherit" });
     verifyEngineCopies(app, root);
   } finally {
