@@ -144,7 +144,8 @@ describe("a deck session on a real tmux", () => {
     // moved), kept alive by a session of its own. tmux 3.7 and later skip the
     // move into -c for every pane such a server starts; its own server, so
     // the other cases' server keeps its folder.
-    const stale = { name: `${socket.name}-stale` };
+    // Short: macOS caps a socket path near 104 bytes, and TMUX_TMPDIR is deep there.
+    const stale = { name: `cct-${randomBytes(3).toString("hex")}` };
     const gone = join(SANDBOX, "gone");
     mkdirSync(gone);
     try {

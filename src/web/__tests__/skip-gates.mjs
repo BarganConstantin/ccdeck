@@ -318,6 +318,10 @@ export const GATES = [
   // terminal-bridge-utf8's, un-gated, on every leg.
   { file: "terminal-utf8-tmux.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 2, cases: 2 },
   { file: "settings-atomic-write.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
+  // The wrapper that moves a new pane into its folder, run by the machine's own
+  // /bin/sh. Windows has no /bin/sh, and its sessions never start through tmux;
+  // the argv the wrapper gets is asserted on all three legs.
+  { file: "terminal-tmux.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   // The terminal's ccdeck followed through a real npm prefix: `<prefix>/bin/ccdeck`
   // is a symlink into lib/node_modules, and a file symlink on Windows needs
   // SeCreateSymbolicLinkPrivilege. Windows reads npm's .cmd/.ps1 shim instead,
