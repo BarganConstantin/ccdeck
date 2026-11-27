@@ -24,6 +24,7 @@
 // the board stays reachable under them (`grace`). Then the double-click
 // reaches the card it was aimed at, the detail panel opens, and that evicts
 // the stage.
+import type { SavedSession } from "./session-history";
 import type { LaunchOptions, TerminalProvider } from "./terminal-api";
 
 /** Where the stage is between closed and open. */
@@ -37,7 +38,7 @@ export type ShellPhase = "closed" | "waiting" | "opening" | "open" | "closing";
  *  id alone cannot say that. */
 export type StageTarget =
   | { kind: "empty" }
-  | { kind: "session"; id: string; launch?: string }
+  | { kind: "session"; id: string; launch?: string; history?: SavedSession; resumeSaved?: () => boolean }
   | { kind: "launch"; agent: TerminalProvider; cwd: string; key: string; options?: LaunchOptions };
 
 /** A box on the page, in CSS pixels from the viewport's top-left corner. */

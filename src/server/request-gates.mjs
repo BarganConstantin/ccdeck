@@ -437,6 +437,7 @@ export function isAuthorizedDataRead(req) {
 export const GUARDED_READS = new Set([
   "/api/tool-audit",
   "/api/session/transcript",
+  "/api/session/history",
   "/api/tool-audit/storage",
   "/api/system/traffic-radar",
   "/api/system/traffic-radar/capture",

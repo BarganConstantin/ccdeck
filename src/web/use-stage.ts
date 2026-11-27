@@ -525,6 +525,18 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     follow(sessionId);
   }, [enabledRef, openOn, follow]);
 
+  const openHistorySession = useCallback((history: import("./session-history").SavedSession) => {
+    if (!enabledRef.current || history.unavailable) return;
+    let requested = true;
+    const resumeSaved = () => {
+      const start = requested;
+      requested = false;
+      return start;
+    };
+    openOn({ kind: "session", id: history.id, history, resumeSaved }, { focusPane: true });
+    follow(history.id);
+  }, [enabledRef, openOn, follow]);
+
   /** WORKSPACE: ✕ on a pane. It empties; the session it showed runs on
    *  (closing never stopped anything), and with no session in the pane none is
    *  in focus. The focus goes to the empty pane's own action. */
@@ -1466,7 +1478,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
 
   return {
     enabled, supported, windows, toggleTerminal, loadTerminalPrefs, shell, geometry, cell, expanded, firstRun, said, navRef, keysRef,
-    workspace, workspaceOffered: onOffer, chunkFailed, openInPane, emptyPane, leaveWorkspace,
+    workspace, workspaceOffered: onOffer, chunkFailed, openInPane, openHistorySession, emptyPane, leaveWorkspace,
     onNodeClick, followSession, switchTo, openFromButton, newSessionFromBoard, openTile, launch, onLaunched,
     focusPane, release, takeTypeAhead, holdsTypeAhead, close, closed, failed, giveRightBack, reveal, revealed, announce,
     openPopover, newSessionFrom, closePopover, onCols, onColsReset, toggleExpand, unzoom, firstRunDone, onCell, onBarH, onHeadH,
