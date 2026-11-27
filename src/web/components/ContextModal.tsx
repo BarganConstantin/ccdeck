@@ -13,7 +13,7 @@
 // composition counts are not available at all, because there is no transcript to
 // scan and the rollout watcher skips a session's history when it attaches. That
 // section says so instead of printing five zeroes (#399).
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { currentLanguage, t, useT } from "../i18n";
 import { formatPercent } from "../i18n/format";
 import type { AgentNodeData, Provider } from "../types";
@@ -23,10 +23,12 @@ import { effectiveContextWindow } from "../context-window";
 import { contextFill } from "../context-figure";
 import { fmtTokens } from "../token-format";
 import { agentCost } from "../usage-models";
-import { Dialog } from "./Dialog";
+import { Dialog, DialogPresence } from "./Dialog";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import PathText from "./PathText";
 import ContextSnapshotView from "./ContextSnapshot";
+import MemoryFileDialog from "./MemoryFileDialog";
+import type { MemoryFileTarget } from "../memory-file";
 import { liveSnapshot } from "../context-snapshot";
 import { isEventOnly } from "../../server/provider-ids.mjs";
 import { providerLabel } from "../provider-copy";
@@ -133,6 +135,9 @@ export function ContextView({ agent, meta = false }: {
   meta?: boolean;
 }) {
   const t = useT();
+  // The memory file open to read, from either list below. One viewer for the
+  // view, held above the early return so the hooks run in the same order.
+  const [memory, setMemory] = useState<MemoryFileTarget | null>(null);
   // opencode and Copilot send the deck events and nothing else: no token
   // count, no window, no transcript to scan, no memory file it looks for. Every
   // section below would print a zero or Claude's CLAUDE.md line as if it had
@@ -191,11 +196,13 @@ export function ContextView({ agent, meta = false }: {
     <ul className="ctx-md-list">
       {files.map(f => (
         <li key={f.path}>
-          {/* Every file here has one name (CLAUDE.md, or AGENTS.md for Codex),
-              so the folder above it is kept whole too: that is what tells two
-              rows apart. */}
-          <PathText className="ctx-md-path" path={f.path} cwd={agent.cwd} keep={2} />
-          <span className="ctx-md-size">{fmtBytes(f.bytes)}</span>
+          <button type="button" className="ctx-md-open" aria-haspopup="dialog" onClick={() => setMemory({ path: f.path, source: "disk" })}>
+            {/* Every file here has one name (CLAUDE.md, or AGENTS.md for Codex),
+                so the folder above it is kept whole too: that is what tells two
+                rows apart. */}
+            <PathText className="ctx-md-path" path={f.path} cwd={agent.cwd} keep={2} />
+            <span className="ctx-md-size">{fmtBytes(f.bytes)}</span>
+          </button>
         </li>
       ))}
     </ul>
@@ -208,7 +215,8 @@ export function ContextView({ agent, meta = false }: {
         {/* Not over /context's breakdown: its foot says where the numbers
             came from, and "estimated from the transcript" would contradict it. */}
         {meta && !snapshot && <p className="ctx-approx">{capitalFirst(copy.subtitle)}</p>}
-        {snapshot ? <ContextSnapshotView snapshot={snapshot} currentUsed={ctx?.currentContextTokens ?? 0} cwd={agent.cwd} head={meta} /> : (
+        {snapshot ? <ContextSnapshotView snapshot={snapshot} currentUsed={ctx?.currentContextTokens ?? 0} cwd={agent.cwd} head={meta}
+          onOpenMemory={path => setMemory({ path, source: "loaded" })} /> : (
         <section className="ctx-window-row">
           {meta && (
             <div className="ctx-window-top">
@@ -295,6 +303,12 @@ export function ContextView({ agent, meta = false }: {
             {memoryList}
           </details>
         )}
+        {/* The session the files are read for is the root's: a subagent's
+            card carries its session's id, and the server notes the scope by it. */}
+        <DialogPresence when={memory}>{target => (
+          <MemoryFileDialog target={target} session={agent.sessionId} provider={agent.provider === "codex" ? "codex" : "claude"}
+            onClose={() => setMemory(null)} />
+        )}</DialogPresence>
     </div>
   );
 }

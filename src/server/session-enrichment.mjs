@@ -621,11 +621,36 @@ async function readContextState(path) {
   return { breakdown: { ...state.ctx }, snapshot: state.contextSnapshot ?? null };
 }
 
+// ─── Where a session's memory files are looked for ──────────────────────
+// The memory-file route (memory-file-route.mjs) reads one file a session has
+// in scope, and only one the scan below would list for it now. It needs the
+// scan's inputs to run it again, so the two passes that scan note them here:
+// which CLI, the working directory, and for Codex the home the rollout came
+// from. Capped like the other per-session maps, the oldest dropped first, and
+// dropped with the rest when forgetEnrichment forgets the session.
+const MEMORY_SCOPE_CAP = 512;
+const memoryScopes = new Map();     // sid -> { provider, cwd, codexHome? }
+
+function noteMemoryScope(sid, scope) {
+  if (!sid || typeof scope.cwd !== "string" || !scope.cwd) return;
+  // Re-inserted, so the Map's order is the order sessions were last heard from.
+  memoryScopes.delete(sid);
+  memoryScopes.set(sid, scope);
+  if (memoryScopes.size > MEMORY_SCOPE_CAP) memoryScopes.delete(memoryScopes.keys().next().value);
+}
+
+/** What the memory scan was last run on for this session, or null for one
+ *  never scanned (or forgotten since). */
+export function memoryScope(sid) {
+  return memoryScopes.get(sid) ?? null;
+}
+
 function maybeResolveContext(payload) {
   const target = transcriptTarget(payload);
   if (!target) return;
   const { sid, tp } = target;
   const cwd = payload.cwd;
+  noteMemoryScope(sid, { provider: "claude", cwd });
   contextReads.run(sid, () => Promise.all([readContextState(tp), scanClaudeMdFiles(cwd)])
     .then(([{ breakdown, snapshot }, memoryFiles]) => {
       if (!breakdown && (!memoryFiles || memoryFiles.length === 0)) return;
@@ -729,6 +754,7 @@ const codexMemoryReads = sessionReadGate(CONTEXT_READ_THROTTLE_MS);
  */
 function maybeResolveCodexMemory(sid, cwd, persist, codexHome) {
   if (!sid || !cwd) return;
+  noteMemoryScope(sid, codexHome ? { provider: "codex", cwd, codexHome } : { provider: "codex", cwd });
   codexMemoryReads.run(sid, () => scanAgentsMdFiles(cwd, codexHome)
     .then(memoryFiles => {
       // Nothing found is not a fact worth an event: the reducer merges a
@@ -776,6 +802,9 @@ function forgetEnrichment(sid) {
   // after this says what it is doing and what its job says afresh.
   activityBySession.delete(sid);
   jobBySession.delete(sid);
+  // And where its memory files were looked for: the route reads nothing for
+  // a session the deck no longer tracks.
+  memoryScopes.delete(sid);
   nameReads.forget(sid);
   modelReads.forget(sid);
   usageReads.forget(sid);

@@ -58,6 +58,7 @@ describe("a dialog opened from inside a panel is not laid out by it", () => {
       "LanNetworkMap",
       "LanPeerModal",
       "LanSetupModal",
+      "MemoryFileDialog", // from the Inspector's Context tab and the context modal
       "ProcessListModal",
       "QuotaHistoryModal",
       "RadioExperience", // a DialogScrim in a DialogPresence, portalled
