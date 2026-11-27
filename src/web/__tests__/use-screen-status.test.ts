@@ -14,9 +14,14 @@ function rig(first: Omit<ScreenStatusOptions, "readScreen">) {
   let shown: string | null = "✻ Pondering… (1s · esc to interrupt)";
   const readScreen = vi.fn((_subject: string) => shown);
   let words: string | null = null;
-  const Probe = (o: Omit<ScreenStatusOptions, "readScreen">) => { words = useScreenStatus({ ...o, readScreen }); return null; };
+  const renders: Array<{ subject: string; words: string | null }> = [];
+  const Probe = (o: Omit<ScreenStatusOptions, "readScreen">) => {
+    words = useScreenStatus({ ...o, readScreen });
+    renders.push({ subject: o.subject, words });
+    return null;
+  };
   const view = mount(Probe, first);
-  return { view, readScreen, set screen(s: string | null) { shown = s; }, get words() { return words; } };
+  return { view, readScreen, renders, set screen(s: string | null) { shown = s; }, get words() { return words; } };
 }
 
 describe("the agent's words, live", () => {
@@ -47,6 +52,13 @@ describe("the agent's words, live", () => {
     r.screen = null;
     await vi.advanceTimersByTimeAsync(STATUS_POLL_MS);
     expect(r.words).toBe("Pondering…");
+  });
+
+  it("never renders the previous session's spinner during a direct switch", () => {
+    const r = rig({ on: true, subject: "session:a" });
+    r.screen = null;
+    r.view.rerender({ on: true, subject: "session:b" });
+    expect(r.renders.filter(render => render.subject === "session:b").map(render => render.words)).not.toContain("Pondering…");
   });
 
   it("lets them go with the turn, and starts afresh for another session", async () => {

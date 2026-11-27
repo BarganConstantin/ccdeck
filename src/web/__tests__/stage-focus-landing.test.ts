@@ -70,7 +70,7 @@ describe("landing the keys on the stage's answer", () => {
   it("falls back on the header's ⌨, then ✕, which every stage draws", () => {
     at(body);
     const keys = el("⌨");
-    expect(landFocus(stage({ ".ts-head button[aria-pressed]": keys }))).toBe(true);
+    expect(landFocus(stage({ ".ts-head button[data-stage-keys]": keys }))).toBe(true);
     expect(keys.focus).toHaveBeenCalled();
     at(body);
     const close = el("✕");

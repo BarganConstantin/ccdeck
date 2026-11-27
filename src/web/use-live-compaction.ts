@@ -31,18 +31,17 @@ export interface LiveScreen {
   menu: readonly string[] | null;
 }
 
-interface Seen { compaction: CompactionSeen | null; menu: MenuSeen | null }
+interface Seen { subject: string; compaction: CompactionSeen | null; menu: MenuSeen | null }
 
-const NOTHING: Seen = { compaction: null, menu: null };
 const NOTHING_SHOWN: LiveScreen = { compacting: null, menu: null };
 
 export function useLiveScreen(o: LiveCompactionOptions): LiveScreen {
-  const [seen, setSeen] = useState<Seen>(NOTHING);
+  const [seen, setSeen] = useState<Seen | null>(null);
   const read = useRef(o.readScreen);
   read.current = o.readScreen;
   const { on, subject } = o;
   useEffect(() => {
-    setSeen(NOTHING);
+    setSeen(null);
     if (!on) return;
     const look = () => {
       const screen = read.current?.(subject) ?? null;
@@ -50,16 +49,19 @@ export function useLiveScreen(o: LiveCompactionOptions): LiveScreen {
       const menu = screen === null ? null : screenMenu(screen);
       const now = Date.now();
       setSeen(prev => {
-        const compaction = compactionAfter(prev.compaction, spinner, now);
-        const choices = menuAfter(prev.menu, menu);
-        return compaction === prev.compaction && choices === prev.menu ? prev : { compaction, menu: choices };
+        const current = prev?.subject === subject ? prev : null;
+        const compaction = compactionAfter(current?.compaction ?? null, spinner, now);
+        const choices = menuAfter(current?.menu ?? null, menu);
+        if (!compaction && !choices) return null;
+        return current && compaction === current.compaction && choices === current.menu
+          ? current : { subject, compaction, menu: choices };
       });
     };
     look();
     const timer = setInterval(look, STATUS_POLL_MS);
     return () => clearInterval(timer);
   }, [on, subject]);
-  if (!on || (!seen.compaction && !seen.menu)) return NOTHING_SHOWN;
+  if (!on || seen?.subject !== subject) return NOTHING_SHOWN;
   return { compacting: seen.compaction, menu: seen.menu?.options ?? null };
 }
 

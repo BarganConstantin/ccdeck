@@ -456,10 +456,11 @@ export default function StageHeader(p: StageHeaderProps) {
       <div className="ts-ctl">
         <div className="ts-tools">
           {p.textSize && <TextSizeControl size={p.textSize} />}
-          {p.canType && (
+          {p.canType && !p.workspace && (
             <button
               type="button"
               className="glyph-btn"
+              data-stage-keys
               aria-pressed={pane}
               aria-label={keysLabel}
               aria-keyshortcuts={pane ? "Control+Shift+X" : undefined}
