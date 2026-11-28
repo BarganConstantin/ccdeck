@@ -1,4 +1,14 @@
 {
+  "4.6.0": [
+    {
+      "title": "📄 Read a memory file from the Context tab",
+      "body": "In the Inspector's Context tab, a memory file row (a CLAUDE.md or AGENTS.md, your own or the project's, or auto memory) now opens the file to read. The dialog says where the file lives, what kind it is and whether it was loaded or only found on disk, and has a Copy path button. A long file shows its first 256 KB."
+    },
+    {
+      "title": "🧩 See a project's skills and MCP servers",
+      "body": "Once /context has run in a Claude Code session, All skills under its lists opens every skill installed for the project, yours and the project's: search them, see which ones /context listed as loaded, and open one for its full description and SKILL.md path. MCP servers lists the servers the project has configured, where each one is set, how it connects and whether it was connected at the last /context. To reconnect or sign in, run /mcp in the session's terminal."
+    }
+  ],
   "4.5.0": [
     {
       "title": "🕘 Find and reopen a saved session",
@@ -658,6 +668,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.6.0": "Open a memory file to read it, and see a project's skills and MCP servers, from the Context tab",
     "4.5.0": "Session history to reopen saved sessions, a Context breakdown from /context, and sessions start in their folder",
     "4.4.5": "Subagents close up beside their coordinator, and a subagent's report no longer titles its session's card",
     "4.4.4": "Zen Mode, session actions in Chat's ⋯ menu, Chat and Term together after /clear, and Skip permission checks",

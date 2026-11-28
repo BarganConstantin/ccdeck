@@ -1066,6 +1066,207 @@
 }
 .ctx-files[open] .ctx-md-list { margin-block-start: 8px; padding-block-start: 5px; border-top: 1px solid var(--line); }
 .ctx-view[data-inspector] .ctx-md-list li { height: auto; min-height: calc(22px + var(--ui-text-increase, 0px)); }
+/* A MEMORY FILE'S ROW IS A BUTTON (MemoryFileDialog.tsx): the row it was, path
+   left and figure right, with the press's tint and the one focus stroke. The
+   tint reaches 4px past the text on each side, so nothing in the row moves. */
+.ctx-md-open {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 0;
+  margin: 0 -4px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.ctx-snap-items .ctx-md-open { gap: 8px; }
+@media (hover: hover) and (pointer: fine) {
+  .ctx-md-open { transition: background-color var(--dur-fast) var(--ease); }
+  .ctx-md-open:hover { background: var(--ctl-fill); }
+  .ctx-md-open:hover .ctx-md-path { color: var(--text); }
+}
+.ctx-md-open:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
+.ctx-md-open:focus-visible .ctx-md-path { color: var(--text); }
+
+/* ONE MEMORY FILE, READ-ONLY (MemoryFileDialog.tsx). The medium dialog: a
+   memory file is a document read through, not a short note. Under the header
+   its path and what kind of file it is, then the text as it is on disk, in the
+   code face and wrapped, scrolling with the body. */
+.modal.memory-file { width: var(--dialog-m); color: var(--text); }
+.mf-body { gap: 12px; min-height: 0; }
+.mf-where {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
+/* Metadata to glance at, in the quiet ink, as the rows' paths are. */
+.mf-path, .mf-scope { color: var(--muted); }
+.mf-state, .mf-note {
+  margin: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+}
+.mf-state { display: flex; align-items: center; gap: 8px; }
+.mf-text {
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--sunken);
+  border-radius: var(--r-ctl);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(18px + var(--ui-text-increase, 0px));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 4;
+}
+.mf-readonly {
+  margin-inline-end: auto;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+}
+
+/* A LIST'S WAY TO ITS DIALOG (ContextSnapshot.tsx): under the open list, a
+   quiet text button, 24 high, 400 12/16 in --muted, as Usage's foot acts are
+   (.up-quiet): no edge and no fill at rest, the control fill and --text under
+   the pointer, and the button's own press (button.btn). Its words sit on the
+   list's left edge; the fill reaches 6px past them. */
+button.btn.ctx-snap-act {
+  --ctl-h: 24px;
+  align-self: flex-start;
+  gap: 4px;
+  margin: 4px 0 0 -6px;
+  padding: 0 6px;
+  border-color: transparent;
+  background: none;
+  color: var(--muted);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  font-weight: 400;
+}
+@media (hover: hover) and (pointer: fine) {
+  button.btn.ctx-snap-act:hover { border-color: transparent; background: var(--ctl-fill); color: var(--text); }
+}
+
+/* WHAT THE PROJECT HAS INSTALLED (SkillsDialog.tsx): the medium dialog, as the
+   memory file's. A search field, then one reading row per skill (the memory
+   rows' button, .ctx-md-open, on two lines): its name and whether the last
+   /context loaded it, then where it is installed and its description, cut to
+   one line. A row opens the skill in the same body. */
+.modal.ctx-inventory { width: var(--dialog-m); color: var(--text); }
+.inv-body { gap: 12px; min-height: 0; }
+.inv-search {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--ctl-h);
+  padding-inline: 8px;
+  border: 1px solid var(--ctl-edge);
+  border-radius: var(--r-ctl);
+  background: var(--ctl-fill);
+  color: var(--muted);
+}
+.inv-search:focus-within { border-color: var(--accent); }
+.inv-search input {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  padding: 5px 0;
+  border: 0;
+  outline-offset: -2px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+}
+.inv-search input::placeholder { color: var(--muted); opacity: 1; }
+.inv-note, .inv-state {
+  margin: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+}
+.inv-state { display: flex; align-items: center; gap: 8px; }
+.inv-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.inv-list > li + li { border-top: 1px solid var(--line-soft, var(--line)); }
+.ctx-md-open.inv-row {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 2px;
+  width: calc(100% + 16px);
+  margin: 0 -8px;
+  padding: 8px;
+}
+.inv-row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
+.inv-row-name {
+  min-width: 0;
+  color: var(--text);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inv-row-state, .inv-row-sub {
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+}
+.inv-row-state { flex: none; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.inv-row-sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* One skill: its way back to the list, then its name, where it is installed
+   and whether it is loaded, its description as plain text, and its SKILL.md. */
+button.btn.ctx-snap-act.inv-back { margin: 0 0 0 -6px; }
+.inv-detail { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.inv-detail-name {
+  margin: 0;
+  color: var(--text);
+  font-size: calc(16px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.inv-detail-meta, .inv-detail-path {
+  margin: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+}
+.inv-detail-path { margin-block-start: 6px; font-family: var(--font-mono); }
+.inv-detail-desc {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: calc(13px + var(--ui-text-increase, 0px));
+  line-height: calc(20px + var(--ui-text-increase, 0px));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.inv-detail-desc[data-empty] { color: var(--muted); }
+/* The MCP servers (McpServersDialog.tsx): the project's path under the title,
+   then one row per server, read and not pressed: its name with where it is
+   configured and its transport, then what the last /context saw of it. */
+.inv-cwd {
+  font-family: var(--font-mono);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+}
+.inv-server { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 0; }
 
 /* WHAT FILLS IT (ContextSnapshot.tsx): Claude Code's own /context breakdown,
    in the meter's place once a session has one. A head line (the share used and

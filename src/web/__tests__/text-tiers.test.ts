@@ -585,6 +585,9 @@ describe("what was migrated to the secondary tier", () => {
       // figures and cache counts, and the history chips. The wait's two lines
       // (.uh-reading-note, .uh-reading-hint) moved to the muted step.
       ".ctx-modal .ctx-md-path",
+      // CHANGED ON PURPOSE (skills inventory): a skill's description in its
+      // detail is the sentence the reader opened it to read, so it is prose.
+      ".inv-detail-desc",
       ".ctx-window-label",
       ".fb-field-label",
       ".fb-foot .btn.danger.armed",
