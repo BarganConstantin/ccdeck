@@ -254,7 +254,7 @@ describe("the topbar's Feedback button", () => {
     // CHANGED ON PURPOSE (phone More › Open the Command Panel): its press is
     // openPanelFromMore, the stage's own press plus the Sessions list making way,
     // which had covered the stage (v4-phone-board-stack.test.tsx).
-    expect(app).toMatch(/more=\{\[rails\.search, \.\.\.commandPanelMore\(stage\.enabled \? openPanelFromMore : undefined\), \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, \.\.\.rails\.utilities\]\}/);
+    expect(app).toMatch(/more=\{\[rails\.search, \.\.\.commandPanelMore\(stage\.enabled \? openPanelFromMore : undefined\), \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, \.\.\.\(rails\.devices \?\? \[\]\), \.\.\.rails\.utilities\]\}/);
     expect(app).not.toMatch(/\{!phone && <div className="tb-corner">/);
     expect(rails).toMatch(/item\.menu \?\? item\.label/);
   });

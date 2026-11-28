@@ -97,7 +97,7 @@ describe("where App draws it", () => {
   });
 
   it("is in the phone's More by its words too, beside its glyph on the phone's bar", () => {
-    expect(app).toContain("...rails.explore, ...rails.utilities]}");
+    expect(app).toContain("...rails.explore, ...(rails.devices ?? []), ...rails.utilities]}");
     expect(app).not.toContain("rails.utilities.filter(");
     // Quick open still lists it, by name, as it lists every door.
     expect(sourceOf("quick-open-items.tsx")).toContain("...src.rails.utilities,");

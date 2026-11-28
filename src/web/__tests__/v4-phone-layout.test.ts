@@ -546,7 +546,7 @@ describe("the dock has five doors, and the rest are in More", () => {
     // which had covered the stage (v4-phone-board-stack.test.tsx).
     // CHANGED ON PURPOSE (a bare glyph was not found): More lists Send feedback
     // too, by its words, beside the glyph in the bar's corner.
-    expect(app).toContain("more={[rails.search, ...commandPanelMore(stage.enabled ? openPanelFromMore : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities]}");
+    expect(app).toContain("more={[rails.search, ...commandPanelMore(stage.enabled ? openPanelFromMore : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...(rails.devices ?? []), ...rails.utilities]}");
   });
 
   // CHANGED ON PURPOSE (the phone layout): Sessions reads not pressed while ANY

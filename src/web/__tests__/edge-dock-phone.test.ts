@@ -116,7 +116,7 @@ describe("the dock holds the four panels, then More", () => {
     // CHANGED ON PURPOSE (phone More › Open the Command Panel): its press is
     // openPanelFromMore, the stage's own press plus the Sessions list making way,
     // which had covered the stage (v4-phone-board-stack.test.tsx).
-    expect(app).toMatch(/\{phone\s*(?:\/\/[^\n]*\s*)*\?\s*<EdgeDock\s+items=\{\[\.\.\.rails\.left, \.\.\.rails\.right\[0\]\]\.map\([^\n]*\)\}\s+more=\{\[rails\.search, \.\.\.commandPanelMore\(stage\.enabled \? openPanelFromMore : undefined\), \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, \.\.\.rails\.utilities\]\}\s+offline=\{everConnected && !live\} \/>\s*:\s*<EdgeRail side="left" label/);
+    expect(app).toMatch(/\{phone\s*(?:\/\/[^\n]*\s*)*\?\s*<EdgeDock\s+items=\{\[\.\.\.rails\.left, \.\.\.rails\.right\[0\]\]\.map\([^\n]*\)\}\s+more=\{\[rails\.search, \.\.\.commandPanelMore\(stage\.enabled \? openPanelFromMore : undefined\), \.\.\.rails\.capacity, \.\.\.rails\.right\.slice\(1\)\.flat\(\), \.\.\.rails\.integrations, \.\.\.rails\.explore, \.\.\.\(rails\.devices \?\? \[\]\), \.\.\.rails\.utilities\]\}\s+offline=\{everConnected && !live\} \/>\s*:\s*<EdgeRail side="left" label/);
     // CHANGED ON PURPOSE (V4's Figma): two stripes again, the left one drawn in
     // the dock's place, the right one only where there is no phone dock.
     expect(app).toMatch(/<EdgeRail side="left" label/);
