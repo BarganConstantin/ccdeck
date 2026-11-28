@@ -313,7 +313,8 @@ describe("the deck's ten overlays", () => {
     // Quota history (#2121) shares the same trap and named close focus.
     // The thirtieth is a connected tracker's panel (#2178).
     // Explore integrations joins the same focus and dismissal contract.
-    expect(MODALS.length).toBe(34);
+    // The thirty-fifth is a memory file's viewer, from the Context tab.
+    expect(MODALS.length).toBe(35);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {

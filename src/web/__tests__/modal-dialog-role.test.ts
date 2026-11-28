@@ -75,9 +75,11 @@ describe("the deck's modals", () => {
     // Explore integrations follows every shared dialog assertion below.
     // The thirty-third is the Codex share dialog, development's twin of the
     // Claude share picker, on the same shell since the 3.81 sync.
-    // Thirty-two of them draw `<Dialog` and the radio draws `<DialogScrim`.
-    expect(MODALS.length).toBe(34);
-    expect(ON_SURFACE.length).toBe(33);
+    // The thirty-fifth is one memory file, read-only, opened from a row of the
+    // Context tab's memory lists.
+    // Thirty-four of them draw `<Dialog` and the radio draws `<DialogScrim`.
+    expect(MODALS.length).toBe(35);
+    expect(ON_SURFACE.length).toBe(34);
     expect(MODALS.filter(f => !ON_SURFACE.includes(f))).toEqual(["RadioExperience.tsx"]);
   });
 

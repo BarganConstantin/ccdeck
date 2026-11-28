@@ -5,7 +5,8 @@
 //
 // One bar and one row per category, the deferred rows apart, then the lists
 // /context printed behind closed disclosures, so the block stays as short as
-// the estimate it replaces until someone opens one.
+// the estimate it replaces until someone opens one. A memory file's row opens
+// it to read (MemoryFileDialog.tsx), through the view around this one.
 import type { ReactNode } from "react";
 import { currentLanguage, useT } from "../i18n";
 import { formatPercent } from "../i18n/format";
@@ -27,7 +28,7 @@ function pct1(n: number): string {
   } catch { return `${n.toFixed(1)}%`; }
 }
 
-export default function ContextSnapshotView({ snapshot, currentUsed, cwd, head = true }: {
+export default function ContextSnapshotView({ snapshot, currentUsed, cwd, head = true, onOpenMemory }: {
   snapshot: ContextSnapshot;
   /** The tab's own estimate of what the session holds now; what it holds past
    *  the snapshot is drawn as "Since then". */
@@ -36,6 +37,8 @@ export default function ContextSnapshotView({ snapshot, currentUsed, cwd, head =
   /** The "22% used · 130k / 600k" line over the bar. The Inspector leaves it
    *  out: its head prints the same figure (contextFill reads the snapshot). */
   head?: boolean;
+  /** A memory file's row was pressed: its path as /context printed it, `~/` and all. */
+  onOpenMemory: (path: string) => void;
 }) {
   const t = useT();
   // The foot says how old the snapshot is; half a minute is as fine as
@@ -78,7 +81,7 @@ export default function ContextSnapshotView({ snapshot, currentUsed, cwd, head =
           {layout.deferred.map(r => <Row key={r.id} row={r} label={name(r)} pctTitle={t("insights.context.snap.deferredTitle")} />)}
         </ul>
       )}
-      <Lists snapshot={snapshot} cwd={cwd} />
+      <Lists snapshot={snapshot} cwd={cwd} onOpenMemory={onOpenMemory} />
       <p className="ctx-window-note ctx-snap-foot" title={Number.isFinite(at) ? new Date(at).toLocaleString(currentLanguage()) : undefined}>
         {t(snapshot.estimated ? "insights.context.snap.fromEstimate" : "insights.context.snap.from", { ago })}
       </p>
@@ -101,8 +104,9 @@ function Row({ row, label, title, pctTitle }: { row: SnapRow; label: string; tit
 
 /** The lists /context printed, each behind a closed disclosure with its count:
  *  the MCP tools by server, the memory files, the custom agents, the skills.
- *  A list /context did not print is left out. */
-function Lists({ snapshot, cwd }: { snapshot: ContextSnapshot; cwd?: string }) {
+ *  A list /context did not print is left out. A memory file's row is a button
+ *  that opens the file. */
+function Lists({ snapshot, cwd, onOpenMemory }: { snapshot: ContextSnapshot; cwd?: string; onOpenMemory: (path: string) => void }) {
   const t = useT();
   const more = snapshot.more ?? {};
   const groups = mcpGroups(snapshot);
@@ -140,8 +144,10 @@ function Lists({ snapshot, cwd }: { snapshot: ContextSnapshot; cwd?: string }) {
         <List label={t("insights.context.cat.memory")} count={listCount(memory, more.memory)}>
           {memory.map(m => (
             <li key={`${m.type}:${m.path}`} title={m.type}>
-              <PathText className="ctx-md-path" path={m.path} cwd={cwd} keep={2} />
-              <span className="ctx-md-size" title={fmtN(m.tokens)}>{snapTokens(m.tokens)}</span>
+              <button type="button" className="ctx-md-open" aria-haspopup="dialog" onClick={() => onOpenMemory(m.path)}>
+                <PathText className="ctx-md-path" path={m.path} cwd={cwd} keep={2} />
+                <span className="ctx-md-size" title={fmtN(m.tokens)}>{snapTokens(m.tokens)}</span>
+              </button>
             </li>
           ))}
           <More more={more.memory} />

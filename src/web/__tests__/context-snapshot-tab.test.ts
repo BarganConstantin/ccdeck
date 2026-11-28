@@ -288,8 +288,9 @@ describe("the Context tab with a snapshot", () => {
     expect(out).toContain('<li class="ctx-snap-sub"><span class="ctx-snap-item">mcp__github__create_issue</span>');
     // A server with nothing loaded says what it would cost, and takes no tokens.
     expect(out).toMatch(/<span class="ctx-snap-item">slack<\/span><span class="ctx-snap-meta">12 tools<\/span><span class="ctx-md-size" title="8.4k if all were loaded">—<\/span>/);
-    // Memory files by path, the folder above kept; agents and skills with their source.
-    expect(out).toMatch(/<li title="Project"><span class="path-text ctx-md-path"[^>]*>[\s\S]*?CLAUDE\.md<\/span><\/span><span class="ctx-md-size" title="14,500">15k<\/span>/);
+    // Memory files by path, the folder above kept, each a button that opens
+    // the file; agents and skills with their source.
+    expect(out).toMatch(/<li title="Project"><button type="button" class="ctx-md-open" aria-haspopup="dialog"><span class="path-text ctx-md-path"[^>]*>[\s\S]*?CLAUDE\.md<\/span><\/span><span class="ctx-md-size" title="14,500">15k<\/span><\/button><\/li>/);
     expect(out).toContain('<span class="ctx-snap-item">code-reviewer</span><span class="ctx-snap-meta">Project</span>');
     expect(out).toContain('<li class="ctx-snap-more"><span class="ctx-snap-item">and 8 more</span><span class="ctx-md-size" title="1,600">1.6k</span></li>');
     expect(out).toContain('<li class="ctx-snap-more"><span class="ctx-snap-item">and 40 more</span>');
@@ -307,6 +308,13 @@ describe("the Context tab with a snapshot", () => {
     expect(out).toMatch(/<p class="ctx-window-note ctx-snap-foot" title="[^"]+">From \/context · 3m ago<\/p>/);
     const estimated = tab(A({ context: ctx({ snapshot: snapshot({ at, estimated: true }) }) }));
     expect(estimated).toContain(">Estimated by /context · 3m ago</p>");
+  });
+
+  it("makes each file the disk scan found a button that opens it, in the look it had", () => {
+    const out = tab(A({ context: ctx({ snapshot: snapshot(), memoryFiles: [{ path: "/work/shop/CLAUDE.md", bytes: 2048 }] }) }));
+    expect(out).toMatch(/<li><button type="button" class="ctx-md-open" aria-haspopup="dialog"><span class="path-text ctx-md-path"[^>]*>[\s\S]*?CLAUDE\.md<\/span><\/span><span class="ctx-md-size">[^<]+<\/span><\/button><\/li>/);
+    // No viewer until a row is pressed (memory-file-viewer.test.ts presses one).
+    expect(out).not.toContain("memory-file");
   });
 
   it("keeps the rest of the tab as it was", () => {
@@ -371,8 +379,9 @@ describe("how the breakdown is drawn", () => {
     expect(body(".ctx-snap-bar")).toContain("height: 6px");
   });
 
-  it("adds no button and no control of its own", () => {
+  it("adds no control of its own but the memory file's row, which opens the file", () => {
     const source = readFileSync(join(WEB_DIR, "components/ContextSnapshot.tsx"), "utf8");
-    expect(source).not.toMatch(/<button|onClick/);
+    expect(source.match(/<button/g)).toHaveLength(1);
+    expect(source.match(/onClick=\{[^}]*\}/g)).toEqual(["onClick={() => onOpenMemory(m.path)}"]);
   });
 });

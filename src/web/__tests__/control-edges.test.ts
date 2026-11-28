@@ -929,6 +929,10 @@ describe("what counts as an edge, which BORDER_PROPS decides (#655)", () => {
       // ring drawn inside them is the whole of their boundary.
       ".app[data-view=\"workspace\"] .ws-edge:focus-visible",
       ".app[data-view=\"workspace\"] .ws-split:focus-visible",
+      // CHANGED ON PURPOSE (memory file viewer): a memory file's row in the Context tab is a
+      // full-width reading row with no box of its own (the pointer gets the
+      // hover fill), so the keyboard ring drawn inside it is its boundary.
+      ".ctx-md-open:focus-visible",
       // The feedback dialog's kinds (#1853): the focused thing is a 1px radio,
       // so the card it stands for draws the ring, as the import card does.
       ".fb-kind:has(input:focus-visible)",

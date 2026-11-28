@@ -1066,6 +1066,77 @@
 }
 .ctx-files[open] .ctx-md-list { margin-block-start: 8px; padding-block-start: 5px; border-top: 1px solid var(--line); }
 .ctx-view[data-inspector] .ctx-md-list li { height: auto; min-height: calc(22px + var(--ui-text-increase, 0px)); }
+/* A MEMORY FILE'S ROW IS A BUTTON (MemoryFileDialog.tsx): the row it was, path
+   left and figure right, with the press's tint and the one focus stroke. The
+   tint reaches 4px past the text on each side, so nothing in the row moves. */
+.ctx-md-open {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 0;
+  margin: 0 -4px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.ctx-snap-items .ctx-md-open { gap: 8px; }
+@media (hover: hover) and (pointer: fine) {
+  .ctx-md-open { transition: background-color var(--dur-fast) var(--ease); }
+  .ctx-md-open:hover { background: var(--ctl-fill); }
+  .ctx-md-open:hover .ctx-md-path { color: var(--text); }
+}
+.ctx-md-open:focus-visible { outline: var(--focus-w) solid var(--accent); outline-offset: calc(-1 * var(--focus-w)); }
+.ctx-md-open:focus-visible .ctx-md-path { color: var(--text); }
+
+/* ONE MEMORY FILE, READ-ONLY (MemoryFileDialog.tsx). The medium dialog: a
+   memory file is a document read through, not a short note. Under the header
+   its path and what kind of file it is, then the text as it is on disk, in the
+   code face and wrapped, scrolling with the body. */
+.modal.memory-file { width: var(--dialog-m); color: var(--text); }
+.mf-body { gap: 12px; min-height: 0; }
+.mf-where {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+}
+/* Metadata to glance at, in the quiet ink, as the rows' paths are. */
+.mf-path, .mf-scope { color: var(--muted); }
+.mf-state, .mf-note {
+  margin: 0;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+}
+.mf-state { display: flex; align-items: center; gap: 8px; }
+.mf-text {
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--sunken);
+  border-radius: var(--r-ctl);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(18px + var(--ui-text-increase, 0px));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 4;
+}
+.mf-readonly {
+  margin-inline-end: auto;
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+}
 
 /* WHAT FILLS IT (ContextSnapshot.tsx): Claude Code's own /context breakdown,
    in the meter's place once a session has one. A head line (the share used and

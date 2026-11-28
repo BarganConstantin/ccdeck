@@ -437,6 +437,8 @@ export function isAuthorizedDataRead(req) {
 export const GUARDED_READS = new Set([
   "/api/tool-audit",
   "/api/session/transcript",
+  // One memory file a session has in scope (memory-file-route.mjs): the user's own instructions to the CLI.
+  "/api/session/memory-file",
   "/api/session/history",
   "/api/tool-audit/storage",
   "/api/system/traffic-radar",
