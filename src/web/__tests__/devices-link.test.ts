@@ -319,7 +319,10 @@ describe.skipIf(WIN)("one kept connection per device", () => {
 
 describe.skipIf(WIN)("the control folder", () => {
   it("is this user's alone, or not used at all", async () => {
-    const base = mkdtempSync(join(ROOT, "rt-"));
+    // macOS's TMPDIR is deep enough that a nested fixture exceeds the socket
+    // budget before we get to exercise its ownership and permissions.
+    const base = mkdtempSync("/tmp/ccl-");
+    CONTROL_DIRS.push(base);
     const uid = process.getuid!();
     const dir = await privateControlDir({ env: { XDG_RUNTIME_DIR: base }, tmp: base, uid });
     expect(dir).toBe(join(base, "ccdeck-ssh"));
