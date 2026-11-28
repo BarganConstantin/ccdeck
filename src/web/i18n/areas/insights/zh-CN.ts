@@ -613,6 +613,7 @@ const catalog: Catalog = {
   "insights.context.skills.search": "搜索技能",
   "insights.context.skills.countOf": "{shown} / {n}",
   "insights.context.skills.loading": "正在读取技能…",
+  "insights.context.skills.snapshotOnly": "正在显示 /context 中的技能。无法读取已安装的技能列表。",
   "insights.context.skills.failed": "无法读取技能。",
   "insights.context.skills.none": "此项目未安装任何技能。",
   "insights.context.skills.noMatch": "没有与“{query}”匹配的技能。",

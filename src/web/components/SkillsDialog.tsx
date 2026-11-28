@@ -60,7 +60,7 @@ export default function SkillsDialog({ session, snapshot, onClose }: {
     return () => { alive.current = false; };
   }, []);
 
-  const rows = useMemo(() => (read?.kind === "ready" ? skillInventory(read.skills, snapshot) : []), [read, snapshot]);
+  const rows = useMemo(() => skillInventory(read?.kind === "ready" ? read.skills : [], snapshot), [read, snapshot]);
   const shown = filterSkills(rows, query);
   const skill = selected ? rows.find(r => r.key === selected) ?? null : null;
 
@@ -87,7 +87,8 @@ export default function SkillsDialog({ session, snapshot, onClose }: {
 
   const ready = read?.kind === "ready";
   const unnamed = unnamedLoadedSkills(snapshot);
-  const count = !ready ? undefined
+  const showInventory = ready || (read?.kind === "failed" && rows.length > 0);
+  const count = !showInventory ? undefined
     : shown.length === rows.length ? fmtN(rows.length)
       : t("insights.context.skills.countOf", { shown: fmtN(shown.length), n: fmtN(rows.length) });
 
@@ -111,7 +112,7 @@ export default function SkillsDialog({ session, snapshot, onClose }: {
         </div>
       ) : (
         <div className="modal-body inv-body">
-          {ready && rows.length > 0 && (
+          {showInventory && rows.length > 0 && (
             <label className="inv-search">
               <SearchGlyph />
               <input type="search" value={query} aria-label={t("insights.context.skills.search")} placeholder={t("insights.context.skills.search")}
@@ -120,7 +121,10 @@ export default function SkillsDialog({ session, snapshot, onClose }: {
           )}
           {ready && unnamed > 0 && <p className="inv-note">{t("insights.context.skills.unnamed", { n: fmtN(unnamed) })}</p>}
           {ready && read.truncated && <p className="inv-note">{t("insights.context.skills.truncated", { n: fmtN(rows.length) })}</p>}
-          {!ready ? (
+          {showInventory && !ready && (
+            <p className="inv-note" role="status">{t("insights.context.skills.snapshotOnly")}</p>
+          )}
+          {!showInventory ? (
             <p className="inv-state" role="status">
               {read === null && <Loader />}
               <span>{t(read === null ? "insights.context.skills.loading" : "insights.context.skills.failed")}</span>

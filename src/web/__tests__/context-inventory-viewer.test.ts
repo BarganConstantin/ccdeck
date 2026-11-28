@@ -196,9 +196,24 @@ describe("the skills dialog", () => {
     view.unmount();
   });
 
+  it("keeps the loaded skills available when the installed inventory fails", async () => {
+    answer = { status: 404, body: { reason: "not_found" } };
+    const { view } = open();
+    await flush();
+    expect(textOf(one(view.tree, cls("inv-note")))).toBe("Showing skills from /context. The installed list could not be read.");
+    expect(rowsOf(view.tree).map(rowText).map(({ name, state }) => [name, state])).toEqual([
+      ["deploy", "Loaded · 120"],
+      ["docx", "Loaded · 1.5k"],
+      ["lint", "Loaded · 64"],
+    ]);
+    press(rowsOf(view.tree)[0]);
+    expect(textOf(one(view.tree, cls("inv-detail-name")))).toBe("deploy");
+    view.unmount();
+  });
+
   it("says in one line when the skills cannot be read, and when there are none", async () => {
     answer = { status: 404, body: { reason: "not_found" } };
-    const failed = open();
+    const failed = open({ snapshot: null });
     await flush();
     expect(textOf(one(failed.view.tree, cls("inv-state")))).toBe("The skills could not be read.");
     failed.view.unmount();

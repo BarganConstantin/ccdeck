@@ -613,6 +613,7 @@ const catalog: Catalog = {
   "insights.context.skills.search": "スキルを検索",
   "insights.context.skills.countOf": "{n} 件中 {shown} 件",
   "insights.context.skills.loading": "スキルを読み込んでいます…",
+  "insights.context.skills.snapshotOnly": "/context のスキルを表示しています。インストール済みのスキル一覧を読み込めませんでした。",
   "insights.context.skills.failed": "スキルを読み込めませんでした。",
   "insights.context.skills.none": "このプロジェクトにはスキルがインストールされていません。",
   "insights.context.skills.noMatch": "「{query}」に一致するスキルはありません。",

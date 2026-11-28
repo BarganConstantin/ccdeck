@@ -613,6 +613,7 @@ const catalog: Catalog = {
   "insights.context.skills.search": "Skills durchsuchen",
   "insights.context.skills.countOf": "{shown} von {n}",
   "insights.context.skills.loading": "Skills werden gelesen…",
+  "insights.context.skills.snapshotOnly": "Skills aus /context werden angezeigt. Die Liste der installierten Skills konnte nicht gelesen werden.",
   "insights.context.skills.failed": "Die Skills konnten nicht gelesen werden.",
   "insights.context.skills.none": "Für dieses Projekt sind keine Skills installiert.",
   "insights.context.skills.noMatch": "Kein Skill passt zu „{query}“.",
