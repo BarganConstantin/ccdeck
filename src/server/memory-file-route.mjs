@@ -82,8 +82,9 @@ export function memoryFileScope(path, provider, codexHome = CODEX_HOME) {
   return "project";
 }
 
-/** The first `want` bytes of an open file; fewer when it shrank under the read. */
-async function readHead(handle, want) {
+/** The first `want` bytes of an open file; fewer when it shrank under the read.
+ *  The skills route (context-inventory-route.mjs) reads a SKILL.md's head with it. */
+export async function readHead(handle, want) {
   const buf = Buffer.alloc(want);
   let got = 0;
   while (got < want) {
