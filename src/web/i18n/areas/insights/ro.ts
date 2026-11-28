@@ -633,6 +633,7 @@ const catalog: Catalog = {
   "insights.context.skills.search": "Caută skill-uri",
   "insights.context.skills.countOf": "{shown} din {n}",
   "insights.context.skills.loading": "Se citesc skill-urile…",
+  "insights.context.skills.snapshotOnly": "Sunt afișate skill-urile din /context. Lista celor instalate nu a putut fi citită.",
   "insights.context.skills.failed": "Skill-urile nu au putut fi citite.",
   "insights.context.skills.none": "Niciun skill nu este instalat pentru acest proiect.",
   "insights.context.skills.noMatch": "Niciun skill nu se potrivește cu „{query}”.",
