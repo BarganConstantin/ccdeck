@@ -1,9 +1,11 @@
-// GET /api/session/skills (context-inventory-route.mjs): the skills a Claude
-// Code session's project has installed, read-only. The request names a session
-// and nothing else; where to look comes from the scope the enrichment passes
-// noted for it. Every refusal once the request is well formed is one 404. Each
-// SKILL.md is read only as far as 64 KiB, and only its frontmatter's name and
-// description come back.
+// GET /api/session/skills and /api/session/mcp-servers
+// (context-inventory-route.mjs): the skills a Claude Code session's project has
+// installed and the MCP servers configured for it, read-only. The request names
+// a session and nothing else; where to look comes from the scope the enrichment
+// passes noted for it. Every refusal once the request is well formed is one
+// 404. Each SKILL.md is read only as far as 64 KiB, and only its frontmatter's
+// name and description come back; of a server, only its name, scope and
+// transport, never what its configuration holds besides.
 //
 // A home and a Claude config dir of this file's own: nothing here reaches the
 // real ~/.claude or ~/.claude.json.
@@ -38,7 +40,10 @@ const route = await import("../../server/context-inventory-route.mjs");
 const { GUARDED_READS } = await import("../../server/request-gates.mjs");
 // @ts-expect-error — server module, untyped by design (tsconfig.build.json)
 const enrichment = await import("../../server/session-enrichment.mjs");
-const { DESCRIPTION_MAX, SKILL_FILE_MAX, SKILLS_MAX, SKILLS_ROUTE, handleSessionSkills, skillFrontmatter } = route;
+const {
+  CLAUDE_JSON_MAX, DESCRIPTION_MAX, MCP_JSON_MAX, MCP_SERVERS_ROUTE, SKILL_FILE_MAX, SKILLS_MAX, SKILLS_ROUTE,
+  handleSessionMcpServers, handleSessionSkills, mcpTransport, skillFrontmatter,
+} = route;
 
 type Scope = { provider: "claude" | "codex"; cwd: string; codexHome?: string };
 const SCOPES: Record<string, Scope> = {
@@ -63,6 +68,8 @@ function callOn(handler: Handler, path: string, query: string, io: Record<string
 }
 const skills = (query: string, io: Record<string, unknown> = {}, remote?: string, method?: string) =>
   callOn(handleSessionSkills, SKILLS_ROUTE, query, io, remote, method);
+const servers = (query: string, io: Record<string, unknown> = {}, remote?: string, method?: string) =>
+  callOn(handleSessionMcpServers, MCP_SERVERS_ROUTE, query, io, remote, method);
 const q = (session: string) => `?${new URLSearchParams({ session })}`;
 /** The project's own skills in an answer: the user's are in every one. */
 const own = (body: { skills: Array<{ scope: string }> }) => body.skills.filter(s => s.scope === "project");
@@ -312,5 +319,172 @@ describe("the scope the enrichment passes note", () => {
     expect(wired.body.skills.some((s: { name: string }) => s.name === "review")).toBe(true);
     forgetEnrichment("inv-wired");
     expect((await skills(q("inv-wired"), { scopeOf: undefined })).status).toBe(404);
+  });
+});
+
+// ─── The MCP servers ────────────────────────────────────────────────────────
+
+/** Everything a server's configuration may hold that must never leave the deck. */
+const SECRETS = ["SECRET-CMD", "SECRET-ARG", "SECRET-ENV", "SECRET-URL", "SECRET-HEADER", "SECRET-OAUTH", "SECRET-EMAIL", "SECRET-OTHER-PROJECT"];
+const secretServer = (n: string) => ({
+  command: `/opt/SECRET-CMD-${n}`,
+  args: ["--token", `SECRET-ARG-${n}`],
+  env: { API_KEY: `SECRET-ENV-${n}` },
+});
+const STATE = {
+  numStartups: 12,
+  oauthAccount: { emailAddress: "SECRET-EMAIL@example.com", accountUuid: "SECRET-EMAIL-uuid" },
+  mcpServers: {
+    figma: { type: "http", url: "https://SECRET-URL.example/mcp", headers: { Authorization: "Bearer SECRET-HEADER" } },
+    github: { ...secretServer("gh") },
+    shadowed: { type: "sse", url: "https://SECRET-URL.example/sse" },
+    "not-a-server": "SECRET-OTHER-PROJECT",
+  },
+  projects: {
+    [SHOP]: {
+      allowedTools: [],
+      mcpServers: {
+        "vcrm-local": { type: "http", url: "https://SECRET-URL.example/local", oauth: { clientId: "x", clientSecret: "SECRET-OAUTH" } },
+        shadowed: { ...secretServer("local") },
+      },
+    },
+    [join(DIR, "work", "elsewhere")]: { mcpServers: { "other-project": { command: "SECRET-OTHER-PROJECT" } } },
+  },
+};
+const PROJECT_MCP = {
+  mcpServers: {
+    playwright: { type: "stdio", command: "npx", args: ["SECRET-ARG-pw"], env: { TOKEN: "SECRET-ENV-pw" } },
+    sockets: { type: "ws", url: "wss://SECRET-URL.example/ws" },
+    shadowed: { type: "http", url: "https://SECRET-URL.example/project" },
+    odd: { type: "sdk" },
+  },
+};
+
+describe("the MCP servers route's place in the server", () => {
+  beforeAll(() => {
+    writeFileSync(join(CONFIG, ".claude.json"), JSON.stringify(STATE));
+    writeFileSync(join(SHOP, ".mcp.json"), JSON.stringify(PROJECT_MCP));
+  });
+
+  it("is a guarded read and is wired into the router through guard()", () => {
+    expect(MCP_SERVERS_ROUTE).toBe("/api/session/mcp-servers");
+    expect(GUARDED_READS.has(MCP_SERVERS_ROUTE)).toBe(true);
+    const index = readFileSync(new URL("../../server/index.mjs", import.meta.url), "utf8");
+    expect(index).toContain("if (url.pathname === MCP_SERVERS_ROUTE) return guard(handleSessionMcpServers(req, res), res);");
+  });
+
+  it("answers this computer only, reads only, and refuses a request of the wrong shape before anything is looked up", async () => {
+    let asked = 0;
+    const scopeOf = () => { asked++; return SCOPES.shop; };
+    expect(await servers(q("shop"), { scopeOf }, "192.0.2.10").then(a => [a.status, a.body])).toEqual([403, { reason: "not_local" }]);
+    for (const method of ["POST", "PUT", "DELETE"]) expect((await servers(q("shop"), { scopeOf }, "127.0.0.1", method)).status).toBe(405);
+    for (const query of ["", "?session=shop&session=empty", "?session=shop&cwd=%2Fetc", "?session=..%2Fx"]) {
+      expect(await servers(query, { scopeOf }).then(a => [a.status, a.body])).toEqual([400, { reason: "bad_session" }]);
+    }
+    expect(asked).toBe(0);
+  });
+
+  it("answers a session the deck does not know, and a Codex session, with the same 404", async () => {
+    for (const session of ["nobody", "codex"]) {
+      expect(await servers(q(session)).then(a => [a.status, a.body])).toEqual([404, { reason: "not_found" }]);
+    }
+  });
+});
+
+describe("the MCP servers", () => {
+  beforeAll(() => {
+    writeFileSync(join(CONFIG, ".claude.json"), JSON.stringify(STATE));
+    writeFileSync(join(SHOP, ".mcp.json"), JSON.stringify(PROJECT_MCP));
+  });
+
+  it("are the user's, the project's local ones and its .mcp.json's, as name, scope and transport, never cached", async () => {
+    const { status, body, headers } = await servers(q("shop"));
+    expect(status).toBe(200);
+    expect(headers["Cache-Control"]).toBe("no-store");
+    expect(body).toEqual({
+      servers: [
+        { name: "figma", scope: "user", transport: "http" },
+        { name: "github", scope: "user", transport: "stdio" },
+        { name: "odd", scope: "project", transport: null },
+        { name: "playwright", scope: "project", transport: "stdio" },
+        // Set in all three places: the local one is the one Claude Code uses.
+        { name: "shadowed", scope: "local", transport: "stdio" },
+        { name: "sockets", scope: "project", transport: "ws" },
+        { name: "vcrm-local", scope: "local", transport: "http" },
+      ],
+    });
+  });
+
+  it("never answers with a command, an argument, an environment, a URL, a header or a sign-in", async () => {
+    const { text } = await servers(q("shop"));
+    for (const secret of SECRETS) expect(text, secret).not.toContain(secret);
+    expect(text).not.toMatch(/command|args|env|url|headers|oauth|https?:|wss?:/i);
+  });
+
+  it("reads another project's local servers as not this one's", async () => {
+    const { body } = await servers(q("shop"));
+    expect(body.servers.some((s: { name: string }) => s.name === "other-project")).toBe(false);
+  });
+
+  it("names the transport by type, stdio for a command with none", () => {
+    expect(mcpTransport({ type: "http", url: "x" })).toBe("http");
+    expect(mcpTransport({ type: "SSE" })).toBe("sse");
+    expect(mcpTransport({ type: "sse-ide" })).toBe("sse");
+    expect(mcpTransport({ type: "ws-ide" })).toBe("ws");
+    expect(mcpTransport({ type: "stdio", command: "x" })).toBe("stdio");
+    expect(mcpTransport({ command: "x" })).toBe("stdio");
+    expect(mcpTransport({ url: "x" })).toBeNull();
+    expect(mcpTransport({ type: "sdk" })).toBeNull();
+  });
+
+  it("is only the state file's servers for a project with no .mcp.json, and none at all with neither file", async () => {
+    const { body } = await servers(q("empty"));
+    expect(body.servers.map((s: { scope: string }) => s.scope)).toEqual(["user", "user", "user"]);
+    const bare = await servers(q("empty"), { statePath: async () => join(DIR, "no-such", ".claude.json") });
+    expect(bare.status).toBe(200);
+    expect(bare.body).toEqual({ servers: [] });
+  });
+
+  it("follows CLAUDE_CONFIG_DIR to its .claude.json, and the home's when it is not set", async () => {
+    writeFileSync(join(HOME, ".claude.json"), JSON.stringify({ mcpServers: { "home-only": { command: "x" } } }));
+    const moved = await servers(q("empty"));
+    expect(moved.body.servers.map((s: { name: string }) => s.name)).toEqual(["figma", "github", "shadowed"]);
+    const kept = process.env.CLAUDE_CONFIG_DIR;
+    delete process.env.CLAUDE_CONFIG_DIR;
+    try {
+      const home = await servers(q("empty"));
+      expect(home.body.servers).toEqual([{ name: "home-only", scope: "user", transport: "stdio" }]);
+    } finally {
+      process.env.CLAUDE_CONFIG_DIR = kept;
+    }
+  });
+
+  it("treats a file over its cap, one that is not JSON, and one that is a folder as no servers", async () => {
+    const cwd = join(DIR, "work", "capped");
+    mkdirSync(cwd, { recursive: true });
+    const scopeOf = () => ({ provider: "claude", cwd });
+    const big = join(DIR, "big-state.json");
+    // Valid JSON one byte past the cap.
+    const pad = CLAUDE_JSON_MAX + 1 - JSON.stringify({ mcpServers: { big: { command: "x" } }, pad: "" }).length;
+    writeFileSync(big, JSON.stringify({ mcpServers: { big: { command: "x" } }, pad: "x".repeat(pad) }));
+    writeFileSync(join(cwd, ".mcp.json"), JSON.stringify({ mcpServers: { huge: { command: "x" } }, pad: "x".repeat(MCP_JSON_MAX) }));
+    expect((await servers(q("capped"), { scopeOf, statePath: async () => big })).body).toEqual({ servers: [] });
+    writeFileSync(join(DIR, "broken.json"), "{ \"mcpServers\": { \"half\": ");
+    writeFileSync(join(cwd, ".mcp.json"), "not json at all");
+    expect((await servers(q("capped"), { scopeOf, statePath: async () => join(DIR, "broken.json") })).body).toEqual({ servers: [] });
+    const folder = join(DIR, "work", "folder-mcp");
+    mkdirSync(join(folder, ".mcp.json"), { recursive: true });
+    const asFolder = await servers(q("folder"), { scopeOf: () => ({ provider: "claude", cwd: folder }), statePath: async () => join(DIR, "no-such.json") });
+    expect(asFolder.status).toBe(200);
+    expect(asFolder.body).toEqual({ servers: [] });
+  });
+
+  it("reads a file at its cap whole", async () => {
+    const cwd = join(DIR, "work", "at-cap");
+    mkdirSync(cwd, { recursive: true });
+    const body = JSON.stringify({ mcpServers: { edge: { type: "http" } }, pad: "" });
+    writeFileSync(join(cwd, ".mcp.json"), JSON.stringify({ mcpServers: { edge: { type: "http" } }, pad: "x".repeat(MCP_JSON_MAX - body.length) }));
+    const { body: answer } = await servers(q("at-cap"), { scopeOf: () => ({ provider: "claude", cwd }), statePath: async () => join(DIR, "no-such.json") });
+    expect(answer).toEqual({ servers: [{ name: "edge", scope: "project", transport: "http" }] });
   });
 });

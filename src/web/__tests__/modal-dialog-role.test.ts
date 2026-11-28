@@ -79,9 +79,11 @@ describe("the deck's modals", () => {
     // Context tab's memory lists.
     // CHANGED ON PURPOSE (skills inventory): the thirty-sixth is the skills a
     // session's project has installed, opened from the Context tab's Skills list.
-    // Thirty-five of them draw `<Dialog` and the radio draws `<DialogScrim`.
-    expect(MODALS.length).toBe(36);
-    expect(ON_SURFACE.length).toBe(35);
+    // CHANGED ON PURPOSE (MCP servers): the thirty-seventh is the MCP servers
+    // configured for that project, opened from the Context tab's MCP tools list.
+    // Thirty-six of them draw `<Dialog` and the radio draws `<DialogScrim`.
+    expect(MODALS.length).toBe(37);
+    expect(ON_SURFACE.length).toBe(36);
     expect(MODALS.filter(f => !ON_SURFACE.includes(f))).toEqual(["RadioExperience.tsx"]);
   });
 

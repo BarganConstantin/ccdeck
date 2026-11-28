@@ -58,6 +58,7 @@ describe("a dialog opened from inside a panel is not laid out by it", () => {
       "LanNetworkMap",
       "LanPeerModal",
       "LanSetupModal",
+      "McpServersDialog", // CHANGED ON PURPOSE (MCP servers): from the Context tab, as the skills
       "MemoryFileDialog", // from the Inspector's Context tab and the context modal
       "ProcessListModal",
       "QuotaHistoryModal",

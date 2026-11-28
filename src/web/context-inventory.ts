@@ -1,13 +1,17 @@
 // What a Claude Code session's project has installed, for the Context tab's
-// read-only inventories: the skills (SkillsDialog.tsx), read from GET
-// /api/session/skills (src/server/context-inventory-route.mjs), set against
-// the Skills list of the session's last /context.
+// read-only inventories: the skills (SkillsDialog.tsx) and the MCP servers
+// (McpServersDialog.tsx), read from GET /api/session/skills and
+// /api/session/mcp-servers (src/server/context-inventory-route.mjs) and set
+// against the session's last /context: its Skills list says which skills are
+// loaded, its MCP tools which servers were connected.
 //
-// Pure apart from the fetch, so the suite can pin which skill reads as loaded
-// and what a search keeps without a DOM.
+// Pure apart from the fetches, so the suite can pin which skill reads as
+// loaded, what a search keeps and what each server's status says without a DOM.
+import { mcpGroups } from "./context-snapshot";
 import type { ContextSnapshot } from "./types";
 
 export const SKILLS_ROUTE = "/api/session/skills";
+export const MCP_SERVERS_ROUTE = "/api/session/mcp-servers";
 
 /** Where a skill is installed, as the server says it. */
 export type SkillScope = "user" | "project";
@@ -159,6 +163,91 @@ export async function readSessionSkills(
       skills.push({ name: s.name, scope: s.scope as SkillScope, description: s.description, path: s.path });
     }
     return { kind: "ready", skills, truncated: body.truncated === true };
+  } catch {
+    return { kind: "failed" };
+  }
+}
+
+// ─── The MCP servers ────────────────────────────────────────────────────────
+
+/** Where a server is configured: the top of Claude Code's state file (user),
+ *  that file's entry for this project (local), or the project's .mcp.json. */
+export type McpScope = "user" | "local" | "project";
+export type McpTransport = "stdio" | "http" | "sse" | "ws";
+
+/** One server the server found configured. */
+export interface McpServer {
+  name: string;
+  scope: McpScope;
+  transport: McpTransport | null;
+}
+
+export type McpServersRead = { kind: "ready"; servers: McpServer[] } | { kind: "failed" };
+
+/** What the session's last /context says of a server: connected, with how many
+ *  of its tools it listed (loaded and deferred), or not seen. Null when the
+ *  session has no /context to say. */
+export type McpStatus = { seen: true; tools: number } | { seen: false } | null;
+
+/** Where a row's server is configured: one of the three files, or somewhere
+ *  the deck does not read (a plugin, claude.ai, the command line) for a server
+ *  only /context names. */
+export type McpSource = McpScope | "other";
+
+export interface McpRow {
+  name: string;
+  source: McpSource;
+  transport: McpTransport | null;
+  status: McpStatus;
+}
+
+/** The label key of each source. */
+export const MCP_SOURCE_KEYS: Record<McpSource, string> = {
+  user: "insights.context.memory.scope.user",
+  local: "insights.context.memory.scope.local",
+  project: "insights.context.memory.scope.project",
+  other: "insights.context.mcp.other",
+};
+
+const MCP_SCOPES: readonly McpScope[] = ["user", "local", "project"];
+const TRANSPORTS: readonly McpTransport[] = ["stdio", "http", "sse", "ws"];
+
+/**
+ * The configured servers with what the session's last /context saw of them: a
+ * server it listed tools for (loaded or deferred) was connected; one it did not
+ * was not seen. A server /context listed that none of the three files
+ * configures is a row of its own, from elsewhere. By name.
+ */
+export function mcpInventory(servers: readonly McpServer[], snapshot: ContextSnapshot | null | undefined): McpRow[] {
+  const groups = snapshot ? mcpGroups(snapshot) : [];
+  const tools = new Map(groups.map(g => [g.server, g.tools.length + g.deferred]));
+  const status = (name: string): McpStatus => !snapshot ? null
+    : tools.has(name) ? { seen: true, tools: tools.get(name)! } : { seen: false };
+  const rows: McpRow[] = servers.map(s => ({ name: s.name, source: s.scope, transport: s.transport, status: status(s.name) }));
+  const configured = new Set(servers.map(s => s.name));
+  for (const g of groups) {
+    if (!configured.has(g.server)) rows.push({ name: g.server, source: "other", transport: null, status: status(g.server) });
+  }
+  return rows.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function readSessionMcpServers(
+  session: string,
+  fetchFn: (input: string, init?: RequestInit) => Promise<Response> = (input, init) => fetch(input, init),
+  signal?: AbortSignal,
+): Promise<McpServersRead> {
+  try {
+    const res = await fetchFn(`${MCP_SERVERS_ROUTE}?${new URLSearchParams({ session })}`, { cache: "no-store", signal });
+    if (!res.ok) return { kind: "failed" };
+    const body = await res.json() as unknown;
+    if (!isObject(body) || !Array.isArray(body.servers)) return { kind: "failed" };
+    const servers: McpServer[] = [];
+    for (const s of body.servers) {
+      if (!isObject(s) || typeof s.name !== "string" || !s.name || !MCP_SCOPES.includes(s.scope as McpScope)) continue;
+      const transport = TRANSPORTS.includes(s.transport as McpTransport) ? s.transport as McpTransport : null;
+      servers.push({ name: s.name, scope: s.scope as McpScope, transport });
+    }
+    return { kind: "ready", servers };
   } catch {
     return { kind: "failed" };
   }

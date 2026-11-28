@@ -3,7 +3,10 @@
 // session and sets the answer against the snapshot's Skills list: loaded (with
 // its tokens) or installed. A search keeps the skills whose name or description
 // holds it; a row opens the skill's detail in the same dialog, with its path to
-// copy. Escape closes it and focus goes back to the button that opened it.
+// copy. "MCP servers" at the foot of the MCP tools list opens McpServersDialog,
+// which asks GET /api/session/mcp-servers and says of each server what the
+// snapshot saw of it. Escape closes either and focus goes back to the button
+// that opened it.
 //
 // On fake-react.ts's React, so a press and the answer after it can be followed
 // without a DOM; context-inventory-route.test.ts holds the route.
@@ -16,6 +19,7 @@ vi.mock("react", async () => (await import("./fake-react")).react);
 vi.mock("react-dom", () => ({ createPortal: (node: unknown) => node }));
 
 const { default: SkillsDialog } = await import("../components/SkillsDialog");
+const { default: McpServersDialog } = await import("../components/McpServersDialog");
 const { default: ContextSnapshotView } = await import("../components/ContextSnapshot");
 const { ContextView } = await import("../components/ContextModal");
 const { DialogHeader } = await import("../components/Dialog");
@@ -23,7 +27,7 @@ const { Loader } = await import("../components/Loader");
 const { default: PathText } = await import("../components/PathText");
 const { modalStack } = await import("../modal-dismiss");
 const { setLanguage } = await import("../i18n");
-const { filterSkills, skillInventory } = await import("../context-inventory");
+const { filterSkills, mcpInventory, skillInventory } = await import("../context-inventory");
 
 const cls = (name: string) => (el: Drawn) => el.props.className === name;
 const isType = (type: unknown) => (el: Drawn) => el.type === type;
@@ -300,6 +304,155 @@ describe("All skills", () => {
     expect(drawn.map(d => [d.label, all(d.view.tree, cls("btn ctx-snap-act")).map(textOf)])).toEqual([
       ["Memory files", []], ["Custom agents", []], ["Skills", ["All skills"]],
     ]);
+    done();
+    view.unmount();
+  });
+});
+
+// ─── The MCP servers ────────────────────────────────────────────────────────
+
+const SERVERS = [
+  { name: "figma", scope: "user", transport: "http" },
+  { name: "github", scope: "user", transport: "stdio" },
+  { name: "playwright", scope: "project", transport: "stdio" },
+  { name: "vcrm-local", scope: "local", transport: "http" },
+  { name: "odd", scope: "project", transport: null },
+];
+const mcpSnapshot = (): ContextSnapshot => snapshot({
+  mcpTools: [
+    { name: "mcp__figma__get_screenshot", server: "figma", tokens: 2_400 },
+    { name: "mcp__github__create_issue", server: "github", tokens: 1_200 },
+    { name: "mcp__github__get_issue", server: "github", tokens: 800 },
+  ],
+  // github: 2 loaded and 40 deferred; a claude.ai connector no file here configures.
+  mcpServers: [{ server: "github", tools: 40, tokens: 30_100 }, { server: "claude.ai Docs", tools: 9, tokens: 3_000 }],
+});
+
+type McpProps = Parameters<typeof McpServersDialog>[0];
+function openMcp(over: Partial<McpProps> = {}) {
+  const onClose = vi.fn();
+  const view = mount(McpServersDialog, { session: "s1", snapshot: mcpSnapshot(), cwd: "/work/shop", onClose, ...over } as McpProps);
+  return { view, onClose };
+}
+const serverRows = (tree: unknown) => all(tree, cls("inv-server")).map(li => ({
+  name: textOf(one(li, cls("inv-row-name"))),
+  kind: textOf(one(li, cls("inv-row-state"))),
+  status: textOf(one(li, cls("inv-row-sub"))),
+}));
+
+describe("the MCP servers dialog", () => {
+  beforeEach(() => { answer = { status: 200, body: { servers: SERVERS } }; });
+
+  it("asks for the session's servers, never cached, and says where to reconnect", async () => {
+    const { view } = openMcp();
+    expect(textOf(one(view.tree, cls("inv-state")))).toBe("Reading the configuration…");
+    await flush();
+    const url = new URL(String(fetchMock.mock.calls[0][0]), "http://deck");
+    expect(url.pathname).toBe("/api/session/mcp-servers");
+    expect(Object.fromEntries(url.searchParams)).toEqual({ session: "s1" });
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ cache: "no-store" });
+    expect(one(view.tree, isType(DialogHeader))!.props).toMatchObject({ title: "MCP servers", note: "6" });
+    expect(one(view.tree, isType(PathText))!.props.path).toBe("/work/shop");
+    expect(textOf(one(view.tree, cls("mf-readonly")))).toBe("To reconnect or sign in, run /mcp in this session's terminal.");
+    view.unmount();
+  });
+
+  it("says of each server where it is configured, its transport, and what the last /context saw", async () => {
+    const { view } = openMcp();
+    await flush();
+    expect(serverRows(view.tree)).toEqual([
+      { name: "claude.ai Docs", kind: "Other", status: "Connected at the last /context · 9 tools" },
+      { name: "figma", kind: "User · http", status: "Connected at the last /context · 1 tool" },
+      { name: "github", kind: "User · stdio", status: "Connected at the last /context · 42 tools" },
+      { name: "odd", kind: "Project", status: "Not seen at the last /context" },
+      { name: "playwright", kind: "Project · stdio", status: "Not seen at the last /context" },
+      { name: "vcrm-local", kind: "Local · http", status: "Not seen at the last /context" },
+    ]);
+    expect(one(view.tree, cls("inv-note"))).toBeNull();
+    view.unmount();
+  });
+
+  it("says once to run /context when the session has no snapshot, and no status a server", async () => {
+    const { view } = openMcp({ snapshot: null });
+    await flush();
+    expect(textOf(one(view.tree, cls("inv-note")))).toBe("Run /context to see which are connected.");
+    expect(serverRows(view.tree).map(r => r.status)).toEqual(["", "", "", "", ""]);
+    expect(serverRows(view.tree).map(r => r.name)).toEqual(["figma", "github", "odd", "playwright", "vcrm-local"]);
+    view.unmount();
+  });
+
+  it("has no control but its ×: nothing to reconnect, sign in or start", async () => {
+    const { view } = openMcp();
+    await flush();
+    expect(all(view.tree, el => el.type === "button" || el.type === "input" || el.type === "a")).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][1]?.method).toBeUndefined();
+    view.unmount();
+  });
+
+  it("says in one line when the configuration cannot be read, and when nothing is configured", async () => {
+    answer = { status: 404, body: { reason: "not_found" } };
+    const failed = openMcp();
+    await flush();
+    expect(textOf(one(failed.view.tree, cls("inv-state")))).toBe("The configuration could not be read.");
+    failed.view.unmount();
+    answer = { status: 200, body: { servers: [] } };
+    const none = openMcp({ snapshot: null });
+    await flush();
+    expect(textOf(one(none.view.tree, cls("inv-state")))).toBe("No MCP servers are configured for this project.");
+    none.view.unmount();
+  });
+
+  it("keeps only a server's name, scope and a known transport from the answer", async () => {
+    answer = { status: 200, body: { servers: [
+      { name: "a", scope: "user", transport: "carrier-pigeon", command: "SECRET" },
+      { name: "b", scope: "managed", transport: "http" },
+      { name: "", scope: "user", transport: "http" },
+    ] } };
+    const { view } = openMcp({ snapshot: null });
+    await flush();
+    expect(serverRows(view.tree)).toEqual([{ name: "a", kind: "User", status: "" }]);
+    view.unmount();
+  });
+
+  it("closes on Escape and gives focus back to the button that opened it", async () => {
+    const opener = { tagName: "BUTTON", isConnected: true, focus: vi.fn() };
+    active = opener;
+    const { view, onClose } = openMcp();
+    await flush();
+    expect(modalStack.dismissTop()).toBe(true);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    active = null;
+    view.unmount();
+    expect(opener.focus).toHaveBeenCalledTimes(1);
+    expect(modalStack.depth()).toBe(0);
+  });
+
+  it("matches a server to /context by its name alone", () => {
+    const rows = mcpInventory([{ name: "GitHub", scope: "user", transport: "stdio" }], mcpSnapshot());
+    expect(rows.find(r => r.name === "GitHub")!.status).toEqual({ seen: false });
+  });
+});
+
+describe("MCP servers", () => {
+  it("ends the MCP tools list, quietly, and opens the dialog on the root session with its snapshot and folder", () => {
+    const view = mount(ContextView, { agent: agent({
+      id: "s1::sub", kind: "subagent", parentId: "s1",
+      context: { ...agent().context!, snapshot: mcpSnapshot() },
+    } as Partial<AgentNodeData>) });
+    const { drawn, done } = listsOf(view);
+    expect(drawn.map(d => [d.label, all(d.view.tree, cls("btn ctx-snap-act")).map(textOf)])).toEqual([
+      ["MCP tools", ["MCP servers"]], ["Skills", ["All skills"]],
+    ]);
+    const act = one(drawn[0].view.tree, cls("btn ctx-snap-act"))!;
+    expect(act.props).toMatchObject({ type: "button", "aria-haspopup": "dialog" });
+    press(act);
+    const dialog = one(view.tree, isType(McpServersDialog))!;
+    expect(dialog.props).toMatchObject({ session: "s1", cwd: "/work/shop" });
+    expect((dialog.props.snapshot as ContextSnapshot).mcpServers).toHaveLength(2);
+    expect(opened(view.tree)).toBeNull();
+    (dialog.props.onClose as () => void)();
+    expect(one(view.tree, isType(McpServersDialog))).toBeNull();
     done();
     view.unmount();
   });

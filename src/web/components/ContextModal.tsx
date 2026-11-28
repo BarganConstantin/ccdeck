@@ -29,6 +29,7 @@ import PathText from "./PathText";
 import ContextSnapshotView from "./ContextSnapshot";
 import MemoryFileDialog from "./MemoryFileDialog";
 import SkillsDialog from "./SkillsDialog";
+import McpServersDialog from "./McpServersDialog";
 import type { MemoryFileTarget } from "../memory-file";
 import { liveSnapshot } from "../context-snapshot";
 import { isEventOnly } from "../../server/provider-ids.mjs";
@@ -139,8 +140,9 @@ export function ContextView({ agent, meta = false }: {
   // The memory file open to read, from either list below. One viewer for the
   // view, held above the early return so the hooks run in the same order.
   const [memory, setMemory] = useState<MemoryFileTarget | null>(null);
-  // The project's skills, opened from the foot of /context's Skills list.
-  const [inventory, setInventory] = useState<"skills" | null>(null);
+  // The project's skills or MCP servers, opened from the foot of /context's
+  // Skills list or MCP tools list.
+  const [inventory, setInventory] = useState<"skills" | "mcp" | null>(null);
   // opencode and Copilot send the deck events and nothing else: no token
   // count, no window, no transcript to scan, no memory file it looks for. Every
   // section below would print a zero or Claude's CLAUDE.md line as if it had
@@ -219,7 +221,7 @@ export function ContextView({ agent, meta = false }: {
             came from, and "estimated from the transcript" would contradict it. */}
         {meta && !snapshot && <p className="ctx-approx">{capitalFirst(copy.subtitle)}</p>}
         {snapshot ? <ContextSnapshotView snapshot={snapshot} currentUsed={ctx?.currentContextTokens ?? 0} cwd={agent.cwd} head={meta}
-          onOpenMemory={path => setMemory({ path, source: "loaded" })} onOpenSkills={() => setInventory("skills")} /> : (
+          onOpenMemory={path => setMemory({ path, source: "loaded" })} onOpenSkills={() => setInventory("skills")} onOpenMcp={() => setInventory("mcp")} /> : (
         <section className="ctx-window-row">
           {meta && (
             <div className="ctx-window-top">
@@ -316,6 +318,9 @@ export function ContextView({ agent, meta = false }: {
             the server answers for nothing else. */}
         <DialogPresence when={inventory === "skills"}>{() => (
           <SkillsDialog session={agent.sessionId} snapshot={snapshot} onClose={() => setInventory(null)} />
+        )}</DialogPresence>
+        <DialogPresence when={inventory === "mcp"}>{() => (
+          <McpServersDialog session={agent.sessionId} snapshot={snapshot} cwd={agent.cwd} onClose={() => setInventory(null)} />
         )}</DialogPresence>
     </div>
   );

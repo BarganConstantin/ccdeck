@@ -8,7 +8,8 @@
 // the estimate it replaces until someone opens one. A memory file's row opens
 // it to read (MemoryFileDialog.tsx), through the view around this one, and the
 // Skills list ends in a quiet "All skills" that opens what the project has
-// installed (SkillsDialog.tsx), the same way.
+// installed (SkillsDialog.tsx), the MCP tools list in "MCP servers" that opens
+// the servers configured for it (McpServersDialog.tsx), the same way.
 import type { ReactNode } from "react";
 import { currentLanguage, useT } from "../i18n";
 import { formatPercent } from "../i18n/format";
@@ -30,7 +31,7 @@ function pct1(n: number): string {
   } catch { return `${n.toFixed(1)}%`; }
 }
 
-export default function ContextSnapshotView({ snapshot, currentUsed, cwd, head = true, onOpenMemory, onOpenSkills }: {
+export default function ContextSnapshotView({ snapshot, currentUsed, cwd, head = true, onOpenMemory, onOpenSkills, onOpenMcp }: {
   snapshot: ContextSnapshot;
   /** The tab's own estimate of what the session holds now; what it holds past
    *  the snapshot is drawn as "Since then". */
@@ -44,6 +45,8 @@ export default function ContextSnapshotView({ snapshot, currentUsed, cwd, head =
   /** "All skills" at the foot of the Skills list was pressed. Left out, the
    *  list has no such button. */
   onOpenSkills?: () => void;
+  /** "MCP servers" at the foot of the MCP tools list was pressed. */
+  onOpenMcp?: () => void;
 }) {
   const t = useT();
   // The foot says how old the snapshot is; half a minute is as fine as
@@ -86,7 +89,7 @@ export default function ContextSnapshotView({ snapshot, currentUsed, cwd, head =
           {layout.deferred.map(r => <Row key={r.id} row={r} label={name(r)} pctTitle={t("insights.context.snap.deferredTitle")} />)}
         </ul>
       )}
-      <Lists snapshot={snapshot} cwd={cwd} onOpenMemory={onOpenMemory} onOpenSkills={onOpenSkills} />
+      <Lists snapshot={snapshot} cwd={cwd} onOpenMemory={onOpenMemory} onOpenSkills={onOpenSkills} onOpenMcp={onOpenMcp} />
       <p className="ctx-window-note ctx-snap-foot" title={Number.isFinite(at) ? new Date(at).toLocaleString(currentLanguage()) : undefined}>
         {t(snapshot.estimated ? "insights.context.snap.fromEstimate" : "insights.context.snap.from", { ago })}
       </p>
@@ -110,9 +113,10 @@ function Row({ row, label, title, pctTitle }: { row: SnapRow; label: string; tit
 /** The lists /context printed, each behind a closed disclosure with its count:
  *  the MCP tools by server, the memory files, the custom agents, the skills.
  *  A list /context did not print is left out. A memory file's row is a button
- *  that opens the file; the skills end in one that opens the inventory. */
-function Lists({ snapshot, cwd, onOpenMemory, onOpenSkills }: {
-  snapshot: ContextSnapshot; cwd?: string; onOpenMemory: (path: string) => void; onOpenSkills?: () => void;
+ *  that opens the file; the skills and the MCP tools end in one that opens
+ *  what the project has installed. */
+function Lists({ snapshot, cwd, onOpenMemory, onOpenSkills, onOpenMcp }: {
+  snapshot: ContextSnapshot; cwd?: string; onOpenMemory: (path: string) => void; onOpenSkills?: () => void; onOpenMcp?: () => void;
 }) {
   const t = useT();
   const more = snapshot.more ?? {};
@@ -123,7 +127,8 @@ function Lists({ snapshot, cwd, onOpenMemory, onOpenSkills }: {
   return (
     <>
       {groups.length > 0 && (
-        <List label={t("insights.context.cat.mcpTools")} count={mcpToolCount(snapshot)}>
+        <List label={t("insights.context.cat.mcpTools")} count={mcpToolCount(snapshot)}
+          action={onOpenMcp && { label: t("insights.context.mcp.open"), open: onOpenMcp }}>
           {groups.flatMap(g => [
             <li key={`s:${g.server}`} className="ctx-snap-group">
               <span className="ctx-snap-item">{g.server}</span>

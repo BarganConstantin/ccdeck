@@ -1,8 +1,11 @@
 // GET /api/session/skills?session=<id>
-// The Inspector's Context tab lists the skills a Claude Code session's project
-// can use, read-only: each one's name, where it is installed (the user's or the
-// project's), its description and its SKILL.md's path. The client marks the
-// ones the session's last /context listed as loaded (context-inventory.ts).
+// GET /api/session/mcp-servers?session=<id>
+// The Inspector's Context tab lists what a Claude Code session's project has
+// installed, read-only. The skills: each one's name, where it is installed (the
+// user's or the project's), its description and its SKILL.md's path. The MCP
+// servers: each one's name, where it is configured and how Claude Code talks to
+// it. The client sets both against the session's last /context, which says
+// which skills are loaded and which servers were connected (context-inventory.ts).
 //
 // THE REQUEST NAMES A SESSION AND NOTHING ELSE. Where to look comes from the
 // scope the enrichment passes noted for it (session-enrichment.mjs
@@ -18,6 +21,15 @@
 // characters. The rest of the file never leaves this module. An entry that
 // cannot be read is left out without a word.
 //
+// For the servers, Claude Code's own state file (`.claude.json`: in the config
+// dir when CLAUDE_CONFIG_DIR moves it, beside the home directory otherwise; see
+// claude-login.mjs claudeGlobalConfigPath) and `<cwd>/.mcp.json`, each at most
+// CLAUDE_JSON_MAX and MCP_JSON_MAX bytes, opened the same non-blocking way. A
+// server's NAME, its SCOPE and its TRANSPORT are all that is kept: its command,
+// arguments, environment, URL, headers and sign-in hold the user's secrets,
+// and none of them is returned, logged or kept past the parse. A file over its
+// cap, missing or not JSON is no servers.
+//
 // THE SAME GATES AS THE MEMORY-FILE ROUTE (memory-file-route.mjs): the path is
 // in GUARDED_READS, a request that did not come from this computer is refused
 // here as well, and everything refused once the request is well formed (a
@@ -27,10 +39,12 @@ import { open as fsOpen, readdir as fsReaddir, realpath as fsRealpath, stat as f
 import { basename, join, resolve } from "node:path";
 import { send } from "./http-io.mjs";
 import { claudeConfigDir } from "./claude-dir.mjs";
+import { claudeGlobalConfigPath } from "./claude-login.mjs";
 import { readHead, wholeUtf8 } from "./memory-file-route.mjs";
 import { memoryScope } from "./session-enrichment.mjs";
 
 export const SKILLS_ROUTE = "/api/session/skills";
+export const MCP_SERVERS_ROUTE = "/api/session/mcp-servers";
 
 /** The most skills one answer lists. */
 export const SKILLS_MAX = 500;
@@ -41,6 +55,13 @@ export const SKILL_FILE_MAX = 64 * 1024;
 /** The longest description kept, in characters. */
 export const DESCRIPTION_MAX = 1024;
 const NAME_MAX = 128;
+/** The most bytes of Claude Code's state file read: it keeps every project's
+ *  history, and one past this is no servers rather than a long parse. */
+export const CLAUDE_JSON_MAX = 16 * 1024 * 1024;
+/** The most bytes of a project's .mcp.json read. */
+export const MCP_JSON_MAX = 1024 * 1024;
+/** The most servers one block of one file gives. */
+const SERVERS_MAX = 200;
 
 const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 
@@ -223,6 +244,92 @@ export async function handleSessionSkills(req, res, io = {}) {
   try {
     const { skills, truncated } = await scanSkills(skillRoots(scope.cwd), io);
     return send(res, 200, { skills, truncated }, { "Cache-Control": "no-store" });
+  } catch {
+    return send(res, 404, NOT_FOUND);
+  }
+}
+
+// ─── The MCP servers ────────────────────────────────────────────────────────
+
+const isPlainObject = v => v !== null && typeof v === "object" && !Array.isArray(v);
+
+/** A JSON file, parsed, or null: not there, not a regular file, over `max`
+ *  bytes, or not JSON. Opened non-blocking, as the skills are. */
+async function readJsonCapped(path, max, io) {
+  let handle;
+  try { handle = await io.open(path, constants.O_RDONLY | (constants.O_NONBLOCK ?? 0)); } catch { return null; }
+  try {
+    const st = await handle.stat();
+    if (!st.isFile() || st.size > max) return null;
+    const text = (await readHead(handle, st.size)).toString("utf8");
+    return JSON.parse(text.replace(/^\uFEFF/, ""));
+  } catch {
+    return null;
+  } finally {
+    await handle.close().catch(() => {});
+  }
+}
+
+/** How Claude Code talks to a server, by its `type`, or stdio for one with a
+ *  command and no type. Null for anything else. */
+export function mcpTransport(config) {
+  const type = typeof config.type === "string" ? config.type.trim().toLowerCase() : "";
+  if (type === "stdio") return "stdio";
+  if (type.startsWith("http")) return "http";
+  if (type.startsWith("sse")) return "sse";
+  if (type.startsWith("ws")) return "ws";
+  if (!type && typeof config.command === "string") return "stdio";
+  return null;
+}
+
+/** One `mcpServers` block as name, scope and transport, and nothing else of it. */
+function serversIn(block, scope) {
+  if (!isPlainObject(block)) return [];
+  const out = [];
+  for (const [name, config] of Object.entries(block)) {
+    if (out.length >= SERVERS_MAX) break;
+    if (!name || !isPlainObject(config)) continue;
+    out.push({ name: cap(name, NAME_MAX), scope, transport: mcpTransport(config) });
+  }
+  return out;
+}
+
+/** The state file's entry for the working directory, written as Claude Code
+ *  keys it (forward slashes on Windows too). */
+function projectEntry(projects, cwd) {
+  if (!isPlainObject(projects)) return null;
+  for (const key of new Set([cwd, cwd.replace(/\\/g, "/")])) {
+    if (Object.hasOwn(projects, key) && isPlainObject(projects[key])) return projects[key];
+  }
+  return null;
+}
+
+/**
+ * The servers configured for a project: the user's (`mcpServers` at the top of
+ * the state file), the local ones (`projects[<cwd>].mcpServers` in the same
+ * file) and the project's (`<cwd>/.mcp.json`). One row a name, the one Claude
+ * Code uses when a name is set in more than one place: local, then project,
+ * then user. By name.
+ */
+export async function scanMcpServers(cwd, io = {}) {
+  const fs = { open: io.open ?? fsOpen };
+  const statePath = await (io.statePath ?? claudeGlobalConfigPath)();
+  const state = await readJsonCapped(statePath, CLAUDE_JSON_MAX, fs);
+  const shared = await readJsonCapped(join(cwd, ".mcp.json"), MCP_JSON_MAX, fs);
+  const local = serversIn(projectEntry(isPlainObject(state) ? state.projects : null, cwd)?.mcpServers, "local");
+  const project = serversIn(isPlainObject(shared) ? shared.mcpServers : null, "project");
+  const user = serversIn(isPlainObject(state) ? state.mcpServers : null, "user");
+  const byName = new Map();
+  for (const server of [...local, ...project, ...user]) if (!byName.has(server.name)) byName.set(server.name, server);
+  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function handleSessionMcpServers(req, res, io = {}) {
+  const scope = gate(req, res, io);
+  if (!scope) return;
+  try {
+    const servers = await scanMcpServers(scope.cwd, io);
+    return send(res, 200, { servers }, { "Cache-Control": "no-store" });
   } catch {
     return send(res, 404, NOT_FOUND);
   }

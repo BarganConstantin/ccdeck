@@ -187,7 +187,7 @@ import { startToolAudit } from "./tool-audit.mjs";
 import { handleToolAudit } from "./tool-audit-routes.mjs";
 import { handleSessionTranscript, SESSION_TRANSCRIPT_ROUTE } from "./session-transcript-routes.mjs";
 import { handleMemoryFile, MEMORY_FILE_ROUTE } from "./memory-file-route.mjs";
-import { handleSessionSkills, SKILLS_ROUTE } from "./context-inventory-route.mjs";
+import { handleSessionMcpServers, handleSessionSkills, MCP_SERVERS_ROUTE, SKILLS_ROUTE } from "./context-inventory-route.mjs";
 import { handleSessionHistory, SESSION_HISTORY_ROUTE } from "./session-history.mjs";
 import { startQuotaHistory } from "./quota-history.mjs";
 import { startQuotaCloses } from "./quota-closes.mjs";
@@ -436,6 +436,7 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (url.pathname === SESSION_TRANSCRIPT_ROUTE) return guard(handleSessionTranscript(req, res), res);
     if (url.pathname === MEMORY_FILE_ROUTE) return guard(handleMemoryFile(req, res), res);
     if (url.pathname === SKILLS_ROUTE) return guard(handleSessionSkills(req, res), res);
+    if (url.pathname === MCP_SERVERS_ROUTE) return guard(handleSessionMcpServers(req, res), res);
     if (req.method === "GET" && url.pathname === "/api/quota/history") return guard(handleQuotaHistory(req, res), res);
     if (req.method === "GET" && url.pathname === "/api/quota/closes") return guard(handleQuotaCloses(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/quota")       return guard(handleQuota(req, res), res);

@@ -316,7 +316,9 @@ describe("the deck's ten overlays", () => {
     // The thirty-fifth is a memory file's viewer, from the Context tab.
     // CHANGED ON PURPOSE (skills inventory): the thirty-sixth is the project's
     // skills, from the same tab, under the same trap.
-    expect(MODALS.length).toBe(36);
+    // CHANGED ON PURPOSE (MCP servers): the thirty-seventh is its MCP servers,
+    // from the same tab, under the same trap.
+    expect(MODALS.length).toBe(37);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {

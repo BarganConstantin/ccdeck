@@ -1257,6 +1257,16 @@ button.btn.ctx-snap-act.inv-back { margin: 0 0 0 -6px; }
   overflow-wrap: anywhere;
 }
 .inv-detail-desc[data-empty] { color: var(--muted); }
+/* The MCP servers (McpServersDialog.tsx): the project's path under the title,
+   then one row per server, read and not pressed: its name with where it is
+   configured and its transport, then what the last /context saw of it. */
+.inv-cwd {
+  font-family: var(--font-mono);
+  font-size: calc(12px + var(--ui-text-increase, 0px));
+  line-height: calc(16px + var(--ui-text-increase, 0px));
+  color: var(--muted);
+}
+.inv-server { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 0; }
 
 /* WHAT FILLS IT (ContextSnapshot.tsx): Claude Code's own /context breakdown,
    in the meter's place once a session has one. A head line (the share used and

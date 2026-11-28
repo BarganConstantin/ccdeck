@@ -217,6 +217,10 @@ describe("the modals themselves", () => {
       // What stands in for Usage history or Browser Watch when its chunk did
       // not arrive, joining the loop below like the dialogs it replaces.
       "LazyDialog.tsx",
+      // CHANGED ON PURPOSE (MCP servers): the servers configured for a
+      // session's project, read from the Context tab, joining the loop below
+      // like the skills beside it.
+      "McpServersDialog.tsx",
       // A memory file read from the Context tab, joining the loop below
       // like the rest.
       "MemoryFileDialog.tsx",
