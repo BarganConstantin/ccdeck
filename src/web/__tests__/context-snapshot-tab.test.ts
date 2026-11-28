@@ -379,9 +379,12 @@ describe("how the breakdown is drawn", () => {
     expect(body(".ctx-snap-bar")).toContain("height: 6px");
   });
 
-  it("adds no control of its own but the memory file's row, which opens the file", () => {
+  it("adds no control of its own but the memory file's row and a list's quiet way to its dialog", () => {
+    // CHANGED ON PURPOSE (skills inventory): the second button is the one a
+    // list may end in ("All skills"), drawn once in List and only under the
+    // open list, so the closed block stays as short as it was.
     const source = readFileSync(join(WEB_DIR, "components/ContextSnapshot.tsx"), "utf8");
-    expect(source.match(/<button/g)).toHaveLength(1);
-    expect(source.match(/onClick=\{[^}]*\}/g)).toEqual(["onClick={() => onOpenMemory(m.path)}"]);
+    expect(source.match(/<button/g)).toHaveLength(2);
+    expect(source.match(/onClick=\{[^}]*\}/g)).toEqual(["onClick={() => onOpenMemory(m.path)}", "onClick={action.open}"]);
   });
 });

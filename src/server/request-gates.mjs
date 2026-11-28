@@ -439,6 +439,10 @@ export const GUARDED_READS = new Set([
   "/api/session/transcript",
   // One memory file a session has in scope (memory-file-route.mjs): the user's own instructions to the CLI.
   "/api/session/memory-file",
+  // The skills a session's project has installed (context-inventory-route.mjs): their names, descriptions and paths.
+  "/api/session/skills",
+  // The MCP servers configured for it (the same module): names, scopes and transports, never a command, URL or header.
+  "/api/session/mcp-servers",
   "/api/session/history",
   "/api/tool-audit/storage",
   "/api/system/traffic-radar",
