@@ -62,6 +62,7 @@ import { focusAfterFold } from "./fold-focus";
 // The modal and its panels load on demand; this is the light wrapper that
 // fetches them (IntegrationModalOnDemand.tsx).
 import IntegrationModal, { preloadIntegrationModal } from "./components/IntegrationModalOnDemand";
+import DevicesDialog from "./components/DevicesDialog";
 import ExploreIntegrationsModal from "./components/ExploreIntegrationsModal";
 import {
   connectionsOf, integrationsReach, kindOffered, kindOpenable, offeredKinds, requestIntegrationAdd, requestIntegrationFocus, useIntegrations,
@@ -444,6 +445,8 @@ function Inner() {
   // connections wait in Settings, where Disconnect removes them.
   const integrations = useIntegrations();
   const [integrationOpen, setIntegrationOpen] = useState<IntegrationKind | null>(null);
+  const [devicesOpen, setDevicesOpen] = useState(false);
+  const closeDevices = useCallback(() => setDevicesOpen(false), []);
   const [exploreIntegrationsOpen, setExploreIntegrationsOpen] = useState(false);
   const closeExploreIntegrations = useCallback(() => setExploreIntegrationsOpen(false), []);
   const connectIntegration = (kind: IntegrationKind) => {
@@ -1300,6 +1303,7 @@ function Inner() {
     toggles: panelReturn.toggles,
     integrations: connectedKinds.map(provider => ({ provider, onPress: () => setIntegrationOpen(provider.kind) })),
     openExploreIntegrations: () => setExploreIntegrationsOpen(true),
+    openDevices: () => setDevicesOpen(true),
     openQuickOpen,
     feedbackUnread, openFeedbackConversations,
     inspectorOpen, toggleInspector,
@@ -1703,6 +1707,8 @@ function Inner() {
         <IntegrationModal kind={kind} connections={kindOffered(integrations, kind) ? connectionsOf(integrations, kind) : []}
           onClose={closeIntegration} onReconnect={reconnectIntegration} />
       )}</DialogPresence>
+      <DialogPresence when={devicesOpen}>{() => <DevicesDialog local={buildRows(stateRef.current, now)}
+        onClose={closeDevices} onOpenLocal={id => { closeDevices(); pickSession(id); }} />}</DialogPresence>
       <DialogPresence when={exploreIntegrationsOpen}>{() => <ExploreIntegrationsModal integrations={integrations} onClose={closeExploreIntegrations}
         onOpen={setIntegrationOpen} onConnect={connectIntegration} onManage={manageIntegration} />}</DialogPresence>
       {/* Built while it is open only, from the same doors, rows and presses

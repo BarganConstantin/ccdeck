@@ -134,10 +134,11 @@ export function railItems({
   usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
   watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
   openCapacity, integrations = [], openExploreIntegrations, openQuickOpen, feedbackUnread = 0, openFeedbackConversations,
-  inspectorOpen = false, toggleInspector = () => {},
+  inspectorOpen = false, toggleInspector = () => {}, openDevices,
 }: {
   /** Whether the Inspector shows, as a column, a sheet or the detail panel. */
   inspectorOpen?: boolean;
+  openDevices?: () => void;
   /** The Inspector door's press: what D does in the place it is pressed. */
   toggleInspector?: () => void;
   providers: Providers;
@@ -331,11 +332,15 @@ export function railItems({
     key: provider.shortcut ? { cap: provider.shortcut.toUpperCase(), aria: provider.shortcut.toUpperCase(), single: true } : undefined,
     glyph: <provider.Glyph />, kind: "dialog", onPress,
   }));
+  const devices: RailItem[] = openDevices ? [{
+    id: "devices", label: t("board.devices.title"), short: t("board.devices.title"),
+    ariaLabel: t("board.devices.title"), glyph: <MachineGlyph />, kind: "dialog", onPress: openDevices,
+  }] : [];
   return {
     // Accounts first, at the top of the stripe and the start of the dock: the
     // owner's call (2026-10-08), the panel read before choosing where to start
     // a session.
-    left: providers.claude ? [accounts, sessionList] : providers.codex ? [codex, sessionList] : [sessionList],
+    left: [...(providers.claude ? [accounts] : providers.codex ? [codex] : []), sessionList, ...devices],
     codexDoor: providers.claude && providers.codex ? [codex] : [],
     // The owner's order (2026-10-22): Accounts, Account capacity, Reset
     // calendar, Session list — the first three one group, since all three are
@@ -344,7 +349,7 @@ export function railItems({
     // V4's Panel bar (Figma): Sessions first, then Accounts, and Codex's door
     // beside Accounts where it is all this deck has; the rest in its runs.
     leftStripe: [
-      named(t("shell.rail.left"), [sessionList, ...(providers.claude ? [accounts] : providers.codex ? [codex] : [])]),
+      named(t("shell.rail.left"), [sessionList, ...(providers.claude ? [accounts] : providers.codex ? [codex] : []), ...devices]),
       providers.claude ? named(t("board.rail.group.accounts"), capacity) : [],
       trackers,
       explore,
