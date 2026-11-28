@@ -47,7 +47,7 @@ const MODALS = readdirSync(dir)
 const ON_SURFACE = MODALS.filter(f => shellUses(read(f)).length > 0);
 
 describe("the deck's modals", () => {
-  it("has found all seventeen of them, so a new one cannot skip this file", () => {
+  it("has found all registered dialogs, so a new one cannot skip this file", () => {
     // Six until #511 added the shortcuts sheet, seven until #712 added the
     // release notes, nine until #723 added the share picker, ten until #738
     // added the section history and eleven until it added the process list. The
@@ -81,9 +81,9 @@ describe("the deck's modals", () => {
     // session's project has installed, opened from the Context tab's Skills list.
     // CHANGED ON PURPOSE (MCP servers): the thirty-seventh is the MCP servers
     // configured for that project, opened from the Context tab's MCP tools list.
-    // Thirty-six of them draw `<Dialog` and the radio draws `<DialogScrim`.
-    expect(MODALS.length).toBe(37);
-    expect(ON_SURFACE.length).toBe(36);
+    // Thirty-seven of them draw `<Dialog` and the radio draws `<DialogScrim`.
+    expect(MODALS.length).toBe(38);
+    expect(ON_SURFACE.length).toBe(37);
     expect(MODALS.filter(f => !ON_SURFACE.includes(f))).toEqual(["RadioExperience.tsx"]);
   });
 

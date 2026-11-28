@@ -292,7 +292,7 @@ describe("which overlay holds Tab", () => {
 // ── what each of the seven overlays does with it ────────────────────────────
 
 describe("the deck's ten overlays", () => {
-  it("has found all seventeen, so a new one cannot skip this file", () => {
+  it("has found all registered dialogs, so a new one cannot skip this file", () => {
     // Six until #511 added the shortcuts sheet, seven until #712 added the
     // release notes, nine until #723 added the share picker, ten until #738
     // added the section history and eleven until it added the process list.
@@ -318,7 +318,7 @@ describe("the deck's ten overlays", () => {
     // skills, from the same tab, under the same trap.
     // CHANGED ON PURPOSE (MCP servers): the thirty-seventh is its MCP servers,
     // from the same tab, under the same trap.
-    expect(MODALS.length).toBe(37);
+    expect(MODALS.length).toBe(38);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {

@@ -533,6 +533,12 @@ export const GUARDED_READS = new Set([
   // alone. Guarded whether the account is on or off, as every path here is.
   "/api/account",
   "/api/account/sync/preview",
+  // The machines this deck reaches over SSH (device-routes.mjs): their names,
+  // addresses and the user each is reached as, and the sessions running on
+  // each with their folders and standing questions — the user's own, read by
+  // the deck's own page alone.
+  "/api/devices",
+  "/api/devices/sessions",
 ]);
 
 /** Whole namespaces of guarded reads, for routes whose path carries an id —

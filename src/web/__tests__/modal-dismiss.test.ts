@@ -191,6 +191,7 @@ describe("the modals themselves", () => {
       // Browser Watch, named here for the same reason as the two below.
       "BrowserWatchModal.tsx",
       "ClearConfirm.tsx", "CodexShareDialog.tsx", "ContextModal.tsx",
+      "DevicesDialog.tsx",
       "ExploreIntegrationsModal.tsx",
       // The feedback dialog, opened from Appearance (#1853), joining the loop
       // below like the rest.

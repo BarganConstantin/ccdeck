@@ -81,6 +81,7 @@ export interface RailItems {
    *  and the phone's More holds both (Feedback's glyph is in the bar's corner
    *  there too). */
   utilities: RailItem[];
+  devices?: RailItem[];
   /** Quick open (quick-open.ts): the bar's search field, ahead of Feedback's
    *  corner, and the first row under the phone's More. */
   search: RailItem;
@@ -134,10 +135,11 @@ export function railItems({
   usagePanelOpen, setUsagePanelOpen, machinePanelOpen, setMachinePanelOpen, setUsageHistoryOpen,
   watchOn, watchUnseen, setBrowserWatchOpen, setTrafficRadarOpen, setRadioOpen, openToolActivity, openSettings, onFeedback, toggles,
   openCapacity, integrations = [], openExploreIntegrations, openQuickOpen, feedbackUnread = 0, openFeedbackConversations,
-  inspectorOpen = false, toggleInspector = () => {},
+  inspectorOpen = false, toggleInspector = () => {}, openDevices,
 }: {
   /** Whether the Inspector shows, as a column, a sheet or the detail panel. */
   inspectorOpen?: boolean;
+  openDevices?: () => void;
   /** The Inspector door's press: what D does in the place it is pressed. */
   toggleInspector?: () => void;
   providers: Providers;
@@ -331,6 +333,10 @@ export function railItems({
     key: provider.shortcut ? { cap: provider.shortcut.toUpperCase(), aria: provider.shortcut.toUpperCase(), single: true } : undefined,
     glyph: <provider.Glyph />, kind: "dialog", onPress,
   }));
+  const devices: RailItem[] = openDevices ? [{
+    id: "devices", label: t("board.devices.title"), short: t("board.devices.title"),
+    ariaLabel: t("board.devices.title"), glyph: <MachineGlyph />, kind: "dialog", onPress: openDevices,
+  }] : [];
   return {
     // Accounts first, at the top of the stripe and the start of the dock: the
     // owner's call (2026-10-08), the panel read before choosing where to start
@@ -346,6 +352,7 @@ export function railItems({
     leftStripe: [
       named(t("shell.rail.left"), [sessionList, ...(providers.claude ? [accounts] : providers.codex ? [codex] : [])]),
       providers.claude ? named(t("board.rail.group.accounts"), capacity) : [],
+      devices,
       trackers,
       explore,
     ].filter(group => group.length > 0),
@@ -367,6 +374,7 @@ export function railItems({
       radio,
     ].filter(group => group.length > 0),
     utilities: [settings, feedback],
+    devices,
     search,
     explore,
     integrations: trackers,

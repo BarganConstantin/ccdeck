@@ -81,6 +81,14 @@ export const CONDITIONS = {
     holdsOn: (platform) => platform === "win32",
     why: "Signals, mode bits and /bin/sh are POSIX, and the fake-Windows cases build their fixture out of shell scripts and a ComSpec pointing at one, which cannot stand in for the real cmd.exe on a machine that has it.",
   },
+  WIN: {
+    holdsOn: platform => platform === "win32",
+    why: "Devices uses a connection per command on Windows. OpenSSH control sockets are used on POSIX.",
+  },
+  "mode.skip": {
+    holdsOn: platform => platform === "win32",
+    why: "Only the shared-connection run of the Devices suite is skipped on Windows. The per-command cases still run.",
+  },
   posix: {
     holdsOn: (platform) => platform !== "win32",
     why: "`const posix = process.platform !== \"win32\"` in no-shell-hook-commands.test.ts — the cases run a real /bin/sh.",
@@ -210,6 +218,9 @@ export const GATES = [
   // They used to gate themselves from INSIDE the body — an `if` around the only
   // assertion, and two early `return`s — which this scanner cannot see, so the
   // Windows leg reported all three as passing while running nothing (#994).
+  { file: "devices-link.test.ts", gate: "describe.skipIf", condition: "mode.skip", sites: 1, cases: 7 },
+  { file: "devices-link.test.ts", gate: "describe.skipIf", condition: "WIN", sites: 2, cases: 5 },
+  { file: "devices-store.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 1 },
   { file: "discovery-live.test.ts", gate: "it.skipIf", condition: 'process.platform === "win32"', sites: 3, cases: 3 },
   // #1176's swap-script block. The script that replaces an installed Mac app
   // is /bin/sh with mv, rm, kill and sleep, run for real against a bundle in a

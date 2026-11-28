@@ -62,6 +62,7 @@ import { focusAfterFold } from "./fold-focus";
 // The modal and its panels load on demand; this is the light wrapper that
 // fetches them (IntegrationModalOnDemand.tsx).
 import IntegrationModal, { preloadIntegrationModal } from "./components/IntegrationModalOnDemand";
+import DevicesDialog from "./components/DevicesDialog";
 import ExploreIntegrationsModal from "./components/ExploreIntegrationsModal";
 import {
   connectionsOf, integrationsReach, kindOffered, kindOpenable, offeredKinds, requestIntegrationAdd, requestIntegrationFocus, useIntegrations,
@@ -444,6 +445,8 @@ function Inner() {
   // connections wait in Settings, where Disconnect removes them.
   const integrations = useIntegrations();
   const [integrationOpen, setIntegrationOpen] = useState<IntegrationKind | null>(null);
+  const [devicesOpen, setDevicesOpen] = useState(false);
+  const closeDevices = useCallback(() => setDevicesOpen(false), []);
   const [exploreIntegrationsOpen, setExploreIntegrationsOpen] = useState(false);
   const closeExploreIntegrations = useCallback(() => setExploreIntegrationsOpen(false), []);
   const connectIntegration = (kind: IntegrationKind) => {
@@ -1300,6 +1303,7 @@ function Inner() {
     toggles: panelReturn.toggles,
     integrations: connectedKinds.map(provider => ({ provider, onPress: () => setIntegrationOpen(provider.kind) })),
     openExploreIntegrations: () => setExploreIntegrationsOpen(true),
+    openDevices: () => setDevicesOpen(true),
     openQuickOpen,
     feedbackUnread, openFeedbackConversations,
     inspectorOpen, toggleInspector,
@@ -1570,7 +1574,7 @@ function Inner() {
         // terminal: the phone's Board draws no canvas bar to hold its button.
         ? <EdgeDock
             items={[...rails.left, ...rails.right[0]].map(sessionsDoorUnderSheet)}
-            more={[rails.search, ...commandPanelMore(stage.enabled ? openPanelFromMore : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities]}
+            more={[rails.search, ...commandPanelMore(stage.enabled ? openPanelFromMore : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...(rails.devices ?? []), ...rails.utilities]}
             offline={everConnected && !live} />
         : <EdgeRail side="left" label={t("board.rail.tools")} groups={rails.leftStripe} foot={rails.leftFoot} />}
 
@@ -1703,6 +1707,8 @@ function Inner() {
         <IntegrationModal kind={kind} connections={kindOffered(integrations, kind) ? connectionsOf(integrations, kind) : []}
           onClose={closeIntegration} onReconnect={reconnectIntegration} />
       )}</DialogPresence>
+      <DialogPresence when={devicesOpen}>{() => <DevicesDialog local={buildRows(stateRef.current, now)}
+        onClose={closeDevices} onOpenLocal={id => { closeDevices(); pickSession(id); }} />}</DialogPresence>
       <DialogPresence when={exploreIntegrationsOpen}>{() => <ExploreIntegrationsModal integrations={integrations} onClose={closeExploreIntegrations}
         onOpen={setIntegrationOpen} onConnect={connectIntegration} onManage={manageIntegration} />}</DialogPresence>
       {/* Built while it is open only, from the same doors, rows and presses
