@@ -1,3 +1,5 @@
+import SessionHistoryDialog from "./components/SessionHistoryDialog";
+import type { SavedSession } from "./session-history";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ReactFlowProvider, useReactFlow } from "reactflow";
 // Keeps a side panel mounted long enough to animate out — see panel-exit.ts
@@ -1111,6 +1113,13 @@ function Inner() {
     stage.openBeside(sessionId);
   }, [removedAgentIds, bringBack, stage.openBeside]);
 
+  const [sessionHistoryOpen, setSessionHistoryOpen] = useState(false);
+  const openSavedSession = (saved: SavedSession) => {
+    setSessionHistoryOpen(false);
+    if (!workspaceRef.current) switchView("workspace", "key");
+    stage.openHistorySession(saved);
+  };
+
   // Which element a POINTER put focus on, so a button the mouse pressed stops
   // swallowing the single-key shortcuts (#851): see use-pointer-focus.ts.
   const pointerFocusRef = usePointerFocus();
@@ -1612,6 +1621,7 @@ function Inner() {
               openPanes={openPanes}
               onOpenKeys={inWorkspace ? openSessionWithKeys : undefined}
               onOpenBeside={inWorkspace && stage.enabled ? openSessionBeside : undefined}
+              onOpenHistory={stage.enabled ? () => setSessionHistoryOpen(true) : undefined}
               onNewSession={inWorkspace && stage.enabled ? stage.newSessionFrom : undefined}
               offline={phone && everConnected && !live && !restart.restarting ? <OfflineCard lastNewsAt={lastNewsAt} /> : undefined}
               emptyNotice={heroInList ? emptyHero(0) : undefined}
@@ -1684,6 +1694,9 @@ function Inner() {
         onShowOnBoard={showOnBoard}
       />
 
+      <DialogPresence when={sessionHistoryOpen}>{() => (
+        <SessionHistoryDialog onClose={() => setSessionHistoryOpen(false)} onOpen={openSavedSession} />
+      )}</DialogPresence>
       <DialogPresence when={toolAuditView}>{view => <ToolAuditModal view={view} onClose={closeToolAudit} sessionLabel={toolAuditSessionLabel} onOpenSession={openToolAuditSession} />}</DialogPresence>
       <DialogPresence when={capacityView}>{view => <AccountCapacityDialog view={view} onClose={closeCapacity} />}</DialogPresence>
       <DialogPresence when={integrationOpen}>{kind => (

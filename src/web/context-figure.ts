@@ -4,6 +4,7 @@
 // print two numbers for one fact. `fmtTokens` stays as it is for every other
 // caller: it keeps a decimal under 100k ("61.4k"), which this figure does not.
 import { effectiveContextWindow } from "./context-window";
+import { liveSnapshot, snapshotUsed } from "./context-snapshot";
 import type { AgentNodeData } from "./types";
 
 /** Whole thousands, so "129k" and "200k" line up as a pair; a million is "1M",
@@ -34,8 +35,15 @@ export function contextPercent(used: number, window: number): number {
  *  Context tab, the context modal and the Term header's chip (which rounds it),
  *  so none of them can print a second number for one fact. */
 export function contextFill(agent: AgentNodeData): { used: number; limit: number; pct: number } {
-  const used = agent.context?.currentContextTokens ?? 0;
-  const limit = effectiveContextWindow(agent.contextWindow, agent.model);
+  const current = agent.context?.currentContextTokens ?? 0;
+  // Once a Claude Code session has run /context, its window and its count are
+  // Claude Code's own (a 1M window the model id does not say, an auto-compact
+  // window raised in the session), and the Context tab draws its bar from
+  // them: the head above that bar, the card's ring and the Term chip say the
+  // same, not a second number for one fact.
+  const snap = liveSnapshot(agent);
+  const used = snap ? snapshotUsed(snap, current) : current;
+  const limit = snap ? snap.max : effectiveContextWindow(agent.contextWindow, agent.model);
   return { used, limit, pct: contextPct(used, limit) };
 }
 

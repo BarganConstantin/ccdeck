@@ -58,6 +58,8 @@ const sessions = await import("../../server/terminal-sessions.mjs");
 const { createTicketStore } = await import("../../server/terminal-socket.mjs");
 // @ts-expect-error — plain .mjs server module, no types
 const { HOOK_TOKEN } = await import("../../server/request-gates.mjs");
+// @ts-expect-error — plain .mjs server module, no types
+const { IN_FOLDER } = await import("../../server/tmux.mjs");
 
 const SID = "0b9f3c1e-2d4a-4b6c-8e0f-1a2b3c4d5e6f";
 const FLAG = "--dangerously-skip-permissions";
@@ -70,13 +72,16 @@ const run = vi.fn(async (_bin: string, _socket: unknown, args: string[]) => {
   ran.push(args);
   return { ok: true, code: 0, stdout: "%7\n", stderr: "" };
 });
-/** The command the one new-session would have exec'd: everything after its `--`. */
+/** The agent command the one new-session would have exec'd: everything after
+ *  its `--`, past the shell that first moves it into the project folder. */
 const execd = () => {
   expect(ran, "one tmux call per launch").toHaveLength(1);
   const args = ran[0];
   const from = args.indexOf("--") + 1;
   const to = args.indexOf(";", from);
-  return args.slice(from, to < 0 ? undefined : to);
+  const cmd = args.slice(from, to < 0 ? undefined : to);
+  expect(cmd.slice(0, 4), "started in the project folder").toEqual(["/bin/sh", "-c", IN_FOLDER, PROJECT]);
+  return cmd.slice(4);
 };
 
 /** The deck's routes in front of the JS backend, with the real launcher on a

@@ -525,6 +525,8 @@ describe("what was migrated to the secondary tier", () => {
       ".phone-board .pb-card.selected .pb-meta",
       // The words leading a removed row's second line, in the tool name's tier
       // beside it: what pressing this row does differently.
+      ".session-history-body > :is(p, div[role=\"status\"])",
+      ".session-history-note",
       ".session-list .sl-off",
       ".session-list .sl-time.quiet",
       ".session-list .sl-tool",

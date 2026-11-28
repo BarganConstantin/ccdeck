@@ -71,7 +71,7 @@ import { t } from "./i18n";
 import { refuseSave, setSettingsFailure } from "./settings-failure";
 import {
   MIN_PANE_COLS, MIN_PANE_ROWS, adjacentPane, arrange, closeTab as closeTabIn, emptyPaneTabs, fits, focusSplit, heldLaunches, insertPane, loadSplit,
-  movePane, paneCount, paneIds, paneTabs, paneTarget, paneWith, promoteLaunch, removePane, replaceTab, sameTab, saveSplit, setRatio, singleSplit, splitOutTab,
+  movePane, moveTabIntoPane, paneCount, paneIds, paneTabs, paneTarget, paneWith, promoteLaunch, removePane, replaceTab, sameTab, saveSplit, setRatio, singleSplit, splitOutTab,
   tabWith, withFocusedTarget, type Arrangement, type DropZone, type EdgeZone, type SplitState,
 } from "./workspace-split";
 
@@ -525,6 +525,18 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
     follow(sessionId);
   }, [enabledRef, openOn, follow]);
 
+  const openHistorySession = useCallback((history: import("./session-history").SavedSession) => {
+    if (!enabledRef.current || history.unavailable) return;
+    let requested = true;
+    const resumeSaved = () => {
+      const start = requested;
+      requested = false;
+      return start;
+    };
+    openOn({ kind: "session", id: history.id, history, resumeSaved }, { focusPane: true });
+    follow(history.id);
+  }, [enabledRef, openOn, follow]);
+
   /** WORKSPACE: ✕ on a pane. It empties; the session it showed runs on
    *  (closing never stopped anything), and with no session in the pane none is
    *  in focus. The focus goes to the empty pane's own action. */
@@ -760,13 +772,17 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
    *  there ("tab"), or, as its pane's only tab, that pane moves there ("pane",
    *  the same terminal). Null when it cannot: four panes, no room for one more
    *  of 40 × 8, or its own single pane. The drop then only brings its tab back. */
-  const planSessionMove = useCallback((sessionId: string, at: string, zone: EdgeZone): SessionMove | null => {
+  const planSessionMove = useCallback((sessionId: string, at: string, zone: DropZone): SessionMove | null => {
     if (!enabledRef.current || !workspaceRef.current) return null;
     sessionId = terminalSessionId(stateRef.current.agents, sessionId);
     const s = splitRef.current;
     const shown = shellRef.current.phase !== "closed" ? shellRef.current.target : null;
     const has = tabWith(s, sessionId, shown, undefined, id => terminalSessionId(stateRef.current.agents, id));
     if (!has || !paneIds(s.root).includes(at)) return null;
+    if (zone === "here") {
+      const state = moveTabIntoPane(s, has.pane, at, has.target, shown);
+      return state ? { kind: "tab", state, id: at, target: has.target } : null;
+    }
     const room = boxRef.current;
     const roomy = (next: SplitState) => !room || fits(next.root, room, paneMinRef.current);
     if (paneTabs(s, has.pane, shown).length < 2) {
@@ -780,12 +796,12 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
   }, [enabledRef, workspaceRef, stateRef, splitRef, shellRef, boxRef, paneMinRef]);
 
   /** The drop the pane's overlay names before it is made: "tab", "pane" or null. */
-  const sessionMove = useCallback((sessionId: string, at: string, zone: EdgeZone): SessionMove["kind"] | null =>
+  const sessionMove = useCallback((sessionId: string, at: string, zone: DropZone): SessionMove["kind"] | null =>
     planSessionMove(sessionId, at, zone)?.kind ?? null, [planSessionMove]);
 
   /** The drop itself, with the keys to the session where it lands. False when
    *  the panes changed under the pointer and it no longer can. */
-  const moveSessionTo = useCallback((sessionId: string, at: string, zone: EdgeZone): boolean => {
+  const moveSessionTo = useCallback((sessionId: string, at: string, zone: DropZone): boolean => {
     const plan = planSessionMove(sessionId, at, zone);
     if (!plan) return false;
     if (plan.kind === "pane") {
@@ -1462,7 +1478,7 @@ export function useStage({ stateRef, canvasRef, detailOpen, detailShown, setDeta
 
   return {
     enabled, supported, windows, toggleTerminal, loadTerminalPrefs, shell, geometry, cell, expanded, firstRun, said, navRef, keysRef,
-    workspace, workspaceOffered: onOffer, chunkFailed, openInPane, emptyPane, leaveWorkspace,
+    workspace, workspaceOffered: onOffer, chunkFailed, openInPane, openHistorySession, emptyPane, leaveWorkspace,
     onNodeClick, followSession, switchTo, openFromButton, newSessionFromBoard, openTile, launch, onLaunched,
     focusPane, release, takeTypeAhead, holdsTypeAhead, close, closed, failed, giveRightBack, reveal, revealed, announce,
     openPopover, newSessionFrom, closePopover, onCols, onColsReset, toggleExpand, unzoom, firstRunDone, onCell, onBarH, onHeadH,

@@ -22,21 +22,21 @@ export interface ScreenStatusOptions {
 }
 
 export function useScreenStatus(o: ScreenStatusOptions): string | null {
-  const [words, setWords] = useState<string | null>(null);
+  const [seen, setSeen] = useState<{ subject: string; words: string } | null>(null);
   const read = useRef(o.readScreen);
   read.current = o.readScreen;
   const { on, subject } = o;
   useEffect(() => {
-    setWords(null);
+    setSeen(null);
     if (!on) return;
     const look = () => {
       const screen = read.current?.(subject) ?? null;
       const found = screen === null ? null : screenStatus(screen);
-      if (found) setWords(found);
+      if (found) setSeen(prev => prev?.subject === subject && prev.words === found ? prev : { subject, words: found });
     };
     look();
     const timer = setInterval(look, STATUS_POLL_MS);
     return () => clearInterval(timer);
   }, [on, subject]);
-  return on ? words : null;
+  return on && seen?.subject === subject ? seen.words : null;
 }

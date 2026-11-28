@@ -188,16 +188,13 @@ export function landFocus(root: HTMLElement | null, held: HeldKeys | null = null
     if (held && root.contains(active) && (active as HTMLElement).tagName === "BUTTON") catchKeys(active as HTMLElement, { typing });
     return true;
   }
-  // The header's ⌨ is the one pressed button there is, but for Workspace's Zoom,
-  // which reports its state the same way and is not where the keys go.
-  const keys = root.querySelector<HTMLElement>(".ts-head button[aria-pressed]");
   // An ended session's Reopen here (or Attach again) is the pane's own: in its
   // header where the keys bar is out in the window's status bar, in the keys
   // bar inside the pane on a phone (endPlacement). Either way it is under the
   // root, so the shared status bar never holds an action to land on, and a
   // split's other pane, which draws no keys bar, finds its own in its header.
   const target = root.querySelector<HTMLElement>("[data-stage-land]")
-    ?? (keys && keys.dataset?.zoom === undefined ? keys : null)
+    ?? root.querySelector<HTMLElement>(".ts-head button[data-stage-keys]")
     ?? root.querySelector<HTMLElement>(".ts-head button[data-stage-close]");
   if (!target) return false;
   if (held) catchKeys(target, { typing });
@@ -253,7 +250,7 @@ export interface StageSessionInfo {
 /** What the stage is asked to show. */
 export type StageShow =
   | { kind: "empty" }
-  | { kind: "session"; session: StageSessionInfo; launch?: string }
+  | { kind: "session"; session: StageSessionInfo; launch?: string; resumeSaved?: () => boolean }
   | { kind: "launch"; agent: TerminalProvider; cwd: string; name: string; hue: number; key: string; options?: LaunchOptions };
 
 export interface TerminalStageProps {
@@ -378,7 +375,7 @@ export interface StageSplit {
 export function subjectOf(show: StageShow): StageSubject {
   switch (show.kind) {
     case "empty": return { kind: "empty" };
-    case "session": return { kind: "session", ref: show.session.ref, ...(show.launch ? { launch: show.launch } : {}) };
+    case "session": return { kind: "session", ref: show.session.ref, ...(show.launch ? { launch: show.launch } : {}), ...(show.resumeSaved ? { resumeSaved: show.resumeSaved } : {}) };
     case "launch": return { kind: "launch", agent: show.agent, cwd: show.cwd, key: show.key, ...(show.options ? { options: show.options } : {}) };
   }
 }

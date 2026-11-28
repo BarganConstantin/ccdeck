@@ -171,6 +171,7 @@ export interface SessionRef {
   provider: TerminalProvider | "opencode" | "copilot";
   /** The session's working directory, absolute. */
   cwd: string;
+  saved?: true;
 }
 
 export interface TargetAnswer {
@@ -529,7 +530,7 @@ export function endHostSessions(
 export function adoptTerminal(ref: SessionRef, options: ApiOptions = {}, size?: PaneSize, colours?: PaneColours): Promise<Ticketed | ApiFailure> {
   const { sessionId, provider, cwd } = ref;
   const extra = { ...(size ? { cols: size.cols, rows: size.rows } : {}), ...(colours ? { colours } : {}) };
-  return ask<Ticketed>(TERMINAL_ROUTES.adopt, post({ sessionId, provider, cwd, ...extra }), options, body => {
+  return ask<Ticketed>(TERMINAL_ROUTES.adopt, post({ sessionId, provider, cwd, ...extra, ...(ref.saved ? { saved: true } : {}) }), options, body => {
     if (!isObject(body) || body.ok !== true) return null;
     const ticket = ticketOf(body.ticket);
     const target = targetOf(body.target);

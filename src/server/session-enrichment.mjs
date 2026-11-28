@@ -20,6 +20,8 @@ import { join } from "node:path";
 import { scanAgentsMdFiles, scanClaudeMdFiles } from "./memory-files.mjs";
 // Claude Code's "※ recap:" line — see session-recap.mjs.
 import { RECAP_MARK } from "./session-recap.mjs";
+// The breakdown Claude Code's /context writes — see context-snapshot.mjs.
+import { mayMoveSnapshot } from "./context-snapshot.mjs";
 // What the session is doing now, folded off the same tail — see
 // session-activity.mjs.
 import { foldActivityLine, newActivityState } from "./session-activity.mjs";
@@ -562,11 +564,13 @@ function onActivityTail(sid, text) {
   }, "internal");
 }
 
-/** Everything the output watch's tail feeds, in one tap: the recap and the
- *  activity line read the same bytes for different questions. */
+/** Everything the output watch's tail feeds, in one tap: the recap, the
+ *  activity line and the /context breakdown read the same bytes for different
+ *  questions. */
 function onTranscriptTail(sid, text, path) {
   onRecapTail(sid, text, path);
   onActivityTail(sid, text);
+  onSnapshotTail(sid, text, path);
 }
 
 // ─── Background job ──────────────────────────────────────────────────────
@@ -605,11 +609,16 @@ const contextReads = sessionReadGate(CONTEXT_READ_THROTTLE_MS);
 // JSONL keeps growing, and reading the pre-reset blocks made the donut report
 // ~100% on an empty context.
 export async function readContextFromTranscript(path) {
+  return (await readContextState(path)).breakdown;
+}
+
+/** The counts above and the newest /context snapshot, off one scan. Both are
+ *  null when nothing has been folded yet — the file is empty, unreadable, or
+ *  has no complete line — which callers treat as "no breakdown". */
+async function readContextState(path) {
   const state = await scanTranscript(path);
-  // Nothing folded yet — the file is empty, unreadable, or has no complete
-  // line. Callers treat that as "no breakdown", same as before.
-  if (!state || state.offset === 0) return null;
-  return { ...state.ctx };
+  if (!state || state.offset === 0) return { breakdown: null, snapshot: null };
+  return { breakdown: { ...state.ctx }, snapshot: state.contextSnapshot ?? null };
 }
 
 function maybeResolveContext(payload) {
@@ -617,18 +626,58 @@ function maybeResolveContext(payload) {
   if (!target) return;
   const { sid, tp } = target;
   const cwd = payload.cwd;
-  contextReads.run(sid, () => Promise.all([readContextFromTranscript(tp), scanClaudeMdFiles(cwd)])
-    .then(([breakdown, memoryFiles]) => {
+  contextReads.run(sid, () => Promise.all([readContextState(tp), scanClaudeMdFiles(cwd)])
+    .then(([{ breakdown, snapshot }, memoryFiles]) => {
       if (!breakdown && (!memoryFiles || memoryFiles.length === 0)) return;
+      const snap = snapshotChange(sid, snapshot);
       pushEvent({
         hook_event_name: "ContextObserved",
         session_id: sid,
         context: {
           ...(breakdown ?? {}),
           memoryFiles: memoryFiles ?? [],
+          ...(snap === undefined ? {} : { snapshot: snap }),
         },
       }, "internal");
     }));
+}
+
+// ─── The /context snapshot ───────────────────────────────────────────────
+// Claude Code's own breakdown of the window, from the last `/context` the
+// session ran (see context-snapshot.mjs). It rides ContextObserved as
+// `context.snapshot`, and only when it CHANGES, keyed by the line's own time:
+// it is a few kilobytes, and the counts beside it go out on every pass. So the
+// field is the snapshot when a newer one landed, null when a /clear or
+// /compact dropped it, and absent when there is nothing new to say — which is
+// the reader's cue to keep what it has. A session that never ran /context
+// never carries the field at all.
+//
+// The tail road is the recap's (onRecapTail): `/context` is a local command
+// and may fire no hook, so a tail carrying the heading or a reset marker asks
+// the cursor to fold the file rather than waiting for the next prompt.
+const snapshotBySession = new Map();    // sid -> `at` last sent, "" once dropped
+
+/** The snapshot to send for this session: the snapshot itself or null when it
+ *  changed since the last one sent, undefined when it did not. */
+function snapshotChange(sid, snapshot) {
+  const sig = snapshot ? snapshot.at : "";
+  const prev = snapshotBySession.get(sid);
+  if (prev === sig) return undefined;
+  if (prev === undefined && !snapshot) return undefined;
+  snapshotBySession.set(sid, sig);
+  return snapshot ?? null;
+}
+
+function onSnapshotTail(sid, text, path) {
+  if (!path || !mayMoveSnapshot(text)) return;
+  scanTranscript(path)
+    .then(state => {
+      if (!state) return;
+      const snap = snapshotChange(sid, state.contextSnapshot ?? null);
+      if (snap === undefined) return;
+      pushEvent({ hook_event_name: "ContextObserved", session_id: sid, context: { snapshot: snap } }, "internal");
+    })
+    .catch(() => {});
 }
 
 // Throttle state for the Codex half of the same question. A gate of its own
@@ -721,6 +770,8 @@ function forgetEnrichment(sid) {
   deckNameAnnounced.delete(sid);
   // The recap's gate, for the same reason — see noteRecap.
   recapBySession.delete(sid);
+  // And the /context snapshot's, for the same reason — see snapshotChange.
+  snapshotBySession.delete(sid);
   // And the activity fold and the job's gate: a session heard from again
   // after this says what it is doing and what its job says afresh.
   activityBySession.delete(sid);
@@ -741,6 +792,7 @@ function clearEnrichmentGates() {
   nameBySession.clear();
   deckNameAnnounced.clear();
   recapBySession.clear();
+  snapshotBySession.clear();
   activityBySession.clear();
   jobBySession.clear();
   modelBySession.clear();

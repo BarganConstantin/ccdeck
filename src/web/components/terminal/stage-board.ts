@@ -154,15 +154,19 @@ export function stageShowFor(
   }
   const id = terminalSessionId(agents, target.id);
   const launch = target.launch ? { launch: target.launch } : {};
+  const saved = id === target.id ? target.history : undefined;
+  const resume = saved && target.resumeSaved ? { resumeSaved: target.resumeSaved } : {};
   const root = agents.get(id);
   if (!root) {
     return {
       kind: "session",
       session: {
-        ref: { sessionId: id, provider: "claude", cwd: "" }, name: id.slice(0, 8), hue: sessionHue(id), status: { state: "none", phrase: "" },
+        ref: { sessionId: id, provider: saved?.provider ?? "claude", cwd: saved?.cwd ?? "", ...(saved ? { saved: true } : {}) },
+        name: saved?.title ?? id.slice(0, 8), hue: sessionHue(id), status: { state: "none", phrase: "" },
         ...(target.launch ? { launched: true } : {}),
       },
       ...launch,
+      ...resume,
     };
   }
   const subs = subagentsOf(agents.values(), id);
@@ -182,7 +186,7 @@ export function stageShowFor(
   return {
     kind: "session",
     session: {
-      ref: { sessionId: id, provider, cwd: root.cwd ?? "" },
+      ref: { sessionId: id, provider, cwd: saved?.cwd ?? root.cwd ?? "", ...(saved ? { saved: true } : {}) },
       name: stageNameOf(root, agents),
       hue: sessionHue(id),
       model: root.model ?? null,
@@ -213,6 +217,7 @@ export function stageShowFor(
       rename: renameFacts(root),
     },
     ...launch,
+    ...resume,
   };
 }
 

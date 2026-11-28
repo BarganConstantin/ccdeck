@@ -87,6 +87,7 @@ const OUTSIDE_COMPONENTS: readonly string[] = [
   "auto-switch-threshold.ts", "terminal-text-size.ts", "provider-copy.ts", "use-claude-settings.ts", "admin-failure.ts", "usage-from-ccusage.ts",
   "film-links.ts", "fm-stations.ts", "radio-discovery.ts",
   "forge-types.ts", "forge-panel.ts", "forge-detail.ts", "forge-lists.ts", "jira-api.ts", "jira-board.ts",
+  "context-snapshot.ts",
 ];
 
 const TABLE_ROW =

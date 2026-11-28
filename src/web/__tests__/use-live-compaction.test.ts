@@ -86,9 +86,14 @@ function screenRig(first: Omit<LiveCompactionOptions, "readScreen">, screen: str
   let shown = screen;
   const readScreen = vi.fn((_subject: string) => shown);
   let seen: LiveScreen | null = null;
-  const Probe = (o: Omit<LiveCompactionOptions, "readScreen">) => { seen = useLiveScreen({ ...o, readScreen }); return null; };
+  const renders: Array<{ subject: string; screen: LiveScreen }> = [];
+  const Probe = (o: Omit<LiveCompactionOptions, "readScreen">) => {
+    seen = useLiveScreen({ ...o, readScreen });
+    renders.push({ subject: o.subject, screen: seen });
+    return null;
+  };
   const view = mount(Probe, first);
-  return { view, readScreen, set screen(s: string | null) { shown = s; }, get seen() { return seen!; } };
+  return { view, readScreen, renders, set screen(s: string | null) { shown = s; }, get seen() { return seen!; } };
 }
 
 describe("a menu, live", () => {
@@ -117,7 +122,7 @@ describe("a menu, live", () => {
     r.screen = IDLE;
     r.view.rerender({ on: true, subject: "session:b" });
     expect(r.readScreen).toHaveBeenLastCalledWith("session:b");
-    // Session a's menu is not carried over to b, not even for its misses.
+    expect(r.renders.filter(render => render.subject === "session:b").map(render => render.screen.menu)).not.toContainEqual(["Looks good — save it", "Discard and exit"]);
     expect(r.seen.menu).toBeNull();
   });
 });

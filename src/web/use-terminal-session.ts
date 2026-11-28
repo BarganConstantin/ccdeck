@@ -148,7 +148,7 @@ export const STOP_SLOW_MS = 15_000;
 /** The session on stage, a new one being started, or nothing. */
 export type StageSubject =
   | { kind: "empty" }
-  | { kind: "session"; ref: SessionRef; launch?: string }
+  | { kind: "session"; ref: SessionRef; launch?: string; resumeSaved?: () => boolean }
   | { kind: "launch"; agent: TerminalProvider; cwd: string; key: string; options?: LaunchOptions };
 
 /** One string per subject, so a re-render that hands the same subject again
@@ -1477,12 +1477,23 @@ export function createTerminalSession(deps: SessionDeps, callbacks: SessionCallb
   };
 
   const landOpen = async (answer: Awaited<ReturnType<SessionDeps["api"]["open"]>>, my: number, reconnecting: boolean, held?: SessionRef["provider"]) => {
-    if (answer.ok) { connect(answer.ticket, my); return; }
+    if (answer.ok) {
+      if (subject.kind === "session") subject.resumeSaved?.();
+      connect(answer.ticket, my);
+      return;
+    }
     if (isFailure(answer)) {
       // Opening starts nothing, so a moment's refusal is waited out even on
       // a first open, its card kept up while the engine comes back.
       if ((reconnecting && transient(answer)) || recovering(answer)) { reconnect(my, answer); return; }
       setPhase(failed(answer, refOf()?.provider));
+      return;
+    }
+    // Choosing a history entry is explicit consent to resume it once. Open
+    // first so an existing pane is attached and an external process is left alone.
+    const resumeSaved = subject.kind === "session" && subject.resumeSaved?.();
+    if (resumeSaved && answer.target.kind === "gone" && answer.target.adoptable === true) {
+      resumeHere(answer.target);
       return;
     }
     if (answer.target.kind === "unsupported") {

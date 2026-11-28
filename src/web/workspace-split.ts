@@ -492,6 +492,14 @@ export function movePane(s: SplitState, id: string, to: string, zone: DropZone):
   return { ...s, root: replaceLeaf(without, to, leaf => cut(leaf, zone, { kind: "leaf", id })), max: null };
 }
 
+/** Move one tab into an existing pane, retaining both panes and their other tabs. */
+export function moveTabIntoPane(s: SplitState, from: string, to: string, target: StageTarget, focusedTarget: StageTarget | null): SplitState | null {
+  if (from === to || !paneIds(s.root).includes(to) || !paneTabs(s, from, focusedTarget).some(tab => sameTab(tab, target))) return null;
+  const base = focusedTarget ? withFocusedTarget(s, focusedTarget) : s;
+  const left = closeTab(base, from, target, null);
+  return left ? withFocusedTarget(focusSplit(left.state, to, null), target) : null;
+}
+
 /** A session's tab dragged from the list onto a pane's edge (internal #168):
  *  its pane keeps its other tabs, and a new pane beside `at` holds it, the
  *  same tab, never a second one. What the pane in focus shows is written

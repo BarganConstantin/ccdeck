@@ -115,7 +115,7 @@ describe("where the list and the panes are wired", () => {
     // INTERNAL #168: on a pane's edge, an open session moves there (out of its
     // tabs, or its lone pane), as the overlay said; else its tab comes back.
     expect(shell).toContain('if (edge !== "here" && stage.sessionMove && stage.sessionMove(dragged.id, over.pane.id, edge)) {');
-    expect(shell).toContain('if (dragged.kind === "session" && view.move && view.zone !== "here" && stage.moveSessionTo(dragged.id, view.pane, view.zone)) return;');
+    expect(shell).toContain('if (dragged.kind === "session" && view.move && stage.moveSessionTo(dragged.id, view.pane, view.zone)) return;');
     // With no room for another pane, the overlay says the session opens as a tab.
     expect(shell).toContain('label: t(full ? "board.stage.split.fullTab" : "board.stage.split.noRoomTab", { name: dragged.name })');
     expect(shell).toContain('const has = panes.find(x2 => x2.tabs.some(tab => tab.target?.kind === "session" && tab.target.id === dragged.id));');

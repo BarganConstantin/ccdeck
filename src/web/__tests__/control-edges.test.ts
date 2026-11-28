@@ -716,6 +716,7 @@ const CONTROLS: Control[] = [
   { at: ".fb-shot-img", states: [".fb-shot-pick:hover .fb-shot-img", ".fb-shot-pick:focus-visible .fb-shot-img"], beds: ["--panel"] },
   // Settings › Keyboard's filter (#2176): framed at rest, as Tool activity's
   // search field is, and louder under the pointer.
+  { at: '.session-history-filter[aria-pressed="true"]', beds: ["--panel"] },
   { at: ".settings-filter-field", states: [".settings-filter-field:hover:not(:focus-visible)"], beds: ["--panel"] },
   // The one switch whose on gives something away (#828): on, it fills with
   // --warn; waiting for its second press, its edge is --warn, hovered or not.

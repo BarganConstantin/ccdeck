@@ -500,6 +500,35 @@ export function paneArgv(argv) {
 }
 
 /**
+ * The script inFolderArgv hands /bin/sh: `$0` is the folder, `"$@"` the
+ * agent's own command line. Where tmux moved the pane into the folder, `.` is
+ * that folder and nothing else runs. Where it could not, the shell moves into
+ * `$0` and clears the one line it complained in at start (dash: "getcwd()
+ * failed", bash: "shell-init: error retrieving current directory"), so the
+ * agent starts on a clean pane. `[ . -ef ... ]` compares device and inode;
+ * `pwd -P` cannot tell, since dash's exits 0 when it cannot read the folder.
+ */
+export const IN_FOLDER = `[ . -ef "$0" ] || { cd -- "$0" 2>/dev/null && printf '\\033[H\\033[2J\\033[3J'; }; exec "$@"`;
+
+/**
+ * `argv` started in `cwd` by the pane itself, not only by tmux's `-c`.
+ *
+ * tmux 3.7 and later move a new pane into `-c` only when the server can read
+ * its own working folder: a server started in a folder since deleted (a
+ * removed worktree, an app moved or updated) skips the move, every pane it
+ * starts inherits the deleted folder, and the agent dies at once with
+ * "getcwd: cannot access parent directories" in a folder that is there. The
+ * server outlives the deck that started it for as long as any session lives,
+ * and no tmux command changes its folder. /bin/sh moves into the folder itself
+ * and execs the agent, so the pane's pid is still the agent's, and a one-word
+ * command is still never re-split. The folder is an argument, never part of
+ * the script.
+ */
+export function inFolderArgv(cwd, argv) {
+  return ["/bin/sh", "-c", IN_FOLDER, cwd, ...argv];
+}
+
+/**
  * Whether a failed tmux call failed only because there is no server (or no
  * session) to answer it, which for every caller here means "nothing is
  * running" rather than "something is wrong".

@@ -20,7 +20,7 @@
 // CCDECK_TMUX points the run at a tmux that is not on PATH.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
@@ -136,6 +136,34 @@ describe("a deck session on a real tmux", () => {
   it("lists nothing, and no error, while its server is not running", async () => {
     if (!found.ok) return expectNoTmux();
     expect(await listDeckSessions(opts())).toEqual([]);
+  });
+
+  it("starts in its folder on a server whose own folder was deleted", async () => {
+    if (!found.ok) return expectNoTmux();
+    // A server started in a folder that then went (a removed worktree, an app
+    // moved), kept alive by a session of its own. tmux 3.7 and later skip the
+    // move into -c for every pane such a server starts; its own server, so
+    // the other cases' server keeps its folder.
+    // Short: macOS caps a socket path near 104 bytes, and TMUX_TMPDIR is deep there.
+    const stale = { name: `cct-${randomBytes(3).toString("hex")}` };
+    const gone = join(SANDBOX, "gone");
+    mkdirSync(gone);
+    try {
+      execFileSync(String(found.path), ["-L", stale.name, "-f", "/dev/null", "new-session", "-d", "-s", "keeps-the-server", "--", "sleep", "600"], { cwd: gone, env });
+      rmdirSync(gone);
+      const s = await launchSession({ tmux: found, socket: stale, env, agent: "codex", cwd: PROJECT, argv: ["sh", "-c", "pwd; exec cat"] });
+      const until = Date.now() + 2_000;
+      let shown = "";
+      while (!shown.includes("/") && Date.now() < until) {
+        await new Promise(r => setTimeout(r, 25));
+        const r = await runTmux(found, stale, ["capture-pane", "-p", "-t", `=${s.name}:`], { env });
+        expect(r.ok, r.stderr).toBe(true);
+        shown = r.stdout;
+      }
+      expect(shown.split("\n")[0], "the project folder on the first line: no complaint left above it").toBe(PROJECT);
+    } finally {
+      await runTmux(found, stale, ["kill-server"], { env });
+    }
   });
 
   it("removes NO_COLOR from a Codex pane even when the tmux server inherited it", async () => {

@@ -122,6 +122,16 @@ const headerProps = (over: Partial<StageHeaderProps> = {}): StageHeaderProps => 
 });
 
 describe("the header", () => {
+  it("keeps the keyboard action in the menu, without a standalone Workspace button", () => {
+    const board = StageHeader(headerProps());
+    expect(one(board, el => el.props["data-stage-keys"] === true)).toBeDefined();
+    for (const takeover of [false, true]) {
+      const pane = StageHeader(headerProps({ workspace: "pane", takeover }));
+      expect(one(pane, el => el.props["data-stage-keys"] === true)).toBeNull();
+      expect(one(pane, el => Array.isArray(el.props.items) && el.props.items.some((item: { id: string }) => item.id === "keys"))).toBeDefined();
+    }
+  });
+
   it("is Zoom on a pane: a pressed state with its own labels, the glyph unchanged", () => {
     const off = StageHeader(headerProps({ workspace: "pane" }));
     const zoomBtn = one(off, el => el.type === "button" && el.props["data-zoom"] === true);

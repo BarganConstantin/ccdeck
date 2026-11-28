@@ -1,3 +1,4 @@
+import { canResumeSavedSession } from "./session-history.mjs";
 // The Command Panel's eight HTTP routes the engine answers, the folder check
 // and the Codex update check the deck answers itself (terminal-folder.mjs,
 // codex-update.mjs), and the wiring that hands its socket to the upgrade in
@@ -607,6 +608,13 @@ async function posted(req, res, options, method) {
   if (LAUNCHES.has(method) && !res.headersSent && d.enabled() && (d.jsBackend || d.engine?.enabled === true)) {
     const gone = await folderGone(d, body);
     if (gone) return d.enabled() ? send(res, 409, gone) : notFound(res);
+  }
+  if (method === "adopt" && body?.saved === true && !res.headersSent) {
+    if (!await canResumeSavedSession(req, body)) return send(res, 409, {
+      ok: false, error: "The saved session or its provider profile is unavailable. Open Session history again to refresh it.",
+    });
+    const { saved: _saved, ...ref } = body;
+    return answer(d, req, res, method, ref);
   }
   return answer(d, req, res, method, body);
 }
