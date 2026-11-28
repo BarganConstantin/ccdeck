@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { useT, type MessageKey } from "../i18n";
 import { Dialog, DialogHeader } from "./Dialog";
 import { Loader } from "./Loader";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 import { useModalDismiss, useScrimDismiss } from "./use-modal-dismiss";
 import type { Row } from "./SessionList";
 
@@ -76,7 +78,7 @@ export default function DevicesDialog({ local, onOpenLocal, onClose }: {
   const scrim = useScrimDismiss(onClose);
   const operation = useRef<AbortController | null>(null);
   const nameField = useRef<HTMLInputElement>(null);
-  const trustHeading = useRef<HTMLHeadingElement>(null);
+  const trustCancel = useRef<HTMLButtonElement>(null);
   const [devices, setDevices] = useState<Device[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [sessions, setSessions] = useState<RemoteSession[] | null>(null);
@@ -88,18 +90,23 @@ export default function DevicesDialog({ local, onOpenLocal, onClose }: {
   const remote = devices.find(device => device.id === selected);
 
   useEffect(() => {
-    if (challenge) trustHeading.current?.focus();
+    if (challenge) trustCancel.current?.focus();
     else if (adding) nameField.current?.focus();
   }, [adding, challenge]);
 
   function start() {
-    operation.current?.abort();
+    if (operation.current) return null;
     const controller = new AbortController();
     operation.current = controller;
     setBusy(true);
     setError(null);
     setChallenge(null);
     return controller.signal;
+  }
+  function finish(signal: AbortSignal) {
+    if (signal.aborted) return;
+    operation.current = null;
+    setBusy(false);
   }
   function report(reply: Reply) {
     setError(errorKeys[reply.error ?? reply.type ?? ""] ?? "board.devices.failed");
@@ -116,19 +123,19 @@ export default function DevicesDialog({ local, onOpenLocal, onClose }: {
     void refresh(controller.signal).then(reply => {
       if (controller.signal.aborted) return;
       if (!reply.ok) report(reply);
-      setBusy(false);
+      finish(controller.signal);
     });
     return () => operation.current?.abort();
   }, []);
 
   function select(id: string | null) {
-    operation.current?.abort();
+    if (operation.current) return false;
     setSelected(id);
     setSessions(null);
     setAdding(false);
     setChallenge(null);
     setError(null);
-    setBusy(false);
+    return true;
   }
 
   async function read(device: Device, signal: AbortSignal) {
@@ -164,39 +171,43 @@ export default function DevicesDialog({ local, onOpenLocal, onClose }: {
       name, host: input("host"), user: input("user"), port: input("port") ? Number(input("port")) : undefined,
     };
     const signal = start();
+    if (!signal) return;
     const reply = await request("/test", signal, { draft });
     if (signal.aborted) return;
     if (reply.ok) await save(draft, signal);
     else if (reply.type === "host_key_unknown") setChallenge({ reply, draft });
     else report(reply);
-    if (!signal.aborted) setBusy(false);
+    finish(signal);
   }
 
   async function trust() {
     if (!challenge?.reply.confirm) return;
     const { reply, draft, device } = challenge;
     const signal = start();
+    if (!signal) return;
     const result = await request("/trust", signal, { confirm: reply.confirm });
     if (signal.aborted) return;
     if (result.ok && draft) await save(draft, signal);
     else if (result.ok && device) await read(device, signal);
     else report(result);
-    if (!signal.aborted) setBusy(false);
+    finish(signal);
   }
 
   async function connect(device: Device) {
     const signal = start();
+    if (!signal) return;
     await read(device, signal);
-    if (!signal.aborted) setBusy(false);
+    finish(signal);
   }
 
   async function disconnect(device: Device) {
     const signal = start();
+    if (!signal) return;
     const reply = await request("/disconnect", signal, { id: device.id });
     if (signal.aborted) return;
     if (reply.ok) { setSessions(null); await refresh(signal); }
     else report(reply);
-    if (!signal.aborted) setBusy(false);
+    finish(signal);
   }
 
   const title = t("board.devices.title");
@@ -205,48 +216,51 @@ export default function DevicesDialog({ local, onOpenLocal, onClose }: {
       <DialogHeader titleId="devices-dialog-title" title={title} onClose={onClose} closeLabel={t("common.close")} />
       <div className="devices-layout">
         <div className="devices-list">
-          <ul aria-label={title}>
-            <li><button className="devices-device" type="button" aria-current={!adding && !selected ? "true" : undefined}
-              disabled={busy} onClick={() => select(null)}>{t("board.devices.local")}</button></li>
+          <ul>
+            <li><Button variant="ghost" className="devices-device" aria-current={!adding && !selected ? "true" : undefined}
+              aria-disabled={busy || undefined} onClick={() => select(null)}>{t("board.devices.local")}</Button></li>
             {devices.map(device => (
               <li key={device.id}>
-                <button className="devices-device" type="button" aria-current={!adding && selected === device.id ? "true" : undefined}
-                  disabled={busy} onClick={() => select(device.id)}>
+                <Button variant="ghost" className="devices-device" aria-current={!adding && selected === device.id ? "true" : undefined}
+                  aria-disabled={busy || undefined} onClick={() => select(device.id)}>
                   <span>{device.name}</span>
                   <small>{t(`board.devices.${device.link.state}`)}</small>
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
-          <button className="btn" type="button" disabled={busy} onClick={() => { select(null); setAdding(true); }}>{t("board.devices.add")}</button>
+          <button className="btn" type="button" aria-disabled={busy || undefined} onClick={() => { if (select(null)) setAdding(true); }}>{t("board.devices.add")}</button>
         </div>
         <section className="devices-content">
           {adding ? <>
             <h3>{t("board.devices.add")}</h3>
             <form className="devices-form" hidden={challenge !== null} onSubmit={submit}>
-              <fieldset disabled={busy || challenge !== null}>
-                <label>{t("board.devices.name")}<input ref={nameField} name="name" maxLength={64} /></label>
-                <label>{t("board.devices.address")}
-                  <select value={addressType} onChange={event => setAddressType(event.target.value === "host" ? "host" : "alias")}>
-                    <option value="alias">{t("board.devices.alias")}</option>
-                    <option value="host">{t("board.devices.host")}</option>
-                  </select>
-                </label>
-                {addressType === "alias" ? <label>{t("board.devices.alias")}<input name="alias" required autoCapitalize="none" spellCheck={false} /></label> : <>
-                  <label>{t("board.devices.host")}<input name="host" required autoCapitalize="none" spellCheck={false} /></label>
-                  <label>{t("board.devices.user")}<input name="user" required autoCapitalize="none" spellCheck={false} /></label>
-                  <label>{t("board.devices.port")}<input name="port" type="number" min={1} max={65535} placeholder="22" /></label>
+              <fieldset>
+                <label>{t("board.devices.name")}<Input ref={nameField} name="name" maxLength={64} /></label>
+                <div className="devices-address">
+                  <span id="devices-address-label">{t("board.devices.address")}</span>
+                  <div role="group" aria-labelledby="devices-address-label">
+                    <Button aria-pressed={addressType === "alias"} aria-disabled={busy || undefined}
+                      onClick={() => { if (!operation.current) setAddressType("alias"); }}>{t("board.devices.alias")}</Button>
+                    <Button aria-pressed={addressType === "host"} aria-disabled={busy || undefined}
+                      onClick={() => { if (!operation.current) setAddressType("host"); }}>{t("board.devices.host")}</Button>
+                  </div>
+                </div>
+                {addressType === "alias" ? <label>{t("board.devices.alias")}<Input name="alias" required autoCapitalize="none" spellCheck={false} /></label> : <>
+                  <label>{t("board.devices.host")}<Input name="host" required autoCapitalize="none" spellCheck={false} /></label>
+                  <label>{t("board.devices.user")}<Input name="user" required autoCapitalize="none" spellCheck={false} /></label>
+                  <label>{t("board.devices.port")}<Input name="port" type="number" min={1} max={65535} placeholder="22" /></label>
                 </>}
-                <button className="btn primary" type="submit">{t("board.devices.testSave")}</button>
+                <button className="btn primary" type="submit" aria-disabled={busy || undefined}>{t("board.devices.testSave")}</button>
               </fieldset>
             </form>
           </> : remote ? <>
             <div className="devices-heading">
               <div><h3>{remote.name}</h3><p>{destination(remote)}</p></div>
               <div className="devices-actions">
-                {remote.link.state === "connected" && <button className="btn" type="button" disabled={busy || !!challenge}
-                  onClick={() => void disconnect(remote)}>{t("board.devices.disconnect")}</button>}
-                <button className="btn primary" type="button" disabled={busy || !!challenge} onClick={() => void connect(remote)}>
+                {remote.link.state === "connected" && <button className="btn" type="button" aria-disabled={busy || !!challenge || undefined}
+                  onClick={() => { if (!challenge) void disconnect(remote); }}>{t("board.devices.disconnect")}</button>}
+                <button className="btn primary" type="button" aria-disabled={busy || !!challenge || undefined} onClick={() => { if (!challenge) void connect(remote); }}>
                   {t(sessions ? "board.devices.refresh" : "board.devices.connect")}
                 </button>
               </div>
@@ -262,19 +276,19 @@ export default function DevicesDialog({ local, onOpenLocal, onClose }: {
             <h3>{t("board.devices.local")}</h3>
             {local.length ? <ul className="devices-sessions">
               {local.map(row => <li key={row.sessionId}>
-                <button className="devices-local-session" type="button" onClick={() => onOpenLocal(row.sessionId)}>
+                <Button variant="ghost" className="devices-local-session" onClick={() => onOpenLocal(row.sessionId)}>
                   <strong>{row.label}</strong>
                   <span>{[providerName(row.provider), row.folder].filter(Boolean).join(" · ")}</span>
-                </button>
+                </Button>
               </li>)}
             </ul> : !busy && <p>{t("board.devices.empty")}</p>}
           </>}
           {challenge && <div className="devices-trust">
-            <h4 ref={trustHeading} tabIndex={-1}>{t("board.devices.verify")}</h4>
+            <h3>{t("board.devices.verify")}</h3>
             <p>{t("board.devices.verifyHint")}</p>
             <ul>{challenge.reply.keys?.map(key => <li key={key.fingerprint}><code>{key.keyType} {key.fingerprint}</code></li>)}</ul>
             <div className="devices-actions">
-              <button className="btn" type="button" onClick={() => setChallenge(null)}>{t("common.cancel")}</button>
+              <button ref={trustCancel} className="btn" type="button" onClick={() => setChallenge(null)}>{t("common.cancel")}</button>
               <button className="btn primary" type="button" disabled={!challenge.reply.confirm || !challenge.reply.keys?.length} onClick={() => void trust()}>
                 {t("board.devices.trust")}
               </button>

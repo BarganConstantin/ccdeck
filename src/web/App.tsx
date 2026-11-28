@@ -1574,7 +1574,7 @@ function Inner() {
         // terminal: the phone's Board draws no canvas bar to hold its button.
         ? <EdgeDock
             items={[...rails.left, ...rails.right[0]].map(sessionsDoorUnderSheet)}
-            more={[rails.search, ...commandPanelMore(stage.enabled ? openPanelFromMore : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...rails.utilities]}
+            more={[rails.search, ...commandPanelMore(stage.enabled ? openPanelFromMore : undefined), ...rails.capacity, ...rails.right.slice(1).flat(), ...rails.integrations, ...rails.explore, ...(rails.devices ?? []), ...rails.utilities]}
             offline={everConnected && !live} />
         : <EdgeRail side="left" label={t("board.rail.tools")} groups={rails.leftStripe} foot={rails.leftFoot} />}
 

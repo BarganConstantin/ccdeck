@@ -20,30 +20,23 @@
   padding: 0;
   margin: 0 0 12px;
 }
-.devices-device, .devices-local-session {
+.ui-button.devices-device, .ui-button.devices-local-session {
   display: grid;
+  justify-content: stretch;
   gap: 4px;
-  width: 100%;
+  inline-size: 100%;
   text-align: start;
   padding: 8px 10px;
   min-height: 36px;
-  border: 1px solid transparent;
-  border-radius: var(--r-ctl);
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
+  white-space: normal;
   overflow-wrap: anywhere;
 }
-.devices-device:hover, .devices-device[aria-current], .devices-local-session:hover {
-  border-color: var(--line-soft);
-  background: var(--ctl-fill);
-}
+.devices-device[aria-current], .devices-address button[aria-pressed="true"] { background: var(--ctl-fill); }
 .devices-device small, .devices-content p, .devices-local-session span {
-  color: var(--text-secondary);
   font-size: calc(12px + var(--ui-text-increase, 0px));
 }
-.devices-content h3, .devices-content h4 { margin: 0 0 8px; }
+.devices-device small, .devices-local-session span { color: var(--muted); }
+.devices-content h3 { margin: 0 0 8px; }
 .devices-content p { margin: 0 0 12px; overflow-wrap: anywhere; }
 .devices-heading, .devices-actions {
   display: flex;
@@ -73,16 +66,8 @@
   min-width: 0;
 }
 .devices-form label { display: grid; gap: 4px; }
-.devices-form input, .devices-form select {
-  width: 100%;
-  min-height: 34px;
-  padding: 6px 8px;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-ctl);
-  background: var(--ctl-fill);
-  color: inherit;
-  font: inherit;
-}
+.devices-address { display: grid; gap: 4px; }
+.devices-address [role="group"] { display: flex; flex-wrap: wrap; gap: 4px; }
 .devices-form button { justify-self: start; }
 .devices-trust {
   padding: 12px;
@@ -97,5 +82,5 @@
   .devices-list { border-inline-end: 0; border-bottom: 1px solid var(--line-soft); }
   .devices-list ul { display: flex; flex-wrap: wrap; gap: 4px; }
   .devices-list li { min-width: 0; max-width: 100%; }
-  .devices-dialog .btn, .devices-device, .devices-local-session { min-height: 44px; }
+  .devices-dialog .btn, .devices-dialog .ui-button { min-height: 44px; }
 }

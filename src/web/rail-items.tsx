@@ -81,6 +81,7 @@ export interface RailItems {
    *  and the phone's More holds both (Feedback's glyph is in the bar's corner
    *  there too). */
   utilities: RailItem[];
+  devices?: RailItem[];
   /** Quick open (quick-open.ts): the bar's search field, ahead of Feedback's
    *  corner, and the first row under the phone's More. */
   search: RailItem;
@@ -340,7 +341,7 @@ export function railItems({
     // Accounts first, at the top of the stripe and the start of the dock: the
     // owner's call (2026-10-08), the panel read before choosing where to start
     // a session.
-    left: [...(providers.claude ? [accounts] : providers.codex ? [codex] : []), sessionList, ...devices],
+    left: providers.claude ? [accounts, sessionList] : providers.codex ? [codex, sessionList] : [sessionList],
     codexDoor: providers.claude && providers.codex ? [codex] : [],
     // The owner's order (2026-10-22): Accounts, Account capacity, Reset
     // calendar, Session list — the first three one group, since all three are
@@ -349,8 +350,9 @@ export function railItems({
     // V4's Panel bar (Figma): Sessions first, then Accounts, and Codex's door
     // beside Accounts where it is all this deck has; the rest in its runs.
     leftStripe: [
-      named(t("shell.rail.left"), [sessionList, ...(providers.claude ? [accounts] : providers.codex ? [codex] : []), ...devices]),
+      named(t("shell.rail.left"), [sessionList, ...(providers.claude ? [accounts] : providers.codex ? [codex] : [])]),
       providers.claude ? named(t("board.rail.group.accounts"), capacity) : [],
+      devices,
       trackers,
       explore,
     ].filter(group => group.length > 0),
@@ -372,6 +374,7 @@ export function railItems({
       radio,
     ].filter(group => group.length > 0),
     utilities: [settings, feedback],
+    devices,
     search,
     explore,
     integrations: trackers,

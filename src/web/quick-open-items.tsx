@@ -159,7 +159,7 @@ export function quickOpenItems(src: QuickOpenSources): QuickItem[] {
   const key = (cap: string) => (src.singleKeys ? cap : undefined);
   const doors = [
     ...src.rails.left, ...(src.rails.codexDoor ?? []), ...src.rails.capacity, ...src.rails.right.flat(),
-    ...src.rails.integrations, ...src.rails.explore, ...src.rails.utilities,
+    ...src.rails.integrations, ...src.rails.explore, ...(src.rails.devices ?? []), ...src.rails.utilities,
   ];
   const items: QuickItem[] = [];
 
