@@ -1,4 +1,30 @@
 {
+  "4.5.0": [
+    {
+      "title": "🕘 Find and reopen a saved session",
+      "body": "Sessions has a clock button that opens Session history: your saved Claude Code and Codex conversations, newest first. Search by title or project, show one provider only, and load older ones at the foot of the list. Pick one and it resumes in the Workspace. A conversation whose project folder is gone, or that needs another Codex profile, says so instead of offering to reopen."
+    },
+    {
+      "title": "📊 See what fills a session's context",
+      "body": "Run /context in a Claude Code session and the Inspector's Context tab shows Claude Code's own breakdown: a bar and a row for each part (messages, memory files, tools, skills, agents) with its tokens and share of the window, what was added since, and the MCP tools, memory files, agents and skills behind lists you can open. Until then the tab shows the estimate it always did."
+    },
+    {
+      "title": "📁 New sessions start in their project folder",
+      "body": "If the folder ccdeck's terminal server was started from has since been deleted, such as a removed worktree, a new session in the Workspace could stop at once with `getcwd: cannot access parent directories`. New and reopened sessions now start in their project folder either way."
+    },
+    {
+      "title": "🗂️ Drag a Workspace tab into another pane",
+      "body": "Drag a session's tab from a pane header into another pane to move that session there, without swapping the two panes. Drop it on a pane's edge to give it a pane of its own, also beside the pane it came from. Dragging a whole pane works as before."
+    },
+    {
+      "title": "🏷️ A Claude session keeps the name you give it",
+      "body": "Renaming a Claude session whose saved conversation Claude Code cannot rename used to fail. ccdeck now keeps the name for that session in Sessions and the Workspace, also after a reload. A rename that really could not be saved still says so."
+    },
+    {
+      "title": "⌨️ Chat stays with its own session",
+      "body": "Switching tabs in a pane no longer shows the last session's menu choices or working line in the next session's Chat. The separate keyboard button is gone from the Workspace pane header: type in the terminal as before, or use the pane menu and the usual shortcuts."
+    }
+  ],
   "4.4.6": [
     {
       "title": "Local Network access on macOS",
@@ -632,6 +658,7 @@
     "without one."
   ],
   "//summaries": {
+    "4.5.0": "Session history to reopen saved sessions, a Context breakdown from /context, and sessions start in their folder",
     "4.4.5": "Subagents close up beside their coordinator, and a subagent's report no longer titles its session's card",
     "4.4.4": "Zen Mode, session actions in Chat's ⋯ menu, Chat and Term together after /clear, and Skip permission checks",
     "4.4.3": "Paste screenshots into Chat, see background agents and older messages there, and Ctrl+click links in Term",
