@@ -614,6 +614,7 @@ const catalog: Catalog = {
   "insights.context.skills.search": "Buscar skills",
   "insights.context.skills.countOf": "{shown} de {n}",
   "insights.context.skills.loading": "Lendo as skills…",
+  "insights.context.skills.snapshotOnly": "Exibindo as skills de /context. Não foi possível ler a lista de skills instaladas.",
   "insights.context.skills.failed": "Não foi possível ler as skills.",
   "insights.context.skills.none": "Nenhuma skill instalada neste projeto.",
   "insights.context.skills.noMatch": "Nenhuma skill corresponde a “{query}”.",

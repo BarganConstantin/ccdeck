@@ -613,6 +613,7 @@ const catalog: Catalog = {
   "insights.context.skills.search": "스킬 검색",
   "insights.context.skills.countOf": "{n}개 중 {shown}개",
   "insights.context.skills.loading": "스킬을 읽는 중…",
+  "insights.context.skills.snapshotOnly": "/context의 스킬을 표시합니다. 설치된 스킬 목록을 읽을 수 없습니다.",
   "insights.context.skills.failed": "스킬을 읽을 수 없습니다.",
   "insights.context.skills.none": "이 프로젝트에 설치된 스킬이 없습니다.",
   "insights.context.skills.noMatch": "“{query}”와 일치하는 스킬이 없습니다.",
