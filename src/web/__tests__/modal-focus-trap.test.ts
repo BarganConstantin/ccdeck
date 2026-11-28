@@ -314,7 +314,9 @@ describe("the deck's ten overlays", () => {
     // The thirtieth is a connected tracker's panel (#2178).
     // Explore integrations joins the same focus and dismissal contract.
     // The thirty-fifth is a memory file's viewer, from the Context tab.
-    expect(MODALS.length).toBe(35);
+    // CHANGED ON PURPOSE (skills inventory): the thirty-sixth is the project's
+    // skills, from the same tab, under the same trap.
+    expect(MODALS.length).toBe(36);
   });
 
   it("gives every dialog a boundary for the trap to hold Tab inside", () => {

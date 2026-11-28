@@ -77,9 +77,11 @@ describe("the deck's modals", () => {
     // Claude share picker, on the same shell since the 3.81 sync.
     // The thirty-fifth is one memory file, read-only, opened from a row of the
     // Context tab's memory lists.
-    // Thirty-four of them draw `<Dialog` and the radio draws `<DialogScrim`.
-    expect(MODALS.length).toBe(35);
-    expect(ON_SURFACE.length).toBe(34);
+    // CHANGED ON PURPOSE (skills inventory): the thirty-sixth is the skills a
+    // session's project has installed, opened from the Context tab's Skills list.
+    // Thirty-five of them draw `<Dialog` and the radio draws `<DialogScrim`.
+    expect(MODALS.length).toBe(36);
+    expect(ON_SURFACE.length).toBe(35);
     expect(MODALS.filter(f => !ON_SURFACE.includes(f))).toEqual(["RadioExperience.tsx"]);
   });
 

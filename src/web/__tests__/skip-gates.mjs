@@ -348,6 +348,12 @@ export const GATES = [
   // make a file symlink without a privilege; the route's other refusals run on
   // all three legs.
   { file: "memory-file-route.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 2 },
+  // CHANGED ON PURPOSE (skills inventory): the skills route's link and pipe: a
+  // skill folder linked in is read, a SKILL.md linked to another file is
+  // refused, and a SKILL.md that is a FIFO is skipped without blocking. Windows
+  // cannot make a file symlink without a privilege and has no mkfifo; the
+  // route's other refusals run on all three legs.
+  { file: "context-inventory-route.test.ts", gate: "describe.skipIf", condition: 'process.platform === "win32"', sites: 1, cases: 2 },
   // Stop there and resume here on the machine's real process table: a stand-in
   // Claude started by the case, found by its record and start time, ended with
   // SIGTERM. Windows has no such signal and is never offered the stop, which

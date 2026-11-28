@@ -6,7 +6,9 @@
 // One bar and one row per category, the deferred rows apart, then the lists
 // /context printed behind closed disclosures, so the block stays as short as
 // the estimate it replaces until someone opens one. A memory file's row opens
-// it to read (MemoryFileDialog.tsx), through the view around this one.
+// it to read (MemoryFileDialog.tsx), through the view around this one, and the
+// Skills list ends in a quiet "All skills" that opens what the project has
+// installed (SkillsDialog.tsx), the same way.
 import type { ReactNode } from "react";
 import { currentLanguage, useT } from "../i18n";
 import { formatPercent } from "../i18n/format";
@@ -28,7 +30,7 @@ function pct1(n: number): string {
   } catch { return `${n.toFixed(1)}%`; }
 }
 
-export default function ContextSnapshotView({ snapshot, currentUsed, cwd, head = true, onOpenMemory }: {
+export default function ContextSnapshotView({ snapshot, currentUsed, cwd, head = true, onOpenMemory, onOpenSkills }: {
   snapshot: ContextSnapshot;
   /** The tab's own estimate of what the session holds now; what it holds past
    *  the snapshot is drawn as "Since then". */
@@ -39,6 +41,9 @@ export default function ContextSnapshotView({ snapshot, currentUsed, cwd, head =
   head?: boolean;
   /** A memory file's row was pressed: its path as /context printed it, `~/` and all. */
   onOpenMemory: (path: string) => void;
+  /** "All skills" at the foot of the Skills list was pressed. Left out, the
+   *  list has no such button. */
+  onOpenSkills?: () => void;
 }) {
   const t = useT();
   // The foot says how old the snapshot is; half a minute is as fine as
@@ -81,7 +86,7 @@ export default function ContextSnapshotView({ snapshot, currentUsed, cwd, head =
           {layout.deferred.map(r => <Row key={r.id} row={r} label={name(r)} pctTitle={t("insights.context.snap.deferredTitle")} />)}
         </ul>
       )}
-      <Lists snapshot={snapshot} cwd={cwd} onOpenMemory={onOpenMemory} />
+      <Lists snapshot={snapshot} cwd={cwd} onOpenMemory={onOpenMemory} onOpenSkills={onOpenSkills} />
       <p className="ctx-window-note ctx-snap-foot" title={Number.isFinite(at) ? new Date(at).toLocaleString(currentLanguage()) : undefined}>
         {t(snapshot.estimated ? "insights.context.snap.fromEstimate" : "insights.context.snap.from", { ago })}
       </p>
@@ -105,8 +110,10 @@ function Row({ row, label, title, pctTitle }: { row: SnapRow; label: string; tit
 /** The lists /context printed, each behind a closed disclosure with its count:
  *  the MCP tools by server, the memory files, the custom agents, the skills.
  *  A list /context did not print is left out. A memory file's row is a button
- *  that opens the file. */
-function Lists({ snapshot, cwd, onOpenMemory }: { snapshot: ContextSnapshot; cwd?: string; onOpenMemory: (path: string) => void }) {
+ *  that opens the file; the skills end in one that opens the inventory. */
+function Lists({ snapshot, cwd, onOpenMemory, onOpenSkills }: {
+  snapshot: ContextSnapshot; cwd?: string; onOpenMemory: (path: string) => void; onOpenSkills?: () => void;
+}) {
   const t = useT();
   const more = snapshot.more ?? {};
   const groups = mcpGroups(snapshot);
@@ -166,7 +173,8 @@ function Lists({ snapshot, cwd, onOpenMemory }: { snapshot: ContextSnapshot; cwd
         </List>
       )}
       {skills.length > 0 && (
-        <List label={t("insights.context.cat.skills")} count={listCount(skills, more.skills)}>
+        <List label={t("insights.context.cat.skills")} count={listCount(skills, more.skills)}
+          action={onOpenSkills && { label: t("insights.context.skills.all"), open: onOpenSkills }}>
           {skills.map(s => (
             <li key={`${s.source}:${s.name}`}>
               <span className="ctx-snap-item">{s.name}</span>
@@ -182,14 +190,24 @@ function Lists({ snapshot, cwd, onOpenMemory }: { snapshot: ContextSnapshot; cwd
 }
 
 /** A list behind a disclosure, closed until it is opened: the memory-file
- *  section's own toggle (ContextModal.tsx), so the two read alike. */
-function List({ label, count, children }: { label: string; count: number; children: ReactNode }) {
+ *  section's own toggle (ContextModal.tsx), so the two read alike. `action` is
+ *  a quiet text button under the open list that opens a dialog: no row of its
+ *  own while the list is closed. */
+function List({ label, count, action, children }: {
+  label: string;
+  count: number;
+  action?: { label: string; open: () => void };
+  children: ReactNode;
+}) {
   return (
     <details className="ctx-snap-list">
       <summary className="ctx-files-toggle">
         <span>{label}</span><span className="ctx-files-count">{fmtN(count)}</span>
       </summary>
       <ul className="ctx-md-list ctx-snap-items">{children}</ul>
+      {action && (
+        <button type="button" className="btn ctx-snap-act" aria-haspopup="dialog" onClick={action.open}>{action.label}</button>
+      )}
     </details>
   );
 }

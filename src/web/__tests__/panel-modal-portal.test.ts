@@ -65,6 +65,7 @@ describe("a dialog opened from inside a panel is not laid out by it", () => {
       "SectionHistoryModal",
       "SessionUsageModal",
       "ShareAccountsDialog",
+      "SkillsDialog", // CHANGED ON PURPOSE (skills inventory): from the Context tab, as the memory file viewer
       "ToolAuditDrawer",
     ]);
   });

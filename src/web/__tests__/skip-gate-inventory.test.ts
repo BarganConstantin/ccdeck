@@ -155,8 +155,9 @@ describe("the register of conditionally-skipped cases", () => {
     expect(expectedSkips("darwin")).toEqual(expected);
   });
 
-  it("expects the two hundred and fifty platform-gated cases to skip on Windows, file by file", () => {
-    // One hundred and twenty-one behind `process.platform === "win32"`, twenty-nine behind
+  it("expects the two hundred and fifty-two platform-gated cases to skip on Windows, file by file", () => {
+    // CHANGED ON PURPOSE (skills inventory): the skills route's linked folder and FIFO cases join.
+    // One hundred and twenty-three behind `process.platform === "win32"`, twenty-nine behind
     // development's Codex probes (the same gate written with single quotes),
     // eighty-six behind the optional engine's macOS-and-Linux gate, eight
     // behind the posix runIf family, three behind the non-root posix
@@ -169,7 +170,7 @@ describe("the register of conditionally-skipped cases", () => {
     // than as a total, so a change that moves a case from one gate to another is
     // a mismatch rather than an arithmetic coincidence.
     expect(expectedSkips("win32")).toEqual({
-      total: 250,
+      total: 252,
       byFile: {
         "append-deadline.test.ts": 1,
         "backup-root-shared.test.ts": 1,
@@ -183,6 +184,7 @@ describe("the register of conditionally-skipped cases", () => {
         "codex-auth-temp-collision.test.ts": 3,
         "command-panel-windows-preview.test.ts": 1,
         "codex-terminal-selection.test.ts": 1,
+        "context-inventory-route.test.ts": 2,
         "copilot-hooks.test.ts": 4,
         "desktop-appimage-relaunch-1630.test.ts": 2,
         "desktop-release-prerelease-1756.test.ts": 2,
@@ -439,7 +441,7 @@ describe("the workflow the register is enforced from", () => {
     const win32Sites = gates()
       .filter((g) => g.condition === 'process.platform === "win32"')
       .reduce((n, g) => n + g.sites, 0);
-    expect(win32Sites).toBe(50);
+    expect(win32Sites).toBe(51);
 
     const stated = publishYml().match(/the (\d+) sites gated `skipIf\(process\.platform === "win32"\)`/);
     expect(stated, "publish.yml no longer states the win32 gate count in the form this reads").not.toBeNull();

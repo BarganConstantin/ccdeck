@@ -239,6 +239,10 @@ describe("the modals themselves", () => {
       // #723's share picker, named here for the same reason as the three
       // above: this is how it joins the loop below, not how it leaves it.
       "ShareAccountsDialog.tsx",
+      // CHANGED ON PURPOSE (skills inventory): the skills a session's project
+      // has installed, read from the Context tab, joining the loop below like
+      // the memory file viewer.
+      "SkillsDialog.tsx",
       // Tool activity: the report, and its details as a sheet on phones.
       "ToolAuditDrawer.tsx", "ToolAuditModal.tsx",
       "ToolModal.tsx", "TrafficRadar.tsx", "UsageHistoryModal.tsx",
