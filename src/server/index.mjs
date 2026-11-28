@@ -196,6 +196,11 @@ import { handleCcusage, handleCcusageSession, handleCodexQuota, handleCodexUsage
 // Connected trackers (#2178) and each provider's own reads. See
 // integrations/routes.mjs; nothing in it is shared with paired decks.
 import { handleIntegrations } from "./integrations/routes.mjs";
+// The machines this deck reaches over SSH and the sessions on them — see
+// device-routes.mjs. Local to this deck; nothing in it is offered to paired decks.
+import {
+  handleDeviceAdd, handleDeviceDisconnect, handleDeviceList, handleDeviceRemove, handleDeviceSessions, handleDeviceTest, handleDeviceTrust,
+} from "./device-routes.mjs";
 // The Command Panel's eight routes, every one absent while the panel is
 // switched off and answered by the optional local engine while it is on —
 // see terminal-routes.mjs — its folder check, which the deck answers itself
@@ -545,6 +550,16 @@ export async function startServer({ port = 4317, host = "127.0.0.1", persist = n
     if (req.method === "GET"  && url.pathname === "/api/good-life-radio") return guard(handleGoodLifeRadio(req, res), res);
     if (req.method === "GET"  && url.pathname === "/api/cafe-music-bgm") return guard(handleCafeMusicBgm(req, res), res);
     if (url.pathname === "/api/integrations" || url.pathname.startsWith("/api/integrations/")) return guard(handleIntegrations(req, res, url), res);
+    // Devices over SSH (device-routes.mjs). The two reads are in GUARDED_READS
+    // and the POSTs are mutations like any other, spelled out one by one so
+    // the gate tests that read the routes from this source see each of them.
+    if (req.method === "GET"  && url.pathname === "/api/devices")            return guard(handleDeviceList(req, res), res);
+    if (req.method === "GET"  && url.pathname === "/api/devices/sessions")   return guard(handleDeviceSessions(req, res, url), res);
+    if (req.method === "POST" && url.pathname === "/api/devices/add")        return guard(handleDeviceAdd(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/devices/remove")     return guard(handleDeviceRemove(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/devices/test")       return guard(handleDeviceTest(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/devices/trust")      return guard(handleDeviceTrust(req, res), res);
+    if (req.method === "POST" && url.pathname === "/api/devices/disconnect") return guard(handleDeviceDisconnect(req, res), res);
 
     // Through writeJsonArray rather than `send`, and through `guard` like every
     // route above it: this is the one answer whose size is the ring's size, and
